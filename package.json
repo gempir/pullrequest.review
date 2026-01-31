@@ -19,6 +19,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@pierre/diffs": "^1.0.10",
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/react-router": "^1.135.2",
     "@tanstack/react-start": "^1.135.2",

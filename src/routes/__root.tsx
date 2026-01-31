@@ -1,23 +1,33 @@
-// src/routes/__root.tsx
 /// <reference types="vite/client" />
-import { createRootRoute, HeadContent, Link, Outlet, Scripts } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  HeadContent,
+  Link,
+  Outlet,
+  Scripts,
+} from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { CommitProvider, useCommitUrl } from "@/lib/commit-context";
+import { DiffOptionsProvider } from "@/lib/diff-options-context";
+import { FileTreeProvider } from "@/lib/file-tree-context";
+import { DiffToolbar } from "@/components/diff-toolbar";
+import { FileTree } from "@/components/file-tree";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 import appCss from "../../styles.css?url";
+
+const queryClient = new QueryClient();
 
 export const Route = createRootRoute({
   head: () => ({
     meta: [
-      {
-        charSet: "utf-8",
-      },
-      {
-        name: "viewport",
-        content: "width=device-width, initial-scale=1",
-      },
-      {
-        title: "Bun + TanStack Start Starter",
-      },
+      { charSet: "utf-8" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: "PR Review" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -31,34 +41,15 @@ export const Route = createRootRoute({
 function NotFoundComponent() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 antialiased">
-      <div className="w-full max-w-md">
-        <div className="relative bg-card/80 backdrop-blur-xl text-card-foreground rounded-2xl border border-border/50 shadow-2xl overflow-hidden h-[400px] max-h-4/5 grid grid-rows-[auto_1fr_auto]">
-          <div className="px-8 py-6">
-            <div className="space-y-2 text-center py-2">
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground">404</h1>
-              <p className="text-lg text-muted-foreground font-medium -mt-2">Page Not Found</p>
-            </div>
-          </div>
-
-          <div className="px-8 overflow-y-auto">
-            <div className="flex flex-col items-center justify-center py-6 min-h-full">
-              <p className="text-sm text-muted-foreground text-center">
-                The page you're looking for doesn't exist or has been moved.
-              </p>
-            </div>
-          </div>
-
-          <div className="px-8 pb-10">
-            <div className="pt-6 border-t border-border/30">
-              <Link
-                to="/"
-                className="block w-full px-4 py-2 bg-foreground text-background rounded-lg font-medium hover:opacity-90 transition-opacity text-center text-sm"
-              >
-                ← Back to Home
-              </Link>
-            </div>
-          </div>
-        </div>
+      <div className="text-center space-y-4">
+        <h1 className="text-3xl font-semibold tracking-tight">404</h1>
+        <p className="text-muted-foreground">Page not found.</p>
+        <Link
+          to="/"
+          className="inline-block px-4 py-2 bg-foreground text-background rounded-lg font-medium hover:opacity-90 transition-opacity text-sm"
+        >
+          Back to Home
+        </Link>
       </div>
     </div>
   );
@@ -67,8 +58,66 @@ function NotFoundComponent() {
 function RootComponent() {
   return (
     <RootDocument>
-      <Outlet />
+      <QueryClientProvider client={queryClient}>
+        <CommitProvider>
+          <DiffOptionsProvider>
+            <FileTreeProvider>
+              <AppLayout />
+            </FileTreeProvider>
+          </DiffOptionsProvider>
+        </CommitProvider>
+      </QueryClientProvider>
     </RootDocument>
+  );
+}
+
+function CommitInput() {
+  const { setCommitUrl } = useCommitUrl();
+  const [inputValue, setInputValue] = useState("");
+
+  const handleLoad = () => {
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+    setCommitUrl(trimmed);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        placeholder="https://github.com/user/repo/commit/sha"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleLoad()}
+        className="h-7 text-xs w-80"
+      />
+      <Button onClick={handleLoad} size="sm" className="h-7 text-xs px-3">
+        Load
+      </Button>
+    </div>
+  );
+}
+
+function AppLayout() {
+  return (
+    <div className="flex flex-col h-screen">
+      <header className="flex items-center gap-4 border-b px-4 py-2 shrink-0">
+        <h1 className="text-sm font-semibold tracking-tight whitespace-nowrap">PR Review</h1>
+        <CommitInput />
+        <DiffToolbar />
+      </header>
+      <div className="flex flex-1 min-h-0">
+        <aside className="w-64 shrink-0 border-r">
+          <ScrollArea className="h-full">
+            <div className="p-2">
+              <FileTree path="" />
+            </div>
+          </ScrollArea>
+        </aside>
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
+    </div>
   );
 }
 

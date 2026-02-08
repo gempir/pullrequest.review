@@ -5,6 +5,7 @@ import {
   Link,
   Outlet,
   Scripts,
+  useRouterState,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { createServerFn } from "@tanstack/react-start";
@@ -20,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { fileAnchorId } from "@/lib/file-anchors";
+import { buildAuthorizeUrl } from "@/lib/bitbucket-oauth";
 
 import appCss from "../../styles.css?url";
 
@@ -113,8 +115,7 @@ function RootComponent() {
 }
 
 function OnboardingScreen() {
-  const { setAuth, auth, setRepos, clearAuth, clearRepos } = usePrContext();
-  const [accessToken, setAccessToken] = useState("");
+  const { auth, setRepos, clearAuth, clearRepos } = usePrContext();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -124,12 +125,6 @@ function OnboardingScreen() {
       fetchBitbucketRepos({ data: { accessToken: auth?.accessToken ?? "" } }),
     enabled: Boolean(auth?.accessToken),
   });
-
-  const handleContinue = () => {
-    const token = accessToken.trim();
-    if (!token) return;
-    setAuth({ accessToken: token });
-  };
 
   if (auth?.accessToken) {
     const entries = reposQuery.data ?? [];
@@ -250,33 +245,42 @@ function OnboardingScreen() {
     );
   }
 
+  const clientId = import.meta.env.VITE_BITBUCKET_CLIENT_ID as string | undefined;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
       <div className="w-full max-w-lg space-y-4 rounded-xl border bg-card p-6 shadow-sm">
         <div className="space-y-2">
           <h1 className="text-xl font-semibold tracking-tight">Connect Bitbucket</h1>
           <p className="text-sm text-muted-foreground">
-            Enter a Bitbucket Cloud access token to continue. It will be saved in
-            local storage on this device.
+            Connect your Bitbucket Cloud account to continue.
           </p>
         </div>
         <div className="space-y-3">
-          <Input
-            placeholder="Bitbucket access token"
-            type="password"
-            value={accessToken}
-            onChange={(e) => setAccessToken(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleContinue()}
-            className="h-9 text-sm"
-            autoComplete="current-password"
-          />
           <Button
-            onClick={handleContinue}
+            onClick={() => {
+              if (!clientId) return;
+              const state = crypto.getRandomValues(new Uint32Array(4)).join("-");
+              const redirectUri = `${window.location.origin}/oauth/callback`;
+              window.localStorage.setItem("bitbucket_oauth_state", state);
+              const url = buildAuthorizeUrl({
+                clientId,
+                redirectUri,
+                state,
+                scope: "repository pullrequest",
+              });
+              window.location.assign(url);
+            }}
             className="h-9 text-sm w-full"
-            disabled={!accessToken.trim()}
+            disabled={!clientId}
           >
-            Continue
+            Connect with Bitbucket
           </Button>
+          {!clientId && (
+            <p className="text-xs text-destructive">
+              Missing `VITE_BITBUCKET_CLIENT_ID` in your environment.
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -285,6 +289,11 @@ function OnboardingScreen() {
 
 function AppLayout() {
   const { auth, clearAuth, clearRepos, repos } = usePrContext();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  if (pathname.startsWith("/oauth/callback")) {
+    return <Outlet />;
+  }
 
   if (!auth?.accessToken) {
     return <OnboardingScreen />;

@@ -1,7 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { refreshOAuthToken } from "@/lib/bitbucket-oauth";
 
 interface BitbucketAuth {
   accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number;
 }
 
 export interface BitbucketRepo {
@@ -29,13 +32,21 @@ export function PrProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<BitbucketAuth | null>(null);
   const [repos, setRepos] = useState<BitbucketRepo[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem("bitbucket_access_token");
+    const stored = window.localStorage.getItem("bitbucket_oauth");
     const storedRepos = window.localStorage.getItem("bitbucket_repos");
     if (stored) {
-      setAuth({ accessToken: stored });
+      try {
+        const parsed = JSON.parse(stored) as BitbucketAuth;
+        if (parsed?.accessToken) {
+          setAuth(parsed);
+        }
+      } catch {
+        window.localStorage.removeItem("bitbucket_oauth");
+      }
     }
     if (storedRepos) {
       try {
@@ -51,9 +62,9 @@ export function PrProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hydrated || typeof window === "undefined") return;
     if (auth?.accessToken) {
-      window.localStorage.setItem("bitbucket_access_token", auth.accessToken);
+      window.localStorage.setItem("bitbucket_oauth", JSON.stringify(auth));
     } else {
-      window.localStorage.removeItem("bitbucket_access_token");
+      window.localStorage.removeItem("bitbucket_oauth");
     }
   }, [auth, hydrated]);
 
@@ -69,7 +80,7 @@ export function PrProvider({ children }: { children: ReactNode }) {
   const clearAuth = () => {
     setAuth(null);
     if (typeof window !== "undefined") {
-      window.localStorage.removeItem("bitbucket_access_token");
+      window.localStorage.removeItem("bitbucket_oauth");
     }
   };
 
@@ -79,6 +90,27 @@ export function PrProvider({ children }: { children: ReactNode }) {
       window.localStorage.removeItem("bitbucket_repos");
     }
   };
+
+  useEffect(() => {
+    if (!hydrated || refreshing) return;
+    if (!auth?.refreshToken || !auth.expiresAt) return;
+    const now = Date.now();
+    if (now < auth.expiresAt - 60_000) return;
+
+    setRefreshing(true);
+    refreshOAuthToken({ data: { refreshToken: auth.refreshToken } })
+      .then((next) => {
+        setAuth({
+          accessToken: next.accessToken,
+          refreshToken: next.refreshToken ?? auth.refreshToken,
+          expiresAt: next.expiresAt,
+        });
+      })
+      .catch(() => {
+        clearAuth();
+      })
+      .finally(() => setRefreshing(false));
+  }, [auth, clearAuth, hydrated, refreshing]);
 
   return (
     <PrContext.Provider

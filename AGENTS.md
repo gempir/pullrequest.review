@@ -13,7 +13,7 @@ Always run after changes:
 - `bun run build`
 
 ## Key flows
-- Onboarding + auth + repo selection: `src/lib/pr-context.tsx`, `src/routes/__root.tsx`
+- OAuth + repo selection: `src/lib/bitbucket-oauth.ts`, `src/lib/pr-context.tsx`, `src/routes/__root.tsx`, `src/routes/oauth/callback.tsx`
 - PR input + PR list landing: `src/routes/index.tsx`
 - Bitbucket API fetch + diff parsing: `src/routes/index.tsx`
 - File tree data model: `src/lib/file-tree-context.tsx`
@@ -26,7 +26,7 @@ Always run after changes:
 - Fetches:
   - `GET https://api.bitbucket.org/2.0/repositories/<workspace>/<repo>/pullrequests/<id>/diff`
   - `GET https://api.bitbucket.org/2.0/repositories/<workspace>/<repo>/pullrequests/<id>/diffstat?pagelen=100`
-- Optional Bearer auth via API token (set in onboarding UI).
+- OAuth app required. Set env:\n  - `VITE_BITBUCKET_CLIENT_ID` (client/public)\n  - `BITBUCKET_CLIENT_ID` and `BITBUCKET_CLIENT_SECRET` (server)\n+- OAuth endpoints:\n  - `https://bitbucket.org/site/oauth2/authorize`\n  - `https://bitbucket.org/site/oauth2/access_token`\n - Repository listing: `GET https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100`
 - Repository listing: `GET https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100`
 
 ## File tree + diff linking

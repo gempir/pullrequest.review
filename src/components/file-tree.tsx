@@ -235,10 +235,10 @@ function FileNodeRow({
           }
         }}
         className={cn(
-          "size-4 shrink-0 border flex items-center justify-center transition-colors",
+          "size-4 shrink-0 flex items-center justify-center transition-colors",
           viewed
-            ? "border-border bg-accent text-foreground"
-            : "border-input bg-background text-transparent hover:border-ring"
+            ? "bg-accent text-foreground"
+            : "bg-background text-transparent"
         )}
         aria-label={`Mark ${node.path} as viewed`}
       >

@@ -91,7 +91,7 @@ function ShortcutRow({
 }
 
 function ShortcutsTab() {
-  const { shortcuts, updateShortcut, resetToDefaults, getShortcutDisplay } = useShortcuts();
+  const { shortcuts, updateShortcut, resetToDefaults } = useShortcuts();
 
   return (
     <div className="space-y-4">
@@ -111,6 +111,26 @@ function ShortcutsTab() {
       </div>
 
       <div className="border border-border rounded-sm">
+        <ShortcutRow
+          label="Next Unviewed File"
+          shortcut={shortcuts.nextUnviewedFile}
+          onChange={(config) => updateShortcut("nextUnviewedFile", config)}
+        />
+        <ShortcutRow
+          label="Previous Unviewed File"
+          shortcut={shortcuts.previousUnviewedFile}
+          onChange={(config) => updateShortcut("previousUnviewedFile", config)}
+        />
+        <ShortcutRow
+          label="Scroll Down"
+          shortcut={shortcuts.scrollDown}
+          onChange={(config) => updateShortcut("scrollDown", config)}
+        />
+        <ShortcutRow
+          label="Scroll Up"
+          shortcut={shortcuts.scrollUp}
+          onChange={(config) => updateShortcut("scrollUp", config)}
+        />
         <ShortcutRow
           label="Next File"
           shortcut={shortcuts.nextFile}
@@ -203,9 +223,8 @@ export function SettingsMenu({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5">
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Settings">
           <Settings className="size-3.5" />
-          <span>Settings</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col p-0">

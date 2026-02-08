@@ -257,4 +257,14 @@
   .bg-status-mod {
     background-color: var(--status-modified);
   }
+
+  .compact-diff {
+    --diffs-gap-inline: 0px;
+    --diffs-gap-block: 0px;
+  }
+
+  .commentable-diff [data-line],
+  .commentable-diff [data-column-number] {
+    cursor: copy;
+  }
 }

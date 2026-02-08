@@ -14,13 +14,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
 import type { BitbucketRepo } from "@/lib/bitbucket-api";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
-import { FileTreeProvider, useFileTree } from "@/lib/file-tree-context";
-import { ShortcutsProvider, useKeyboardNavigation } from "@/lib/shortcuts-context";
+import { FileTreeProvider } from "@/lib/file-tree-context";
+import { ShortcutsProvider } from "@/lib/shortcuts-context";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { buildAuthorizeUrl } from "@/lib/bitbucket-oauth";
-import { fileAnchorId } from "@/lib/file-anchors";
 import { GitPullRequest, Search, FolderGit } from "lucide-react";
 
 import "../../styles.css";
@@ -306,29 +305,6 @@ function OnboardingScreen() {
 function AppLayout() {
   const { auth, repos } = usePrContext();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const fileTree = useFileTree();
-
-  const handleNextFile = useCallback(() => {
-    const nextPath = fileTree.navigateToNextFile();
-    if (nextPath) {
-      const anchor = document.getElementById(fileAnchorId(nextPath));
-      anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [fileTree]);
-
-  const handlePreviousFile = useCallback(() => {
-    const prevPath = fileTree.navigateToPreviousFile();
-    if (prevPath) {
-      const anchor = document.getElementById(fileAnchorId(prevPath));
-      anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [fileTree]);
-
-  // Register keyboard navigation
-  useKeyboardNavigation({
-    onNextFile: handleNextFile,
-    onPreviousFile: handlePreviousFile,
-  });
 
   if (pathname.startsWith("/oauth/callback")) {
     return <Outlet />;

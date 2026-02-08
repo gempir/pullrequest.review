@@ -12,19 +12,43 @@ export interface ShortcutConfig {
 }
 
 export interface Shortcuts {
+  nextUnviewedFile: ShortcutConfig;
+  previousUnviewedFile: ShortcutConfig;
+  scrollDown: ShortcutConfig;
+  scrollUp: ShortcutConfig;
   nextFile: ShortcutConfig;
   previousFile: ShortcutConfig;
 }
 
 const DEFAULT_SHORTCUTS: Shortcuts = {
-  nextFile: {
+  nextUnviewedFile: {
+    key: "l",
+    modifiers: {},
+    description: "Navigate to next unviewed file",
+  },
+  previousUnviewedFile: {
+    key: "h",
+    modifiers: {},
+    description: "Navigate to previous unviewed file",
+  },
+  scrollDown: {
     key: "j",
     modifiers: {},
+    description: "Scroll down",
+  },
+  scrollUp: {
+    key: "k",
+    modifiers: {},
+    description: "Scroll up",
+  },
+  nextFile: {
+    key: "l",
+    modifiers: { shift: true },
     description: "Navigate to next file",
   },
   previousFile: {
-    key: "k",
-    modifiers: {},
+    key: "h",
+    modifiers: { shift: true },
     description: "Navigate to previous file",
   },
 };
@@ -105,11 +129,19 @@ export function useShortcuts() {
 }
 
 export function useKeyboardNavigation({
+  onNextUnviewedFile,
+  onPreviousUnviewedFile,
+  onScrollDown,
+  onScrollUp,
   onNextFile,
   onPreviousFile,
 }: {
-  onNextFile: () => void;
-  onPreviousFile: () => void;
+  onNextUnviewedFile?: () => void;
+  onPreviousUnviewedFile?: () => void;
+  onScrollDown?: () => void;
+  onScrollUp?: () => void;
+  onNextFile?: () => void;
+  onPreviousFile?: () => void;
 }) {
   const { shortcuts } = useShortcuts();
 
@@ -133,16 +165,36 @@ export function useKeyboardNavigation({
         return true;
       };
 
-      if (matchesShortcut(shortcuts.nextFile)) {
+      if (matchesShortcut(shortcuts.nextUnviewedFile)) {
         e.preventDefault();
-        onNextFile();
+        onNextUnviewedFile?.();
+      } else if (matchesShortcut(shortcuts.previousUnviewedFile)) {
+        e.preventDefault();
+        onPreviousUnviewedFile?.();
+      } else if (matchesShortcut(shortcuts.scrollDown)) {
+        e.preventDefault();
+        onScrollDown?.();
+      } else if (matchesShortcut(shortcuts.scrollUp)) {
+        e.preventDefault();
+        onScrollUp?.();
+      } else if (matchesShortcut(shortcuts.nextFile)) {
+        e.preventDefault();
+        onNextFile?.();
       } else if (matchesShortcut(shortcuts.previousFile)) {
         e.preventDefault();
-        onPreviousFile();
+        onPreviousFile?.();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [shortcuts, onNextFile, onPreviousFile]);
+  }, [
+    shortcuts,
+    onNextUnviewedFile,
+    onPreviousUnviewedFile,
+    onScrollDown,
+    onScrollUp,
+    onNextFile,
+    onPreviousFile,
+  ]);
 }

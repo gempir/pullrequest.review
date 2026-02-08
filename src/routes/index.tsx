@@ -1,10 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { parsePatchFiles } from "@pierre/diffs";
+import {
+  parsePatchFiles,
+  type FileDiffOptions,
+  type OnDiffLineClickProps,
+  type OnDiffLineEnterLeaveProps,
+} from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { usePrContext } from "@/lib/pr-context";
 import { useDiffOptions, toLibraryOptions } from "@/lib/diff-options-context";
+import { useKeyboardNavigation } from "@/lib/shortcuts-context";
 import {
   buildKindMapForTree,
   buildTreeFromPaths,
@@ -43,9 +49,13 @@ import {
 
 type ViewMode = "single" | "all";
 
-type CommentDraft = {
+type CommentLineSide = "additions" | "deletions";
+
+type InlineCommentDraft = {
+  path: string;
+  line: number;
+  side: CommentLineSide;
   content: string;
-  line: string;
 };
 
 interface CommentThread {
@@ -131,23 +141,31 @@ function Home() {
   const { prUrl, auth, setPrUrl, repos, clearAuth, clearRepos } = usePrContext();
   const { options } = useDiffOptions();
   const libOptions = toLibraryOptions(options);
+  const compactDiffOptions = useMemo<FileDiffOptions<undefined>>(
+    () => ({
+      ...libOptions,
+      disableFileHeader: true,
+    }),
+    [libOptions],
+  );
   const {
     setTree,
     setKinds,
     reset: resetTree,
-    firstFile,
+    allFiles,
     activeFile,
     setActiveFile,
   } = useFileTree();
   const queryClient = useQueryClient();
 
   const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const diffScrollRef = useRef<HTMLElement | null>(null);
   const [prInput, setPrInput] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("single");
   const [searchQuery, setSearchQuery] = useState("");
   const [showUnviewedOnly, setShowUnviewedOnly] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, CommentDraft>>({});
+  const [inlineComment, setInlineComment] = useState<InlineCommentDraft | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeMessage, setMergeMessage] = useState("");
@@ -269,6 +287,15 @@ function Home() {
   }, [filteredDiffs]);
 
   const visiblePathSet = useMemo(() => new Set(visibleFilePaths), [visibleFilePaths]);
+  const viewedVisibleCount = useMemo(
+    () => visibleFilePaths.filter((path) => viewedFiles.has(path)).length,
+    [visibleFilePaths, viewedFiles],
+  );
+  const treeFilePaths = useMemo(() => allFiles().map((file) => file.path), [allFiles]);
+  const treeOrderedVisiblePaths = useMemo(() => {
+    if (treeFilePaths.length === 0) return [];
+    return treeFilePaths.filter((path) => visiblePathSet.has(path));
+  }, [treeFilePaths, visiblePathSet]);
 
   useEffect(() => {
     if (!prData) return;
@@ -307,18 +334,76 @@ function Home() {
   }, [prUrl, resetTree]);
 
   useEffect(() => {
-    if (visibleFilePaths.length === 0) {
-      const fallback = firstFile();
-      if (fallback && activeFile !== fallback) {
-        setActiveFile(fallback);
-      }
+    if (treeOrderedVisiblePaths.length === 0) {
       return;
     }
 
     if (!activeFile || !visiblePathSet.has(activeFile)) {
-      setActiveFile(visibleFilePaths[0]);
+      const firstUnviewed =
+        treeOrderedVisiblePaths.find((path) => !viewedFiles.has(path)) ??
+        treeOrderedVisiblePaths[0];
+      setActiveFile(firstUnviewed);
     }
-  }, [activeFile, firstFile, setActiveFile, visibleFilePaths, visiblePathSet]);
+  }, [
+    activeFile,
+    setActiveFile,
+    treeOrderedVisiblePaths,
+    viewedFiles,
+    visiblePathSet,
+  ]);
+
+  const selectAndRevealFile = useCallback(
+    (path: string) => {
+      setActiveFile(path);
+      if (viewMode === "all") {
+        requestAnimationFrame(() => {
+          const anchor = document.getElementById(fileAnchorId(path));
+          anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        return;
+      }
+      diffScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [setActiveFile, viewMode],
+  );
+
+  const selectFromPaths = useCallback(
+    (paths: string[], direction: "next" | "previous") => {
+      if (paths.length === 0) return;
+      if (!activeFile) {
+        const fallback = direction === "next" ? paths[0] : paths[paths.length - 1];
+        selectAndRevealFile(fallback);
+        return;
+      }
+      const currentIndex = paths.findIndex((path) => path === activeFile);
+      if (currentIndex === -1) {
+        const fallback = direction === "next" ? paths[0] : paths[paths.length - 1];
+        selectAndRevealFile(fallback);
+        return;
+      }
+      const nextIndex = direction === "next" ? currentIndex + 1 : currentIndex - 1;
+      if (nextIndex < 0 || nextIndex >= paths.length) return;
+      selectAndRevealFile(paths[nextIndex]);
+    },
+    [activeFile, selectAndRevealFile],
+  );
+
+  useKeyboardNavigation({
+    onNextUnviewedFile: () =>
+      selectFromPaths(
+        treeOrderedVisiblePaths.filter((path) => !viewedFiles.has(path)),
+        "next",
+      ),
+    onPreviousUnviewedFile: () =>
+      selectFromPaths(
+        treeOrderedVisiblePaths.filter((path) => !viewedFiles.has(path)),
+        "previous",
+      ),
+    onNextFile: () => selectFromPaths(treeOrderedVisiblePaths, "next"),
+    onPreviousFile: () => selectFromPaths(treeOrderedVisiblePaths, "previous"),
+    onScrollDown: () => diffScrollRef.current?.scrollBy({ top: 120, behavior: "smooth" }),
+    onScrollUp: () => diffScrollRef.current?.scrollBy({ top: -120, behavior: "smooth" }),
+  });
 
   const selectedFilePath = useMemo(() => {
     if (!activeFile) return undefined;
@@ -418,20 +503,27 @@ function Home() {
   });
 
   const createCommentMutation = useMutation({
-    mutationFn: (payload: { path: string; content: string; line?: number }) =>
+    mutationFn: (payload: { path: string; content: string; line?: number; side?: CommentLineSide }) =>
       createPullRequestComment({
         data: {
           prRef: prData!.prRef,
           auth,
           content: payload.content,
-          inline: { path: payload.path, to: payload.line },
+          inline: payload.line
+            ? {
+                path: payload.path,
+                to: payload.side === "deletions" ? undefined : payload.line,
+                from: payload.side === "deletions" ? payload.line : undefined,
+              }
+            : { path: payload.path },
         },
       }),
     onSuccess: async (_, vars) => {
-      setCommentDrafts((prev) => ({
-        ...prev,
-        [vars.path]: { content: "", line: "" },
-      }));
+      setInlineComment((prev) => {
+        if (!prev) return prev;
+        if (prev.path !== vars.path) return prev;
+        return null;
+      });
       await queryClient.invalidateQueries({ queryKey: ["bitbucket-pr-bundle", prUrl, auth?.accessToken] });
     },
     onError: (error) => {
@@ -469,25 +561,75 @@ function Home() {
     });
   };
 
-  const setDraft = (path: string, patch: Partial<CommentDraft>) => {
-    setCommentDrafts((prev) => ({
-      ...prev,
-      [path]: {
-        content: patch.content ?? prev[path]?.content ?? "",
-        line: patch.line ?? prev[path]?.line ?? "",
-      },
-    }));
-  };
-
-  const submitComment = (path: string) => {
-    const draft = commentDrafts[path] ?? { content: "", line: "" };
-    const content = draft.content.trim();
+  const submitInlineComment = useCallback(() => {
+    if (!inlineComment) return;
+    const content = inlineComment.content.trim();
     if (!content) return;
+    createCommentMutation.mutate({
+      path: inlineComment.path,
+      content,
+      line: inlineComment.line,
+      side: inlineComment.side,
+    });
+  }, [createCommentMutation, inlineComment]);
 
-    const parsedLine = Number(draft.line);
-    const line = Number.isFinite(parsedLine) && parsedLine > 0 ? parsedLine : undefined;
-    createCommentMutation.mutate({ path, content, line });
-  };
+  const handleDiffLineEnter = useCallback((props: OnDiffLineEnterLeaveProps) => {
+    props.lineElement.style.cursor = "copy";
+    if (props.numberElement) {
+      props.numberElement.style.cursor = "copy";
+    }
+  }, []);
+
+  const handleDiffLineLeave = useCallback((props: OnDiffLineEnterLeaveProps) => {
+    props.lineElement.style.cursor = "";
+    if (props.numberElement) {
+      props.numberElement.style.cursor = "";
+    }
+  }, []);
+
+  const handleDiffLineClick = useCallback((props: OnDiffLineClickProps) => {
+    if (!selectedFilePath) return;
+    setInlineComment((prev) => {
+      const side = props.annotationSide ?? "additions";
+      if (
+        prev &&
+        prev.path === selectedFilePath &&
+        prev.line === props.lineNumber &&
+        prev.side === side
+      ) {
+        return prev;
+      }
+      return {
+        path: selectedFilePath,
+        line: props.lineNumber,
+        side,
+        content: "",
+      };
+    });
+  }, [selectedFilePath]);
+
+  const singleFileAnnotations = useMemo(() => {
+    if (!selectedFilePath || !inlineComment) return [];
+    if (inlineComment.path !== selectedFilePath) return [];
+    return [
+      {
+        side: inlineComment.side,
+        lineNumber: inlineComment.line,
+        metadata: inlineComment,
+      },
+    ] as const;
+  }, [inlineComment, selectedFilePath]);
+
+  const singleFileDiffOptions = useMemo<FileDiffOptions<undefined>>(
+    () => ({
+      ...compactDiffOptions,
+      onLineClick: handleDiffLineClick,
+      onLineNumberClick: handleDiffLineClick,
+      onLineEnter: handleDiffLineEnter,
+      onLineLeave: handleDiffLineLeave,
+    }),
+    [compactDiffOptions, handleDiffLineClick, handleDiffLineEnter, handleDiffLineLeave],
+  );
 
   const startTreeResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -649,9 +791,88 @@ function Home() {
   if (!prData) return null;
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      <div className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85">
-        <div className="h-11 px-3 flex items-center gap-3">
+    <div ref={workspaceRef} className="h-full min-h-0 flex bg-background">
+      <aside
+        className="relative shrink-0 border-r border-border bg-sidebar flex flex-col"
+        style={{ width: treeCollapsed ? 36 : treeWidth }}
+      >
+        {treeCollapsed ? (
+          <div className="h-full flex items-start justify-center pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => setTreeCollapsed(false)}
+              aria-label="Expand file tree"
+            >
+              <PanelLeftOpen className="size-4" />
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="h-8 px-2 border-b border-border flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span className="ml-auto">{viewedVisibleCount}/{visibleFilePaths.length} viewed</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px] gap-1.5"
+                onClick={() => setShowUnviewedOnly((prev) => !prev)}
+              >
+                <span
+                  className={
+                    showUnviewedOnly
+                      ? "size-3.5 bg-accent text-foreground flex items-center justify-center"
+                      : "size-3.5 bg-background text-transparent flex items-center justify-center"
+                  }
+                >
+                  <Check className="size-2.5" />
+                </span>
+                Unviewed
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 shrink-0"
+                onClick={() => setTreeCollapsed(true)}
+                aria-label="Collapse file tree"
+              >
+                <PanelLeftClose className="size-3.5" />
+              </Button>
+            </div>
+            <div className="h-11 px-2 border-b border-border flex items-center">
+              <Input
+                className="h-8 text-[12px] w-full"
+                placeholder="search files"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="flex-1 overflow-auto p-2">
+              <FileTree
+                path=""
+                filterQuery={searchQuery}
+                allowedFiles={visiblePathSet}
+                viewedFiles={viewedFiles}
+                onToggleViewed={toggleViewed}
+                onFileClick={(node) => {
+                  const anchor = document.getElementById(fileAnchorId(node.path));
+                  anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+              />
+            </div>
+            <button
+              type="button"
+              className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-border/30"
+              onMouseDown={startTreeResize}
+              aria-label="Resize file tree"
+            />
+          </>
+        )}
+      </aside>
+
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+        <div className="h-11 border-b border-border bg-card px-3 flex items-center gap-3">
           <div className="min-w-0 flex items-center gap-2 text-[11px] text-muted-foreground">
             <span className="truncate text-foreground font-medium">
               {prData.pr.source?.repository?.full_name ?? "repo"}
@@ -664,17 +885,19 @@ function Home() {
             <span className="text-[10px]">#{prData.pr.id}</span>
           </div>
 
-          <div className="flex-1 max-w-lg relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <Input
-              className="h-8 pl-7 text-[12px]"
-              placeholder="Search changes"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="ml-auto flex items-center gap-2 text-[11px]">
+            <span className="text-muted-foreground">
+              unresolved {unresolvedThreads.length}
+            </span>
+            <span className="text-status-added">
+              +{lineStats.added}
+            </span>
+            <span className="text-status-removed">
+              -{lineStats.removed}
+            </span>
           </div>
 
-          <div className="ml-auto flex items-center gap-1">
+          <div className="flex items-center gap-1">
             <Button
               variant="outline"
               size="sm"
@@ -703,131 +926,26 @@ function Home() {
                 setPrUrl("");
                 setTreeCollapsed(false);
                 setSearchQuery("");
-                setCommentDrafts({});
+                setInlineComment(null);
                 setViewedFiles(new Set());
                 clearRepos();
                 clearAuth();
               }}
             />
-
-            <details className="relative">
-              <summary className="list-none h-8 px-2 border border-border bg-background hover:bg-accent cursor-pointer text-[12px] flex items-center">
-                ...
-              </summary>
-              <div className="absolute right-0 mt-1 w-72 border border-border bg-card p-3 text-[12px] space-y-2 z-30">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Files</span>
-                  <span>{prStats.files}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Unresolved threads</span>
-                  <span>{unresolvedThreads.length}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Lines added</span>
-                  <span className="text-status-added">+{lineStats.added}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Lines removed</span>
-                  <span className="text-status-removed">-{lineStats.removed}</span>
-                </div>
-                <div className="pt-2 border-t border-border text-muted-foreground">
-                  Author: {prData.pr.author?.display_name ?? "Unknown"}
-                </div>
-              </div>
-            </details>
           </div>
         </div>
-      </div>
 
-      {actionError && (
-        <div className="border-b border-destructive bg-destructive/10 text-destructive px-3 py-1.5 text-[12px]">
-          {actionError}
-        </div>
-      )}
-
-      <div ref={workspaceRef} className="flex-1 min-h-0 flex">
-        <aside
-          className="shrink-0 border-r border-border bg-sidebar flex flex-col"
-          style={{ width: treeCollapsed ? 36 : treeWidth }}
-        >
-          {treeCollapsed ? (
-            <div className="h-full flex items-start justify-center pt-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => setTreeCollapsed(false)}
-                aria-label="Expand file tree"
-              >
-                <PanelLeftOpen className="size-4" />
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="h-8 px-2 border-b border-border flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="uppercase">Files</span>
-                <span className="ml-auto">{visibleFilePaths.length}</span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-2 text-[10px] gap-1.5"
-                  onClick={() => setShowUnviewedOnly((prev) => !prev)}
-                >
-                  <span
-                    className={
-                      showUnviewedOnly
-                        ? "size-3.5 border border-border bg-accent text-foreground flex items-center justify-center"
-                        : "size-3.5 border border-input bg-background text-transparent flex items-center justify-center"
-                    }
-                  >
-                    <Check className="size-2.5" />
-                  </span>
-                  Unviewed
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0"
-                  onClick={() => setTreeCollapsed(true)}
-                  aria-label="Collapse file tree"
-                >
-                  <PanelLeftClose className="size-3.5" />
-                </Button>
-              </div>
-              <div className="flex-1 overflow-auto p-2">
-                <FileTree
-                  path=""
-                  filterQuery={searchQuery}
-                  allowedFiles={visiblePathSet}
-                  viewedFiles={viewedFiles}
-                  onToggleViewed={toggleViewed}
-                  onFileClick={(node) => {
-                    const anchor = document.getElementById(fileAnchorId(node.path));
-                    anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }}
-                />
-              </div>
-            </>
-          )}
-        </aside>
-
-        {!treeCollapsed && (
-          <div
-            className="w-1 shrink-0 cursor-col-resize bg-border/30 hover:bg-border"
-            onMouseDown={startTreeResize}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize file tree"
-          />
+        {actionError && (
+          <div className="border-b border-destructive bg-destructive/10 text-destructive px-3 py-1.5 text-[12px]">
+            {actionError}
+          </div>
         )}
 
-        <main className="flex-1 min-h-0 overflow-auto p-2">
+        <main ref={diffScrollRef} className="flex-1 min-h-0 overflow-auto">
           {viewMode === "single" ? (
             selectedFileDiff && selectedFilePath ? (
-              <div id={fileAnchorId(selectedFilePath)} className="border border-border bg-card">
-                <div className="border-b border-border px-3 py-2 flex items-center gap-3">
+              <div id={fileAnchorId(selectedFilePath)} className="h-full flex flex-col">
+                <div className="h-9 border-b border-border px-3 flex items-center gap-3">
                   <FileText className="size-4 text-muted-foreground" />
                   <span className="font-mono text-[12px] truncate">{selectedFilePath}</span>
                   <button
@@ -838,8 +956,8 @@ function Home() {
                     <span
                       className={
                         viewedFiles.has(selectedFilePath)
-                          ? "size-4 border border-border bg-accent text-foreground flex items-center justify-center"
-                          : "size-4 border border-input bg-background text-transparent flex items-center justify-center"
+                          ? "size-4 bg-accent text-foreground flex items-center justify-center"
+                          : "size-4 bg-background text-transparent flex items-center justify-center"
                       }
                     >
                       <Check className="size-3" />
@@ -848,31 +966,56 @@ function Home() {
                   </button>
                 </div>
 
-                <div className="border-b border-border bg-background/50 px-3 py-2 flex items-center gap-2">
-                  <Input
-                    placeholder="line"
-                    className="h-7 w-20"
-                    value={commentDrafts[selectedFilePath]?.line ?? ""}
-                    onChange={(e) => setDraft(selectedFilePath, { line: e.target.value })}
+                <div className="min-h-0 flex-1 overflow-auto">
+                  <FileDiff
+                    fileDiff={selectedFileDiff}
+                    options={singleFileDiffOptions}
+                    className="compact-diff commentable-diff"
+                    lineAnnotations={singleFileAnnotations}
+                    renderAnnotation={(annotation) => (
+                      <div className="px-2 py-1.5 border-y border-border bg-background/70">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            autoFocus
+                            placeholder="Add a line comment"
+                            className="h-7"
+                            value={annotation.metadata?.content ?? ""}
+                            onChange={(e) => {
+                              const nextContent = e.target.value;
+                              setInlineComment((prev) =>
+                                prev ? { ...prev, content: nextContent } : prev,
+                              );
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                                e.preventDefault();
+                                submitInlineComment();
+                              }
+                            }}
+                          />
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                            {annotation.metadata?.side === "deletions" ? "old line" : "new line"}
+                          </span>
+                          <Button
+                            size="sm"
+                            className="h-7"
+                            disabled={createCommentMutation.isPending}
+                            onClick={submitInlineComment}
+                          >
+                            Comment
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7"
+                            onClick={() => setInlineComment(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   />
-                  <Input
-                    placeholder="Add a file or line comment"
-                    className="h-7"
-                    value={commentDrafts[selectedFilePath]?.content ?? ""}
-                    onChange={(e) => setDraft(selectedFilePath, { content: e.target.value })}
-                  />
-                  <Button
-                    size="sm"
-                    className="h-7"
-                    disabled={createCommentMutation.isPending}
-                    onClick={() => submitComment(selectedFilePath)}
-                  >
-                    Comment
-                  </Button>
-                </div>
-
-                <div className="p-3">
-                  <FileDiff fileDiff={selectedFileDiff} options={libOptions} />
                 </div>
 
                 {selectedThreads.length > 0 && (
@@ -925,7 +1068,7 @@ function Home() {
               </div>
             )
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-1 p-1">
               {filteredDiffs.map((fileDiff, index) => {
                 const filePath = getFilePath(fileDiff, index);
                 const fileUnresolvedCount = (threadsByPath.get(filePath) ?? []).filter(
@@ -943,8 +1086,8 @@ function Home() {
                         </span>
                       )}
                     </div>
-                    <div className="p-3">
-                      <FileDiff fileDiff={fileDiff} options={libOptions} />
+                    <div>
+                      <FileDiff fileDiff={fileDiff} options={compactDiffOptions} className="compact-diff" />
                     </div>
                   </div>
                 );

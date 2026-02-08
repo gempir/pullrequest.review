@@ -1,12 +1,13 @@
 # AGENTS.md
 
-This project is a PR review UI with Bitbucket Cloud OAuth. It renders diffs and a file tree for Bitbucket pull requests and supports selecting multiple repositories.
+This project is a PR review UI with Bitbucket Cloud OAuth. It renders diffs and a file tree for Bitbucket pull requests with a terminal-inspired design.
 
 ## Stack
 - Vite + React + TypeScript
 - TanStack Router/Start + React Query
 - Diff rendering: `@pierre/diffs`
 - UI components in `src/components/ui`
+- Design: Terminal-inspired, monospaced (JetBrains Mono), dark theme with defined borders
 
 ## Must-run build
 Always run after changes:
@@ -20,6 +21,8 @@ Always run after changes:
 - File tree data model: `src/lib/file-tree-context.tsx`
 - File tree UI: `src/components/file-tree.tsx`
 - Diff anchors: `src/lib/file-anchors.ts`
+- Settings popup with diff options: `src/components/settings-menu.tsx`
+- Keyboard shortcuts: `src/lib/shortcuts-context.tsx`
 
 ## Bitbucket Cloud integration
 - Accepts PR URL: `https://bitbucket.org/<workspace>/<repo>/pull-requests/<id>`
@@ -46,12 +49,31 @@ Always run after changes:
 - OAuth tokens: `bitbucket_oauth`
 - Selected repos: `bitbucket_repos`
 - OAuth state: `bitbucket_oauth_state`
+- Keyboard shortcuts: `pr_review_shortcuts`
+
+## Design System
+- Monospaced font: JetBrains Mono
+- Dark theme: Near-black backgrounds (#0a0a0a, #111111) with subtle borders (#2a2a2a)
+- Sharp corners: 2px border radius maximum
+- Terminal aesthetic: Clean panels, minimal rounding, computer-focused
+- Status colors: Green (#22c55e) for added, Red (#ef4444) for removed, Yellow (#eab308) for modified
+
+## Settings & Shortcuts
+- Settings accessed via "Settings" button in header
+- Diff options moved to settings popup with tabbed interface
+- Keyboard shortcuts configurable in settings:
+  - Default: `j` = Next file, `k` = Previous file
+  - Supports modifier keys (Ctrl, Alt, Shift, Cmd)
+  - Persisted to localStorage
+- File navigation works globally (j/k keys scroll to file in diff view)
 
 ## Conventions and notes
 - Use ASCII in source files.
 - No nested bullet lists in responses.
-- Prefer existing contexts (`pr-context`, `file-tree-context`) over adding new global state.
+- Prefer existing contexts (`pr-context`, `file-tree-context`, `shortcuts-context`) over adding new global state.
+- Wrap context provider values in `useMemo` to prevent unnecessary re-renders.
 - `ScrollArea` from Radix is currently avoided due to a render loop; use simple `div` + `overflow-auto` for now.
+- Dialog animations removed from Radix Dialog to prevent infinite loop issues.
 
 ## Suggested next upgrades
 - Add PR state badges and sorting on the landing list.

@@ -15,7 +15,6 @@ import {
 import { fileAnchorId } from "@/lib/file-anchors";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface BitbucketAuthPayload {
   accessToken: string;
@@ -273,7 +272,7 @@ function Home() {
                   : "Failed to load pull requests"}
               </p>
             ) : (
-              <ScrollArea className="h-80 rounded-md border">
+              <div className="h-80 rounded-md border overflow-auto">
                 <div className="p-3 space-y-3">
                   {(repoPrsQuery.data ?? []).map(({ repo, pullRequests }) => (
                     <div key={repo.fullName} className="space-y-2">
@@ -304,7 +303,7 @@ function Home() {
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </div>
         </div>

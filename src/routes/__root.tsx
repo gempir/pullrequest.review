@@ -16,14 +16,13 @@ import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
 import { DiffToolbar } from "@/components/diff-toolbar";
 import { FileTree } from "@/components/file-tree";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { fileAnchorId } from "@/lib/file-anchors";
 import { buildAuthorizeUrl } from "@/lib/bitbucket-oauth";
 
-import appCss from "../../styles.css?url";
+import "../../styles.css";
 
 const queryClient = new QueryClient();
 
@@ -71,10 +70,6 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "PR Review" },
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.ico" },
     ],
   }),
   component: RootComponent,
@@ -175,7 +170,7 @@ function OnboardingScreen() {
                 : "Failed to load repositories"}
             </p>
           ) : (
-            <ScrollArea className="h-80 rounded-md border">
+            <div className="h-80 rounded-md border overflow-auto">
               <div className="p-3 space-y-2">
                 {filtered.map((repo) => {
                   const fallbackName = `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
@@ -209,7 +204,7 @@ function OnboardingScreen() {
                   </p>
                 )}
               </div>
-            </ScrollArea>
+            </div>
           )}
 
           <Button
@@ -323,7 +318,7 @@ function AppLayout() {
       </header>
       <div className="flex flex-1 min-h-0">
         <aside className="w-64 shrink-0 border-r">
-          <ScrollArea className="h-full">
+          <div className="h-full overflow-auto">
             <div className="p-2">
               <FileTree
                 path=""
@@ -333,7 +328,7 @@ function AppLayout() {
                 }}
               />
             </div>
-          </ScrollArea>
+          </div>
         </aside>
         <main className="flex-1 overflow-auto">
           <Outlet />

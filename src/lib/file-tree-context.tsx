@@ -28,6 +28,9 @@ interface FileTreeContextType {
   isExpanded: (path: string) => boolean;
   setActiveFile: (path: string | undefined) => void;
   children: (path: string) => FileNode[];
+  navigateToNextFile: () => string | undefined;
+  navigateToPreviousFile: () => string | undefined;
+  allFiles: () => FileNode[];
 }
 
 const FileTreeContext = createContext<FileTreeContextType | null>(null);
@@ -120,6 +123,19 @@ function buildNodeIndex(nodes: FileNode[]): Map<string, FileNode[]> {
   return index;
 }
 
+function getAllFiles(nodes: FileNode[]): FileNode[] {
+  const files: FileNode[] = [];
+  const visit = (node: FileNode) => {
+    if (node.type === "file") {
+      files.push(node);
+    } else if (node.children) {
+      node.children.forEach(visit);
+    }
+  };
+  nodes.forEach(visit);
+  return files;
+}
+
 export function FileTreeProvider({ children }: { children: ReactNode }) {
   const [tree, setTree] = useState<FileNode[]>([]);
   const [kinds, setKinds] = useState<ReadonlyMap<string, ChangeKind>>(new Map());
@@ -165,24 +181,83 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
     setActiveFile(undefined);
   }, []);
 
+  const allFiles = useCallback(() => getAllFiles(tree), [tree]);
+
+  const navigateToNextFile = useCallback(() => {
+    const files = getAllFiles(tree);
+    if (files.length === 0) return undefined;
+    
+    if (!activeFile) {
+      const firstFile = files[0];
+      setActiveFile(firstFile.path);
+      return firstFile.path;
+    }
+    
+    const currentIndex = files.findIndex(f => f.path === activeFile);
+    if (currentIndex === -1) {
+      const firstFile = files[0];
+      setActiveFile(firstFile.path);
+      return firstFile.path;
+    }
+    
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < files.length) {
+      const nextFile = files[nextIndex];
+      setActiveFile(nextFile.path);
+      return nextFile.path;
+    }
+    
+    return activeFile;
+  }, [tree, activeFile]);
+
+  const navigateToPreviousFile = useCallback(() => {
+    const files = getAllFiles(tree);
+    if (files.length === 0) return undefined;
+    
+    if (!activeFile) {
+      const lastFile = files[files.length - 1];
+      setActiveFile(lastFile.path);
+      return lastFile.path;
+    }
+    
+    const currentIndex = files.findIndex(f => f.path === activeFile);
+    if (currentIndex === -1) {
+      const lastFile = files[files.length - 1];
+      setActiveFile(lastFile.path);
+      return lastFile.path;
+    }
+    
+    const prevIndex = currentIndex - 1;
+    if (prevIndex >= 0) {
+      const prevFile = files[prevIndex];
+      setActiveFile(prevFile.path);
+      return prevFile.path;
+    }
+    
+    return activeFile;
+  }, [tree, activeFile]);
+
+  const value = useMemo(() => ({
+    root: tree,
+    kinds,
+    dirState,
+    activeFile,
+    setTree,
+    setKinds,
+    reset,
+    expand,
+    collapse,
+    toggle,
+    isExpanded,
+    setActiveFile,
+    children: getChildren,
+    navigateToNextFile,
+    navigateToPreviousFile,
+    allFiles,
+  }), [tree, kinds, dirState, activeFile, setTree, setKinds, reset, expand, collapse, toggle, isExpanded, setActiveFile, getChildren, navigateToNextFile, navigateToPreviousFile, allFiles]);
+
   return (
-    <FileTreeContext.Provider
-      value={{
-        root: tree,
-        kinds,
-        dirState,
-        activeFile,
-        setTree,
-        setKinds,
-        reset,
-        expand,
-        collapse,
-        toggle,
-        isExpanded,
-        setActiveFile,
-        children: getChildren,
-      }}
-    >
+    <FileTreeContext.Provider value={value}>
       {children}
     </FileTreeContext.Provider>
   );

@@ -13,14 +13,16 @@ import { useQuery } from "@tanstack/react-query";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PrProvider, usePrContext, type BitbucketRepo } from "@/lib/pr-context";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
-import { FileTreeProvider } from "@/lib/file-tree-context";
-import { DiffToolbar } from "@/components/diff-toolbar";
+import { FileTreeProvider, useFileTree } from "@/lib/file-tree-context";
+import { ShortcutsProvider, useKeyboardNavigation } from "@/lib/shortcuts-context";
+import { SettingsMenu } from "@/components/settings-menu";
 import { FileTree } from "@/components/file-tree";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { fileAnchorId } from "@/lib/file-anchors";
 import { buildAuthorizeUrl } from "@/lib/bitbucket-oauth";
+import { GitPullRequest, LogOut, Search, FolderGit } from "lucide-react";
 
 import "../../styles.css";
 
@@ -78,15 +80,17 @@ export const Route = createRootRoute({
 
 function NotFoundComponent() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 antialiased">
-      <div className="text-center space-y-4">
-        <h1 className="text-3xl font-semibold tracking-tight">404</h1>
-        <p className="text-muted-foreground">Page not found.</p>
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="border border-border bg-card p-6 max-w-md">
+        <div className="border-b border-border pb-3 mb-4">
+          <h1 className="text-lg font-semibold">[ERROR] 404</h1>
+        </div>
+        <p className="text-muted-foreground mb-4">Page not found.</p>
         <Link
           to="/"
-          className="inline-block px-4 py-2 bg-foreground text-background rounded-lg font-medium hover:opacity-90 transition-opacity text-sm"
+          className="inline-flex items-center gap-2 h-8 px-4 bg-foreground text-background border border-foreground hover:bg-background hover:text-foreground transition-colors text-[13px]"
         >
-          Back to Home
+          cd ~
         </Link>
       </div>
     </div>
@@ -100,7 +104,9 @@ function RootComponent() {
         <PrProvider>
           <DiffOptionsProvider>
             <FileTreeProvider>
-              <AppLayout />
+              <ShortcutsProvider>
+                <AppLayout />
+              </ShortcutsProvider>
             </FileTreeProvider>
           </DiffOptionsProvider>
         </PrProvider>
@@ -133,108 +139,119 @@ function OnboardingScreen() {
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <div className="w-full max-w-2xl space-y-4 rounded-xl border bg-card p-6 shadow-sm">
-          <div className="space-y-2">
-            <h1 className="text-xl font-semibold tracking-tight">Select Repositories</h1>
-            <p className="text-sm text-muted-foreground">
+        <div className="w-full max-w-2xl border border-border bg-card">
+          {/* Header */}
+          <div className="border-b border-border px-4 py-3 flex items-center gap-3 bg-secondary">
+            <FolderGit className="size-4 text-muted-foreground" />
+            <span className="text-[13px] font-medium">Select Repositories</span>
+          </div>
+          
+          <div className="p-4 space-y-4">
+            <p className="text-[13px] text-muted-foreground">
               Choose one or more repositories to load pull requests from.
             </p>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="Filter repositories..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="h-9 text-sm"
-            />
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  placeholder="Filter repositories..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelected(new Set());
+                  clearRepos();
+                  clearAuth();
+                }}
+              >
+                Change Token
+              </Button>
+            </div>
+
+            {reposQuery.isLoading ? (
+              <div className="border border-border bg-background p-8 text-center text-muted-foreground text-[13px]">
+                <div className="flex items-center justify-center gap-2">
+                  <span className="animate-pulse">Loading repositories...</span>
+                </div>
+              </div>
+            ) : reposQuery.error ? (
+              <div className="border border-destructive bg-destructive/10 p-4 text-destructive text-[13px]">
+                [ERROR] {reposQuery.error instanceof Error
+                  ? reposQuery.error.message
+                  : "Failed to load repositories"}
+              </div>
+            ) : (
+              <div className="border border-border bg-background max-h-80 overflow-auto">
+                <div className="divide-y divide-border">
+                  {filtered.map((repo) => {
+                    const fallbackName = `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
+                    const fullName = repo.full_name ?? fallbackName;
+                    const checked = selected.has(fullName);
+                    return (
+                      <label
+                        key={fullName}
+                        className="flex items-center gap-3 px-4 py-2.5 text-[13px] hover:bg-accent cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          className="size-4 border border-input bg-background checked:bg-foreground checked:border-foreground"
+                          checked={checked}
+                          onChange={(e) => {
+                            setSelected((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(fullName);
+                              else next.delete(fullName);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span className="flex-1 truncate font-mono text-xs">{fullName}</span>
+                      </label>
+                    );
+                  })}
+                  {filtered.length === 0 && (
+                    <div className="px-4 py-8 text-center text-muted-foreground text-[13px]">
+                      No repositories match your filter.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <Button
-              variant="outline"
-              className="h-9 text-sm"
               onClick={() => {
-                setSelected(new Set());
-                clearRepos();
-                clearAuth();
+                const selectedRepos: BitbucketRepo[] = entries
+                  .map((repo) => {
+                    const fallbackName = `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
+                    const fullName = repo.full_name ?? fallbackName;
+                    return {
+                      entry: repo,
+                      fullName,
+                    };
+                  })
+                  .filter(({ fullName }) => selected.has(fullName))
+                  .map(({ entry, fullName }) => ({
+                    name: entry.name,
+                    fullName,
+                    slug: entry.slug,
+                    workspace: entry.workspace?.slug ?? fullName.split("/")[0],
+                  }))
+                  .filter((repo) => repo.workspace && repo.slug);
+                if (selectedRepos.length > 0) {
+                  setRepos(selectedRepos);
+                }
               }}
+              className="w-full"
+              disabled={selected.size === 0}
             >
-              Change Token
+              Add Selected Repositories ({selected.size})
             </Button>
           </div>
-
-          {reposQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading repositories...</p>
-          ) : reposQuery.error ? (
-            <p className="text-sm text-destructive">
-              {reposQuery.error instanceof Error
-                ? reposQuery.error.message
-                : "Failed to load repositories"}
-            </p>
-          ) : (
-            <div className="h-80 rounded-md border overflow-auto">
-              <div className="p-3 space-y-2">
-                {filtered.map((repo) => {
-                  const fallbackName = `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
-                  const fullName = repo.full_name ?? fallbackName;
-                  const checked = selected.has(fullName);
-                  return (
-                    <label
-                      key={fullName}
-                      className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        className="size-4"
-                        checked={checked}
-                        onChange={(e) => {
-                          setSelected((prev) => {
-                            const next = new Set(prev);
-                            if (e.target.checked) next.add(fullName);
-                            else next.delete(fullName);
-                            return next;
-                          });
-                        }}
-                      />
-                      <span className="flex-1 truncate">{fullName}</span>
-                    </label>
-                  );
-                })}
-                {filtered.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    No repositories match your filter.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          <Button
-            onClick={() => {
-              const selectedRepos: BitbucketRepo[] = entries
-                .map((repo) => {
-                  const fallbackName = `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
-                  const fullName = repo.full_name ?? fallbackName;
-                  return {
-                    entry: repo,
-                    fullName,
-                  };
-                })
-                .filter(({ fullName }) => selected.has(fullName))
-                .map(({ entry, fullName }) => ({
-                  name: entry.name,
-                  fullName,
-                  slug: entry.slug,
-                  workspace: entry.workspace?.slug ?? fullName.split("/")[0],
-                }))
-                .filter((repo) => repo.workspace && repo.slug);
-              if (selectedRepos.length > 0) {
-                setRepos(selectedRepos);
-              }
-            }}
-            className="h-9 text-sm w-full"
-            disabled={selected.size === 0}
-          >
-            Add Selected Repositories
-          </Button>
         </div>
       </div>
     );
@@ -244,14 +261,18 @@ function OnboardingScreen() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <div className="w-full max-w-lg space-y-4 rounded-xl border bg-card p-6 shadow-sm">
-        <div className="space-y-2">
-          <h1 className="text-xl font-semibold tracking-tight">Connect Bitbucket</h1>
-          <p className="text-sm text-muted-foreground">
+      <div className="w-full max-w-lg border border-border bg-card">
+        {/* Header */}
+        <div className="border-b border-border px-4 py-3 flex items-center gap-3 bg-secondary">
+          <GitPullRequest className="size-4 text-muted-foreground" />
+          <span className="text-[13px] font-medium">Connect Bitbucket</span>
+        </div>
+        
+        <div className="p-4 space-y-4">
+          <p className="text-[13px] text-muted-foreground">
             Connect your Bitbucket Cloud account to continue.
           </p>
-        </div>
-        <div className="space-y-3">
+          
           <Button
             onClick={() => {
               if (!clientId) return;
@@ -266,15 +287,16 @@ function OnboardingScreen() {
               });
               window.location.assign(url);
             }}
-            className="h-9 text-sm w-full"
+            className="w-full"
             disabled={!clientId}
           >
             Connect with Bitbucket
           </Button>
+          
           {!clientId && (
-            <p className="text-xs text-destructive">
-              Missing `VITE_BITBUCKET_CLIENT_ID` in your environment.
-            </p>
+            <div className="border border-destructive bg-destructive/10 p-3 text-destructive text-[12px]">
+              [CONFIG ERROR] Missing VITE_BITBUCKET_CLIENT_ID in environment
+            </div>
           )}
         </div>
       </div>
@@ -283,8 +305,31 @@ function OnboardingScreen() {
 }
 
 function AppLayout() {
-  const { auth, clearAuth, clearRepos, repos } = usePrContext();
+  const { auth, clearAuth, clearRepos, repos, prUrl, setPrUrl } = usePrContext();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const fileTree = useFileTree();
+
+  const handleNextFile = useCallback(() => {
+    const nextPath = fileTree.navigateToNextFile();
+    if (nextPath) {
+      const anchor = document.getElementById(fileAnchorId(nextPath));
+      anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [fileTree]);
+
+  const handlePreviousFile = useCallback(() => {
+    const prevPath = fileTree.navigateToPreviousFile();
+    if (prevPath) {
+      const anchor = document.getElementById(fileAnchorId(prevPath));
+      anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [fileTree]);
+
+  // Register keyboard navigation
+  useKeyboardNavigation({
+    onNextFile: handleNextFile,
+    onPreviousFile: handlePreviousFile,
+  });
 
   if (pathname.startsWith("/oauth/callback")) {
     return <Outlet />;
@@ -298,39 +343,73 @@ function AppLayout() {
   }
 
   return (
-    <div className="flex flex-col h-screen">
-      <header className="flex items-center gap-4 border-b px-4 py-2 shrink-0">
-        <h1 className="text-sm font-semibold tracking-tight whitespace-nowrap">PR Review</h1>
-        <DiffToolbar />
-        <div className="ml-auto">
+    <div className="flex flex-col h-screen bg-background">
+      {/* Terminal-style header */}
+      <header className="flex items-center border-b border-border bg-card shrink-0">
+        <div className="flex items-center gap-3 px-4 h-10 border-r border-border">
+          <GitPullRequest className="size-4 text-muted-foreground" />
+          <span className="text-[13px] font-medium">PR Review</span>
+        </div>
+        
+        <div className="flex-1" />
+        
+        <div className="flex items-center gap-4 px-4 h-10 border-l border-border">
+          {prUrl && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPrUrl("")}
+              className="h-7 text-xs"
+            >
+              Close PR
+            </Button>
+          )}
+          <SettingsMenu />
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 text-xs"
             onClick={() => {
               clearRepos();
               clearAuth();
             }}
+            className="h-7 text-xs gap-1.5"
           >
-            Remove Token
+            <LogOut className="size-3.5" />
+            <span>Disconnect</span>
           </Button>
         </div>
       </header>
+      
+      {/* Main content area */}
       <div className="flex flex-1 min-h-0">
-        <aside className="w-64 shrink-0 border-r">
-          <div className="h-full overflow-auto">
-            <div className="p-2">
-              <FileTree
-                path=""
-                onFileClick={(node) => {
-                  const anchor = document.getElementById(fileAnchorId(node.path));
-                  anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-              />
-            </div>
+        {/* Sidebar - File tree */}
+        <aside className="w-72 shrink-0 border-r border-border bg-sidebar flex flex-col">
+          <div className="border-b border-border px-3 py-2 bg-secondary flex items-center justify-between">
+            <span className="text-[12px] uppercase tracking-wider text-muted-foreground font-medium">
+              Files
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              j/k to navigate
+            </span>
+          </div>
+          <div className="flex-1 overflow-auto p-2">
+            <FileTree
+              path=""
+              onFileClick={(node) => {
+                const anchor = document.getElementById(fileAnchorId(node.path));
+                anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            />
+          </div>
+          <div className="border-t border-border px-3 py-2 bg-secondary">
+            <span className="text-[11px] text-muted-foreground">
+              {repos.length} repo{repos.length !== 1 ? 's' : ''} connected
+            </span>
           </div>
         </aside>
-        <main className="flex-1 overflow-auto">
+        
+        {/* Main content */}
+        <main className="flex-1 overflow-auto bg-background">
           <Outlet />
         </main>
       </div>

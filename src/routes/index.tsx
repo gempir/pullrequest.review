@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { usePrContext } from "@/lib/pr-context";
+import { usePrContext, type BitbucketRepo } from "@/lib/pr-context";
 import { useDiffOptions, toLibraryOptions } from "@/lib/diff-options-context";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   buildKindMapForTree,
   buildTreeFromPaths,
@@ -13,6 +13,9 @@ import {
   type ChangeKind,
 } from "@/lib/file-tree-context";
 import { fileAnchorId } from "@/lib/file-anchors";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface BitbucketAuthPayload {
   accessToken: string;
@@ -21,6 +24,23 @@ interface BitbucketAuthPayload {
 interface BitbucketPullRequestData {
   prUrl: string;
   auth?: BitbucketAuthPayload | null;
+}
+
+interface BitbucketRepoPullRequestData {
+  repos: BitbucketRepo[];
+  auth?: BitbucketAuthPayload | null;
+}
+
+interface BitbucketPullRequestSummary {
+  id: number;
+  title: string;
+  state: string;
+  links?: { html?: { href?: string } };
+  author?: { display_name?: string };
+}
+
+interface BitbucketPullRequestPage {
+  values: BitbucketPullRequestSummary[];
 }
 
 interface BitbucketDiffStatEntry {
@@ -69,6 +89,36 @@ const fetchBitbucketPullRequest = createServerFn({
   return { diff, diffstat };
 });
 
+const fetchBitbucketRepoPullRequests = createServerFn({
+  method: "GET",
+}).handler(async ({ data }: { data: BitbucketRepoPullRequestData }) => {
+  const token = data.auth?.accessToken?.trim();
+  if (!token) {
+    throw new Error("Access token is required");
+  }
+  if (!data.repos.length) return [];
+
+  const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+  const results: {
+    repo: BitbucketRepo;
+    pullRequests: BitbucketPullRequestSummary[];
+  }[] = [];
+
+  for (const repo of data.repos) {
+    const url = `https://api.bitbucket.org/2.0/repositories/${repo.workspace}/${repo.slug}/pullrequests?pagelen=20`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      throw new Error(
+        `Failed to fetch pull requests for ${repo.fullName}: ${res.status} ${res.statusText}`,
+      );
+    }
+    const page = (await res.json()) as BitbucketPullRequestPage;
+    results.push({ repo, pullRequests: page.values ?? [] });
+  }
+
+  return results;
+});
+
 function parseBitbucketPullRequestUrl(prUrl: string): {
   workspace: string;
   repo: string;
@@ -115,15 +165,22 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const { prUrl, auth } = usePrContext();
+  const { prUrl, auth, setPrUrl, repos } = usePrContext();
   const { options } = useDiffOptions();
   const libOptions = toLibraryOptions(options);
   const fileTree = useFileTree();
+  const [prInput, setPrInput] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["bitbucket-pr", prUrl, auth?.accessToken],
     queryFn: () => fetchBitbucketPullRequest({ data: { prUrl, auth } }),
     enabled: Boolean(prUrl),
+  });
+
+  const repoPrsQuery = useQuery({
+    queryKey: ["bitbucket-repo-prs", repos, auth?.accessToken],
+    queryFn: () => fetchBitbucketRepoPullRequests({ data: { repos, auth } }),
+    enabled: Boolean(auth?.accessToken) && repos.length > 0 && !prUrl,
   });
 
   const fileDiffs = useMemo(() => {
@@ -169,9 +226,88 @@ function Home() {
   if (!prUrl) {
     return (
       <div className="flex items-center justify-center h-full p-8">
-        <p className="text-muted-foreground">
-          Paste a Bitbucket Cloud pull request URL in the header and click Load PR.
-        </p>
+        <div className="w-full max-w-3xl space-y-6 rounded-xl border bg-card p-6 shadow-sm">
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold tracking-tight">Load a Pull Request</h2>
+            <p className="text-sm text-muted-foreground">
+              Enter a Bitbucket Cloud pull request URL to review.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              placeholder="https://bitbucket.org/workspace/repo/pull-requests/123"
+              value={prInput}
+              onChange={(e) => setPrInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const trimmed = prInput.trim();
+                  if (trimmed) setPrUrl(trimmed);
+                }
+              }}
+              className="h-9 text-sm"
+            />
+            <Button
+              onClick={() => {
+                const trimmed = prInput.trim();
+                if (trimmed) setPrUrl(trimmed);
+              }}
+              className="h-9 text-sm"
+            >
+              Load PR
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Open Pull Requests</h3>
+              <span className="text-xs text-muted-foreground">
+                {repos.length} repositories
+              </span>
+            </div>
+            {repoPrsQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading pull requests...</p>
+            ) : repoPrsQuery.error ? (
+              <p className="text-sm text-destructive">
+                {repoPrsQuery.error instanceof Error
+                  ? repoPrsQuery.error.message
+                  : "Failed to load pull requests"}
+              </p>
+            ) : (
+              <ScrollArea className="h-80 rounded-md border">
+                <div className="p-3 space-y-3">
+                  {(repoPrsQuery.data ?? []).map(({ repo, pullRequests }) => (
+                    <div key={repo.fullName} className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        {repo.fullName}
+                      </div>
+                      {pullRequests.length === 0 ? (
+                        <div className="text-xs text-muted-foreground">
+                          No open pull requests.
+                        </div>
+                      ) : (
+                        pullRequests.map((pr) => (
+                          <button
+                            key={`${repo.fullName}-${pr.id}`}
+                            className="w-full text-left rounded-md border px-3 py-2 text-sm hover:bg-accent"
+                            onClick={() => {
+                              const href = pr.links?.html?.href;
+                              if (href) setPrUrl(href);
+                            }}
+                          >
+                            <div className="font-medium truncate">{pr.title}</div>
+                            <div className="text-xs text-muted-foreground">
+                              #{pr.id} · {pr.author?.display_name ?? "Unknown author"}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+        </div>
       </div>
     );
   }

@@ -7,8 +7,10 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { createServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { PrProvider, usePrContext } from "@/lib/pr-context";
+import { PrProvider, usePrContext, type BitbucketRepo } from "@/lib/pr-context";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
 import { DiffToolbar } from "@/components/diff-toolbar";
@@ -22,6 +24,44 @@ import { fileAnchorId } from "@/lib/file-anchors";
 import appCss from "../../styles.css?url";
 
 const queryClient = new QueryClient();
+
+interface BitbucketRepoEntry {
+  name: string;
+  full_name: string;
+  slug: string;
+  workspace?: { slug?: string };
+}
+
+interface BitbucketRepoPage {
+  values: BitbucketRepoEntry[];
+  next?: string;
+}
+
+const fetchBitbucketRepos = createServerFn({
+  method: "GET",
+}).handler(async ({ data }: { data: { accessToken: string } }) => {
+  const token = data.accessToken.trim();
+  if (!token) {
+    throw new Error("Access token is required");
+  }
+
+  const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+  const values: BitbucketRepoEntry[] = [];
+  let nextUrl: string | undefined =
+    "https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100";
+
+  while (nextUrl) {
+    const res = await fetch(nextUrl, { headers });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch repositories: ${res.status} ${res.statusText}`);
+    }
+    const page = (await res.json()) as BitbucketRepoPage;
+    values.push(...(page.values ?? []));
+    nextUrl = page.next;
+  }
+
+  return values;
+});
 
 export const Route = createRootRoute({
   head: () => ({
@@ -72,50 +112,205 @@ function RootComponent() {
   );
 }
 
-function PrInput() {
-  const { setPrUrl, setAuth } = usePrContext();
-  const [prValue, setPrValue] = useState("");
+function OnboardingScreen() {
+  const { setAuth, auth, setRepos, clearAuth, clearRepos } = usePrContext();
   const [accessToken, setAccessToken] = useState("");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const handleLoad = () => {
-    const trimmed = prValue.trim();
-    if (!trimmed) return;
-    setPrUrl(trimmed);
+  const reposQuery = useQuery({
+    queryKey: ["bitbucket-repos", auth?.accessToken],
+    queryFn: () =>
+      fetchBitbucketRepos({ data: { accessToken: auth?.accessToken ?? "" } }),
+    enabled: Boolean(auth?.accessToken),
+  });
+
+  const handleContinue = () => {
     const token = accessToken.trim();
-    setAuth(token ? { accessToken: token } : null);
+    if (!token) return;
+    setAuth({ accessToken: token });
   };
 
+  if (auth?.accessToken) {
+    const entries = reposQuery.data ?? [];
+    const filtered = entries.filter((repo) => {
+      const term = query.trim().toLowerCase();
+      if (!term) return true;
+      const fullName = repo.full_name?.toLowerCase() ?? "";
+      const name = repo.name?.toLowerCase() ?? "";
+      return fullName.includes(term) || name.includes(term);
+    });
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="w-full max-w-2xl space-y-4 rounded-xl border bg-card p-6 shadow-sm">
+          <div className="space-y-2">
+            <h1 className="text-xl font-semibold tracking-tight">Select Repositories</h1>
+            <p className="text-sm text-muted-foreground">
+              Choose one or more repositories to load pull requests from.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Filter repositories..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="h-9 text-sm"
+            />
+            <Button
+              variant="outline"
+              className="h-9 text-sm"
+              onClick={() => {
+                setSelected(new Set());
+                clearRepos();
+                clearAuth();
+              }}
+            >
+              Change Token
+            </Button>
+          </div>
+
+          {reposQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading repositories...</p>
+          ) : reposQuery.error ? (
+            <p className="text-sm text-destructive">
+              {reposQuery.error instanceof Error
+                ? reposQuery.error.message
+                : "Failed to load repositories"}
+            </p>
+          ) : (
+            <ScrollArea className="h-80 rounded-md border">
+              <div className="p-3 space-y-2">
+                {filtered.map((repo) => {
+                  const fallbackName = `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
+                  const fullName = repo.full_name ?? fallbackName;
+                  const checked = selected.has(fullName);
+                  return (
+                    <label
+                      key={fullName}
+                      className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        className="size-4"
+                        checked={checked}
+                        onChange={(e) => {
+                          setSelected((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(fullName);
+                            else next.delete(fullName);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="flex-1 truncate">{fullName}</span>
+                    </label>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No repositories match your filter.
+                  </p>
+                )}
+              </div>
+            </ScrollArea>
+          )}
+
+          <Button
+            onClick={() => {
+              const selectedRepos: BitbucketRepo[] = entries
+                .map((repo) => {
+                  const fallbackName = `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
+                  const fullName = repo.full_name ?? fallbackName;
+                  return {
+                    entry: repo,
+                    fullName,
+                  };
+                })
+                .filter(({ fullName }) => selected.has(fullName))
+                .map(({ entry, fullName }) => ({
+                  name: entry.name,
+                  fullName,
+                  slug: entry.slug,
+                  workspace: entry.workspace?.slug ?? fullName.split("/")[0],
+                }))
+                .filter((repo) => repo.workspace && repo.slug);
+              if (selectedRepos.length > 0) {
+                setRepos(selectedRepos);
+              }
+            }}
+            className="h-9 text-sm w-full"
+            disabled={selected.size === 0}
+          >
+            Add Selected Repositories
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <Input
-        placeholder="https://bitbucket.org/workspace/repo/pull-requests/123"
-        value={prValue}
-        onChange={(e) => setPrValue(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && handleLoad()}
-        className="h-7 text-xs w-80"
-      />
-      <Input
-        placeholder="Bitbucket access token (optional)"
-        type="password"
-        value={accessToken}
-        onChange={(e) => setAccessToken(e.target.value)}
-        className="h-7 text-xs w-72"
-        autoComplete="current-password"
-      />
-      <Button onClick={handleLoad} size="sm" className="h-7 text-xs px-3">
-        Load PR
-      </Button>
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="w-full max-w-lg space-y-4 rounded-xl border bg-card p-6 shadow-sm">
+        <div className="space-y-2">
+          <h1 className="text-xl font-semibold tracking-tight">Connect Bitbucket</h1>
+          <p className="text-sm text-muted-foreground">
+            Enter a Bitbucket Cloud access token to continue. It will be saved in
+            local storage on this device.
+          </p>
+        </div>
+        <div className="space-y-3">
+          <Input
+            placeholder="Bitbucket access token"
+            type="password"
+            value={accessToken}
+            onChange={(e) => setAccessToken(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleContinue()}
+            className="h-9 text-sm"
+            autoComplete="current-password"
+          />
+          <Button
+            onClick={handleContinue}
+            className="h-9 text-sm w-full"
+            disabled={!accessToken.trim()}
+          >
+            Continue
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
 
 function AppLayout() {
+  const { auth, clearAuth, clearRepos, repos } = usePrContext();
+
+  if (!auth?.accessToken) {
+    return <OnboardingScreen />;
+  }
+  if (repos.length === 0) {
+    return <OnboardingScreen />;
+  }
+
   return (
     <div className="flex flex-col h-screen">
       <header className="flex items-center gap-4 border-b px-4 py-2 shrink-0">
         <h1 className="text-sm font-semibold tracking-tight whitespace-nowrap">PR Review</h1>
-        <PrInput />
         <DiffToolbar />
+        <div className="ml-auto">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              clearRepos();
+              clearAuth();
+            }}
+          >
+            Remove Token
+          </Button>
+        </div>
       </header>
       <div className="flex flex-1 min-h-0">
         <aside className="w-64 shrink-0 border-r">

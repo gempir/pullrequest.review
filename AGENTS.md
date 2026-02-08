@@ -13,7 +13,8 @@ Always run after changes:
 - `bun run build`
 
 ## Key flows
-- PR input + auth state: `src/lib/pr-context.tsx`
+- Onboarding + auth + repo selection: `src/lib/pr-context.tsx`, `src/routes/__root.tsx`
+- PR input + PR list landing: `src/routes/index.tsx`
 - Bitbucket API fetch + diff parsing: `src/routes/index.tsx`
 - File tree data model: `src/lib/file-tree-context.tsx`
 - File tree UI: `src/components/file-tree.tsx`
@@ -25,7 +26,8 @@ Always run after changes:
 - Fetches:
   - `GET https://api.bitbucket.org/2.0/repositories/<workspace>/<repo>/pullrequests/<id>/diff`
   - `GET https://api.bitbucket.org/2.0/repositories/<workspace>/<repo>/pullrequests/<id>/diffstat?pagelen=100`
-- Optional Basic auth via username/email + app password (set in header UI). See `encodeBasicAuth` in `src/routes/index.tsx`.
+- Optional Bearer auth via API token (set in onboarding UI).
+- Repository listing: `GET https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100`
 
 ## File tree + diff linking
 - File tree is built from `diffstat` paths. Change kinds are derived from `diffstat.status`.
@@ -39,6 +41,6 @@ Always run after changes:
 - If you change API calls, keep the parsing and error handling in `src/routes/index.tsx` consistent.
 
 ## Suggested next upgrades
-- Support OAuth / bearer token auth (in addition to Basic).
+- Support listing the user's pull requests on the landing page.
 - Show PR metadata (title, author, status) in the header or sidebar.
 - Filter diff view by selected file (optional).

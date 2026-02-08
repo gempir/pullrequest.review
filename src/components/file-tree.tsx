@@ -1,4 +1,4 @@
-import { useFileTree, DUMMY_KINDS, type FileNode, type ChangeKind } from "@/lib/file-tree-context";
+import { useFileTree, type FileNode, type ChangeKind } from "@/lib/file-tree-context";
 import {
   Collapsible,
   CollapsibleContent,
@@ -51,11 +51,12 @@ function kindLabel(kind: ChangeKind) {
 export function FileTree({
   path,
   level = 0,
-  kinds = DUMMY_KINDS,
+  kinds,
   activeFile,
   onFileClick,
 }: FileTreeProps) {
   const tree = useFileTree();
+  const resolvedKinds = kinds ?? tree.kinds;
   const nodes = tree.children(path);
   const active = activeFile ?? tree.activeFile;
 
@@ -68,7 +69,7 @@ export function FileTree({
               key={node.path}
               node={node}
               level={level}
-              kinds={kinds}
+              kinds={resolvedKinds}
               activeFile={active}
               onFileClick={onFileClick}
             />
@@ -79,7 +80,7 @@ export function FileTree({
             key={node.path}
             node={node}
             level={level}
-            kinds={kinds}
+            kinds={resolvedKinds}
             active={active}
             onFileClick={onFileClick}
           />

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, useCallback, type ReactNode } from "react";
 
 export type FileNodeType = "file" | "directory";
 export type ChangeKind = "add" | "del" | "mix";
@@ -16,8 +16,12 @@ interface DirectoryState {
 
 interface FileTreeContextType {
   root: FileNode[];
+  kinds: ReadonlyMap<string, ChangeKind>;
   dirState: Record<string, DirectoryState>;
   activeFile: string | undefined;
+  setTree: (tree: FileNode[]) => void;
+  setKinds: (kinds: ReadonlyMap<string, ChangeKind>) => void;
+  reset: () => void;
   expand: (path: string) => void;
   collapse: (path: string) => void;
   toggle: (path: string) => void;
@@ -28,87 +32,77 @@ interface FileTreeContextType {
 
 const FileTreeContext = createContext<FileTreeContextType | null>(null);
 
-// Dummy data mimicking a real repo structure
-const DUMMY_TREE: FileNode[] = [
-  {
-    name: "src",
-    path: "src",
-    type: "directory",
-    children: [
-      {
-        name: "components",
-        path: "src/components",
-        type: "directory",
-        children: [
-          { name: "Header.tsx", path: "src/components/Header.tsx", type: "file" },
-          { name: "Footer.tsx", path: "src/components/Footer.tsx", type: "file" },
-          {
-            name: "ui",
-            path: "src/components/ui",
-            type: "directory",
-            children: [
-              { name: "Button.tsx", path: "src/components/ui/Button.tsx", type: "file" },
-              { name: "Input.tsx", path: "src/components/ui/Input.tsx", type: "file" },
-              { name: "Modal.tsx", path: "src/components/ui/Modal.tsx", type: "file" },
-            ],
-          },
-        ],
-      },
-      {
-        name: "hooks",
-        path: "src/hooks",
-        type: "directory",
-        children: [
-          { name: "useAuth.ts", path: "src/hooks/useAuth.ts", type: "file" },
-          { name: "useApi.ts", path: "src/hooks/useApi.ts", type: "file" },
-        ],
-      },
-      {
-        name: "lib",
-        path: "src/lib",
-        type: "directory",
-        children: [
-          { name: "utils.ts", path: "src/lib/utils.ts", type: "file" },
-          { name: "api.ts", path: "src/lib/api.ts", type: "file" },
-        ],
-      },
-      {
-        name: "routes",
-        path: "src/routes",
-        type: "directory",
-        children: [
-          { name: "index.tsx", path: "src/routes/index.tsx", type: "file" },
-          { name: "login.tsx", path: "src/routes/login.tsx", type: "file" },
-          { name: "dashboard.tsx", path: "src/routes/dashboard.tsx", type: "file" },
-        ],
-      },
-      { name: "app.tsx", path: "src/app.tsx", type: "file" },
-      { name: "main.ts", path: "src/main.ts", type: "file" },
-    ],
-  },
-  {
-    name: "public",
-    path: "public",
-    type: "directory",
-    children: [
-      { name: "favicon.ico", path: "public/favicon.ico", type: "file" },
-      { name: "robots.txt", path: "public/robots.txt", type: "file" },
-    ],
-  },
-  { name: "package.json", path: "package.json", type: "file" },
-  { name: "tsconfig.json", path: "tsconfig.json", type: "file" },
-  { name: "README.md", path: "README.md", type: "file" },
-];
+function sortTree(nodes: FileNode[]): FileNode[] {
+  const sorted = [...nodes].sort((a, b) => {
+    if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  for (const node of sorted) {
+    if (node.type === "directory" && node.children) {
+      node.children = sortTree(node.children);
+    }
+  }
+  return sorted;
+}
 
-// Dummy change kinds for some files
-export const DUMMY_KINDS = new Map<string, ChangeKind>([
-  ["src/components/Header.tsx", "mix"],
-  ["src/components/ui/Button.tsx", "mix"],
-  ["src/hooks/useAuth.ts", "mix"],
-  ["src/lib/api.ts", "add"],
-  ["src/routes/dashboard.tsx", "add"],
-  ["src/main.ts", "del"],
-]);
+export function buildTreeFromPaths(paths: string[]): FileNode[] {
+  const root: FileNode[] = [];
+  const dirMap = new Map<string, FileNode>();
+
+  for (const rawPath of paths) {
+    const normalized = rawPath.replace(/\\/g, "/").replace(/^\/+/, "").trim();
+    if (!normalized) continue;
+    const parts = normalized.split("/").filter(Boolean);
+    let currentPath = "";
+    let children = root;
+
+    parts.forEach((part, index) => {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      const isFile = index === parts.length - 1;
+      if (isFile) {
+        if (!children.some((node) => node.path === currentPath)) {
+          children.push({ name: part, path: currentPath, type: "file" });
+        }
+        return;
+      }
+
+      let dirNode = dirMap.get(currentPath);
+      if (!dirNode) {
+        dirNode = { name: part, path: currentPath, type: "directory", children: [] };
+        dirMap.set(currentPath, dirNode);
+        children.push(dirNode);
+      }
+      children = dirNode.children ?? [];
+      dirNode.children = children;
+    });
+  }
+
+  return sortTree(root);
+}
+
+export function buildKindMapForTree(
+  root: FileNode[],
+  fileKinds: ReadonlyMap<string, ChangeKind>,
+): ReadonlyMap<string, ChangeKind> {
+  const result = new Map(fileKinds);
+
+  const visit = (node: FileNode): ChangeKind | undefined => {
+    if (node.type === "file") {
+      return fileKinds.get(node.path);
+    }
+    const childKinds = (node.children ?? [])
+      .map(visit)
+      .filter((kind): kind is ChangeKind => Boolean(kind));
+    if (childKinds.length === 0) return undefined;
+    const unique = new Set(childKinds);
+    const kind = unique.size === 1 ? childKinds[0] : "mix";
+    result.set(node.path, kind);
+    return kind;
+  };
+
+  root.forEach(visit);
+  return result;
+}
 
 function buildNodeIndex(nodes: FileNode[]): Map<string, FileNode[]> {
   const index = new Map<string, FileNode[]>();
@@ -127,13 +121,14 @@ function buildNodeIndex(nodes: FileNode[]): Map<string, FileNode[]> {
 }
 
 export function FileTreeProvider({ children }: { children: ReactNode }) {
+  const [tree, setTree] = useState<FileNode[]>([]);
+  const [kinds, setKinds] = useState<ReadonlyMap<string, ChangeKind>>(new Map());
   const [dirState, setDirState] = useState<Record<string, DirectoryState>>({
     "": { expanded: true },
-    src: { expanded: true },
   });
   const [activeFile, setActiveFile] = useState<string | undefined>();
 
-  const nodeIndex = buildNodeIndex(DUMMY_TREE);
+  const nodeIndex = useMemo(() => buildNodeIndex(tree), [tree]);
 
   const isExpanded = useCallback(
     (path: string) => dirState[path]?.expanded ?? false,
@@ -160,15 +155,26 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
 
   const getChildren = useCallback(
     (path: string) => nodeIndex.get(path) ?? [],
-    [],
+    [nodeIndex],
   );
+
+  const reset = useCallback(() => {
+    setTree([]);
+    setKinds(new Map());
+    setDirState({ "": { expanded: true } });
+    setActiveFile(undefined);
+  }, []);
 
   return (
     <FileTreeContext.Provider
       value={{
-        root: DUMMY_TREE,
+        root: tree,
+        kinds,
         dirState,
         activeFile,
+        setTree,
+        setKinds,
+        reset,
         expand,
         collapse,
         toggle,

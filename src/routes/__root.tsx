@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { CommitProvider, useCommitUrl } from "@/lib/commit-context";
+import { PrProvider, usePrContext } from "@/lib/pr-context";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
 import { DiffToolbar } from "@/components/diff-toolbar";
@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { fileAnchorId } from "@/lib/file-anchors";
 
 import appCss from "../../styles.css?url";
 
@@ -59,39 +60,50 @@ function RootComponent() {
   return (
     <RootDocument>
       <QueryClientProvider client={queryClient}>
-        <CommitProvider>
+        <PrProvider>
           <DiffOptionsProvider>
             <FileTreeProvider>
               <AppLayout />
             </FileTreeProvider>
           </DiffOptionsProvider>
-        </CommitProvider>
+        </PrProvider>
       </QueryClientProvider>
     </RootDocument>
   );
 }
 
-function CommitInput() {
-  const { setCommitUrl } = useCommitUrl();
-  const [inputValue, setInputValue] = useState("");
+function PrInput() {
+  const { setPrUrl, setAuth } = usePrContext();
+  const [prValue, setPrValue] = useState("");
+  const [accessToken, setAccessToken] = useState("");
 
   const handleLoad = () => {
-    const trimmed = inputValue.trim();
+    const trimmed = prValue.trim();
     if (!trimmed) return;
-    setCommitUrl(trimmed);
+    setPrUrl(trimmed);
+    const token = accessToken.trim();
+    setAuth(token ? { accessToken: token } : null);
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
       <Input
-        placeholder="https://github.com/user/repo/commit/sha"
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
+        placeholder="https://bitbucket.org/workspace/repo/pull-requests/123"
+        value={prValue}
+        onChange={(e) => setPrValue(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && handleLoad()}
         className="h-7 text-xs w-80"
       />
+      <Input
+        placeholder="Bitbucket access token (optional)"
+        type="password"
+        value={accessToken}
+        onChange={(e) => setAccessToken(e.target.value)}
+        className="h-7 text-xs w-72"
+        autoComplete="current-password"
+      />
       <Button onClick={handleLoad} size="sm" className="h-7 text-xs px-3">
-        Load
+        Load PR
       </Button>
     </div>
   );
@@ -102,14 +114,20 @@ function AppLayout() {
     <div className="flex flex-col h-screen">
       <header className="flex items-center gap-4 border-b px-4 py-2 shrink-0">
         <h1 className="text-sm font-semibold tracking-tight whitespace-nowrap">PR Review</h1>
-        <CommitInput />
+        <PrInput />
         <DiffToolbar />
       </header>
       <div className="flex flex-1 min-h-0">
         <aside className="w-64 shrink-0 border-r">
           <ScrollArea className="h-full">
             <div className="p-2">
-              <FileTree path="" />
+              <FileTree
+                path=""
+                onFileClick={(node) => {
+                  const anchor = document.getElementById(fileAnchorId(node.path));
+                  anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+              />
             </div>
           </ScrollArea>
         </aside>

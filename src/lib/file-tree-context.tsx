@@ -27,6 +27,8 @@ interface FileTreeContextType {
   toggle: (path: string) => void;
   isExpanded: (path: string) => boolean;
   setActiveFile: (path: string | undefined) => void;
+  firstFile: () => string | undefined;
+  ensureActiveFile: (allowedPaths?: ReadonlySet<string>) => string | undefined;
   children: (path: string) => FileNode[];
   navigateToNextFile: () => string | undefined;
   navigateToPreviousFile: () => string | undefined;
@@ -182,6 +184,27 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const allFiles = useCallback(() => getAllFiles(tree), [tree]);
+  const firstFile = useCallback(() => getAllFiles(tree)[0]?.path, [tree]);
+
+  const ensureActiveFile = useCallback((allowedPaths?: ReadonlySet<string>) => {
+    const files = getAllFiles(tree);
+    if (files.length === 0) {
+      setActiveFile(undefined);
+      return undefined;
+    }
+
+    if (activeFile) {
+      const exists = files.some((file) => file.path === activeFile);
+      const allowed = allowedPaths ? allowedPaths.has(activeFile) : true;
+      if (exists && allowed) return activeFile;
+    }
+
+    const next = allowedPaths
+      ? files.find((file) => allowedPaths.has(file.path))?.path
+      : files[0]?.path;
+    setActiveFile(next);
+    return next;
+  }, [tree, activeFile]);
 
   const navigateToNextFile = useCallback(() => {
     const files = getAllFiles(tree);
@@ -250,11 +273,13 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
     toggle,
     isExpanded,
     setActiveFile,
+    firstFile,
+    ensureActiveFile,
     children: getChildren,
     navigateToNextFile,
     navigateToPreviousFile,
     allFiles,
-  }), [tree, kinds, dirState, activeFile, setTree, setKinds, reset, expand, collapse, toggle, isExpanded, setActiveFile, getChildren, navigateToNextFile, navigateToPreviousFile, allFiles]);
+  }), [tree, kinds, dirState, activeFile, setTree, setKinds, reset, expand, collapse, toggle, isExpanded, setActiveFile, firstFile, ensureActiveFile, getChildren, navigateToNextFile, navigateToPreviousFile, allFiles]);
 
   return (
     <FileTreeContext.Provider value={value}>

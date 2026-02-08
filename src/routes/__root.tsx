@@ -16,12 +16,12 @@ import type { BitbucketRepo } from "@/lib/bitbucket-api";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider, useFileTree } from "@/lib/file-tree-context";
 import { ShortcutsProvider, useKeyboardNavigation } from "@/lib/shortcuts-context";
-import { SettingsMenu } from "@/components/settings-menu";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState, useCallback } from "react";
 import { buildAuthorizeUrl } from "@/lib/bitbucket-oauth";
-import { GitPullRequest, LogOut, Search, FolderGit } from "lucide-react";
+import { fileAnchorId } from "@/lib/file-anchors";
+import { GitPullRequest, Search, FolderGit } from "lucide-react";
 
 import "../../styles.css";
 
@@ -304,7 +304,7 @@ function OnboardingScreen() {
 }
 
 function AppLayout() {
-  const { auth, clearAuth, clearRepos, repos, prUrl, setPrUrl } = usePrContext();
+  const { auth, repos } = usePrContext();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const fileTree = useFileTree();
 
@@ -342,44 +342,8 @@ function AppLayout() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      {/* Terminal-style header */}
-      <header className="flex items-center border-b border-border bg-card shrink-0">
-        <div className="flex items-center gap-3 px-4 h-10 border-r border-border">
-          <GitPullRequest className="size-4 text-muted-foreground" />
-          <span className="text-[13px] font-medium">PR Review</span>
-        </div>
-        
-        <div className="flex-1" />
-        
-        <div className="flex items-center gap-4 px-4 h-10 border-l border-border">
-          {prUrl && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPrUrl("")}
-              className="h-7 text-xs"
-            >
-              Close PR
-            </Button>
-          )}
-          <SettingsMenu />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              clearRepos();
-              clearAuth();
-            }}
-            className="h-7 text-xs gap-1.5"
-          >
-            <LogOut className="size-3.5" />
-            <span>Disconnect</span>
-          </Button>
-        </div>
-      </header>
-      
-      <main className="flex-1 min-h-0 overflow-auto bg-background">
+    <div className="h-screen bg-background">
+      <main className="h-full min-h-0 overflow-auto bg-background">
         <Outlet />
       </main>
     </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings, Keyboard, SlidersHorizontal, RotateCcw } from "lucide-react";
+import { Settings, Keyboard, SlidersHorizontal, RotateCcw, MonitorCog, LogOut } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,8 @@ import { DiffToolbar } from "@/components/diff-toolbar";
 import { useShortcuts, type ShortcutConfig } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
-type Tab = "diff" | "shortcuts";
+type WorkspaceMode = "single" | "all";
+type Tab = "diff" | "shortcuts" | "workspace";
 
 function ShortcutRow({
   label,
@@ -136,9 +137,68 @@ function DiffSettingsTab() {
   );
 }
 
-export function SettingsMenu() {
+function WorkspaceTab({
+  workspaceMode,
+  onWorkspaceModeChange,
+  onDisconnect,
+}: {
+  workspaceMode?: WorkspaceMode;
+  onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
+  onDisconnect?: () => void;
+}) {
+  const selectedMode = workspaceMode ?? "single";
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-[13px] text-muted-foreground mb-2">Review mode</p>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={selectedMode === "single" ? "default" : "outline"}
+            size="sm"
+            className="h-8"
+            onClick={() => onWorkspaceModeChange?.("single")}
+          >
+            Single file
+          </Button>
+          <Button
+            variant={selectedMode === "all" ? "default" : "outline"}
+            size="sm"
+            className="h-8"
+            onClick={() => onWorkspaceModeChange?.("all")}
+          >
+            All files
+          </Button>
+        </div>
+      </div>
+
+      <div className="pt-2 border-t border-border">
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => onDisconnect?.()}
+          disabled={!onDisconnect}
+        >
+          <LogOut className="size-3.5" />
+          Disconnect
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function SettingsMenu({
+  workspaceMode,
+  onWorkspaceModeChange,
+  onDisconnect,
+}: {
+  workspaceMode?: WorkspaceMode;
+  onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
+  onDisconnect?: () => void;
+} = {}) {
   const [activeTab, setActiveTab] = useState<Tab>("diff");
   const [open, setOpen] = useState(false);
+  const showWorkspaceTab = Boolean(onWorkspaceModeChange || onDisconnect);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -184,6 +244,20 @@ export function SettingsMenu() {
                 <Keyboard className="size-4" />
                 Keyboard Shortcuts
               </button>
+              {showWorkspaceTab && (
+                <button
+                  onClick={() => setActiveTab("workspace")}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2 text-[13px] transition-colors",
+                    activeTab === "workspace"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/50"
+                  )}
+                >
+                  <MonitorCog className="size-4" />
+                  Workspace
+                </button>
+              )}
             </nav>
           </div>
 
@@ -191,6 +265,13 @@ export function SettingsMenu() {
           <div className="flex-1 p-4 overflow-auto">
             {activeTab === "diff" && <DiffSettingsTab />}
             {activeTab === "shortcuts" && <ShortcutsTab />}
+            {activeTab === "workspace" && (
+              <WorkspaceTab
+                workspaceMode={workspaceMode}
+                onWorkspaceModeChange={onWorkspaceModeChange}
+                onDisconnect={onDisconnect}
+              />
+            )}
           </div>
         </div>
       </DialogContent>

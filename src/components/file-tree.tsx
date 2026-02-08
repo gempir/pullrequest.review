@@ -1,10 +1,5 @@
 import { useFileTree, type FileNode, type ChangeKind } from "@/lib/file-tree-context";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { FileText, Folder, FolderOpen } from "lucide-react";
+import { Check, FileText, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FileTreeProps {
@@ -13,6 +8,7 @@ interface FileTreeProps {
   kinds?: ReadonlyMap<string, ChangeKind>;
   activeFile?: string;
   filterQuery?: string;
+  allowedFiles?: ReadonlySet<string>;
   viewedFiles?: ReadonlySet<string>;
   onToggleViewed?: (path: string) => void;
   onFileClick?: (node: FileNode) => void;
@@ -57,6 +53,7 @@ export function FileTree({
   kinds,
   activeFile,
   filterQuery,
+  allowedFiles,
   viewedFiles,
   onToggleViewed,
   onFileClick,
@@ -68,9 +65,10 @@ export function FileTree({
   const normalizedQuery = filterQuery?.trim().toLowerCase() ?? "";
 
   const matchesNode = (node: FileNode): boolean => {
-    if (!normalizedQuery) return true;
     if (node.type === "file") {
-      return node.path.toLowerCase().includes(normalizedQuery);
+      const queryMatch = !normalizedQuery || node.path.toLowerCase().includes(normalizedQuery);
+      const allowedMatch = !allowedFiles || allowedFiles.has(node.path);
+      return queryMatch && allowedMatch;
     }
     const children = tree.children(node.path);
     return children.some(matchesNode);
@@ -90,6 +88,7 @@ export function FileTree({
               kinds={resolvedKinds}
               activeFile={active}
               filterQuery={filterQuery}
+              allowedFiles={allowedFiles}
               viewedFiles={viewedFiles}
               onToggleViewed={onToggleViewed}
               onFileClick={onFileClick}
@@ -119,6 +118,7 @@ function DirectoryNode({
   kinds,
   activeFile,
   filterQuery,
+  allowedFiles,
   viewedFiles,
   onToggleViewed,
   onFileClick,
@@ -128,62 +128,51 @@ function DirectoryNode({
   kinds: ReadonlyMap<string, ChangeKind>;
   activeFile?: string;
   filterQuery?: string;
+  allowedFiles?: ReadonlySet<string>;
   viewedFiles?: ReadonlySet<string>;
   onToggleViewed?: (path: string) => void;
   onFileClick?: (node: FileNode) => void;
 }) {
-  const tree = useFileTree();
-  const expanded = tree.isExpanded(node.path);
+  const expanded = true;
   const kind = kinds.get(node.path);
 
   return (
-    <Collapsible
-      open={expanded}
-      onOpenChange={(open) => (open ? tree.expand(node.path) : tree.collapse(node.path))}
-    >
-      <CollapsibleTrigger asChild>
-        <button
-          className={cn(
-            "w-full min-w-0 flex items-center gap-1.5 py-1 text-left",
-            "hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer",
-            "text-[12px] text-muted-foreground",
-          )}
-          style={{ paddingLeft: `${4 + level * 12}px` }}
-        >
-          <span className="size-4 flex items-center justify-center shrink-0 text-muted-foreground">
-            {expanded ? (
-              <FolderOpen className="size-3.5" />
-            ) : (
-              <Folder className="size-3.5" />
-            )}
-          </span>
-          <span className={cn("flex-1 min-w-0 truncate", kind && kindColor(kind))}>
-            {node.name}
-          </span>
-          {kind && (
-            <div className={cn("shrink-0 size-1.5 mr-1", kindBgColor(kind))} />
-          )}
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="relative">
-          <div
-            className="absolute top-0 bottom-0 w-px bg-border opacity-30"
-            style={{ left: `${4 + level * 12 + 8}px` }}
-          />
-          <FileTree
-            path={node.path}
-            level={level + 1}
-            kinds={kinds}
-            activeFile={activeFile}
-            filterQuery={filterQuery}
-            viewedFiles={viewedFiles}
-            onToggleViewed={onToggleViewed}
-            onFileClick={onFileClick}
-          />
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+    <div>
+      <div
+        className={cn(
+          "w-full min-w-0 flex items-center gap-1.5 py-1 text-left",
+          "text-[12px] text-muted-foreground",
+        )}
+        style={{ paddingLeft: `${4 + level * 12}px` }}
+      >
+        <span className="size-4 flex items-center justify-center shrink-0 text-muted-foreground">
+          <FolderOpen className="size-3.5" />
+        </span>
+        <span className={cn("flex-1 min-w-0 truncate", kind && kindColor(kind))}>
+          {node.name}
+        </span>
+        {kind && (
+          <div className={cn("shrink-0 size-1.5 mr-1", kindBgColor(kind))} />
+        )}
+      </div>
+      <div className="relative">
+        <div
+          className="absolute top-0 bottom-0 w-px bg-border opacity-30"
+          style={{ left: `${4 + level * 12 + 8}px` }}
+        />
+        <FileTree
+          path={node.path}
+          level={level + 1}
+          kinds={kinds}
+          activeFile={activeFile}
+          filterQuery={filterQuery}
+          allowedFiles={allowedFiles}
+          viewedFiles={viewedFiles}
+          onToggleViewed={onToggleViewed}
+          onFileClick={onFileClick}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -230,17 +219,31 @@ function FileNodeRow({
       <span className={cn("flex-1 min-w-0 truncate", kind && kindColor(kind))}>
         {node.name}
       </span>
-      <input
-        type="checkbox"
-        checked={Boolean(viewed)}
-        onChange={(e) => {
+      <span
+        role="checkbox"
+        aria-checked={Boolean(viewed)}
+        tabIndex={0}
+        onClick={(e) => {
           e.stopPropagation();
           onToggleViewed?.(node.path);
         }}
-        onClick={(e) => e.stopPropagation()}
-        className="size-3.5"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleViewed?.(node.path);
+          }
+        }}
+        className={cn(
+          "size-4 shrink-0 border flex items-center justify-center transition-colors",
+          viewed
+            ? "border-border bg-accent text-foreground"
+            : "border-input bg-background text-transparent hover:border-ring"
+        )}
         aria-label={`Mark ${node.path} as viewed`}
-      />
+      >
+        <Check className="size-3" />
+      </span>
       {kind && (
         <span 
           className={cn(

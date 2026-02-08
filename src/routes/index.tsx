@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { parsePatchFiles } from "@pierre/diffs";
-import { FileDiff } from "@pierre/diffs/react";
-import { useEffect, useMemo, useState } from "react";
+import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { usePrContext } from "@/lib/pr-context";
 import { useDiffOptions, toLibraryOptions } from "@/lib/diff-options-context";
 import {
@@ -14,7 +14,6 @@ import {
 import {
   approvePullRequest,
   createPullRequestComment,
-  fetchBitbucketCommitDiff,
   fetchBitbucketPullRequestBundle,
   fetchBitbucketRepoPullRequests,
   mergePullRequest,
@@ -26,22 +25,23 @@ import { fileAnchorId } from "@/lib/file-anchors";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FileTree } from "@/components/file-tree";
+import { SettingsMenu } from "@/components/settings-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
   AlertCircle,
   Check,
-  ChevronDown,
   FileText,
-  GitCommit,
   GitPullRequest,
   Loader2,
   MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
 } from "lucide-react";
 
-type ReviewTab = "overview" | "files" | "commits";
+type ViewMode = "single" | "all";
 
 type CommentDraft = {
   content: string;
@@ -53,6 +53,13 @@ interface CommentThread {
   root: BitbucketComment;
   replies: BitbucketComment[];
 }
+
+const TREE_WIDTH_KEY = "pr_review_tree_width";
+const TREE_COLLAPSED_KEY = "pr_review_tree_collapsed";
+const VIEW_MODE_KEY = "pr_review_diff_view_mode";
+const DEFAULT_TREE_WIDTH = 280;
+const MIN_TREE_WIDTH = 180;
+const MAX_TREE_WIDTH = 520;
 
 function commentThreadSort(a: CommentThread, b: CommentThread) {
   const left = new Date(a.root.created_on ?? 0).getTime();
@@ -83,10 +90,6 @@ function buildThreads(comments: BitbucketComment[]): CommentThread[] {
     .sort(commentThreadSort);
 }
 
-function shortHash(hash: string) {
-  return hash.slice(0, 8);
-}
-
 function formatDate(value?: string) {
   if (!value) return "Unknown";
   try {
@@ -102,14 +105,10 @@ function formatDate(value?: string) {
   }
 }
 
-function linesUpdated(diffstat: ReturnType<typeof fetchBitbucketPullRequestBundle> extends Promise<infer T>
-  ? T extends { diffstat: infer D }
-    ? D
-    : never
-  : never) {
+function linesUpdated(diffstat: Array<{ lines_added?: number; lines_removed?: number }>) {
   let added = 0;
   let removed = 0;
-  for (const entry of diffstat as any[]) {
+  for (const entry of diffstat) {
     added += Number(entry.lines_added ?? 0);
     removed += Number(entry.lines_removed ?? 0);
   }
@@ -120,21 +119,33 @@ function getCommentPath(comment: BitbucketComment) {
   return comment.inline?.path ?? "";
 }
 
+function getFilePath(fileDiff: FileDiffMetadata, index: number) {
+  return fileDiff.name ?? fileDiff.prevName ?? String(index);
+}
+
 export const Route = createFileRoute("/")({
   component: Home,
 });
 
 function Home() {
-  const { prUrl, auth, setPrUrl, repos } = usePrContext();
+  const { prUrl, auth, setPrUrl, repos, clearAuth, clearRepos } = usePrContext();
   const { options } = useDiffOptions();
   const libOptions = toLibraryOptions(options);
-  const fileTree = useFileTree();
+  const {
+    setTree,
+    setKinds,
+    reset: resetTree,
+    firstFile,
+    activeFile,
+    setActiveFile,
+  } = useFileTree();
   const queryClient = useQueryClient();
 
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [prInput, setPrInput] = useState("");
-  const [activeTab, setActiveTab] = useState<ReviewTab>("files");
+  const [viewMode, setViewMode] = useState<ViewMode>("single");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCommitHash, setSelectedCommitHash] = useState<string | undefined>();
+  const [showUnviewedOnly, setShowUnviewedOnly] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
   const [commentDrafts, setCommentDrafts] = useState<Record<string, CommentDraft>>({});
   const [actionError, setActionError] = useState<string | null>(null);
@@ -142,6 +153,8 @@ function Home() {
   const [mergeMessage, setMergeMessage] = useState("");
   const [mergeStrategy, setMergeStrategy] = useState("merge_commit");
   const [closeSourceBranch, setCloseSourceBranch] = useState(true);
+  const [treeWidth, setTreeWidth] = useState(DEFAULT_TREE_WIDTH);
+  const [treeCollapsed, setTreeCollapsed] = useState(false);
 
   const prQuery = useQuery({
     queryKey: ["bitbucket-pr-bundle", prUrl, auth?.accessToken],
@@ -157,36 +170,47 @@ function Home() {
 
   const prData = prQuery.data;
 
-  const commitDiffQuery = useQuery({
-    queryKey: ["bitbucket-commit-diff", prData?.prRef, selectedCommitHash, auth?.accessToken],
-    queryFn: () =>
-      fetchBitbucketCommitDiff({
-        data: {
-          prRef: prData!.prRef,
-          commitHash: selectedCommitHash!,
-          auth,
-        },
-      }),
-    enabled: Boolean(prData?.prRef && selectedCommitHash && activeTab === "commits"),
-  });
-
-  useEffect(() => {
-    if (!prData?.commits?.length) {
-      setSelectedCommitHash(undefined);
-      return;
-    }
-    setSelectedCommitHash((current) => current ?? prData.commits[0]?.hash);
-  }, [prData?.commits]);
-
-  const storageKey = useMemo(() => {
+  const viewedStorageKey = useMemo(() => {
     if (!prData) return "";
     return `bitbucket_viewed:${prData.prRef.workspace}/${prData.prRef.repo}/${prData.prRef.pullRequestId}`;
   }, [prData]);
 
   useEffect(() => {
-    if (!storageKey || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
+
+    const storedWidth = Number(window.localStorage.getItem(TREE_WIDTH_KEY));
+    if (Number.isFinite(storedWidth) && storedWidth >= MIN_TREE_WIDTH && storedWidth <= MAX_TREE_WIDTH) {
+      setTreeWidth(storedWidth);
+    }
+
+    const storedCollapsed = window.localStorage.getItem(TREE_COLLAPSED_KEY);
+    if (storedCollapsed === "true") setTreeCollapsed(true);
+
+    const storedMode = window.localStorage.getItem(VIEW_MODE_KEY);
+    if (storedMode === "single" || storedMode === "all") {
+      setViewMode(storedMode);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(TREE_WIDTH_KEY, String(treeWidth));
+  }, [treeWidth]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(TREE_COLLAPSED_KEY, String(treeCollapsed));
+  }, [treeCollapsed]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(VIEW_MODE_KEY, viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (!viewedStorageKey || typeof window === "undefined") return;
     try {
-      const raw = window.localStorage.getItem(storageKey);
+      const raw = window.localStorage.getItem(viewedStorageKey);
       if (!raw) {
         setViewedFiles(new Set());
         return;
@@ -196,20 +220,17 @@ function Home() {
     } catch {
       setViewedFiles(new Set());
     }
-  }, [storageKey]);
+  }, [viewedStorageKey]);
 
   useEffect(() => {
-    if (!storageKey || typeof window === "undefined") return;
-    window.localStorage.setItem(storageKey, JSON.stringify(Array.from(viewedFiles)));
-  }, [storageKey, viewedFiles]);
+    if (!viewedStorageKey || typeof window === "undefined") return;
+    window.localStorage.setItem(viewedStorageKey, JSON.stringify(Array.from(viewedFiles)));
+  }, [viewedStorageKey, viewedFiles]);
 
-  const diffText =
-    activeTab === "commits" && commitDiffQuery.data?.diff
-      ? commitDiffQuery.data.diff
-      : prData?.diff ?? "";
+  const diffText = prData?.diff ?? "";
 
   const fileDiffs = useMemo(() => {
-    if (!diffText) return [];
+    if (!diffText) return [] as FileDiffMetadata[];
     const patches = parsePatchFiles(diffText);
     return patches.flatMap((patch) => patch.files);
   }, [diffText]);
@@ -217,18 +238,44 @@ function Home() {
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
   const filteredDiffs = useMemo(() => {
-    if (!normalizedSearch) return fileDiffs;
-    return fileDiffs.filter((fileDiff) => {
-      const path = (fileDiff.name ?? fileDiff.prevName ?? "").toLowerCase();
-      return path.includes(normalizedSearch);
+    return fileDiffs.filter((fileDiff, index) => {
+      const filePath = getFilePath(fileDiff, index);
+      const path = filePath.toLowerCase();
+      const matchesSearch = !normalizedSearch || path.includes(normalizedSearch);
+      const matchesViewedFilter = !showUnviewedOnly || !viewedFiles.has(filePath);
+      return matchesSearch && matchesViewedFilter;
     });
-  }, [fileDiffs, normalizedSearch]);
+  }, [fileDiffs, normalizedSearch, showUnviewedOnly, viewedFiles]);
+
+  const diffByPath = useMemo(() => {
+    const map = new Map<string, FileDiffMetadata>();
+    fileDiffs.forEach((fileDiff, index) => {
+      const path = getFilePath(fileDiff, index);
+      if (!map.has(path)) map.set(path, fileDiff);
+    });
+    return map;
+  }, [fileDiffs]);
+
+  const visibleFilePaths = useMemo(() => {
+    const seen = new Set<string>();
+    const values: string[] = [];
+    filteredDiffs.forEach((fileDiff, index) => {
+      const path = getFilePath(fileDiff, index);
+      if (seen.has(path)) return;
+      seen.add(path);
+      values.push(path);
+    });
+    return values;
+  }, [filteredDiffs]);
+
+  const visiblePathSet = useMemo(() => new Set(visibleFilePaths), [visibleFilePaths]);
 
   useEffect(() => {
     if (!prData) return;
     const paths = prData.diffstat
       .map((entry) => entry.new?.path ?? entry.old?.path)
       .filter((path): path is string => Boolean(path));
+
     const tree = buildTreeFromPaths(paths);
     const fileKinds = new Map<string, ChangeKind>();
     for (const entry of prData.diffstat) {
@@ -247,16 +294,42 @@ function Home() {
           break;
       }
     }
-    fileTree.setTree(tree);
-    fileTree.setKinds(buildKindMapForTree(tree, fileKinds));
-  }, [fileTree, prData]);
+
+    setTree(tree);
+    setKinds(buildKindMapForTree(tree, fileKinds));
+  }, [prData, setKinds, setTree]);
 
   useEffect(() => {
     if (!prUrl) {
-      fileTree.reset();
+      resetTree();
       setSearchQuery("");
     }
-  }, [fileTree, prUrl]);
+  }, [prUrl, resetTree]);
+
+  useEffect(() => {
+    if (visibleFilePaths.length === 0) {
+      const fallback = firstFile();
+      if (fallback && activeFile !== fallback) {
+        setActiveFile(fallback);
+      }
+      return;
+    }
+
+    if (!activeFile || !visiblePathSet.has(activeFile)) {
+      setActiveFile(visibleFilePaths[0]);
+    }
+  }, [activeFile, firstFile, setActiveFile, visibleFilePaths, visiblePathSet]);
+
+  const selectedFilePath = useMemo(() => {
+    if (!activeFile) return undefined;
+    if (!diffByPath.has(activeFile)) return undefined;
+    return activeFile;
+  }, [activeFile, diffByPath]);
+
+  const selectedFileDiff = useMemo(() => {
+    if (!selectedFilePath) return undefined;
+    return diffByPath.get(selectedFilePath);
+  }, [diffByPath, selectedFilePath]);
 
   const comments = prData?.comments ?? [];
   const threads = useMemo(() => buildThreads(comments), [comments]);
@@ -273,6 +346,11 @@ function Home() {
     return grouped;
   }, [threads]);
 
+  const selectedThreads = useMemo(() => {
+    if (!selectedFilePath) return [] as CommentThread[];
+    return (threadsByPath.get(selectedFilePath) ?? []).sort(commentThreadSort);
+  }, [selectedFilePath, threadsByPath]);
+
   const prStats = useMemo(() => {
     const summary = {
       files: prData?.diffstat.length ?? 0,
@@ -281,18 +359,18 @@ function Home() {
       modified: 0,
       renamed: 0,
     };
+
     for (const entry of prData?.diffstat ?? []) {
       if (entry.status === "added") summary.added += 1;
       if (entry.status === "removed") summary.removed += 1;
       if (entry.status === "modified") summary.modified += 1;
       if (entry.status === "renamed") summary.renamed += 1;
     }
+
     return summary;
   }, [prData?.diffstat]);
 
-  const lineStats = useMemo(() => {
-    return linesUpdated(prData?.diffstat ?? []);
-  }, [prData?.diffstat]);
+  const lineStats = useMemo(() => linesUpdated(prData?.diffstat ?? []), [prData?.diffstat]);
 
   const isApproved = Boolean(prData?.pr.participants?.some((participant) => participant.approved));
 
@@ -405,10 +483,35 @@ function Home() {
     const draft = commentDrafts[path] ?? { content: "", line: "" };
     const content = draft.content.trim();
     if (!content) return;
+
     const parsedLine = Number(draft.line);
     const line = Number.isFinite(parsedLine) && parsedLine > 0 ? parsedLine : undefined;
     createCommentMutation.mutate({ path, content, line });
   };
+
+  const startTreeResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (!workspaceRef.current) return;
+
+    const initialWidth = treeWidth;
+    const startX = event.clientX;
+    document.body.style.userSelect = "none";
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const next = Math.min(MAX_TREE_WIDTH, Math.max(MIN_TREE_WIDTH, initialWidth + delta));
+      setTreeWidth(next);
+    };
+
+    const onMouseUp = () => {
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }, [treeWidth]);
 
   if (!prUrl) {
     return (
@@ -547,16 +650,31 @@ function Home() {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="border-b border-border bg-card px-4 py-3 space-y-3">
-        <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-          <span className="font-semibold text-foreground">{prData.pr.source?.repository?.full_name ?? "repository"}</span>
-          <span>→</span>
-          <span className="text-foreground">{prData.pr.destination?.branch?.name ?? "branch"}</span>
-          <span className="px-2 py-0.5 border border-border bg-secondary text-[11px] font-medium text-foreground uppercase">
-            {prData.pr.state}
-          </span>
+      <div className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85">
+        <div className="h-11 px-3 flex items-center gap-3">
+          <div className="min-w-0 flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="truncate text-foreground font-medium">
+              {prData.pr.source?.repository?.full_name ?? "repo"}
+            </span>
+            <span className="text-muted-foreground">/</span>
+            <span className="truncate">{prData.pr.destination?.branch?.name ?? "branch"}</span>
+            <span className="px-1.5 py-0.5 border border-border bg-secondary uppercase text-[10px] text-foreground">
+              {prData.pr.state}
+            </span>
+            <span className="text-[10px]">#{prData.pr.id}</span>
+          </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex-1 max-w-lg relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              className="h-8 pl-7 text-[12px]"
+              placeholder="Search changes"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <div className="ml-auto flex items-center gap-1">
             <Button
               variant="outline"
               size="sm"
@@ -578,223 +696,256 @@ function Home() {
             <Button size="sm" className="h-8" onClick={() => setMergeOpen(true)}>
               Merge
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 px-2">
-              <span className="text-lg leading-none">...</span>
-            </Button>
-          </div>
-        </div>
-
-        <div className="text-[16px] font-semibold">{prData.pr.title}</div>
-
-        <div className="flex items-center gap-1 border-b border-border">
-          <button
-            className={`px-3 py-2 text-[13px] ${activeTab === "overview" ? "text-foreground border-b border-foreground" : "text-muted-foreground"}`}
-            onClick={() => setActiveTab("overview")}
-          >
-            Overview
-          </button>
-          <button
-            className={`px-3 py-2 text-[13px] ${activeTab === "files" ? "text-foreground border-b border-foreground" : "text-muted-foreground"}`}
-            onClick={() => setActiveTab("files")}
-          >
-            Files changed <span className="text-muted-foreground">{prStats.files}</span>
-          </button>
-          <button
-            className={`px-3 py-2 text-[13px] ${activeTab === "commits" ? "text-foreground border-b border-foreground" : "text-muted-foreground"}`}
-            onClick={() => setActiveTab("commits")}
-          >
-            Commits <span className="text-muted-foreground">{prData.commits.length}</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3 text-[12px]">
-          <button className="inline-flex items-center gap-1 text-foreground">
-            All changes <ChevronDown className="size-3.5" />
-          </button>
-          <button className="inline-flex items-center gap-1 text-foreground">
-            Comments ({unresolvedThreads.length} unresolved) <ChevronDown className="size-3.5" />
-          </button>
-          <button className="inline-flex items-center gap-1 text-foreground">
-            Sort by File tree <ChevronDown className="size-3.5" />
-          </button>
-          <div className="ml-auto w-80 relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <Input
-              className="h-8 pl-7"
-              placeholder="Search changes"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+            <SettingsMenu
+              workspaceMode={viewMode}
+              onWorkspaceModeChange={setViewMode}
+              onDisconnect={() => {
+                setPrUrl("");
+                setTreeCollapsed(false);
+                setSearchQuery("");
+                setCommentDrafts({});
+                setViewedFiles(new Set());
+                clearRepos();
+                clearAuth();
+              }}
             />
+
+            <details className="relative">
+              <summary className="list-none h-8 px-2 border border-border bg-background hover:bg-accent cursor-pointer text-[12px] flex items-center">
+                ...
+              </summary>
+              <div className="absolute right-0 mt-1 w-72 border border-border bg-card p-3 text-[12px] space-y-2 z-30">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Files</span>
+                  <span>{prStats.files}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Unresolved threads</span>
+                  <span>{unresolvedThreads.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Lines added</span>
+                  <span className="text-status-added">+{lineStats.added}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Lines removed</span>
+                  <span className="text-status-removed">-{lineStats.removed}</span>
+                </div>
+                <div className="pt-2 border-t border-border text-muted-foreground">
+                  Author: {prData.pr.author?.display_name ?? "Unknown"}
+                </div>
+              </div>
+            </details>
           </div>
         </div>
       </div>
 
       {actionError && (
-        <div className="border-b border-destructive bg-destructive/10 text-destructive px-4 py-2 text-[12px]">
+        <div className="border-b border-destructive bg-destructive/10 text-destructive px-3 py-1.5 text-[12px]">
           {actionError}
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex">
-        <aside className="w-80 shrink-0 border-r border-border bg-sidebar flex flex-col">
-          <div className="p-3 border-b border-border space-y-2">
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="h-8 text-xs">Filter files</Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs">Search changes</Button>
+      <div ref={workspaceRef} className="flex-1 min-h-0 flex">
+        <aside
+          className="shrink-0 border-r border-border bg-sidebar flex flex-col"
+          style={{ width: treeCollapsed ? 36 : treeWidth }}
+        >
+          {treeCollapsed ? (
+            <div className="h-full flex items-start justify-center pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setTreeCollapsed(false)}
+                aria-label="Expand file tree"
+              >
+                <PanelLeftOpen className="size-4" />
+              </Button>
             </div>
-            <div className="flex items-center gap-2 text-[12px]">
-              <span className="text-muted-foreground">Lines updated</span>
-              <span className="ml-auto text-status-added">+{lineStats.added}</span>
-              <span className="text-status-removed">-{lineStats.removed}</span>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-auto p-2">
-            <FileTree
-              path=""
-              filterQuery={searchQuery}
-              viewedFiles={viewedFiles}
-              onToggleViewed={toggleViewed}
-              onFileClick={(node) => {
-                const anchor = document.getElementById(fileAnchorId(node.path));
-                anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
-                setActiveTab("files");
-              }}
-            />
-          </div>
+          ) : (
+            <>
+              <div className="h-8 px-2 border-b border-border flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="uppercase">Files</span>
+                <span className="ml-auto">{visibleFilePaths.length}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-[10px] gap-1.5"
+                  onClick={() => setShowUnviewedOnly((prev) => !prev)}
+                >
+                  <span
+                    className={
+                      showUnviewedOnly
+                        ? "size-3.5 border border-border bg-accent text-foreground flex items-center justify-center"
+                        : "size-3.5 border border-input bg-background text-transparent flex items-center justify-center"
+                    }
+                  >
+                    <Check className="size-2.5" />
+                  </span>
+                  Unviewed
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={() => setTreeCollapsed(true)}
+                  aria-label="Collapse file tree"
+                >
+                  <PanelLeftClose className="size-3.5" />
+                </Button>
+              </div>
+              <div className="flex-1 overflow-auto p-2">
+                <FileTree
+                  path=""
+                  filterQuery={searchQuery}
+                  allowedFiles={visiblePathSet}
+                  viewedFiles={viewedFiles}
+                  onToggleViewed={toggleViewed}
+                  onFileClick={(node) => {
+                    const anchor = document.getElementById(fileAnchorId(node.path));
+                    anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                />
+              </div>
+            </>
+          )}
         </aside>
 
-        <main className="flex-1 min-h-0 overflow-auto p-4">
-          {activeTab === "overview" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-4 gap-3">
-                <div className="border border-border bg-card p-3">
-                  <div className="text-[11px] uppercase text-muted-foreground">Files changed</div>
-                  <div className="text-xl font-semibold mt-1">{prStats.files}</div>
-                </div>
-                <div className="border border-border bg-card p-3">
-                  <div className="text-[11px] uppercase text-muted-foreground">Commits</div>
-                  <div className="text-xl font-semibold mt-1">{prData.commits.length}</div>
-                </div>
-                <div className="border border-border bg-card p-3">
-                  <div className="text-[11px] uppercase text-muted-foreground">Comments</div>
-                  <div className="text-xl font-semibold mt-1">{threads.length}</div>
-                </div>
-                <div className="border border-border bg-card p-3">
-                  <div className="text-[11px] uppercase text-muted-foreground">Unresolved</div>
-                  <div className="text-xl font-semibold mt-1">{unresolvedThreads.length}</div>
-                </div>
-              </div>
+        {!treeCollapsed && (
+          <div
+            className="w-1 shrink-0 cursor-col-resize bg-border/30 hover:bg-border"
+            onMouseDown={startTreeResize}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize file tree"
+          />
+        )}
 
-              <div className="border border-border bg-card">
-                <div className="border-b border-border px-3 py-2 text-[12px] uppercase tracking-wider text-muted-foreground">
-                  Pull request metadata
+        <main className="flex-1 min-h-0 overflow-auto p-2">
+          {viewMode === "single" ? (
+            selectedFileDiff && selectedFilePath ? (
+              <div id={fileAnchorId(selectedFilePath)} className="border border-border bg-card">
+                <div className="border-b border-border px-3 py-2 flex items-center gap-3">
+                  <FileText className="size-4 text-muted-foreground" />
+                  <span className="font-mono text-[12px] truncate">{selectedFilePath}</span>
+                  <button
+                    type="button"
+                    className="ml-auto flex items-center gap-2 text-[12px] text-muted-foreground"
+                    onClick={() => toggleViewed(selectedFilePath)}
+                  >
+                    <span
+                      className={
+                        viewedFiles.has(selectedFilePath)
+                          ? "size-4 border border-border bg-accent text-foreground flex items-center justify-center"
+                          : "size-4 border border-input bg-background text-transparent flex items-center justify-center"
+                      }
+                    >
+                      <Check className="size-3" />
+                    </span>
+                    Viewed
+                  </button>
                 </div>
-                <div className="p-3 text-[13px] space-y-2">
-                  <div>Author: {prData.pr.author?.display_name ?? "Unknown"}</div>
-                  <div>Source branch: {prData.pr.source?.branch?.name ?? "Unknown"}</div>
-                  <div>Destination branch: {prData.pr.destination?.branch?.name ?? "Unknown"}</div>
-                  <div>Description: {prData.pr.description?.trim() || "No description"}</div>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {activeTab === "files" && (
-            <div className="space-y-4">
+                <div className="border-b border-border bg-background/50 px-3 py-2 flex items-center gap-2">
+                  <Input
+                    placeholder="line"
+                    className="h-7 w-20"
+                    value={commentDrafts[selectedFilePath]?.line ?? ""}
+                    onChange={(e) => setDraft(selectedFilePath, { line: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Add a file or line comment"
+                    className="h-7"
+                    value={commentDrafts[selectedFilePath]?.content ?? ""}
+                    onChange={(e) => setDraft(selectedFilePath, { content: e.target.value })}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-7"
+                    disabled={createCommentMutation.isPending}
+                    onClick={() => submitComment(selectedFilePath)}
+                  >
+                    Comment
+                  </Button>
+                </div>
+
+                <div className="p-3">
+                  <FileDiff fileDiff={selectedFileDiff} options={libOptions} />
+                </div>
+
+                {selectedThreads.length > 0 && (
+                  <div className="border-t border-border px-3 py-2 space-y-2">
+                    {selectedThreads.map((thread) => (
+                      <div key={thread.id} className="border border-border bg-background p-2 text-[12px]">
+                        <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                          <MessageSquare className="size-3.5" />
+                          <span>{thread.root.user?.display_name ?? "Unknown"}</span>
+                          <span>{formatDate(thread.root.created_on)}</span>
+                          <span className="ml-auto">{thread.root.resolution ? "Resolved" : "Unresolved"}</span>
+                        </div>
+                        <div className="text-[13px] whitespace-pre-wrap">{thread.root.content?.raw ?? ""}</div>
+                        {thread.replies.length > 0 && (
+                          <div className="mt-2 pl-3 border-l border-border space-y-1">
+                            {thread.replies.map((reply) => (
+                              <div key={reply.id} className="text-[12px]">
+                                <span className="text-muted-foreground">
+                                  {reply.user?.display_name ?? "Unknown"}:
+                                </span>{" "}
+                                {reply.content?.raw ?? ""}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="mt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7"
+                            disabled={resolveCommentMutation.isPending}
+                            onClick={() =>
+                              resolveCommentMutation.mutate({
+                                commentId: thread.root.id,
+                                resolve: !thread.root.resolution,
+                              })
+                            }
+                          >
+                            {thread.root.resolution ? "Unresolve" : "Resolve"}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">
+                No file selected for the current filter.
+              </div>
+            )
+          ) : (
+            <div className="space-y-3">
               {filteredDiffs.map((fileDiff, index) => {
-                const filePath = fileDiff.name ?? fileDiff.prevName ?? String(index);
-                const anchorId = fileAnchorId(filePath);
-                const fileThreads = (threadsByPath.get(filePath) ?? []).sort(commentThreadSort);
-                const draft = commentDrafts[filePath] ?? { content: "", line: "" };
+                const filePath = getFilePath(fileDiff, index);
+                const fileUnresolvedCount = (threadsByPath.get(filePath) ?? []).filter(
+                  (thread) => !thread.root.resolution && !thread.root.deleted,
+                ).length;
 
                 return (
-                  <div key={`${filePath}-${index}`} id={anchorId} className="border border-border bg-card">
-                    <div className="border-b border-border px-3 py-2 flex items-center gap-3">
+                  <div key={`${filePath}-${index}`} id={fileAnchorId(filePath)} className="border border-border bg-card">
+                    <div className="border-b border-border px-3 py-2 flex items-center gap-3 text-[12px]">
                       <FileText className="size-4 text-muted-foreground" />
-                      <span className="font-mono text-[12px]">{filePath}</span>
-                      <label className="ml-auto flex items-center gap-2 text-[12px] text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          checked={viewedFiles.has(filePath)}
-                          onChange={() => toggleViewed(filePath)}
-                        />
-                        Viewed
-                      </label>
+                      <span className="font-mono truncate">{filePath}</span>
+                      {fileUnresolvedCount > 0 && (
+                        <span className="ml-auto text-muted-foreground">
+                          {fileUnresolvedCount} unresolved
+                        </span>
+                      )}
                     </div>
-
-                    <div className="border-b border-border bg-background/50 px-3 py-2 flex items-center gap-2">
-                      <Input
-                        placeholder="line"
-                        className="h-7 w-20"
-                        value={draft.line}
-                        onChange={(e) => setDraft(filePath, { line: e.target.value })}
-                      />
-                      <Input
-                        placeholder="Add a file or line comment"
-                        className="h-7"
-                        value={draft.content}
-                        onChange={(e) => setDraft(filePath, { content: e.target.value })}
-                      />
-                      <Button
-                        size="sm"
-                        className="h-7"
-                        disabled={createCommentMutation.isPending}
-                        onClick={() => submitComment(filePath)}
-                      >
-                        Comment
-                      </Button>
-                    </div>
-
                     <div className="p-3">
                       <FileDiff fileDiff={fileDiff} options={libOptions} />
                     </div>
-
-                    {fileThreads.length > 0 && (
-                      <div className="border-t border-border px-3 py-2 space-y-2">
-                        {fileThreads.map((thread) => (
-                          <div key={thread.id} className="border border-border bg-background p-2 text-[12px]">
-                            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                              <MessageSquare className="size-3.5" />
-                              <span>{thread.root.user?.display_name ?? "Unknown"}</span>
-                              <span>{formatDate(thread.root.created_on)}</span>
-                              <span className="ml-auto">
-                                {thread.root.resolution ? "Resolved" : "Unresolved"}
-                              </span>
-                            </div>
-                            <div className="text-[13px] whitespace-pre-wrap">{thread.root.content?.raw ?? ""}</div>
-                            {thread.replies.length > 0 && (
-                              <div className="mt-2 pl-3 border-l border-border space-y-1">
-                                {thread.replies.map((reply) => (
-                                  <div key={reply.id} className="text-[12px]">
-                                    <span className="text-muted-foreground">
-                                      {reply.user?.display_name ?? "Unknown"}:
-                                    </span>{" "}
-                                    {reply.content?.raw ?? ""}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            <div className="mt-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7"
-                                disabled={resolveCommentMutation.isPending}
-                                onClick={() =>
-                                  resolveCommentMutation.mutate({
-                                    commentId: thread.root.id,
-                                    resolve: !thread.root.resolution,
-                                  })
-                                }
-                              >
-                                {thread.root.resolution ? "Unresolve" : "Resolve"}
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -804,62 +955,6 @@ function Home() {
                   No files match the current search.
                 </div>
               )}
-            </div>
-          )}
-
-          {activeTab === "commits" && (
-            <div className="h-full min-h-[500px] flex border border-border bg-card">
-              <div className="w-80 border-r border-border overflow-auto">
-                {prData.commits.map((commit) => {
-                  const selected = selectedCommitHash === commit.hash;
-                  return (
-                    <button
-                      key={commit.hash}
-                      onClick={() => setSelectedCommitHash(commit.hash)}
-                      className={`w-full text-left border-b border-border px-3 py-3 ${selected ? "bg-accent" : "bg-card hover:bg-accent/40"}`}
-                    >
-                      <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-                        <GitCommit className="size-3.5" />
-                        <span className="font-mono">{shortHash(commit.hash)}</span>
-                        <span className="ml-auto">{formatDate(commit.date)}</span>
-                      </div>
-                      <div className="text-[13px] mt-1 line-clamp-2">{commit.message ?? commit.summary?.raw ?? "No message"}</div>
-                      <div className="text-[12px] text-muted-foreground mt-1">
-                        {commit.author?.user?.display_name ?? commit.author?.raw ?? "Unknown"}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex-1 overflow-auto p-3">
-                {commitDiffQuery.isLoading ? (
-                  <div className="flex items-center justify-center h-full text-muted-foreground gap-2">
-                    <Loader2 className="size-4 animate-spin" />
-                    Loading commit diff...
-                  </div>
-                ) : commitDiffQuery.error ? (
-                  <div className="border border-destructive bg-destructive/10 p-3 text-destructive text-[13px]">
-                    {commitDiffQuery.error instanceof Error
-                      ? commitDiffQuery.error.message
-                      : "Failed to load commit diff"}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {filteredDiffs.map((fileDiff, index) => {
-                      const filePath = fileDiff.name ?? fileDiff.prevName ?? String(index);
-                      return (
-                        <div key={`${filePath}-${index}`} className="border border-border bg-background">
-                          <div className="border-b border-border px-3 py-2 font-mono text-[12px]">{filePath}</div>
-                          <div className="p-3">
-                            <FileDiff fileDiff={fileDiff} options={libOptions} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </main>

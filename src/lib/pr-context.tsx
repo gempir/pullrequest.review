@@ -1,17 +1,19 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { refreshOAuthToken } from "@/lib/bitbucket-oauth";
+import type { BitbucketRepo } from "@/lib/bitbucket-api";
 
 interface BitbucketAuth {
   accessToken: string;
   refreshToken?: string;
   expiresAt?: number;
-}
-
-export interface BitbucketRepo {
-  workspace: string;
-  slug: string;
-  name: string;
-  fullName: string;
 }
 
 interface PrContextType {
@@ -77,19 +79,19 @@ export function PrProvider({ children }: { children: ReactNode }) {
     }
   }, [repos, hydrated]);
 
-  const clearAuth = () => {
+  const clearAuth = useCallback(() => {
     setAuth(null);
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("bitbucket_oauth");
     }
-  };
+  }, []);
 
-  const clearRepos = () => {
+  const clearRepos = useCallback(() => {
     setRepos([]);
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("bitbucket_repos");
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!hydrated || refreshing) return;
@@ -112,22 +114,21 @@ export function PrProvider({ children }: { children: ReactNode }) {
       .finally(() => setRefreshing(false));
   }, [auth, clearAuth, hydrated, refreshing]);
 
-  return (
-    <PrContext.Provider
-      value={{
-        prUrl,
-        setPrUrl,
-        auth,
-        setAuth,
-        clearAuth,
-        repos,
-        setRepos,
-        clearRepos,
-      }}
-    >
-      {children}
-    </PrContext.Provider>
+  const value = useMemo(
+    () => ({
+      prUrl,
+      setPrUrl,
+      auth,
+      setAuth,
+      clearAuth,
+      repos,
+      setRepos,
+      clearRepos,
+    }),
+    [auth, clearAuth, clearRepos, prUrl, repos],
   );
+
+  return <PrContext.Provider value={value}>{children}</PrContext.Provider>;
 }
 
 export function usePrContext() {

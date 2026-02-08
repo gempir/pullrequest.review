@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import type { BaseDiffOptions } from "@pierre/diffs";
 
 export interface DiffOptions {
@@ -39,12 +39,17 @@ const DiffOptionsContext = createContext<DiffOptionsContextType | null>(null);
 export function DiffOptionsProvider({ children }: { children: ReactNode }) {
   const [options, setOptions] = useState<DiffOptions>(defaultOptions);
 
-  const setOption = <K extends keyof DiffOptions>(key: K, value: DiffOptions[K]) => {
+  const setOption = useCallback(<K extends keyof DiffOptions>(key: K, value: DiffOptions[K]) => {
     setOptions((prev) => ({ ...prev, [key]: value }));
-  };
+  }, []);
+
+  const value = useMemo(
+    () => ({ options, setOption }),
+    [options, setOption],
+  );
 
   return (
-    <DiffOptionsContext.Provider value={{ options, setOption }}>
+    <DiffOptionsContext.Provider value={value}>
       {children}
     </DiffOptionsContext.Provider>
   );

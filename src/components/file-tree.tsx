@@ -12,6 +12,9 @@ interface FileTreeProps {
   level?: number;
   kinds?: ReadonlyMap<string, ChangeKind>;
   activeFile?: string;
+  filterQuery?: string;
+  viewedFiles?: ReadonlySet<string>;
+  onToggleViewed?: (path: string) => void;
   onFileClick?: (node: FileNode) => void;
 }
 
@@ -53,12 +56,27 @@ export function FileTree({
   level = 0,
   kinds,
   activeFile,
+  filterQuery,
+  viewedFiles,
+  onToggleViewed,
   onFileClick,
 }: FileTreeProps) {
   const tree = useFileTree();
   const resolvedKinds = kinds ?? tree.kinds;
-  const nodes = tree.children(path);
+  const rawNodes = tree.children(path);
   const active = activeFile ?? tree.activeFile;
+  const normalizedQuery = filterQuery?.trim().toLowerCase() ?? "";
+
+  const matchesNode = (node: FileNode): boolean => {
+    if (!normalizedQuery) return true;
+    if (node.type === "file") {
+      return node.path.toLowerCase().includes(normalizedQuery);
+    }
+    const children = tree.children(node.path);
+    return children.some(matchesNode);
+  };
+
+  const nodes = rawNodes.filter(matchesNode);
 
   return (
     <div className="flex flex-col">
@@ -71,6 +89,9 @@ export function FileTree({
               level={level}
               kinds={resolvedKinds}
               activeFile={active}
+              filterQuery={filterQuery}
+              viewedFiles={viewedFiles}
+              onToggleViewed={onToggleViewed}
               onFileClick={onFileClick}
             />
           );
@@ -82,6 +103,8 @@ export function FileTree({
             level={level}
             kinds={resolvedKinds}
             active={active}
+            viewed={viewedFiles?.has(node.path)}
+            onToggleViewed={onToggleViewed}
             onFileClick={onFileClick}
           />
         );
@@ -95,12 +118,18 @@ function DirectoryNode({
   level,
   kinds,
   activeFile,
+  filterQuery,
+  viewedFiles,
+  onToggleViewed,
   onFileClick,
 }: {
   node: FileNode;
   level: number;
   kinds: ReadonlyMap<string, ChangeKind>;
   activeFile?: string;
+  filterQuery?: string;
+  viewedFiles?: ReadonlySet<string>;
+  onToggleViewed?: (path: string) => void;
   onFileClick?: (node: FileNode) => void;
 }) {
   const tree = useFileTree();
@@ -147,6 +176,9 @@ function DirectoryNode({
             level={level + 1}
             kinds={kinds}
             activeFile={activeFile}
+            filterQuery={filterQuery}
+            viewedFiles={viewedFiles}
+            onToggleViewed={onToggleViewed}
             onFileClick={onFileClick}
           />
         </div>
@@ -160,12 +192,16 @@ function FileNodeRow({
   level,
   kinds,
   active,
+  viewed,
+  onToggleViewed,
   onFileClick,
 }: {
   node: FileNode;
   level: number;
   kinds: ReadonlyMap<string, ChangeKind>;
   active?: string;
+  viewed?: boolean;
+  onToggleViewed?: (path: string) => void;
   onFileClick?: (node: FileNode) => void;
 }) {
   const tree = useFileTree();
@@ -194,6 +230,17 @@ function FileNodeRow({
       <span className={cn("flex-1 min-w-0 truncate", kind && kindColor(kind))}>
         {node.name}
       </span>
+      <input
+        type="checkbox"
+        checked={Boolean(viewed)}
+        onChange={(e) => {
+          e.stopPropagation();
+          onToggleViewed?.(node.path);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className="size-3.5"
+        aria-label={`Mark ${node.path} as viewed`}
+      />
       {kind && (
         <span 
           className={cn(

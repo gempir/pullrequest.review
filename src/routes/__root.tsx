@@ -11,16 +11,15 @@ import type { ReactNode } from "react";
 import { createServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { PrProvider, usePrContext, type BitbucketRepo } from "@/lib/pr-context";
+import { PrProvider, usePrContext } from "@/lib/pr-context";
+import type { BitbucketRepo } from "@/lib/bitbucket-api";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider, useFileTree } from "@/lib/file-tree-context";
 import { ShortcutsProvider, useKeyboardNavigation } from "@/lib/shortcuts-context";
 import { SettingsMenu } from "@/components/settings-menu";
-import { FileTree } from "@/components/file-tree";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState, useCallback } from "react";
-import { fileAnchorId } from "@/lib/file-anchors";
 import { buildAuthorizeUrl } from "@/lib/bitbucket-oauth";
 import { GitPullRequest, LogOut, Search, FolderGit } from "lucide-react";
 
@@ -380,39 +379,9 @@ function AppLayout() {
         </div>
       </header>
       
-      {/* Main content area */}
-      <div className="flex flex-1 min-h-0">
-        {/* Sidebar - File tree */}
-        <aside className="w-72 shrink-0 border-r border-border bg-sidebar flex flex-col">
-          <div className="border-b border-border px-3 py-2 bg-secondary flex items-center justify-between">
-            <span className="text-[12px] uppercase tracking-wider text-muted-foreground font-medium">
-              Files
-            </span>
-            <span className="text-[10px] text-muted-foreground">
-              j/k to navigate
-            </span>
-          </div>
-          <div className="flex-1 overflow-auto p-2">
-            <FileTree
-              path=""
-              onFileClick={(node) => {
-                const anchor = document.getElementById(fileAnchorId(node.path));
-                anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            />
-          </div>
-          <div className="border-t border-border px-3 py-2 bg-secondary">
-            <span className="text-[11px] text-muted-foreground">
-              {repos.length} repo{repos.length !== 1 ? 's' : ''} connected
-            </span>
-          </div>
-        </aside>
-        
-        {/* Main content */}
-        <main className="flex-1 overflow-auto bg-background">
-          <Outlet />
-        </main>
-      </div>
+      <main className="flex-1 min-h-0 overflow-auto bg-background">
+        <Outlet />
+      </main>
     </div>
   );
 }

@@ -3,7 +3,13 @@ import {
   type FileNode,
   type ChangeKind,
 } from "@/lib/file-tree-context";
-import { ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Folder,
+  FolderOpen,
+} from "lucide-react";
 import { FileIcon } from "react-files-icons";
 import { cn } from "@/lib/utils";
 
@@ -240,14 +246,22 @@ function FileNodeRow({
         checked={Boolean(viewed)}
         onClick={(e) => e.stopPropagation()}
         onChange={() => onToggleViewed?.(node.path)}
-        className={cn(
-          "mr-2 size-4 shrink-0 flex items-center justify-center transition-colors",
-          viewed
-            ? "bg-accent text-foreground"
-            : "bg-muted/40 text-transparent border border-border/70",
-        )}
+        className="peer sr-only"
         aria-label={`Mark ${node.path} as viewed`}
       />
+      <span
+        className={cn(
+          "mr-2 size-4 shrink-0 flex items-center justify-center transition-colors border border-border/70 bg-muted/40",
+          viewed && "bg-accent border-accent",
+        )}
+      >
+        <Check
+          className={cn(
+            "size-3 transition-colors",
+            viewed ? "text-foreground" : "text-transparent",
+          )}
+        />
+      </span>
     </button>
   );
 }

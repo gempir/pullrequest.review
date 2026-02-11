@@ -531,6 +531,7 @@ function PullRequestReviewPage() {
   ]);
 
   useEffect(() => {
+    if (showUnviewedOnly) return;
     if (!activeFile || !visiblePathSet.has(activeFile)) return;
     setViewedFiles((prev) => {
       if (prev.has(activeFile)) return prev;
@@ -538,7 +539,7 @@ function PullRequestReviewPage() {
       next.add(activeFile);
       return next;
     });
-  }, [activeFile, visiblePathSet]);
+  }, [activeFile, showUnviewedOnly, visiblePathSet]);
 
   const selectAndRevealFile = useCallback(
     (path: string) => {
@@ -677,10 +678,18 @@ function PullRequestReviewPage() {
   const isApproved = Boolean(
     prData?.pr.participants?.some((participant) => participant.approved),
   );
+  const ensurePrRef = useCallback(() => {
+    if (!prData) {
+      throw new Error("Pull request data is not loaded");
+    }
+    return prData.prRef;
+  }, [prData]);
 
   const approveMutation = useMutation({
-    mutationFn: () =>
-      approvePullRequest({ data: { prRef: prData?.prRef, auth } }),
+    mutationFn: () => {
+      const prRef = ensurePrRef();
+      return approvePullRequest({ data: { prRef, auth } });
+    },
     onSuccess: async () => {
       setActionError(null);
       await queryClient.invalidateQueries({ queryKey: prQueryKey });
@@ -695,8 +704,10 @@ function PullRequestReviewPage() {
   });
 
   const unapproveMutation = useMutation({
-    mutationFn: () =>
-      unapprovePullRequest({ data: { prRef: prData?.prRef, auth } }),
+    mutationFn: () => {
+      const prRef = ensurePrRef();
+      return unapprovePullRequest({ data: { prRef, auth } });
+    },
     onSuccess: async () => {
       setActionError(null);
       await queryClient.invalidateQueries({ queryKey: prQueryKey });
@@ -709,16 +720,18 @@ function PullRequestReviewPage() {
   });
 
   const mergeMutation = useMutation({
-    mutationFn: () =>
-      mergePullRequest({
+    mutationFn: () => {
+      const prRef = ensurePrRef();
+      return mergePullRequest({
         data: {
-          prRef: prData?.prRef,
+          prRef,
           auth,
           message: mergeMessage,
           mergeStrategy,
           closeSourceBranch,
         },
-      }),
+      });
+    },
     onSuccess: async () => {
       setMergeOpen(false);
       setActionError(null);
@@ -737,10 +750,11 @@ function PullRequestReviewPage() {
       content: string;
       line?: number;
       side?: CommentLineSide;
-    }) =>
-      createPullRequestComment({
+    }) => {
+      const prRef = ensurePrRef();
+      return createPullRequestComment({
         data: {
-          prRef: prData?.prRef,
+          prRef,
           auth,
           content: payload.content,
           inline: payload.line
@@ -751,7 +765,8 @@ function PullRequestReviewPage() {
               }
             : { path: payload.path },
         },
-      }),
+      });
+    },
     onSuccess: async (_, vars) => {
       if (vars.line && vars.side) {
         clearInlineDraftContent({
@@ -777,15 +792,17 @@ function PullRequestReviewPage() {
   });
 
   const resolveCommentMutation = useMutation({
-    mutationFn: (payload: { commentId: number; resolve: boolean }) =>
-      resolvePullRequestComment({
+    mutationFn: (payload: { commentId: number; resolve: boolean }) => {
+      const prRef = ensurePrRef();
+      return resolvePullRequestComment({
         data: {
-          prRef: prData?.prRef,
+          prRef,
           auth,
           commentId: payload.commentId,
           resolve: payload.resolve,
         },
-      }),
+      });
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: prQueryKey });
     },

@@ -20,29 +20,36 @@ interface BitbucketRepoPage {
 
 const fetchBitbucketRepos = createServerFn({
   method: "GET",
-}).handler(async ({ data }: { data: { accessToken: string } }) => {
-  const token = data.accessToken.trim();
-  if (!token) {
-    throw new Error("Access token is required");
-  }
-
-  const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
-  const values: BitbucketRepoEntry[] = [];
-  let nextUrl: string | undefined =
-    "https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100";
-
-  while (nextUrl) {
-    const res = await fetch(nextUrl, { headers });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch repositories: ${res.status} ${res.statusText}`);
+})
+  .inputValidator((data: { accessToken: string }) => data)
+  .handler(async ({ data }) => {
+    const token = data.accessToken.trim();
+    if (!token) {
+      throw new Error("Access token is required");
     }
-    const page = (await res.json()) as BitbucketRepoPage;
-    values.push(...(page.values ?? []));
-    nextUrl = page.next;
-  }
 
-  return values;
-});
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    };
+    const values: BitbucketRepoEntry[] = [];
+    let nextUrl: string | undefined =
+      "https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100";
+
+    while (nextUrl) {
+      const res = await fetch(nextUrl, { headers });
+      if (!res.ok) {
+        throw new Error(
+          `Failed to fetch repositories: ${res.status} ${res.statusText}`,
+        );
+      }
+      const page = (await res.json()) as BitbucketRepoPage;
+      values.push(...(page.values ?? []));
+      nextUrl = page.next;
+    }
+
+    return values;
+  });
 
 function toFullName(repo: BitbucketRepoEntry) {
   const fallbackName = `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
@@ -88,7 +95,8 @@ export function RepositorySelector({
 
   const reposQuery = useQuery({
     queryKey: ["bitbucket-repositories", accessToken],
-    queryFn: () => fetchBitbucketRepos({ data: { accessToken: accessToken ?? "" } }),
+    queryFn: () =>
+      fetchBitbucketRepos({ data: { accessToken: accessToken ?? "" } }),
     enabled: Boolean(accessToken),
   });
 
@@ -162,7 +170,9 @@ export function RepositorySelector({
                       });
                     }}
                   />
-                  <span className="flex-1 truncate font-mono text-xs">{fullName}</span>
+                  <span className="flex-1 truncate font-mono text-xs">
+                    {fullName}
+                  </span>
                 </label>
               );
             })}

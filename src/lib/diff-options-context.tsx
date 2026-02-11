@@ -1,12 +1,20 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import type { BaseDiffOptions } from "@pierre/diffs";
+import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
 
 export interface DiffOptions {
-  theme: string;
+  theme: DiffTheme;
   diffStyle: "unified" | "split";
   diffIndicators: "classic" | "bars" | "none";
   disableBackground: boolean;
-  hunkSeparators: "simple" | "metadata" | "line-info" | "custom";
+  hunkSeparators: "simple" | "metadata" | "line-info";
   expandUnchanged: boolean;
   expansionLineCount: number;
   collapsedContextThreshold: number;
@@ -16,7 +24,7 @@ export interface DiffOptions {
 }
 
 const defaultOptions: DiffOptions = {
-  theme: "github-dark",
+  theme: DEFAULT_DIFF_THEME,
   diffStyle: "unified",
   diffIndicators: "classic",
   disableBackground: false,
@@ -31,7 +39,10 @@ const defaultOptions: DiffOptions = {
 
 interface DiffOptionsContextType {
   options: DiffOptions;
-  setOption: <K extends keyof DiffOptions>(key: K, value: DiffOptions[K]) => void;
+  setOption: <K extends keyof DiffOptions>(
+    key: K,
+    value: DiffOptions[K],
+  ) => void;
 }
 
 const DiffOptionsContext = createContext<DiffOptionsContextType | null>(null);
@@ -39,14 +50,14 @@ const DiffOptionsContext = createContext<DiffOptionsContextType | null>(null);
 export function DiffOptionsProvider({ children }: { children: ReactNode }) {
   const [options, setOptions] = useState<DiffOptions>(defaultOptions);
 
-  const setOption = useCallback(<K extends keyof DiffOptions>(key: K, value: DiffOptions[K]) => {
-    setOptions((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
-  const value = useMemo(
-    () => ({ options, setOption }),
-    [options, setOption],
+  const setOption = useCallback(
+    <K extends keyof DiffOptions>(key: K, value: DiffOptions[K]) => {
+      setOptions((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
   );
+
+  const value = useMemo(() => ({ options, setOption }), [options, setOption]);
 
   return (
     <DiffOptionsContext.Provider value={value}>
@@ -57,7 +68,8 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
 
 export function useDiffOptions() {
   const ctx = useContext(DiffOptionsContext);
-  if (!ctx) throw new Error("useDiffOptions must be used within DiffOptionsProvider");
+  if (!ctx)
+    throw new Error("useDiffOptions must be used within DiffOptionsProvider");
   return ctx;
 }
 

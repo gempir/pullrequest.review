@@ -1,5 +1,5 @@
 /* Import JetBrains Mono for that terminal feel */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -14,41 +14,41 @@
   --card-foreground: #e0e0e0;
   --popover: #111111;
   --popover-foreground: #e0e0e0;
-  
+
   /* Primary - subtle accent */
   --primary: #e0e0e0;
   --primary-foreground: #0a0a0a;
-  
+
   /* Secondary - slightly lighter background */
   --secondary: #1a1a1a;
   --secondary-foreground: #e0e0e0;
-  
+
   /* Muted - darker elements */
   --muted: #141414;
   --muted-foreground: #707070;
-  
+
   /* Accent - subtle highlight */
   --accent: #1f1f1f;
   --accent-foreground: #e0e0e0;
-  
+
   /* Destructive */
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  
+
   /* Borders - sharp, defined */
   --border: #2a2a2a;
   --input: #2a2a2a;
   --ring: #404040;
-  
+
   /* Status colors */
   --status-added: #22c55e;
   --status-removed: #ef4444;
   --status-modified: #eab308;
   --status-renamed: #3b82f6;
-  
+
   /* Minimal border radius */
   --radius: 2px;
-  
+
   /* Sidebar */
   --sidebar: #0f0f0f;
   --sidebar-foreground: #e0e0e0;
@@ -88,13 +88,13 @@
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
-  
+
   /* Status colors in theme */
   --color-status-added: var(--status-added);
   --color-status-removed: var(--status-removed);
   --color-status-modified: var(--status-modified);
   --color-status-renamed: var(--status-renamed);
-  
+
   /* Minimal radius */
   --radius-sm: 1px;
   --radius-md: 2px;
@@ -109,20 +109,24 @@
   * {
     @apply border-border;
   }
-  
+
   html {
     overflow-x: hidden;
     overflow-y: auto;
     max-width: 100vw;
     width: 100%;
-    font-feature-settings: "liga" 1, "calt" 1;
+    font-feature-settings:
+      "liga" 1,
+      "calt" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  
+
   body {
     @apply bg-background text-foreground;
-    font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    font-family:
+      "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code",
+      "Roboto Mono", Consolas, "Courier New", monospace;
     font-size: 13px;
     line-height: 1.5;
     overflow-x: hidden;
@@ -131,32 +135,32 @@
     margin: 0;
     padding: 0;
   }
-  
+
   /* Selection style */
   ::selection {
     background-color: rgba(255, 255, 255, 0.15);
     color: #ffffff;
   }
-  
+
   /* Scrollbar styling */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
-  
+
   ::-webkit-scrollbar-track {
     background: var(--background);
   }
-  
+
   ::-webkit-scrollbar-thumb {
     background: var(--border);
     border: 2px solid var(--background);
   }
-  
+
   ::-webkit-scrollbar-thumb:hover {
     background: var(--ring);
   }
-  
+
   ::-webkit-scrollbar-corner {
     background: var(--background);
   }
@@ -167,40 +171,40 @@
   .terminal-border {
     border: 1px solid var(--border);
   }
-  
+
   .terminal-border-l {
     border-left: 1px solid var(--border);
   }
-  
+
   .terminal-border-r {
     border-right: 1px solid var(--border);
   }
-  
+
   .terminal-border-t {
     border-top: 1px solid var(--border);
   }
-  
+
   .terminal-border-b {
     border-bottom: 1px solid var(--border);
   }
-  
+
   .terminal-panel {
     background-color: var(--card);
     border: 1px solid var(--border);
   }
-  
+
   .terminal-input {
     background-color: var(--background);
     border: 1px solid var(--input);
     color: var(--foreground);
     font-family: inherit;
   }
-  
+
   .terminal-input:focus {
     outline: none;
     border-color: var(--ring);
   }
-  
+
   .terminal-button {
     background-color: var(--secondary);
     border: 1px solid var(--border);
@@ -209,51 +213,51 @@
     cursor: pointer;
     transition: all 0.15s ease;
   }
-  
+
   .terminal-button:hover {
     background-color: var(--accent);
     border-color: var(--ring);
   }
-  
+
   .terminal-button:active {
     background-color: var(--muted);
   }
-  
+
   .terminal-button-primary {
     background-color: var(--primary);
     border-color: var(--primary);
     color: var(--primary-foreground);
   }
-  
+
   .terminal-button-primary:hover {
     background-color: var(--foreground);
     border-color: var(--foreground);
   }
-  
+
   .text-muted-dim {
     color: var(--muted-foreground);
   }
-  
+
   .status-add {
     color: var(--status-added);
   }
-  
+
   .status-del {
     color: var(--status-removed);
   }
-  
+
   .status-mod {
     color: var(--status-modified);
   }
-  
+
   .bg-status-add {
     background-color: var(--status-added);
   }
-  
+
   .bg-status-del {
     background-color: var(--status-removed);
   }
-  
+
   .bg-status-mod {
     background-color: var(--status-modified);
   }

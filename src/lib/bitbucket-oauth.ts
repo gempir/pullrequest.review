@@ -36,13 +36,10 @@ export function buildAuthorizeUrl(params: {
 export const exchangeOAuthCode = createServerFn({
   method: "POST",
 }).handler(async ({ data }: { data: { code: string; redirectUri: string } }) => {
-  const clientId =
-    process.env.BITBUCKET_CLIENT_ID ??
-    process.env.VITE_BITBUCKET_CLIENT_ID ??
-    "";
+  const clientId = process.env.VITE_BITBUCKET_CLIENT_ID ?? "";
   const clientSecret = process.env.BITBUCKET_CLIENT_SECRET ?? "";
   if (!clientId || !clientSecret) {
-    throw new Error("Missing BITBUCKET_CLIENT_ID or BITBUCKET_CLIENT_SECRET");
+    throw new Error("Missing VITE_BITBUCKET_CLIENT_ID or BITBUCKET_CLIENT_SECRET");
   }
 
   const body = new URLSearchParams({
@@ -75,13 +72,10 @@ export const exchangeOAuthCode = createServerFn({
 export const refreshOAuthToken = createServerFn({
   method: "POST",
 }).handler(async ({ data }: { data: { refreshToken: string } }) => {
-  const clientId =
-    process.env.BITBUCKET_CLIENT_ID ??
-    process.env.VITE_BITBUCKET_CLIENT_ID ??
-    "";
+  const clientId = process.env.VITE_BITBUCKET_CLIENT_ID ?? "";
   const clientSecret = process.env.BITBUCKET_CLIENT_SECRET ?? "";
   if (!clientId || !clientSecret) {
-    throw new Error("Missing BITBUCKET_CLIENT_ID or BITBUCKET_CLIENT_SECRET");
+    throw new Error("Missing VITE_BITBUCKET_CLIENT_ID or BITBUCKET_CLIENT_SECRET");
   }
 
   const body = new URLSearchParams({

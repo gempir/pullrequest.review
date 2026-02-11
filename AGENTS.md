@@ -41,7 +41,6 @@ Always run after changes:
 - Required env:
   - `VITE_BITBUCKET_CLIENT_ID` (client/public)
   - `BITBUCKET_CLIENT_SECRET` (server)
-  - `BITBUCKET_CLIENT_ID` is optional (server) and can fall back to `VITE_BITBUCKET_CLIENT_ID`.
 - Callback route:
   - `http://localhost:3000/oauth/callback` (adjust to your dev origin)
 
@@ -70,6 +69,7 @@ Always run after changes:
 ## Conventions and notes
 - Use ASCII in source files.
 - No nested bullet lists in responses.
+- Use `pullrequestdotreview` as the canonical app/worker name in deployment configs (do not use `pullrequest-review`).
 - Prefer existing contexts (`pr-context`, `file-tree-context`, `shortcuts-context`) over adding new global state.
 - Wrap context provider values in `useMemo` to prevent unnecessary re-renders.
 - `ScrollArea` from Radix is currently avoided due to a render loop; use simple `div` + `overflow-auto` for now.

@@ -4,6 +4,7 @@ node_modules
 # output
 out
 dist
+.output
 *.tgz
 
 # code coverage
@@ -33,3 +34,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Finder (MacOS) folder config
 .DS_Store
 .vercel
+.wrangler
+worker-configuration.d.ts

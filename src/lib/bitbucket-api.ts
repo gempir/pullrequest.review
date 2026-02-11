@@ -205,9 +205,16 @@ export const fetchBitbucketPullRequestBundle = createServerFn({
     throw new Error("Invalid Bitbucket Cloud pull request URL");
   }
 
-  const { workspace, repo, pullRequestId } = parsed;
+  return fetchPullRequestBundleByRef(parsed, data.auth);
+});
+
+async function fetchPullRequestBundleByRef(
+  prRef: BitbucketPrRef,
+  auth?: BitbucketAuthPayload | null,
+): Promise<BitbucketPullRequestBundle> {
+  const { workspace, repo, pullRequestId } = prRef;
   const baseApi = `https://api.bitbucket.org/2.0/repositories/${workspace}/${repo}/pullrequests/${pullRequestId}`;
-  const headers = authHeaders(data.auth);
+  const headers = authHeaders(auth);
 
   const [prRes, diffRes, diffstat, commits, comments] = await Promise.all([
     fetch(baseApi, { headers: { ...headers, Accept: "application/json" } }),
@@ -227,8 +234,18 @@ export const fetchBitbucketPullRequestBundle = createServerFn({
   const pr = (await prRes.json()) as BitbucketPullRequestDetails;
   const diff = await diffRes.text();
 
-  return { prRef: parsed, pr, diff, diffstat, commits, comments } satisfies BitbucketPullRequestBundle;
-});
+  return { prRef, pr, diff, diffstat, commits, comments } satisfies BitbucketPullRequestBundle;
+}
+
+export const fetchBitbucketPullRequestBundleByRef = createServerFn({
+  method: "GET",
+}).handler(
+  async ({
+    data,
+  }: {
+    data: { prRef: BitbucketPrRef; auth?: BitbucketAuthPayload | null };
+  }) => fetchPullRequestBundleByRef(data.prRef, data.auth),
+);
 
 export const fetchBitbucketRepoPullRequests = createServerFn({
   method: "GET",

@@ -26,7 +26,7 @@ export interface DiffOptions {
 const defaultOptions: DiffOptions = {
   theme: DEFAULT_DIFF_THEME,
   diffStyle: "unified",
-  diffIndicators: "classic",
+  diffIndicators: "none",
   disableBackground: false,
   hunkSeparators: "simple",
   expandUnchanged: false,

@@ -9,4 +9,4 @@ export const DIFF_THEMES = [
 
 export type DiffTheme = (typeof DIFF_THEMES)[number];
 
-export const DEFAULT_DIFF_THEME: DiffTheme = "github-dark";
+export const DEFAULT_DIFF_THEME: DiffTheme = "pierre-dark";

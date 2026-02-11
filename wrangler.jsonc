@@ -1,37 +1,35 @@
 {
-    "$schema": "node_modules/wrangler/config-schema.json",
-    "name": "pullrequestdotreview",
-    "main": "@tanstack/react-start/server-entry",
-    "compatibility_date": "2026-02-11",
-    "compatibility_flags": [
-        "nodejs_compat"
-    ],
-    // Required secret per environment:
-    // - BITBUCKET_CLIENT_SECRET (set with: bun run secret:put:prod / bun run secret:put:preview)
-    "env": {
-        "prod": {
-            "name": "pullrequestdotreview",
-            "vars": {
-                "VITE_BITBUCKET_CLIENT_ID": "4LphVXksmGsy9xxMxx"
-            },
-            "routes": [
-                {
-                    "pattern": "pullrequest.review",
-                    "custom_domain": true
-                }
-            ]
-        },
-        "preview": {
-            "name": "pullrequestdotreview-preview",
-            "vars": {
-                "VITE_BITBUCKET_CLIENT_ID": "ZksHSnpz3hWfFYdW2b"
-            },
-            "routes": [
-                {
-                    "pattern": "preview.pullrequest.review",
-                    "custom_domain": true
-                }
-            ]
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pullrequestdotreview",
+  "main": "@tanstack/react-start/server-entry",
+  "compatibility_date": "2026-02-11",
+  "compatibility_flags": ["nodejs_compat"],
+  // Required secret per environment:
+  // - BITBUCKET_CLIENT_SECRET (set with: bun run secret:put:prod / bun run secret:put:preview)
+  "env": {
+    "prod": {
+      "name": "pullrequestdotreview",
+      "vars": {
+        "VITE_BITBUCKET_CLIENT_ID": "4LphVXksmGsy9xxMxx"
+      },
+      "routes": [
+        {
+          "pattern": "pullrequest.review",
+          "custom_domain": true
         }
+      ]
+    },
+    "preview": {
+      "name": "pullrequestdotreview-preview",
+      "vars": {
+        "VITE_BITBUCKET_CLIENT_ID": "ZksHSnpz3hWfFYdW2b"
+      },
+      "routes": [
+        {
+          "pattern": "preview.pullrequest.review",
+          "custom_domain": true
+        }
+      ]
     }
+  }
 }

@@ -51,7 +51,9 @@ function OAuthCallback() {
           <span className="text-[13px] font-medium">OAuth Callback</span>
         </div>
         <div className="p-6">
-          <div className={`flex items-center gap-3 text-[13px] ${isError ? 'text-destructive' : 'text-muted-foreground'}`}>
+          <div
+            className={`flex items-center gap-3 text-[13px] ${isError ? "text-destructive" : "text-muted-foreground"}`}
+          >
             {isError ? (
               <AlertCircle className="size-5" />
             ) : (

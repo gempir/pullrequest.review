@@ -1,4 +1,5 @@
 import { useDiffOptions, type DiffOptions } from "@/lib/diff-options-context";
+import { DIFF_THEMES, type DiffTheme } from "@/lib/diff-themes";
 import {
   Select,
   SelectContent,
@@ -10,69 +11,13 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
-const THEMES = [
-  "pierre-dark",
-  "pierre-light",
-  "andromeeda",
-  "aurora-x",
-  "ayu-dark",
-  "ayu-light",
-  "catppuccin-frappe",
-  "catppuccin-latte",
-  "catppuccin-macchiato",
-  "catppuccin-mocha",
-  "dark-plus",
-  "dracula",
-  "dracula-soft",
-  "everforest-dark",
-  "everforest-light",
-  "github-dark",
-  "github-dark-default",
-  "github-dark-dimmed",
-  "github-dark-high-contrast",
-  "github-light",
-  "github-light-default",
-  "github-light-high-contrast",
-  "gruvbox-dark-hard",
-  "gruvbox-dark-medium",
-  "gruvbox-dark-soft",
-  "gruvbox-light-hard",
-  "gruvbox-light-medium",
-  "gruvbox-light-soft",
-  "houston",
-  "kanagawa-dragon",
-  "kanagawa-lotus",
-  "kanagawa-wave",
-  "light-plus",
-  "material-theme",
-  "material-theme-darker",
-  "material-theme-lighter",
-  "material-theme-ocean",
-  "material-theme-palenight",
-  "min-dark",
-  "min-light",
-  "monokai",
-  "night-owl",
-  "night-owl-light",
-  "nord",
-  "one-dark-pro",
-  "one-light",
-  "poimandres",
-  "rose-pine",
-  "rose-pine-dawn",
-  "rose-pine-moon",
-  "slack-dark",
-  "slack-ochin",
-  "snazzy-light",
-  "solarized-dark",
-  "solarized-light",
-  "synthwave-84",
-  "tokyo-night",
-  "vesper",
-  "vitesse-black",
-  "vitesse-dark",
-  "vitesse-light",
-];
+type BooleanOptionKey = {
+  [K in keyof DiffOptions]: DiffOptions[K] extends boolean ? K : never;
+}[keyof DiffOptions];
+
+type NumberOptionKey = {
+  [K in keyof DiffOptions]: DiffOptions[K] extends number ? K : never;
+}[keyof DiffOptions];
 
 function OptionSelect<K extends keyof DiffOptions>({
   label,
@@ -86,17 +31,26 @@ function OptionSelect<K extends keyof DiffOptions>({
   const { options, setOption } = useDiffOptions();
   return (
     <div className="flex items-center gap-2">
-      <Label className="text-[11px] whitespace-nowrap text-muted-foreground">{label}</Label>
+      <Label className="text-[11px] whitespace-nowrap text-muted-foreground">
+        {label}
+      </Label>
       <Select
         value={String(options[optionKey])}
         onValueChange={(v) => setOption(optionKey, v as DiffOptions[K])}
       >
-        <SelectTrigger className="h-7 text-[12px] w-auto min-w-[80px]" size="sm">
+        <SelectTrigger
+          className="h-7 text-[12px] w-auto min-w-[80px]"
+          size="sm"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {values.map((v) => (
-            <SelectItem key={String(v)} value={String(v)} className="text-[12px]">
+            <SelectItem
+              key={String(v)}
+              value={String(v)}
+              className="text-[12px]"
+            >
               {String(v)}
             </SelectItem>
           ))}
@@ -111,18 +65,21 @@ function OptionSwitch({
   optionKey,
 }: {
   label: string;
-  optionKey: keyof DiffOptions;
+  optionKey: BooleanOptionKey;
 }) {
   const { options, setOption } = useDiffOptions();
   return (
     <div className="flex items-center gap-2">
       <Switch
         id={optionKey}
-        checked={Boolean(options[optionKey])}
-        onCheckedChange={(v) => setOption(optionKey, v as any)}
+        checked={options[optionKey]}
+        onCheckedChange={(v) => setOption(optionKey, v)}
         size="sm"
       />
-      <Label htmlFor={optionKey} className="text-[11px] whitespace-nowrap text-muted-foreground">
+      <Label
+        htmlFor={optionKey}
+        className="text-[11px] whitespace-nowrap text-muted-foreground"
+      >
         {label}
       </Label>
     </div>
@@ -136,18 +93,20 @@ function OptionNumber({
   max,
 }: {
   label: string;
-  optionKey: keyof DiffOptions;
+  optionKey: NumberOptionKey;
   min?: number;
   max?: number;
 }) {
   const { options, setOption } = useDiffOptions();
   return (
     <div className="flex items-center gap-2">
-      <Label className="text-[11px] whitespace-nowrap text-muted-foreground">{label}</Label>
+      <Label className="text-[11px] whitespace-nowrap text-muted-foreground">
+        {label}
+      </Label>
       <Input
         type="number"
-        value={Number(options[optionKey])}
-        onChange={(e) => setOption(optionKey, Number(e.target.value) as any)}
+        value={options[optionKey]}
+        onChange={(e) => setOption(optionKey, Number(e.target.value))}
         min={min}
         max={max}
         className="h-7 w-16 text-[12px]"
@@ -162,16 +121,21 @@ export function DiffToolbar() {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
       <div className="flex items-center gap-2">
-        <Label className="text-[11px] whitespace-nowrap text-muted-foreground">Theme</Label>
+        <Label className="text-[11px] whitespace-nowrap text-muted-foreground">
+          Theme
+        </Label>
         <Select
           value={options.theme}
-          onValueChange={(v) => setOption("theme", v)}
+          onValueChange={(v) => setOption("theme", v as DiffTheme)}
         >
-          <SelectTrigger className="h-7 text-[12px] w-auto min-w-[140px]" size="sm">
+          <SelectTrigger
+            className="h-7 text-[12px] w-auto min-w-[140px]"
+            size="sm"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="max-h-60">
-            {THEMES.map((t) => (
+            {DIFF_THEMES.map((t) => (
               <SelectItem key={t} value={t} className="text-[12px]">
                 {t}
               </SelectItem>

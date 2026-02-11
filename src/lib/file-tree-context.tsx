@@ -25,6 +25,7 @@ interface FileTreeContextType {
   expand: (path: string) => void;
   collapse: (path: string) => void;
   toggle: (path: string) => void;
+  setDirectoryExpandedMap: (next: Record<string, boolean>) => void;
   isExpanded: (path: string) => boolean;
   setActiveFile: (path: string | undefined) => void;
   firstFile: () => string | undefined;
@@ -149,7 +150,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
   const nodeIndex = useMemo(() => buildNodeIndex(tree), [tree]);
 
   const isExpanded = useCallback(
-    (path: string) => dirState[path]?.expanded ?? false,
+    (path: string) => dirState[path]?.expanded ?? true,
     [dirState],
   );
 
@@ -165,11 +166,22 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
     (path: string) => {
       setDirState((prev) => ({
         ...prev,
-        [path]: { expanded: !(prev[path]?.expanded ?? false) },
+        [path]: { expanded: !(prev[path]?.expanded ?? true) },
       }));
     },
     [],
   );
+
+  const setDirectoryExpandedMap = useCallback((next: Record<string, boolean>) => {
+    const mapped: Record<string, DirectoryState> = {
+      "": { expanded: true },
+    };
+    for (const [path, expanded] of Object.entries(next)) {
+      if (!path) continue;
+      mapped[path] = { expanded };
+    }
+    setDirState(mapped);
+  }, []);
 
   const getChildren = useCallback(
     (path: string) => nodeIndex.get(path) ?? [],
@@ -271,6 +283,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
     expand,
     collapse,
     toggle,
+    setDirectoryExpandedMap,
     isExpanded,
     setActiveFile,
     firstFile,
@@ -279,7 +292,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
     navigateToNextFile,
     navigateToPreviousFile,
     allFiles,
-  }), [tree, kinds, dirState, activeFile, setTree, setKinds, reset, expand, collapse, toggle, isExpanded, setActiveFile, firstFile, ensureActiveFile, getChildren, navigateToNextFile, navigateToPreviousFile, allFiles]);
+  }), [tree, kinds, dirState, activeFile, setTree, setKinds, reset, expand, collapse, toggle, setDirectoryExpandedMap, isExpanded, setActiveFile, firstFile, ensureActiveFile, getChildren, navigateToNextFile, navigateToPreviousFile, allFiles]);
 
   return (
     <FileTreeContext.Provider value={value}>

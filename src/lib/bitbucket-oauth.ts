@@ -35,71 +35,85 @@ export function buildAuthorizeUrl(params: {
 
 export const exchangeOAuthCode = createServerFn({
   method: "POST",
-}).handler(async ({ data }: { data: { code: string; redirectUri: string } }) => {
-  const clientId = process.env.VITE_BITBUCKET_CLIENT_ID ?? "";
-  const clientSecret = process.env.BITBUCKET_CLIENT_SECRET ?? "";
-  if (!clientId || !clientSecret) {
-    throw new Error("Missing VITE_BITBUCKET_CLIENT_ID or BITBUCKET_CLIENT_SECRET");
-  }
+})
+  .inputValidator((data: { code: string; redirectUri: string }) => data)
+  .handler(async ({ data }) => {
+    const clientId = process.env.VITE_BITBUCKET_CLIENT_ID ?? "";
+    const clientSecret = process.env.BITBUCKET_CLIENT_SECRET ?? "";
+    if (!clientId || !clientSecret) {
+      throw new Error(
+        "Missing VITE_BITBUCKET_CLIENT_ID or BITBUCKET_CLIENT_SECRET",
+      );
+    }
 
-  const body = new URLSearchParams({
-    grant_type: "authorization_code",
-    code: data.code,
-    redirect_uri: data.redirectUri,
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      code: data.code,
+      redirect_uri: data.redirectUri,
+    });
+
+    const res = await fetch("https://bitbucket.org/site/oauth2/access_token", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${encodeBasicAuth(clientId, clientSecret)}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
+
+    if (!res.ok) {
+      throw new Error(
+        `OAuth token exchange failed: ${res.status} ${res.statusText}`,
+      );
+    }
+
+    const payload = (await res.json()) as OAuthTokenResponse;
+    return {
+      accessToken: payload.access_token,
+      refreshToken: payload.refresh_token,
+      expiresAt: payload.expires_in
+        ? Date.now() + payload.expires_in * 1000
+        : undefined,
+    } as OAuthTokenResult;
   });
-
-  const res = await fetch("https://bitbucket.org/site/oauth2/access_token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${encodeBasicAuth(clientId, clientSecret)}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body,
-  });
-
-  if (!res.ok) {
-    throw new Error(`OAuth token exchange failed: ${res.status} ${res.statusText}`);
-  }
-
-  const payload = (await res.json()) as OAuthTokenResponse;
-  return {
-    accessToken: payload.access_token,
-    refreshToken: payload.refresh_token,
-    expiresAt: payload.expires_in ? Date.now() + payload.expires_in * 1000 : undefined,
-  } as OAuthTokenResult;
-});
 
 export const refreshOAuthToken = createServerFn({
   method: "POST",
-}).handler(async ({ data }: { data: { refreshToken: string } }) => {
-  const clientId = process.env.VITE_BITBUCKET_CLIENT_ID ?? "";
-  const clientSecret = process.env.BITBUCKET_CLIENT_SECRET ?? "";
-  if (!clientId || !clientSecret) {
-    throw new Error("Missing VITE_BITBUCKET_CLIENT_ID or BITBUCKET_CLIENT_SECRET");
-  }
+})
+  .inputValidator((data: { refreshToken: string }) => data)
+  .handler(async ({ data }) => {
+    const clientId = process.env.VITE_BITBUCKET_CLIENT_ID ?? "";
+    const clientSecret = process.env.BITBUCKET_CLIENT_SECRET ?? "";
+    if (!clientId || !clientSecret) {
+      throw new Error(
+        "Missing VITE_BITBUCKET_CLIENT_ID or BITBUCKET_CLIENT_SECRET",
+      );
+    }
 
-  const body = new URLSearchParams({
-    grant_type: "refresh_token",
-    refresh_token: data.refreshToken,
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: data.refreshToken,
+    });
+
+    const res = await fetch("https://bitbucket.org/site/oauth2/access_token", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${encodeBasicAuth(clientId, clientSecret)}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
+
+    if (!res.ok) {
+      throw new Error(`OAuth refresh failed: ${res.status} ${res.statusText}`);
+    }
+
+    const payload = (await res.json()) as OAuthTokenResponse;
+    return {
+      accessToken: payload.access_token,
+      refreshToken: payload.refresh_token,
+      expiresAt: payload.expires_in
+        ? Date.now() + payload.expires_in * 1000
+        : undefined,
+    } as OAuthTokenResult;
   });
-
-  const res = await fetch("https://bitbucket.org/site/oauth2/access_token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${encodeBasicAuth(clientId, clientSecret)}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body,
-  });
-
-  if (!res.ok) {
-    throw new Error(`OAuth refresh failed: ${res.status} ${res.statusText}`);
-  }
-
-  const payload = (await res.json()) as OAuthTokenResponse;
-  return {
-    accessToken: payload.access_token,
-    refreshToken: payload.refresh_token,
-    expiresAt: payload.expires_in ? Date.now() + payload.expires_in * 1000 : undefined,
-  } as OAuthTokenResult;
-});

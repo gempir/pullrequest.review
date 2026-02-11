@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "vite dev --mode dev",
     "tsc": "tsc --noEmit",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome check .",
     "build": "bun --bun vite build",
     "build:prod": "bun --bun vite build --mode prod",
     "build:preview": "bun --bun vite build --mode preview",
@@ -43,6 +46,7 @@
     "wrangler": "^4.39.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.3.14",
     "@types/node": "^24.5.2",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",

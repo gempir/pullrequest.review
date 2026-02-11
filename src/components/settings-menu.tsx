@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { Settings, Keyboard, SlidersHorizontal, RotateCcw, MonitorCog, LogOut } from "lucide-react";
+import {
+  Settings,
+  Keyboard,
+  SlidersHorizontal,
+  RotateCcw,
+  MonitorCog,
+  LogOut,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,9 +15,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { DiffToolbar } from "@/components/diff-toolbar";
 import { useShortcuts, type ShortcutConfig } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
@@ -73,6 +77,7 @@ function ShortcutRow({
       </div>
       <div className="flex items-center gap-2">
         <button
+          type="button"
           onClick={() => setIsRecording(true)}
           onKeyDown={handleKeyDown}
           onBlur={() => setIsRecording(false)}
@@ -80,7 +85,7 @@ function ShortcutRow({
             "h-8 px-3 text-[13px] border transition-colors min-w-[100px] text-center",
             isRecording
               ? "border-ring bg-accent text-accent-foreground"
-              : "border-input bg-background hover:border-ring"
+              : "border-input bg-background hover:border-ring",
           )}
         >
           {isRecording ? "Press key..." : displayShortcut()}
@@ -223,7 +228,12 @@ export function SettingsMenu({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Settings">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0"
+          aria-label="Settings"
+        >
           <Settings className="size-3.5" />
         </Button>
       </DialogTrigger>
@@ -240,24 +250,26 @@ export function SettingsMenu({
           <div className="w-48 border-r border-border bg-sidebar">
             <nav className="p-2 space-y-1">
               <button
+                type="button"
                 onClick={() => setActiveTab("diff")}
                 className={cn(
                   "w-full flex items-center gap-2 px-3 py-2 text-[13px] transition-colors",
                   activeTab === "diff"
                     ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50"
+                    : "text-muted-foreground hover:bg-accent/50",
                 )}
               >
                 <SlidersHorizontal className="size-4" />
                 Diff Settings
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab("shortcuts")}
                 className={cn(
                   "w-full flex items-center gap-2 px-3 py-2 text-[13px] transition-colors",
                   activeTab === "shortcuts"
                     ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50"
+                    : "text-muted-foreground hover:bg-accent/50",
                 )}
               >
                 <Keyboard className="size-4" />
@@ -265,12 +277,13 @@ export function SettingsMenu({
               </button>
               {showWorkspaceTab && (
                 <button
+                  type="button"
                   onClick={() => setActiveTab("workspace")}
                   className={cn(
                     "w-full flex items-center gap-2 px-3 py-2 text-[13px] transition-colors",
                     activeTab === "workspace"
                       ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent/50"
+                      : "text-muted-foreground hover:bg-accent/50",
                   )}
                 >
                   <MonitorCog className="size-4" />

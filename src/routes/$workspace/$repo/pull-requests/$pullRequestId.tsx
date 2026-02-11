@@ -7,7 +7,14 @@ import {
   type OnDiffLineEnterLeaveProps,
 } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { usePrContext } from "@/lib/pr-context";
 import { useDiffOptions, toLibraryOptions } from "@/lib/diff-options-context";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
@@ -32,10 +39,19 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FileTree } from "@/components/file-tree";
 import { SettingsMenu } from "@/components/settings-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   AlertCircle,
   Check,
@@ -68,7 +84,9 @@ type DraftThreadAnnotation = {
   draft: InlineCommentDraft;
 };
 
-type SingleFileAnnotationMetadata = ExistingThreadAnnotation | DraftThreadAnnotation;
+type SingleFileAnnotationMetadata =
+  | ExistingThreadAnnotation
+  | DraftThreadAnnotation;
 
 interface CommentThread {
   id: number;
@@ -81,7 +99,8 @@ const TREE_COLLAPSED_KEY = "pr_review_tree_collapsed";
 const VIEW_MODE_KEY = "pr_review_diff_view_mode";
 const DIRECTORY_STATE_KEY_PREFIX = "pr_review_directory_state";
 const INLINE_DRAFT_STORAGE_KEY_PREFIX = "bitbucket_inline_comment_draft";
-const INLINE_ACTIVE_DRAFT_STORAGE_KEY_PREFIX = "bitbucket_inline_comment_active";
+const INLINE_ACTIVE_DRAFT_STORAGE_KEY_PREFIX =
+  "bitbucket_inline_comment_active";
 const DEFAULT_TREE_WIDTH = 280;
 const MIN_TREE_WIDTH = 180;
 const MAX_TREE_WIDTH = 520;
@@ -109,7 +128,9 @@ function buildThreads(comments: BitbucketComment[]): CommentThread[] {
       id: root.id,
       root,
       replies: (repliesByParent.get(root.id) ?? []).sort(
-        (a, b) => new Date(a.created_on ?? 0).getTime() - new Date(b.created_on ?? 0).getTime(),
+        (a, b) =>
+          new Date(a.created_on ?? 0).getTime() -
+          new Date(b.created_on ?? 0).getTime(),
       ),
     }))
     .sort(commentThreadSort);
@@ -130,7 +151,9 @@ function formatDate(value?: string) {
   }
 }
 
-function linesUpdated(diffstat: Array<{ lines_added?: number; lines_removed?: number }>) {
+function linesUpdated(
+  diffstat: Array<{ lines_added?: number; lines_removed?: number }>,
+) {
   let added = 0;
   let removed = 0;
   for (const entry of diffstat) {
@@ -162,7 +185,11 @@ function inlineDraftStorageKey(
   return `${INLINE_DRAFT_STORAGE_KEY_PREFIX}:${workspace}/${repo}/${pullRequestId}:${draft.side}:${draft.line}:${encodeURIComponent(draft.path)}`;
 }
 
-function inlineActiveDraftStorageKey(workspace: string, repo: string, pullRequestId: string) {
+function inlineActiveDraftStorageKey(
+  workspace: string,
+  repo: string,
+  pullRequestId: string,
+) {
   return `${INLINE_ACTIVE_DRAFT_STORAGE_KEY_PREFIX}:${workspace}/${repo}/${pullRequestId}`;
 }
 
@@ -208,7 +235,9 @@ function collectDirectoryPaths(nodes: FileNode[]) {
   return paths;
 }
 
-export const Route = createFileRoute("/$workspace/$repo/pull-requests/$pullRequestId")({
+export const Route = createFileRoute(
+  "/$workspace/$repo/pull-requests/$pullRequestId",
+)({
   component: PullRequestReviewPage,
 });
 
@@ -221,9 +250,10 @@ function PullRequestReviewPage() {
   const compactDiffOptions = useMemo<FileDiffOptions<undefined>>(
     () => ({
       ...libOptions,
+      hunkSeparators: options.hunkSeparators,
       disableFileHeader: true,
     }),
-    [libOptions],
+    [libOptions, options.hunkSeparators],
   );
   const {
     root,
@@ -244,7 +274,9 @@ function PullRequestReviewPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showUnviewedOnly, setShowUnviewedOnly] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
-  const [inlineComment, setInlineComment] = useState<InlineCommentDraft | null>(null);
+  const [inlineComment, setInlineComment] = useState<InlineCommentDraft | null>(
+    null,
+  );
   const [actionError, setActionError] = useState<string | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeMessage, setMergeMessage] = useState("");
@@ -254,7 +286,14 @@ function PullRequestReviewPage() {
   const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [dirStateHydrated, setDirStateHydrated] = useState(false);
   const prQueryKey = useMemo(
-    () => ["bitbucket-pr-bundle", workspace, repo, pullRequestId, auth?.accessToken] as const,
+    () =>
+      [
+        "bitbucket-pr-bundle",
+        workspace,
+        repo,
+        pullRequestId,
+        auth?.accessToken,
+      ] as const,
     [auth?.accessToken, pullRequestId, repo, workspace],
   );
 
@@ -283,7 +322,11 @@ function PullRequestReviewPage() {
     if (typeof window === "undefined") return;
 
     const storedWidth = Number(window.localStorage.getItem(TREE_WIDTH_KEY));
-    if (Number.isFinite(storedWidth) && storedWidth >= MIN_TREE_WIDTH && storedWidth <= MAX_TREE_WIDTH) {
+    if (
+      Number.isFinite(storedWidth) &&
+      storedWidth >= MIN_TREE_WIDTH &&
+      storedWidth <= MAX_TREE_WIDTH
+    ) {
       setTreeWidth(storedWidth);
     }
 
@@ -328,7 +371,10 @@ function PullRequestReviewPage() {
 
   useEffect(() => {
     if (!viewedStorageKey || typeof window === "undefined") return;
-    window.localStorage.setItem(viewedStorageKey, JSON.stringify(Array.from(viewedFiles)));
+    window.localStorage.setItem(
+      viewedStorageKey,
+      JSON.stringify(Array.from(viewedFiles)),
+    );
   }, [viewedStorageKey, viewedFiles]);
 
   useEffect(() => {
@@ -362,7 +408,10 @@ function PullRequestReviewPage() {
       if (!path) continue;
       toStore[path] = state.expanded;
     }
-    window.localStorage.setItem(directoryStateStorageKey, JSON.stringify(toStore));
+    window.localStorage.setItem(
+      directoryStateStorageKey,
+      JSON.stringify(toStore),
+    );
   }, [dirState, dirStateHydrated, directoryStateStorageKey]);
 
   const diffText = prData?.diff ?? "";
@@ -379,8 +428,10 @@ function PullRequestReviewPage() {
     return fileDiffs.filter((fileDiff, index) => {
       const filePath = getFilePath(fileDiff, index);
       const path = filePath.toLowerCase();
-      const matchesSearch = !normalizedSearch || path.includes(normalizedSearch);
-      const matchesViewedFilter = !showUnviewedOnly || !viewedFiles.has(filePath);
+      const matchesSearch =
+        !normalizedSearch || path.includes(normalizedSearch);
+      const matchesViewedFilter =
+        !showUnviewedOnly || !viewedFiles.has(filePath);
       return matchesSearch && matchesViewedFilter;
     });
   }, [fileDiffs, normalizedSearch, showUnviewedOnly, viewedFiles]);
@@ -406,12 +457,18 @@ function PullRequestReviewPage() {
     return values;
   }, [filteredDiffs]);
 
-  const visiblePathSet = useMemo(() => new Set(visibleFilePaths), [visibleFilePaths]);
+  const visiblePathSet = useMemo(
+    () => new Set(visibleFilePaths),
+    [visibleFilePaths],
+  );
   const viewedVisibleCount = useMemo(
     () => visibleFilePaths.filter((path) => viewedFiles.has(path)).length,
     [visibleFilePaths, viewedFiles],
   );
-  const treeFilePaths = useMemo(() => allFiles().map((file) => file.path), [allFiles]);
+  const treeFilePaths = useMemo(
+    () => allFiles().map((file) => file.path),
+    [allFiles],
+  );
   const directoryPaths = useMemo(() => collectDirectoryPaths(root), [root]);
   const treeOrderedVisiblePaths = useMemo(() => {
     if (treeFilePaths.length === 0) return [];
@@ -452,7 +509,7 @@ function PullRequestReviewPage() {
     setKinds(new Map());
     setActiveFile(undefined);
     setSearchQuery("");
-  }, [pullRequestId, repo, setActiveFile, setKinds, setTree, workspace]);
+  }, [setActiveFile, setKinds, setTree]);
 
   useEffect(() => {
     if (treeOrderedVisiblePaths.length === 0) {
@@ -474,6 +531,7 @@ function PullRequestReviewPage() {
   ]);
 
   useEffect(() => {
+    if (showUnviewedOnly) return;
     if (!activeFile || !visiblePathSet.has(activeFile)) return;
     setViewedFiles((prev) => {
       if (prev.has(activeFile)) return prev;
@@ -481,7 +539,7 @@ function PullRequestReviewPage() {
       next.add(activeFile);
       return next;
     });
-  }, [activeFile, visiblePathSet]);
+  }, [activeFile, showUnviewedOnly, visiblePathSet]);
 
   const selectAndRevealFile = useCallback(
     (path: string) => {
@@ -502,17 +560,20 @@ function PullRequestReviewPage() {
     (paths: string[], direction: "next" | "previous") => {
       if (paths.length === 0) return;
       if (!activeFile) {
-        const fallback = direction === "next" ? paths[0] : paths[paths.length - 1];
+        const fallback =
+          direction === "next" ? paths[0] : paths[paths.length - 1];
         selectAndRevealFile(fallback);
         return;
       }
-      const currentIndex = paths.findIndex((path) => path === activeFile);
+      const currentIndex = paths.indexOf(activeFile);
       if (currentIndex === -1) {
-        const fallback = direction === "next" ? paths[0] : paths[paths.length - 1];
+        const fallback =
+          direction === "next" ? paths[0] : paths[paths.length - 1];
         selectAndRevealFile(fallback);
         return;
       }
-      const nextIndex = direction === "next" ? currentIndex + 1 : currentIndex - 1;
+      const nextIndex =
+        direction === "next" ? currentIndex + 1 : currentIndex - 1;
       if (nextIndex < 0 || nextIndex >= paths.length) return;
       selectAndRevealFile(paths[nextIndex]);
     },
@@ -532,8 +593,10 @@ function PullRequestReviewPage() {
       ),
     onNextFile: () => selectFromPaths(treeOrderedVisiblePaths, "next"),
     onPreviousFile: () => selectFromPaths(treeOrderedVisiblePaths, "previous"),
-    onScrollDown: () => diffScrollRef.current?.scrollBy({ top: 120, behavior: "smooth" }),
-    onScrollUp: () => diffScrollRef.current?.scrollBy({ top: -120, behavior: "smooth" }),
+    onScrollDown: () =>
+      diffScrollRef.current?.scrollBy({ top: 120, behavior: "smooth" }),
+    onScrollUp: () =>
+      diffScrollRef.current?.scrollBy({ top: -120, behavior: "smooth" }),
   });
 
   const selectedFilePath = useMemo(() => {
@@ -549,7 +612,9 @@ function PullRequestReviewPage() {
 
   const comments = prData?.comments ?? [];
   const threads = useMemo(() => buildThreads(comments), [comments]);
-  const unresolvedThreads = threads.filter((thread) => !thread.root.resolution && !thread.root.deleted);
+  const unresolvedThreads = threads.filter(
+    (thread) => !thread.root.resolution && !thread.root.deleted,
+  );
 
   const threadsByPath = useMemo(() => {
     const grouped = new Map<string, CommentThread[]>();
@@ -568,16 +633,25 @@ function PullRequestReviewPage() {
   }, [selectedFilePath, threadsByPath]);
 
   const selectedInlineThreads = useMemo(
-    () => selectedThreads.filter((thread) => !thread.root.deleted && Boolean(getCommentInlinePosition(thread.root))),
+    () =>
+      selectedThreads.filter(
+        (thread) =>
+          !thread.root.deleted &&
+          Boolean(getCommentInlinePosition(thread.root)),
+      ),
     [selectedThreads],
   );
 
   const selectedFileLevelThreads = useMemo(
-    () => selectedThreads.filter((thread) => !thread.root.deleted && !getCommentInlinePosition(thread.root)),
+    () =>
+      selectedThreads.filter(
+        (thread) =>
+          !thread.root.deleted && !getCommentInlinePosition(thread.root),
+      ),
     [selectedThreads],
   );
 
-  const prStats = useMemo(() => {
+  const _prStats = useMemo(() => {
     const summary = {
       files: prData?.diffstat.length ?? 0,
       added: 0,
@@ -596,58 +670,91 @@ function PullRequestReviewPage() {
     return summary;
   }, [prData?.diffstat]);
 
-  const lineStats = useMemo(() => linesUpdated(prData?.diffstat ?? []), [prData?.diffstat]);
+  const lineStats = useMemo(
+    () => linesUpdated(prData?.diffstat ?? []),
+    [prData?.diffstat],
+  );
 
-  const isApproved = Boolean(prData?.pr.participants?.some((participant) => participant.approved));
+  const isApproved = Boolean(
+    prData?.pr.participants?.some((participant) => participant.approved),
+  );
+  const ensurePrRef = useCallback(() => {
+    if (!prData) {
+      throw new Error("Pull request data is not loaded");
+    }
+    return prData.prRef;
+  }, [prData]);
 
   const approveMutation = useMutation({
-    mutationFn: () => approvePullRequest({ data: { prRef: prData!.prRef, auth } }),
+    mutationFn: () => {
+      const prRef = ensurePrRef();
+      return approvePullRequest({ data: { prRef, auth } });
+    },
     onSuccess: async () => {
       setActionError(null);
       await queryClient.invalidateQueries({ queryKey: prQueryKey });
     },
     onError: (error) => {
-      setActionError(error instanceof Error ? error.message : "Failed to approve pull request");
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Failed to approve pull request",
+      );
     },
   });
 
   const unapproveMutation = useMutation({
-    mutationFn: () => unapprovePullRequest({ data: { prRef: prData!.prRef, auth } }),
+    mutationFn: () => {
+      const prRef = ensurePrRef();
+      return unapprovePullRequest({ data: { prRef, auth } });
+    },
     onSuccess: async () => {
       setActionError(null);
       await queryClient.invalidateQueries({ queryKey: prQueryKey });
     },
     onError: (error) => {
-      setActionError(error instanceof Error ? error.message : "Failed to remove approval");
+      setActionError(
+        error instanceof Error ? error.message : "Failed to remove approval",
+      );
     },
   });
 
   const mergeMutation = useMutation({
-    mutationFn: () =>
-      mergePullRequest({
+    mutationFn: () => {
+      const prRef = ensurePrRef();
+      return mergePullRequest({
         data: {
-          prRef: prData!.prRef,
+          prRef,
           auth,
           message: mergeMessage,
           mergeStrategy,
           closeSourceBranch,
         },
-      }),
+      });
+    },
     onSuccess: async () => {
       setMergeOpen(false);
       setActionError(null);
       await queryClient.invalidateQueries({ queryKey: prQueryKey });
     },
     onError: (error) => {
-      setActionError(error instanceof Error ? error.message : "Failed to merge pull request");
+      setActionError(
+        error instanceof Error ? error.message : "Failed to merge pull request",
+      );
     },
   });
 
   const createCommentMutation = useMutation({
-    mutationFn: (payload: { path: string; content: string; line?: number; side?: CommentLineSide }) =>
-      createPullRequestComment({
+    mutationFn: (payload: {
+      path: string;
+      content: string;
+      line?: number;
+      side?: CommentLineSide;
+    }) => {
+      const prRef = ensurePrRef();
+      return createPullRequestComment({
         data: {
-          prRef: prData!.prRef,
+          prRef,
           auth,
           content: payload.content,
           inline: payload.line
@@ -658,7 +765,8 @@ function PullRequestReviewPage() {
               }
             : { path: payload.path },
         },
-      }),
+      });
+    },
     onSuccess: async (_, vars) => {
       if (vars.line && vars.side) {
         clearInlineDraftContent({
@@ -677,41 +785,60 @@ function PullRequestReviewPage() {
       await queryClient.invalidateQueries({ queryKey: prQueryKey });
     },
     onError: (error) => {
-      setActionError(error instanceof Error ? error.message : "Failed to create comment");
+      setActionError(
+        error instanceof Error ? error.message : "Failed to create comment",
+      );
     },
   });
 
   const resolveCommentMutation = useMutation({
-    mutationFn: (payload: { commentId: number; resolve: boolean }) =>
-      resolvePullRequestComment({
+    mutationFn: (payload: { commentId: number; resolve: boolean }) => {
+      const prRef = ensurePrRef();
+      return resolvePullRequestComment({
         data: {
-          prRef: prData!.prRef,
+          prRef,
           auth,
           commentId: payload.commentId,
           resolve: payload.resolve,
         },
-      }),
+      });
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: prQueryKey });
     },
     onError: (error) => {
-      setActionError(error instanceof Error ? error.message : "Failed to update comment resolution");
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update comment resolution",
+      );
     },
   });
 
   const getInlineDraftContent = useCallback(
     (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => {
       if (typeof window === "undefined") return "";
-      return window.localStorage.getItem(inlineDraftStorageKey(workspace, repo, pullRequestId, draft)) ?? "";
+      return (
+        window.localStorage.getItem(
+          inlineDraftStorageKey(workspace, repo, pullRequestId, draft),
+        ) ?? ""
+      );
     },
     [pullRequestId, repo, workspace],
   );
 
   const setInlineDraftContent = useCallback(
-    (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => {
+    (
+      draft: Pick<InlineCommentDraft, "path" | "line" | "side">,
+      content: string,
+    ) => {
       if (typeof window === "undefined") return;
       const key = inlineDraftStorageKey(workspace, repo, pullRequestId, draft);
-      const activeKey = inlineActiveDraftStorageKey(workspace, repo, pullRequestId);
+      const activeKey = inlineActiveDraftStorageKey(
+        workspace,
+        repo,
+        pullRequestId,
+      );
       if (content.length > 0) {
         window.localStorage.setItem(key, content);
         window.localStorage.setItem(activeKey, JSON.stringify(draft));
@@ -739,7 +866,11 @@ function PullRequestReviewPage() {
   const clearInlineDraftContent = useCallback(
     (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => {
       if (typeof window === "undefined") return;
-      const activeKey = inlineActiveDraftStorageKey(workspace, repo, pullRequestId);
+      const activeKey = inlineActiveDraftStorageKey(
+        workspace,
+        repo,
+        pullRequestId,
+      );
       const activeRaw = window.localStorage.getItem(activeKey);
       if (activeRaw) {
         try {
@@ -755,14 +886,20 @@ function PullRequestReviewPage() {
           window.localStorage.removeItem(activeKey);
         }
       }
-      window.localStorage.removeItem(inlineDraftStorageKey(workspace, repo, pullRequestId, draft));
+      window.localStorage.removeItem(
+        inlineDraftStorageKey(workspace, repo, pullRequestId, draft),
+      );
     },
     [pullRequestId, repo, workspace],
   );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const activeKey = inlineActiveDraftStorageKey(workspace, repo, pullRequestId);
+    const activeKey = inlineActiveDraftStorageKey(
+      workspace,
+      repo,
+      pullRequestId,
+    );
     const raw = window.localStorage.getItem(activeKey);
     const restoreDraft = (draft: InlineCommentDraft) => {
       const content = getInlineDraftContent(draft);
@@ -787,7 +924,12 @@ function PullRequestReviewPage() {
     for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
       const key = window.localStorage.key(i);
       if (!key) continue;
-      const parsed = parseInlineDraftStorageKey(key, workspace, repo, pullRequestId);
+      const parsed = parseInlineDraftStorageKey(
+        key,
+        workspace,
+        repo,
+        pullRequestId,
+      );
       if (!parsed) continue;
       if (restoreDraft(parsed)) {
         window.localStorage.setItem(activeKey, JSON.stringify(parsed));
@@ -836,59 +978,77 @@ function PullRequestReviewPage() {
     });
   }, [createCommentMutation, getInlineDraftContent, inlineComment]);
 
-  const handleDiffLineEnter = useCallback((props: OnDiffLineEnterLeaveProps) => {
-    props.lineElement.style.cursor = "copy";
-    if (props.numberElement) {
-      props.numberElement.style.cursor = "copy";
-    }
-  }, []);
-
-  const handleDiffLineLeave = useCallback((props: OnDiffLineEnterLeaveProps) => {
-    props.lineElement.style.cursor = "";
-    if (props.numberElement) {
-      props.numberElement.style.cursor = "";
-    }
-  }, []);
-
-  const handleDiffLineClick = useCallback((props: OnDiffLineClickProps) => {
-    if (!selectedFilePath) return;
-    setInlineComment((prev) => {
-      const side = props.annotationSide ?? "additions";
-      if (
-        prev &&
-        prev.path === selectedFilePath &&
-        prev.line === props.lineNumber &&
-        prev.side === side
-      ) {
-        return prev;
+  const handleDiffLineEnter = useCallback(
+    (props: OnDiffLineEnterLeaveProps) => {
+      props.lineElement.style.cursor = "copy";
+      if (props.numberElement) {
+        props.numberElement.style.cursor = "copy";
       }
-      if (prev && getInlineDraftContent(prev).trim().length > 0) {
-        return prev;
+    },
+    [],
+  );
+
+  const handleDiffLineLeave = useCallback(
+    (props: OnDiffLineEnterLeaveProps) => {
+      props.lineElement.style.cursor = "";
+      if (props.numberElement) {
+        props.numberElement.style.cursor = "";
       }
-      return {
-        path: selectedFilePath,
-        line: props.lineNumber,
-        side,
-      };
-    });
-  }, [getInlineDraftContent, selectedFilePath]);
+    },
+    [],
+  );
+
+  const handleDiffLineClick = useCallback(
+    (props: OnDiffLineClickProps) => {
+      if (!selectedFilePath) return;
+      setInlineComment((prev) => {
+        const side = props.annotationSide ?? "additions";
+        if (
+          prev &&
+          prev.path === selectedFilePath &&
+          prev.line === props.lineNumber &&
+          prev.side === side
+        ) {
+          return prev;
+        }
+        if (prev && getInlineDraftContent(prev).trim().length > 0) {
+          return prev;
+        }
+        return {
+          path: selectedFilePath,
+          line: props.lineNumber,
+          side,
+        };
+      });
+    },
+    [getInlineDraftContent, selectedFilePath],
+  );
 
   useEffect(() => {
     if (!inlineComment) return;
     const timeoutId = window.setTimeout(() => {
       inlineDraftTextareaRef.current?.focus();
       const valueLength = inlineDraftTextareaRef.current?.value.length ?? 0;
-      inlineDraftTextareaRef.current?.setSelectionRange(valueLength, valueLength);
+      inlineDraftTextareaRef.current?.setSelectionRange(
+        valueLength,
+        valueLength,
+      );
     }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [inlineComment?.line, inlineComment?.path, inlineComment?.side]);
+  }, [
+    inlineComment?.line,
+    inlineComment?.path,
+    inlineComment?.side,
+    inlineComment,
+  ]);
 
   const singleFileAnnotations = useMemo(() => {
-    if (!selectedFilePath) return [] as Array<{
-      side: CommentLineSide;
-      lineNumber: number;
-      metadata: SingleFileAnnotationMetadata;
-    }>;
+    if (!selectedFilePath)
+      return [] as Array<{
+        side: CommentLineSide;
+        lineNumber: number;
+        metadata: SingleFileAnnotationMetadata;
+      }>;
 
     const annotations: Array<{
       side: CommentLineSide;
@@ -931,32 +1091,43 @@ function PullRequestReviewPage() {
       onLineEnter: handleDiffLineEnter,
       onLineLeave: handleDiffLineLeave,
     }),
-    [compactDiffOptions, handleDiffLineClick, handleDiffLineEnter, handleDiffLineLeave],
+    [
+      compactDiffOptions,
+      handleDiffLineClick,
+      handleDiffLineEnter,
+      handleDiffLineLeave,
+    ],
   );
 
-  const startTreeResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    if (!workspaceRef.current) return;
+  const startTreeResize = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      if (!workspaceRef.current) return;
 
-    const initialWidth = treeWidth;
-    const startX = event.clientX;
-    document.body.style.userSelect = "none";
+      const initialWidth = treeWidth;
+      const startX = event.clientX;
+      document.body.style.userSelect = "none";
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const delta = moveEvent.clientX - startX;
-      const next = Math.min(MAX_TREE_WIDTH, Math.max(MIN_TREE_WIDTH, initialWidth + delta));
-      setTreeWidth(next);
-    };
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX;
+        const next = Math.min(
+          MAX_TREE_WIDTH,
+          Math.max(MIN_TREE_WIDTH, initialWidth + delta),
+        );
+        setTreeWidth(next);
+      };
 
-    const onMouseUp = () => {
-      document.body.style.userSelect = "";
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
+      const onMouseUp = () => {
+        document.body.style.userSelect = "";
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+      };
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-  }, [treeWidth]);
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    },
+    [treeWidth],
+  );
 
   if (prQuery.isLoading) {
     return (
@@ -978,7 +1149,9 @@ function PullRequestReviewPage() {
             <span className="text-[13px] font-medium">[ERROR]</span>
           </div>
           <p className="text-destructive text-[13px]">
-            {prQuery.error instanceof Error ? prQuery.error.message : "Failed to load pull request"}
+            {prQuery.error instanceof Error
+              ? prQuery.error.message
+              : "Failed to load pull request"}
           </p>
         </div>
       </div>
@@ -1008,7 +1181,9 @@ function PullRequestReviewPage() {
         ) : (
           <>
             <div className="h-11 px-2 border-b border-border flex items-center gap-2 text-[11px] text-muted-foreground">
-              <span>{viewedVisibleCount}/{visibleFilePaths.length} viewed</span>
+              <span>
+                {viewedVisibleCount}/{visibleFilePaths.length} viewed
+              </span>
               <Button
                 type="button"
                 variant="ghost"
@@ -1083,8 +1258,13 @@ function PullRequestReviewPage() {
                 viewedFiles={viewedFiles}
                 onToggleViewed={toggleViewed}
                 onFileClick={(node) => {
-                  const anchor = document.getElementById(fileAnchorId(node.path));
-                  anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  const anchor = document.getElementById(
+                    fileAnchorId(node.path),
+                  );
+                  anchor?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  });
                 }}
               />
             </div>
@@ -1105,7 +1285,9 @@ function PullRequestReviewPage() {
               {prData.pr.source?.repository?.full_name ?? "repo"}
             </span>
             <span className="text-muted-foreground">/</span>
-            <span className="truncate">{prData.pr.destination?.branch?.name ?? "branch"}</span>
+            <span className="truncate">
+              {prData.pr.destination?.branch?.name ?? "branch"}
+            </span>
             <span className="px-1.5 py-0.5 border border-border bg-secondary uppercase text-[10px] text-foreground">
               {prData.pr.state}
             </span>
@@ -1116,12 +1298,8 @@ function PullRequestReviewPage() {
             <span className="text-muted-foreground">
               unresolved {unresolvedThreads.length}
             </span>
-            <span className="text-status-added">
-              +{lineStats.added}
-            </span>
-            <span className="text-status-removed">
-              -{lineStats.removed}
-            </span>
+            <span className="text-status-added">+{lineStats.added}</span>
+            <span className="text-status-removed">-{lineStats.removed}</span>
           </div>
 
           <div className="flex items-center gap-1">
@@ -1129,10 +1307,15 @@ function PullRequestReviewPage() {
               variant="outline"
               size="sm"
               className="h-8"
-              disabled={approveMutation.isPending || unapproveMutation.isPending}
+              disabled={
+                approveMutation.isPending || unapproveMutation.isPending
+              }
               onClick={() => {
                 if (isApproved) {
-                  if (!window.confirm("Remove approval from this pull request?")) return;
+                  if (
+                    !window.confirm("Remove approval from this pull request?")
+                  )
+                    return;
                   unapproveMutation.mutate();
                   return;
                 }
@@ -1143,7 +1326,11 @@ function PullRequestReviewPage() {
               <Check className="size-3.5" />
               {isApproved ? "Approved" : "Approve"}
             </Button>
-            <Button size="sm" className="h-8" onClick={() => setMergeOpen(true)}>
+            <Button
+              size="sm"
+              className="h-8"
+              onClick={() => setMergeOpen(true)}
+            >
               Merge
             </Button>
             <SettingsMenu
@@ -1171,10 +1358,15 @@ function PullRequestReviewPage() {
         <main ref={diffScrollRef} className="flex-1 min-h-0 overflow-auto">
           {viewMode === "single" ? (
             selectedFileDiff && selectedFilePath ? (
-              <div id={fileAnchorId(selectedFilePath)} className="h-full flex flex-col">
+              <div
+                id={fileAnchorId(selectedFilePath)}
+                className="h-full flex flex-col"
+              >
                 <div className="h-10 border-b border-border px-3 flex items-center gap-3">
                   <FileText className="size-4 text-muted-foreground" />
-                  <span className="font-mono text-[12px] truncate">{selectedFilePath}</span>
+                  <span className="font-mono text-[12px] truncate">
+                    {selectedFilePath}
+                  </span>
                   <button
                     type="button"
                     className="ml-auto flex items-center gap-2 text-[12px] text-muted-foreground"
@@ -1208,15 +1400,30 @@ function PullRequestReviewPage() {
                           {metadata.kind === "draft" ? (
                             <div className="space-y-2">
                               <textarea
-                                key={inlineDraftStorageKey(workspace, repo, pullRequestId, metadata.draft)}
+                                key={inlineDraftStorageKey(
+                                  workspace,
+                                  repo,
+                                  pullRequestId,
+                                  metadata.draft,
+                                )}
                                 ref={inlineDraftTextareaRef}
                                 rows={2}
                                 placeholder="Add a line comment"
-                                defaultValue={getInlineDraftContent(metadata.draft)}
+                                defaultValue={getInlineDraftContent(
+                                  metadata.draft,
+                                )}
                                 className="flex min-h-14 w-full resize-y border border-input bg-background px-3 py-1 text-[13px] transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring"
-                                onChange={(e) => setInlineDraftContent(metadata.draft, e.target.value)}
+                                onChange={(e) =>
+                                  setInlineDraftContent(
+                                    metadata.draft,
+                                    e.target.value,
+                                  )
+                                }
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                                  if (
+                                    e.key === "Enter" &&
+                                    (e.metaKey || e.ctrlKey)
+                                  ) {
                                     e.preventDefault();
                                     submitInlineComment();
                                   }
@@ -1224,7 +1431,9 @@ function PullRequestReviewPage() {
                               />
                               <div className="flex items-center gap-2">
                                 <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                  {metadata.draft.side === "deletions" ? "old line" : "new line"}
+                                  {metadata.draft.side === "deletions"
+                                    ? "old line"
+                                    : "new line"}
                                 </span>
                                 <Button
                                   size="sm"
@@ -1251,10 +1460,17 @@ function PullRequestReviewPage() {
                             <div className="border border-border bg-background p-2 text-[12px]">
                               <div className="flex items-center gap-2 text-muted-foreground mb-1">
                                 <MessageSquare className="size-3.5" />
-                                <span>{metadata.thread.root.user?.display_name ?? "Unknown"}</span>
-                                <span>{formatDate(metadata.thread.root.created_on)}</span>
+                                <span>
+                                  {metadata.thread.root.user?.display_name ??
+                                    "Unknown"}
+                                </span>
+                                <span>
+                                  {formatDate(metadata.thread.root.created_on)}
+                                </span>
                                 <span className="ml-auto">
-                                  {metadata.thread.root.resolution ? "Resolved" : "Unresolved"}
+                                  {metadata.thread.root.resolution
+                                    ? "Resolved"
+                                    : "Unresolved"}
                                 </span>
                               </div>
                               <div className="text-[13px] whitespace-pre-wrap">
@@ -1285,7 +1501,9 @@ function PullRequestReviewPage() {
                                     })
                                   }
                                 >
-                                  {metadata.thread.root.resolution ? "Unresolve" : "Resolve"}
+                                  {metadata.thread.root.resolution
+                                    ? "Unresolve"
+                                    : "Resolve"}
                                 </Button>
                               </div>
                             </div>
@@ -1299,14 +1517,23 @@ function PullRequestReviewPage() {
                 {selectedFileLevelThreads.length > 0 && (
                   <div className="border-t border-border px-3 py-2 space-y-2">
                     {selectedFileLevelThreads.map((thread) => (
-                      <div key={thread.id} className="border border-border bg-background p-2 text-[12px]">
+                      <div
+                        key={thread.id}
+                        className="border border-border bg-background p-2 text-[12px]"
+                      >
                         <div className="flex items-center gap-2 text-muted-foreground mb-1">
                           <MessageSquare className="size-3.5" />
-                          <span>{thread.root.user?.display_name ?? "Unknown"}</span>
+                          <span>
+                            {thread.root.user?.display_name ?? "Unknown"}
+                          </span>
                           <span>{formatDate(thread.root.created_on)}</span>
-                          <span className="ml-auto">{thread.root.resolution ? "Resolved" : "Unresolved"}</span>
+                          <span className="ml-auto">
+                            {thread.root.resolution ? "Resolved" : "Unresolved"}
+                          </span>
                         </div>
-                        <div className="text-[13px] whitespace-pre-wrap">{thread.root.content?.raw ?? ""}</div>
+                        <div className="text-[13px] whitespace-pre-wrap">
+                          {thread.root.content?.raw ?? ""}
+                        </div>
                         {thread.replies.length > 0 && (
                           <div className="mt-2 pl-3 border-l border-border space-y-1">
                             {thread.replies.map((reply) => (
@@ -1349,12 +1576,18 @@ function PullRequestReviewPage() {
             <div className="space-y-1 p-1">
               {filteredDiffs.map((fileDiff, index) => {
                 const filePath = getFilePath(fileDiff, index);
-                const fileUnresolvedCount = (threadsByPath.get(filePath) ?? []).filter(
+                const fileUnresolvedCount = (
+                  threadsByPath.get(filePath) ?? []
+                ).filter(
                   (thread) => !thread.root.resolution && !thread.root.deleted,
                 ).length;
 
                 return (
-                  <div key={`${filePath}-${index}`} id={fileAnchorId(filePath)} className="border border-border bg-card">
+                  <div
+                    key={filePath}
+                    id={fileAnchorId(filePath)}
+                    className="border border-border bg-card"
+                  >
                     <div className="border-b border-border px-3 py-2 flex items-center gap-3 text-[12px]">
                       <FileText className="size-4 text-muted-foreground" />
                       <span className="font-mono truncate">{filePath}</span>
@@ -1365,7 +1598,11 @@ function PullRequestReviewPage() {
                       )}
                     </div>
                     <div>
-                      <FileDiff fileDiff={fileDiff} options={compactDiffOptions} className="compact-diff" />
+                      <FileDiff
+                        fileDiff={fileDiff}
+                        options={compactDiffOptions}
+                        className="compact-diff"
+                      />
                     </div>
                   </div>
                 );
@@ -1409,7 +1646,11 @@ function PullRequestReviewPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Switch checked={closeSourceBranch} onCheckedChange={setCloseSourceBranch} id="close-branch" />
+              <Switch
+                checked={closeSourceBranch}
+                onCheckedChange={setCloseSourceBranch}
+                id="close-branch"
+              />
               <Label htmlFor="close-branch">Close source branch</Label>
             </div>
 
@@ -1417,8 +1658,14 @@ function PullRequestReviewPage() {
               <Button variant="outline" onClick={() => setMergeOpen(false)}>
                 Cancel
               </Button>
-              <Button disabled={mergeMutation.isPending} onClick={() => mergeMutation.mutate()}>
-                {mergeMutation.isPending && <Loader2 className="size-4 animate-spin" />} Merge
+              <Button
+                disabled={mergeMutation.isPending}
+                onClick={() => mergeMutation.mutate()}
+              >
+                {mergeMutation.isPending && (
+                  <Loader2 className="size-4 animate-spin" />
+                )}{" "}
+                Merge
               </Button>
             </div>
           </div>

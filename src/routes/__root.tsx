@@ -71,7 +71,9 @@ function RootComponent() {
 }
 
 function OnboardingScreen() {
-  const clientId = import.meta.env.VITE_BITBUCKET_CLIENT_ID as string | undefined;
+  const clientId = import.meta.env.VITE_BITBUCKET_CLIENT_ID as
+    | string
+    | undefined;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -89,7 +91,9 @@ function OnboardingScreen() {
           <Button
             onClick={() => {
               if (!clientId) return;
-              const state = crypto.getRandomValues(new Uint32Array(4)).join("-");
+              const state = crypto
+                .getRandomValues(new Uint32Array(4))
+                .join("-");
               const redirectUri = `${window.location.origin}/oauth/callback`;
               window.localStorage.setItem("bitbucket_oauth_state", state);
               const url = buildAuthorizeUrl({
@@ -119,7 +123,9 @@ function OnboardingScreen() {
 
 function AppLayout() {
   const { auth } = usePrContext();
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
 
   if (pathname.startsWith("/oauth/callback")) {
     return <Outlet />;
@@ -140,7 +146,7 @@ function AppLayout() {
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html>
+    <html lang="en">
       <head>
         <HeadContent />
       </head>

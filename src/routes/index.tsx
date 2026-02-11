@@ -1,12 +1,23 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { AlertCircle, FolderGit, GitPullRequest, Loader2, Settings2 } from "lucide-react";
+import {
+  AlertCircle,
+  FolderGit,
+  GitPullRequest,
+  Loader2,
+  Settings2,
+} from "lucide-react";
 import { fetchBitbucketRepoPullRequests } from "@/lib/bitbucket-api";
 import { usePrContext } from "@/lib/pr-context";
 import { RepositorySelector } from "@/components/repository-selector";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -64,7 +75,9 @@ function LandingPage() {
                 <FolderGit className="size-4" />
                 <span className="text-[13px]">No repositories selected.</span>
               </div>
-              <Button onClick={() => setManageReposOpen(true)}>Manage Repositories</Button>
+              <Button onClick={() => setManageReposOpen(true)}>
+                Manage Repositories
+              </Button>
             </div>
           ) : repoPrsQuery.isLoading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground text-[13px]">
@@ -88,7 +101,10 @@ function LandingPage() {
               <p className="text-[13px] text-muted-foreground">
                 No pull requests in selected repositories.
               </p>
-              <Button variant="outline" onClick={() => setManageReposOpen(true)}>
+              <Button
+                variant="outline"
+                onClick={() => setManageReposOpen(true)}
+              >
                 Manage Repositories
               </Button>
             </div>
@@ -103,6 +119,7 @@ function LandingPage() {
                     <div className="space-y-1">
                       {pullRequests.map((pr) => (
                         <button
+                          type="button"
                           key={`${repo.fullName}-${pr.id}`}
                           className="w-full text-left border border-border px-3 py-2 text-[13px] hover:bg-accent transition-colors bg-card"
                           onClick={() => {
@@ -116,9 +133,12 @@ function LandingPage() {
                             });
                           }}
                         >
-                          <div className="font-medium truncate text-foreground">{pr.title}</div>
+                          <div className="font-medium truncate text-foreground">
+                            {pr.title}
+                          </div>
                           <div className="text-[11px] text-muted-foreground mt-0.5">
-                            #{pr.id} · {pr.author?.display_name ?? "Unknown author"}
+                            #{pr.id} ·{" "}
+                            {pr.author?.display_name ?? "Unknown author"}
                           </div>
                         </button>
                       ))}
@@ -134,7 +154,9 @@ function LandingPage() {
       <Dialog open={manageReposOpen} onOpenChange={setManageReposOpen}>
         <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col p-0">
           <DialogHeader className="px-4 py-3 border-b border-border bg-secondary">
-            <DialogTitle className="text-[13px] font-medium">Manage Repositories</DialogTitle>
+            <DialogTitle className="text-[13px] font-medium">
+              Manage Repositories
+            </DialogTitle>
           </DialogHeader>
 
           <div className="p-4 overflow-auto">
@@ -146,7 +168,9 @@ function LandingPage() {
               onSave={(nextRepos) => {
                 setRepos(nextRepos);
                 setManageReposOpen(false);
-                void queryClient.invalidateQueries({ queryKey: ["bitbucket-repo-prs"] });
+                void queryClient.invalidateQueries({
+                  queryKey: ["bitbucket-repo-prs"],
+                });
               }}
             />
           </div>

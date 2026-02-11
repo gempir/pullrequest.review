@@ -1,5 +1,9 @@
-import { useFileTree, type FileNode, type ChangeKind } from "@/lib/file-tree-context";
-import { Check, ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
+import {
+  useFileTree,
+  type FileNode,
+  type ChangeKind,
+} from "@/lib/file-tree-context";
+import { ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
 import { FileIcon } from "react-files-icons";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +59,8 @@ export function FileTree({
 
   const matchesNode = (node: FileNode): boolean => {
     if (node.type === "file") {
-      const queryMatch = !normalizedQuery || node.path.toLowerCase().includes(normalizedQuery);
+      const queryMatch =
+        !normalizedQuery || node.path.toLowerCase().includes(normalizedQuery);
       const allowedMatch = !allowedFiles || allowedFiles.has(node.path);
       return queryMatch && allowedMatch;
     }
@@ -145,10 +150,18 @@ function DirectoryNode({
           )}
         >
           <span className="group-hover:hidden">
-            {expanded ? <FolderOpen className="size-3.5" /> : <Folder className="size-3.5" />}
+            {expanded ? (
+              <FolderOpen className="size-3.5" />
+            ) : (
+              <Folder className="size-3.5" />
+            )}
           </span>
           <span className="absolute inset-0 hidden items-center justify-center group-hover:flex">
-            {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+            {expanded ? (
+              <ChevronDown className="size-3.5" />
+            ) : (
+              <ChevronRight className="size-3.5" />
+            )}
           </span>
         </span>
         {kindMarker(kind)}
@@ -202,13 +215,12 @@ function FileNodeRow({
 
   return (
     <button
+      type="button"
       className={cn(
         "w-full min-w-0 flex items-center gap-3 py-1 text-left",
         "hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer",
         "text-[12px]",
-        isActive 
-          ? "bg-accent text-accent-foreground" 
-          : "text-muted-foreground",
+        isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
       )}
       style={{ paddingLeft: `${4 + level * 12}px` }}
       onClick={() => {
@@ -216,42 +228,26 @@ function FileNodeRow({
         onFileClick?.(node);
       }}
     >
-      <span
-        className={cn(
-          "size-4 flex items-center justify-center shrink-0",
-        )}
-      >
+      <span className={cn("size-4 flex items-center justify-center shrink-0")}>
         <FileIcon name={node.name} className="size-3.5" />
       </span>
       {kindMarker(kind)}
       <span className="flex-1 min-w-0 truncate text-foreground">
         {node.name}
       </span>
-      <span
-        role="checkbox"
-        aria-checked={Boolean(viewed)}
-        tabIndex={0}
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleViewed?.(node.path);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggleViewed?.(node.path);
-          }
-        }}
+      <input
+        type="checkbox"
+        checked={Boolean(viewed)}
+        onClick={(e) => e.stopPropagation()}
+        onChange={() => onToggleViewed?.(node.path)}
         className={cn(
           "mr-2 size-4 shrink-0 flex items-center justify-center transition-colors",
           viewed
             ? "bg-accent text-foreground"
-            : "bg-muted/40 text-transparent border border-border/70"
+            : "bg-muted/40 text-transparent border border-border/70",
         )}
         aria-label={`Mark ${node.path} as viewed`}
-      >
-        <Check className="size-3" />
-      </span>
+      />
     </button>
   );
 }

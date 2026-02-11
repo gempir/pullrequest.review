@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from "react";
 
 export interface ShortcutConfig {
   key: string;
@@ -57,7 +65,10 @@ const STORAGE_KEY = "pr_review_shortcuts";
 
 interface ShortcutsContextType {
   shortcuts: Shortcuts;
-  updateShortcut: (action: keyof Shortcuts, config: Partial<ShortcutConfig>) => void;
+  updateShortcut: (
+    action: keyof Shortcuts,
+    config: Partial<ShortcutConfig>,
+  ) => void;
   resetToDefaults: () => void;
   getShortcutDisplay: (shortcut: ShortcutConfig) => string;
 }
@@ -87,12 +98,15 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(shortcuts));
   }, [shortcuts, hydrated]);
 
-  const updateShortcut = useCallback((action: keyof Shortcuts, config: Partial<ShortcutConfig>) => {
-    setShortcuts((prev) => ({
-      ...prev,
-      [action]: { ...prev[action], ...config },
-    }));
-  }, []);
+  const updateShortcut = useCallback(
+    (action: keyof Shortcuts, config: Partial<ShortcutConfig>) => {
+      setShortcuts((prev) => ({
+        ...prev,
+        [action]: { ...prev[action], ...config },
+      }));
+    },
+    [],
+  );
 
   const resetToDefaults = useCallback(() => {
     setShortcuts(DEFAULT_SHORTCUTS);
@@ -108,12 +122,15 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
     return parts.join("+");
   }, []);
 
-  const value = useMemo(() => ({
-    shortcuts,
-    updateShortcut,
-    resetToDefaults,
-    getShortcutDisplay,
-  }), [shortcuts, updateShortcut, resetToDefaults, getShortcutDisplay]);
+  const value = useMemo(
+    () => ({
+      shortcuts,
+      updateShortcut,
+      resetToDefaults,
+      getShortcutDisplay,
+    }),
+    [shortcuts, updateShortcut, resetToDefaults, getShortcutDisplay],
+  );
 
   return (
     <ShortcutsContext.Provider value={value}>
@@ -124,7 +141,8 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
 
 export function useShortcuts() {
   const ctx = useContext(ShortcutsContext);
-  if (!ctx) throw new Error("useShortcuts must be used within ShortcutsProvider");
+  if (!ctx)
+    throw new Error("useShortcuts must be used within ShortcutsProvider");
   return ctx;
 }
 

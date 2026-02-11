@@ -1,4 +1,11 @@
-import { createContext, useContext, useMemo, useState, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
 
 export type FileNodeType = "file" | "directory";
 export type ChangeKind = "add" | "del" | "mix";
@@ -74,7 +81,12 @@ export function buildTreeFromPaths(paths: string[]): FileNode[] {
 
       let dirNode = dirMap.get(currentPath);
       if (!dirNode) {
-        dirNode = { name: part, path: currentPath, type: "directory", children: [] };
+        dirNode = {
+          name: part,
+          path: currentPath,
+          type: "directory",
+          children: [],
+        };
         dirMap.set(currentPath, dirNode);
         children.push(dirNode);
       }
@@ -141,7 +153,9 @@ function getAllFiles(nodes: FileNode[]): FileNode[] {
 
 export function FileTreeProvider({ children }: { children: ReactNode }) {
   const [tree, setTree] = useState<FileNode[]>([]);
-  const [kinds, setKinds] = useState<ReadonlyMap<string, ChangeKind>>(new Map());
+  const [kinds, setKinds] = useState<ReadonlyMap<string, ChangeKind>>(
+    new Map(),
+  );
   const [dirState, setDirState] = useState<Record<string, DirectoryState>>({
     "": { expanded: true },
   });
@@ -162,26 +176,26 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
     setDirState((prev) => ({ ...prev, [path]: { expanded: false } }));
   }, []);
 
-  const toggle = useCallback(
-    (path: string) => {
-      setDirState((prev) => ({
-        ...prev,
-        [path]: { expanded: !(prev[path]?.expanded ?? true) },
-      }));
+  const toggle = useCallback((path: string) => {
+    setDirState((prev) => ({
+      ...prev,
+      [path]: { expanded: !(prev[path]?.expanded ?? true) },
+    }));
+  }, []);
+
+  const setDirectoryExpandedMap = useCallback(
+    (next: Record<string, boolean>) => {
+      const mapped: Record<string, DirectoryState> = {
+        "": { expanded: true },
+      };
+      for (const [path, expanded] of Object.entries(next)) {
+        if (!path) continue;
+        mapped[path] = { expanded };
+      }
+      setDirState(mapped);
     },
     [],
   );
-
-  const setDirectoryExpandedMap = useCallback((next: Record<string, boolean>) => {
-    const mapped: Record<string, DirectoryState> = {
-      "": { expanded: true },
-    };
-    for (const [path, expanded] of Object.entries(next)) {
-      if (!path) continue;
-      mapped[path] = { expanded };
-    }
-    setDirState(mapped);
-  }, []);
 
   const getChildren = useCallback(
     (path: string) => nodeIndex.get(path) ?? [],
@@ -198,101 +212,124 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
   const allFiles = useCallback(() => getAllFiles(tree), [tree]);
   const firstFile = useCallback(() => getAllFiles(tree)[0]?.path, [tree]);
 
-  const ensureActiveFile = useCallback((allowedPaths?: ReadonlySet<string>) => {
-    const files = getAllFiles(tree);
-    if (files.length === 0) {
-      setActiveFile(undefined);
-      return undefined;
-    }
+  const ensureActiveFile = useCallback(
+    (allowedPaths?: ReadonlySet<string>) => {
+      const files = getAllFiles(tree);
+      if (files.length === 0) {
+        setActiveFile(undefined);
+        return undefined;
+      }
 
-    if (activeFile) {
-      const exists = files.some((file) => file.path === activeFile);
-      const allowed = allowedPaths ? allowedPaths.has(activeFile) : true;
-      if (exists && allowed) return activeFile;
-    }
+      if (activeFile) {
+        const exists = files.some((file) => file.path === activeFile);
+        const allowed = allowedPaths ? allowedPaths.has(activeFile) : true;
+        if (exists && allowed) return activeFile;
+      }
 
-    const next = allowedPaths
-      ? files.find((file) => allowedPaths.has(file.path))?.path
-      : files[0]?.path;
-    setActiveFile(next);
-    return next;
-  }, [tree, activeFile]);
+      const next = allowedPaths
+        ? files.find((file) => allowedPaths.has(file.path))?.path
+        : files[0]?.path;
+      setActiveFile(next);
+      return next;
+    },
+    [tree, activeFile],
+  );
 
   const navigateToNextFile = useCallback(() => {
     const files = getAllFiles(tree);
     if (files.length === 0) return undefined;
-    
+
     if (!activeFile) {
       const firstFile = files[0];
       setActiveFile(firstFile.path);
       return firstFile.path;
     }
-    
-    const currentIndex = files.findIndex(f => f.path === activeFile);
+
+    const currentIndex = files.findIndex((f) => f.path === activeFile);
     if (currentIndex === -1) {
       const firstFile = files[0];
       setActiveFile(firstFile.path);
       return firstFile.path;
     }
-    
+
     const nextIndex = currentIndex + 1;
     if (nextIndex < files.length) {
       const nextFile = files[nextIndex];
       setActiveFile(nextFile.path);
       return nextFile.path;
     }
-    
+
     return activeFile;
   }, [tree, activeFile]);
 
   const navigateToPreviousFile = useCallback(() => {
     const files = getAllFiles(tree);
     if (files.length === 0) return undefined;
-    
+
     if (!activeFile) {
       const lastFile = files[files.length - 1];
       setActiveFile(lastFile.path);
       return lastFile.path;
     }
-    
-    const currentIndex = files.findIndex(f => f.path === activeFile);
+
+    const currentIndex = files.findIndex((f) => f.path === activeFile);
     if (currentIndex === -1) {
       const lastFile = files[files.length - 1];
       setActiveFile(lastFile.path);
       return lastFile.path;
     }
-    
+
     const prevIndex = currentIndex - 1;
     if (prevIndex >= 0) {
       const prevFile = files[prevIndex];
       setActiveFile(prevFile.path);
       return prevFile.path;
     }
-    
+
     return activeFile;
   }, [tree, activeFile]);
 
-  const value = useMemo(() => ({
-    root: tree,
-    kinds,
-    dirState,
-    activeFile,
-    setTree,
-    setKinds,
-    reset,
-    expand,
-    collapse,
-    toggle,
-    setDirectoryExpandedMap,
-    isExpanded,
-    setActiveFile,
-    firstFile,
-    ensureActiveFile,
-    children: getChildren,
-    navigateToNextFile,
-    navigateToPreviousFile,
-    allFiles,
-  }), [tree, kinds, dirState, activeFile, setTree, setKinds, reset, expand, collapse, toggle, setDirectoryExpandedMap, isExpanded, setActiveFile, firstFile, ensureActiveFile, getChildren, navigateToNextFile, navigateToPreviousFile, allFiles]);
+  const value = useMemo(
+    () => ({
+      root: tree,
+      kinds,
+      dirState,
+      activeFile,
+      setTree,
+      setKinds,
+      reset,
+      expand,
+      collapse,
+      toggle,
+      setDirectoryExpandedMap,
+      isExpanded,
+      setActiveFile,
+      firstFile,
+      ensureActiveFile,
+      children: getChildren,
+      navigateToNextFile,
+      navigateToPreviousFile,
+      allFiles,
+    }),
+    [
+      tree,
+      kinds,
+      dirState,
+      activeFile,
+      reset,
+      expand,
+      collapse,
+      toggle,
+      setDirectoryExpandedMap,
+      isExpanded,
+      firstFile,
+      ensureActiveFile,
+      getChildren,
+      navigateToNextFile,
+      navigateToPreviousFile,
+      allFiles,
+    ],
+  );
 
   return (
     <FileTreeContext.Provider value={value}>

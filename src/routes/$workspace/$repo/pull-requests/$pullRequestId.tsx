@@ -56,8 +56,19 @@ type InlineCommentDraft = {
   path: string;
   line: number;
   side: CommentLineSide;
-  content: string;
 };
+
+type ExistingThreadAnnotation = {
+  kind: "thread";
+  thread: CommentThread;
+};
+
+type DraftThreadAnnotation = {
+  kind: "draft";
+  draft: InlineCommentDraft;
+};
+
+type SingleFileAnnotationMetadata = ExistingThreadAnnotation | DraftThreadAnnotation;
 
 interface CommentThread {
   id: number;
@@ -69,6 +80,8 @@ const TREE_WIDTH_KEY = "pr_review_tree_width";
 const TREE_COLLAPSED_KEY = "pr_review_tree_collapsed";
 const VIEW_MODE_KEY = "pr_review_diff_view_mode";
 const DIRECTORY_STATE_KEY_PREFIX = "pr_review_directory_state";
+const INLINE_DRAFT_STORAGE_KEY_PREFIX = "bitbucket_inline_comment_draft";
+const INLINE_ACTIVE_DRAFT_STORAGE_KEY_PREFIX = "bitbucket_inline_comment_active";
 const DEFAULT_TREE_WIDTH = 280;
 const MIN_TREE_WIDTH = 180;
 const MAX_TREE_WIDTH = 520;
@@ -131,6 +144,53 @@ function getCommentPath(comment: BitbucketComment) {
   return comment.inline?.path ?? "";
 }
 
+function getCommentInlinePosition(comment: BitbucketComment) {
+  const from = comment.inline?.from;
+  const to = comment.inline?.to;
+  const lineNumber = to ?? from;
+  if (!lineNumber) return null;
+  const side: CommentLineSide = to ? "additions" : "deletions";
+  return { side, lineNumber };
+}
+
+function inlineDraftStorageKey(
+  workspace: string,
+  repo: string,
+  pullRequestId: string,
+  draft: Pick<InlineCommentDraft, "path" | "line" | "side">,
+) {
+  return `${INLINE_DRAFT_STORAGE_KEY_PREFIX}:${workspace}/${repo}/${pullRequestId}:${draft.side}:${draft.line}:${encodeURIComponent(draft.path)}`;
+}
+
+function inlineActiveDraftStorageKey(workspace: string, repo: string, pullRequestId: string) {
+  return `${INLINE_ACTIVE_DRAFT_STORAGE_KEY_PREFIX}:${workspace}/${repo}/${pullRequestId}`;
+}
+
+function parseInlineDraftStorageKey(
+  key: string,
+  workspace: string,
+  repo: string,
+  pullRequestId: string,
+): InlineCommentDraft | null {
+  const prefix = `${INLINE_DRAFT_STORAGE_KEY_PREFIX}:${workspace}/${repo}/${pullRequestId}:`;
+  if (!key.startsWith(prefix)) return null;
+  const rest = key.slice(prefix.length);
+  const firstColon = rest.indexOf(":");
+  const secondColon = rest.indexOf(":", firstColon + 1);
+  if (firstColon < 0 || secondColon < 0) return null;
+  const side = rest.slice(0, firstColon);
+  const lineRaw = rest.slice(firstColon + 1, secondColon);
+  const encodedPath = rest.slice(secondColon + 1);
+  if (side !== "additions" && side !== "deletions") return null;
+  const line = Number(lineRaw);
+  if (!Number.isFinite(line) || line <= 0) return null;
+  return {
+    side,
+    line,
+    path: decodeURIComponent(encodedPath),
+  };
+}
+
 function getFilePath(fileDiff: FileDiffMetadata, index: number) {
   return fileDiff.name ?? fileDiff.prevName ?? String(index);
 }
@@ -179,6 +239,7 @@ function PullRequestReviewPage() {
 
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const diffScrollRef = useRef<HTMLElement | null>(null);
+  const inlineDraftTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("single");
   const [searchQuery, setSearchQuery] = useState("");
   const [showUnviewedOnly, setShowUnviewedOnly] = useState(false);
@@ -506,6 +567,16 @@ function PullRequestReviewPage() {
     return (threadsByPath.get(selectedFilePath) ?? []).sort(commentThreadSort);
   }, [selectedFilePath, threadsByPath]);
 
+  const selectedInlineThreads = useMemo(
+    () => selectedThreads.filter((thread) => !thread.root.deleted && Boolean(getCommentInlinePosition(thread.root))),
+    [selectedThreads],
+  );
+
+  const selectedFileLevelThreads = useMemo(
+    () => selectedThreads.filter((thread) => !thread.root.deleted && !getCommentInlinePosition(thread.root)),
+    [selectedThreads],
+  );
+
   const prStats = useMemo(() => {
     const summary = {
       files: prData?.diffstat.length ?? 0,
@@ -589,9 +660,18 @@ function PullRequestReviewPage() {
         },
       }),
     onSuccess: async (_, vars) => {
+      if (vars.line && vars.side) {
+        clearInlineDraftContent({
+          path: vars.path,
+          line: vars.line,
+          side: vars.side,
+        });
+      }
       setInlineComment((prev) => {
         if (!prev) return prev;
         if (prev.path !== vars.path) return prev;
+        if (vars.line && prev.line !== vars.line) return prev;
+        if (vars.side && prev.side !== vars.side) return prev;
         return null;
       });
       await queryClient.invalidateQueries({ queryKey: prQueryKey });
@@ -618,6 +698,103 @@ function PullRequestReviewPage() {
       setActionError(error instanceof Error ? error.message : "Failed to update comment resolution");
     },
   });
+
+  const getInlineDraftContent = useCallback(
+    (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => {
+      if (typeof window === "undefined") return "";
+      return window.localStorage.getItem(inlineDraftStorageKey(workspace, repo, pullRequestId, draft)) ?? "";
+    },
+    [pullRequestId, repo, workspace],
+  );
+
+  const setInlineDraftContent = useCallback(
+    (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => {
+      if (typeof window === "undefined") return;
+      const key = inlineDraftStorageKey(workspace, repo, pullRequestId, draft);
+      const activeKey = inlineActiveDraftStorageKey(workspace, repo, pullRequestId);
+      if (content.length > 0) {
+        window.localStorage.setItem(key, content);
+        window.localStorage.setItem(activeKey, JSON.stringify(draft));
+      } else {
+        window.localStorage.removeItem(key);
+        const activeRaw = window.localStorage.getItem(activeKey);
+        if (!activeRaw) return;
+        try {
+          const activeDraft = JSON.parse(activeRaw) as InlineCommentDraft;
+          if (
+            activeDraft.path === draft.path &&
+            activeDraft.line === draft.line &&
+            activeDraft.side === draft.side
+          ) {
+            window.localStorage.removeItem(activeKey);
+          }
+        } catch {
+          window.localStorage.removeItem(activeKey);
+        }
+      }
+    },
+    [pullRequestId, repo, workspace],
+  );
+
+  const clearInlineDraftContent = useCallback(
+    (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => {
+      if (typeof window === "undefined") return;
+      const activeKey = inlineActiveDraftStorageKey(workspace, repo, pullRequestId);
+      const activeRaw = window.localStorage.getItem(activeKey);
+      if (activeRaw) {
+        try {
+          const activeDraft = JSON.parse(activeRaw) as InlineCommentDraft;
+          if (
+            activeDraft.path === draft.path &&
+            activeDraft.line === draft.line &&
+            activeDraft.side === draft.side
+          ) {
+            window.localStorage.removeItem(activeKey);
+          }
+        } catch {
+          window.localStorage.removeItem(activeKey);
+        }
+      }
+      window.localStorage.removeItem(inlineDraftStorageKey(workspace, repo, pullRequestId, draft));
+    },
+    [pullRequestId, repo, workspace],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const activeKey = inlineActiveDraftStorageKey(workspace, repo, pullRequestId);
+    const raw = window.localStorage.getItem(activeKey);
+    const restoreDraft = (draft: InlineCommentDraft) => {
+      const content = getInlineDraftContent(draft);
+      if (!content.trim()) return false;
+      setInlineComment(draft);
+      setActiveFile(draft.path);
+      setViewMode("single");
+      return true;
+    };
+
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as InlineCommentDraft;
+        if (parsed.path && parsed.line && parsed.side && restoreDraft(parsed)) {
+          return;
+        }
+      } catch {
+        window.localStorage.removeItem(activeKey);
+      }
+    }
+
+    for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
+      const key = window.localStorage.key(i);
+      if (!key) continue;
+      const parsed = parseInlineDraftStorageKey(key, workspace, repo, pullRequestId);
+      if (!parsed) continue;
+      if (restoreDraft(parsed)) {
+        window.localStorage.setItem(activeKey, JSON.stringify(parsed));
+        return;
+      }
+    }
+  }, [getInlineDraftContent, pullRequestId, repo, setActiveFile, workspace]);
 
   const toggleViewed = (path: string) => {
     setViewedFiles((prev) => {
@@ -649,7 +826,7 @@ function PullRequestReviewPage() {
 
   const submitInlineComment = useCallback(() => {
     if (!inlineComment) return;
-    const content = inlineComment.content.trim();
+    const content = getInlineDraftContent(inlineComment).trim();
     if (!content) return;
     createCommentMutation.mutate({
       path: inlineComment.path,
@@ -657,7 +834,7 @@ function PullRequestReviewPage() {
       line: inlineComment.line,
       side: inlineComment.side,
     });
-  }, [createCommentMutation, inlineComment]);
+  }, [createCommentMutation, getInlineDraftContent, inlineComment]);
 
   const handleDiffLineEnter = useCallback((props: OnDiffLineEnterLeaveProps) => {
     props.lineElement.style.cursor = "copy";
@@ -685,26 +862,66 @@ function PullRequestReviewPage() {
       ) {
         return prev;
       }
+      if (prev && getInlineDraftContent(prev).trim().length > 0) {
+        return prev;
+      }
       return {
         path: selectedFilePath,
         line: props.lineNumber,
         side,
-        content: "",
       };
     });
-  }, [selectedFilePath]);
+  }, [getInlineDraftContent, selectedFilePath]);
+
+  useEffect(() => {
+    if (!inlineComment) return;
+    const timeoutId = window.setTimeout(() => {
+      inlineDraftTextareaRef.current?.focus();
+      const valueLength = inlineDraftTextareaRef.current?.value.length ?? 0;
+      inlineDraftTextareaRef.current?.setSelectionRange(valueLength, valueLength);
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [inlineComment?.line, inlineComment?.path, inlineComment?.side]);
 
   const singleFileAnnotations = useMemo(() => {
-    if (!selectedFilePath || !inlineComment) return [];
-    if (inlineComment.path !== selectedFilePath) return [];
-    return [
-      {
+    if (!selectedFilePath) return [] as Array<{
+      side: CommentLineSide;
+      lineNumber: number;
+      metadata: SingleFileAnnotationMetadata;
+    }>;
+
+    const annotations: Array<{
+      side: CommentLineSide;
+      lineNumber: number;
+      metadata: SingleFileAnnotationMetadata;
+    }> = [];
+
+    for (const thread of selectedInlineThreads) {
+      const position = getCommentInlinePosition(thread.root);
+      if (!position) continue;
+      annotations.push({
+        side: position.side,
+        lineNumber: position.lineNumber,
+        metadata: {
+          kind: "thread",
+          thread,
+        },
+      });
+    }
+
+    if (inlineComment && inlineComment.path === selectedFilePath) {
+      annotations.push({
         side: inlineComment.side,
         lineNumber: inlineComment.line,
-        metadata: inlineComment,
-      },
-    ] as const;
-  }, [inlineComment, selectedFilePath]);
+        metadata: {
+          kind: "draft",
+          draft: inlineComment,
+        },
+      });
+    }
+
+    return annotations;
+  }, [inlineComment, selectedFilePath, selectedInlineThreads]);
 
   const singleFileDiffOptions = useMemo<FileDiffOptions<undefined>>(
     () => ({
@@ -982,55 +1199,106 @@ function PullRequestReviewPage() {
                     options={singleFileDiffOptions}
                     className="compact-diff commentable-diff"
                     lineAnnotations={singleFileAnnotations}
-                    renderAnnotation={(annotation) => (
-                      <div className="px-2 py-1.5 border-y border-border bg-background/70">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            autoFocus
-                            placeholder="Add a line comment"
-                            className="h-7"
-                            value={annotation.metadata?.content ?? ""}
-                            onChange={(e) => {
-                              const nextContent = e.target.value;
-                              setInlineComment((prev) =>
-                                prev ? { ...prev, content: nextContent } : prev,
-                              );
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                                e.preventDefault();
-                                submitInlineComment();
-                              }
-                            }}
-                          />
-                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                            {annotation.metadata?.side === "deletions" ? "old line" : "new line"}
-                          </span>
-                          <Button
-                            size="sm"
-                            className="h-7"
-                            disabled={createCommentMutation.isPending}
-                            onClick={submitInlineComment}
-                          >
-                            Comment
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7"
-                            onClick={() => setInlineComment(null)}
-                          >
-                            Cancel
-                          </Button>
+                    renderAnnotation={(annotation) => {
+                      const metadata = annotation.metadata;
+                      if (!metadata) return null;
+
+                      return (
+                        <div className="px-2 py-1.5 border-y border-border bg-background/70">
+                          {metadata.kind === "draft" ? (
+                            <div className="space-y-2">
+                              <textarea
+                                key={inlineDraftStorageKey(workspace, repo, pullRequestId, metadata.draft)}
+                                ref={inlineDraftTextareaRef}
+                                rows={2}
+                                placeholder="Add a line comment"
+                                defaultValue={getInlineDraftContent(metadata.draft)}
+                                className="flex min-h-14 w-full resize-y border border-input bg-background px-3 py-1 text-[13px] transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring"
+                                onChange={(e) => setInlineDraftContent(metadata.draft, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                                    e.preventDefault();
+                                    submitInlineComment();
+                                  }
+                                }}
+                              />
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                  {metadata.draft.side === "deletions" ? "old line" : "new line"}
+                                </span>
+                                <Button
+                                  size="sm"
+                                  className="h-7"
+                                  disabled={createCommentMutation.isPending}
+                                  onClick={submitInlineComment}
+                                >
+                                  Comment
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7"
+                                  onClick={() => {
+                                    clearInlineDraftContent(metadata.draft);
+                                    setInlineComment(null);
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="border border-border bg-background p-2 text-[12px]">
+                              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                                <MessageSquare className="size-3.5" />
+                                <span>{metadata.thread.root.user?.display_name ?? "Unknown"}</span>
+                                <span>{formatDate(metadata.thread.root.created_on)}</span>
+                                <span className="ml-auto">
+                                  {metadata.thread.root.resolution ? "Resolved" : "Unresolved"}
+                                </span>
+                              </div>
+                              <div className="text-[13px] whitespace-pre-wrap">
+                                {metadata.thread.root.content?.raw ?? ""}
+                              </div>
+                              {metadata.thread.replies.length > 0 && (
+                                <div className="mt-2 pl-3 border-l border-border space-y-1">
+                                  {metadata.thread.replies.map((reply) => (
+                                    <div key={reply.id} className="text-[12px]">
+                                      <span className="text-muted-foreground">
+                                        {reply.user?.display_name ?? "Unknown"}:
+                                      </span>{" "}
+                                      {reply.content?.raw ?? ""}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="mt-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7"
+                                  disabled={resolveCommentMutation.isPending}
+                                  onClick={() =>
+                                    resolveCommentMutation.mutate({
+                                      commentId: metadata.thread.root.id,
+                                      resolve: !metadata.thread.root.resolution,
+                                    })
+                                  }
+                                >
+                                  {metadata.thread.root.resolution ? "Unresolve" : "Resolve"}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      );
+                    }}
                   />
                 </div>
 
-                {selectedThreads.length > 0 && (
+                {selectedFileLevelThreads.length > 0 && (
                   <div className="border-t border-border px-3 py-2 space-y-2">
-                    {selectedThreads.map((thread) => (
+                    {selectedFileLevelThreads.map((thread) => (
                       <div key={thread.id} className="border border-border bg-background p-2 text-[12px]">
                         <div className="flex items-center gap-2 text-muted-foreground mb-1">
                           <MessageSquare className="size-3.5" />

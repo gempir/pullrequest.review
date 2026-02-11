@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --mode dev",
+    "tsc": "tsc --noEmit",
     "build": "bun --bun vite build",
     "build:prod": "bun --bun vite build --mode prod",
     "build:preview": "bun --bun vite build --mode preview",

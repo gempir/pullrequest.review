@@ -17,8 +17,6 @@ interface BitbucketAuth {
 }
 
 interface PrContextType {
-  prUrl: string;
-  setPrUrl: (url: string) => void;
   auth: BitbucketAuth | null;
   setAuth: (auth: BitbucketAuth | null) => void;
   clearAuth: () => void;
@@ -30,7 +28,6 @@ interface PrContextType {
 const PrContext = createContext<PrContextType | null>(null);
 
 export function PrProvider({ children }: { children: ReactNode }) {
-  const [prUrl, setPrUrl] = useState("");
   const [auth, setAuth] = useState<BitbucketAuth | null>(null);
   const [repos, setRepos] = useState<BitbucketRepo[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -116,8 +113,6 @@ export function PrProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      prUrl,
-      setPrUrl,
       auth,
       setAuth,
       clearAuth,
@@ -125,7 +120,7 @@ export function PrProvider({ children }: { children: ReactNode }) {
       setRepos,
       clearRepos,
     }),
-    [auth, clearAuth, clearRepos, prUrl, repos],
+    [auth, clearAuth, clearRepos, repos],
   );
 
   return <PrContext.Provider value={value}>{children}</PrContext.Provider>;

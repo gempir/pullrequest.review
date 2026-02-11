@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useFileTree, type FileNode, type ChangeKind } from "@/lib/file-tree-context";
-import { Check, FileText, FolderOpen } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
+import { FileIcon } from "react-files-icons";
 import { cn } from "@/lib/utils";
 
 interface FileTreeProps {
@@ -25,26 +27,14 @@ function kindColor(kind: ChangeKind) {
   }
 }
 
-function kindBgColor(kind: ChangeKind) {
-  switch (kind) {
-    case "add":
-      return "bg-[#22c55e]";
-    case "del":
-      return "bg-[#ef4444]";
-    case "mix":
-      return "bg-[#eab308]";
-  }
-}
-
-function kindLabel(kind: ChangeKind) {
-  switch (kind) {
-    case "add":
-      return "A";
-    case "del":
-      return "D";
-    case "mix":
-      return "M";
-  }
+function kindMarker(kind?: ChangeKind) {
+  if (!kind) return null;
+  return (
+    <span
+      className={cn("h-3 w-0.5 shrink-0 rounded-sm", kindColor(kind))}
+      aria-hidden
+    />
+  );
 }
 
 export function FileTree({
@@ -133,45 +123,58 @@ function DirectoryNode({
   onToggleViewed?: (path: string) => void;
   onFileClick?: (node: FileNode) => void;
 }) {
-  const expanded = true;
+  const [expanded, setExpanded] = useState(true);
   const kind = kinds.get(node.path);
 
   return (
     <div>
-      <div
+      <button
+        type="button"
         className={cn(
-          "w-full min-w-0 flex items-center gap-1.5 py-1 text-left",
+          "group w-full min-w-0 flex items-center gap-3 py-1 text-left",
+          "hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer",
           "text-[12px] text-muted-foreground",
         )}
         style={{ paddingLeft: `${4 + level * 12}px` }}
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
       >
-        <span className="size-4 flex items-center justify-center shrink-0 text-muted-foreground">
-          <FolderOpen className="size-3.5" />
+        <span
+          className={cn(
+            "relative size-4 flex items-center justify-center shrink-0 text-muted-foreground",
+          )}
+        >
+          <span className="group-hover:hidden">
+            {expanded ? <FolderOpen className="size-3.5" /> : <Folder className="size-3.5" />}
+          </span>
+          <span className="absolute inset-0 hidden items-center justify-center group-hover:flex">
+            {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+          </span>
         </span>
-        <span className={cn("flex-1 min-w-0 truncate", kind && kindColor(kind))}>
+        {kindMarker(kind)}
+        <span className="flex-1 min-w-0 truncate text-foreground">
           {node.name}
         </span>
-        {kind && (
-          <div className={cn("shrink-0 size-1.5 mr-1", kindBgColor(kind))} />
-        )}
-      </div>
-      <div className="relative">
-        <div
-          className="absolute top-0 bottom-0 w-px bg-border opacity-30"
-          style={{ left: `${4 + level * 12 + 8}px` }}
-        />
-        <FileTree
-          path={node.path}
-          level={level + 1}
-          kinds={kinds}
-          activeFile={activeFile}
-          filterQuery={filterQuery}
-          allowedFiles={allowedFiles}
-          viewedFiles={viewedFiles}
-          onToggleViewed={onToggleViewed}
-          onFileClick={onFileClick}
-        />
-      </div>
+      </button>
+      {expanded && (
+        <div className="relative">
+          <div
+            className="absolute top-0 bottom-0 w-px bg-border opacity-30"
+            style={{ left: `${4 + level * 12 + 8}px` }}
+          />
+          <FileTree
+            path={node.path}
+            level={level + 1}
+            kinds={kinds}
+            activeFile={activeFile}
+            filterQuery={filterQuery}
+            allowedFiles={allowedFiles}
+            viewedFiles={viewedFiles}
+            onToggleViewed={onToggleViewed}
+            onFileClick={onFileClick}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -200,23 +203,28 @@ function FileNodeRow({
   return (
     <button
       className={cn(
-        "w-full min-w-0 flex items-center gap-1.5 py-1 text-left",
+        "w-full min-w-0 flex items-center gap-3 py-1 text-left",
         "hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer",
         "text-[12px]",
         isActive 
           ? "bg-accent text-accent-foreground" 
           : "text-muted-foreground",
       )}
-      style={{ paddingLeft: `${4 + level * 12 + 12}px` }}
+      style={{ paddingLeft: `${4 + level * 12}px` }}
       onClick={() => {
         tree.setActiveFile(node.path);
         onFileClick?.(node);
       }}
     >
-      <span className="size-4 flex items-center justify-center shrink-0 text-muted-foreground/60">
-        <FileText className="size-3.5" />
+      <span
+        className={cn(
+          "size-4 flex items-center justify-center shrink-0",
+        )}
+      >
+        <FileIcon name={node.name} className="size-3.5" />
       </span>
-      <span className={cn("flex-1 min-w-0 truncate", kind && kindColor(kind))}>
+      {kindMarker(kind)}
+      <span className="flex-1 min-w-0 truncate text-foreground">
         {node.name}
       </span>
       <span
@@ -235,25 +243,15 @@ function FileNodeRow({
           }
         }}
         className={cn(
-          "size-4 shrink-0 flex items-center justify-center transition-colors",
+          "mr-2 size-4 shrink-0 flex items-center justify-center transition-colors",
           viewed
             ? "bg-accent text-foreground"
-            : "bg-background text-transparent"
+            : "bg-muted/40 text-transparent border border-border/70"
         )}
         aria-label={`Mark ${node.path} as viewed`}
       >
         <Check className="size-3" />
       </span>
-      {kind && (
-        <span 
-          className={cn(
-            "shrink-0 w-4 text-center text-[10px] font-medium",
-            kindColor(kind)
-          )}
-        >
-          {kindLabel(kind)}
-        </span>
-      )}
     </button>
   );
 }

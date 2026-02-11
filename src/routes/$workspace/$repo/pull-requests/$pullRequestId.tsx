@@ -349,6 +349,16 @@ function PullRequestReviewPage() {
     visiblePathSet,
   ]);
 
+  useEffect(() => {
+    if (!activeFile || !visiblePathSet.has(activeFile)) return;
+    setViewedFiles((prev) => {
+      if (prev.has(activeFile)) return prev;
+      const next = new Set(prev);
+      next.add(activeFile);
+      return next;
+    });
+  }, [activeFile, visiblePathSet]);
+
   const selectAndRevealFile = useCallback(
     (path: string) => {
       setActiveFile(path);
@@ -701,20 +711,20 @@ function PullRequestReviewPage() {
           </div>
         ) : (
           <>
-            <div className="h-8 px-2 border-b border-border flex items-center gap-2 text-[11px] text-muted-foreground">
-              <span className="ml-auto">{viewedVisibleCount}/{visibleFilePaths.length} viewed</span>
+            <div className="h-11 px-2 border-b border-border flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span>{viewedVisibleCount}/{visibleFilePaths.length} viewed</span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-[10px] gap-1.5"
+                className="h-8 px-2 text-[10px] gap-1.5"
                 onClick={() => setShowUnviewedOnly((prev) => !prev)}
               >
                 <span
                   className={
                     showUnviewedOnly
                       ? "size-3.5 bg-accent text-foreground flex items-center justify-center"
-                      : "size-3.5 bg-background text-transparent flex items-center justify-center"
+                      : "size-3.5 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
                   }
                 >
                   <Check className="size-2.5" />
@@ -724,22 +734,22 @@ function PullRequestReviewPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 w-6 p-0 shrink-0"
+                className="h-8 w-8 p-0 shrink-0 ml-auto"
                 onClick={() => setTreeCollapsed(true)}
                 aria-label="Collapse file tree"
               >
                 <PanelLeftClose className="size-3.5" />
               </Button>
             </div>
-            <div className="h-11 px-2 border-b border-border flex items-center">
+            <div className="h-10 px-2 border-b border-border flex items-center">
               <Input
-                className="h-8 text-[12px] w-full"
+                className="h-7 text-[12px] w-full"
                 placeholder="search files"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <div className="flex-1 overflow-auto p-2">
+            <div className="flex-1 overflow-auto py-2">
               <FileTree
                 path=""
                 filterQuery={searchQuery}
@@ -836,7 +846,7 @@ function PullRequestReviewPage() {
           {viewMode === "single" ? (
             selectedFileDiff && selectedFilePath ? (
               <div id={fileAnchorId(selectedFilePath)} className="h-full flex flex-col">
-                <div className="h-9 border-b border-border px-3 flex items-center gap-3">
+                <div className="h-10 border-b border-border px-3 flex items-center gap-3">
                   <FileText className="size-4 text-muted-foreground" />
                   <span className="font-mono text-[12px] truncate">{selectedFilePath}</span>
                   <button
@@ -848,7 +858,7 @@ function PullRequestReviewPage() {
                       className={
                         viewedFiles.has(selectedFilePath)
                           ? "size-4 bg-accent text-foreground flex items-center justify-center"
-                          : "size-4 bg-background text-transparent flex items-center justify-center"
+                          : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
                       }
                     >
                       <Check className="size-3" />

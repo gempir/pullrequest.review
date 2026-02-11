@@ -5,11 +5,13 @@
   "scripts": {
     "dev": "bun --bun vite dev",
     "build": "bun --bun vite build",
+    "build:prod": "bun --bun vite build --mode prod",
+    "build:preview": "bun --bun vite build --mode preview",
     "serve": "bun --bun vite preview",
     "cf-typegen": "wrangler types",
     "deploy": "bun run deploy:prod",
-    "deploy:prod": "CLOUDFLARE_ENV=prod bun run build && CLOUDFLARE_ENV=prod wrangler deploy --env prod",
-    "deploy:preview": "CLOUDFLARE_ENV=preview bun run build && CLOUDFLARE_ENV=preview wrangler deploy --env preview",
+    "deploy:prod": "CLOUDFLARE_ENV=prod bun run build:prod && CLOUDFLARE_ENV=prod wrangler deploy --env prod",
+    "deploy:preview": "CLOUDFLARE_ENV=preview bun run build:preview && CLOUDFLARE_ENV=preview wrangler deploy --env preview",
     "wrangler": "wrangler",
     "secret:put:prod": "wrangler secret put BITBUCKET_CLIENT_SECRET --env prod",
     "secret:put:preview": "wrangler secret put BITBUCKET_CLIENT_SECRET --env preview"

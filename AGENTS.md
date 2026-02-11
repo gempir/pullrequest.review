@@ -9,10 +9,6 @@ This project is a PR review UI with Bitbucket Cloud OAuth. It renders diffs and 
 - UI components in `src/components/ui`
 - Design: Terminal-inspired, monospaced (JetBrains Mono), dark theme with defined borders
 
-## Must-run build
-Always run after changes:
-- `bun run build`
-
 ## Key flows
 - OAuth + token persistence + refresh: `src/lib/bitbucket-oauth.ts`, `src/lib/pr-context.tsx`, `src/routes/oauth/callback.tsx`
 - Onboarding + repo selection: `src/routes/__root.tsx`
@@ -69,7 +65,7 @@ Always run after changes:
 ## Conventions and notes
 - Use ASCII in source files.
 - No nested bullet lists in responses.
-- Use `pullrequestdotreview` as the canonical app/worker name in deployment configs (do not use `pullrequest-review`).
+- Use `pullrequestdotreview` as the canonical name of the project when pullrequest.review is not possible
 - Prefer existing contexts (`pr-context`, `file-tree-context`, `shortcuts-context`) over adding new global state.
 - Wrap context provider values in `useMemo` to prevent unnecessary re-renders.
 - `ScrollArea` from Radix is currently avoided due to a render loop; use simple `div` + `overflow-auto` for now.

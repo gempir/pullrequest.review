@@ -16,6 +16,7 @@ import {
   buildTreeFromPaths,
   useFileTree,
   type ChangeKind,
+  type FileNode,
 } from "@/lib/file-tree-context";
 import {
   approvePullRequest,
@@ -34,10 +35,13 @@ import { SettingsMenu } from "@/components/settings-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertCircle,
   Check,
   FileText,
+  FolderMinus,
+  FolderPlus,
   Loader2,
   MessageSquare,
   PanelLeftClose,
@@ -64,6 +68,7 @@ interface CommentThread {
 const TREE_WIDTH_KEY = "pr_review_tree_width";
 const TREE_COLLAPSED_KEY = "pr_review_tree_collapsed";
 const VIEW_MODE_KEY = "pr_review_diff_view_mode";
+const DIRECTORY_STATE_KEY_PREFIX = "pr_review_directory_state";
 const DEFAULT_TREE_WIDTH = 280;
 const MIN_TREE_WIDTH = 180;
 const MAX_TREE_WIDTH = 520;
@@ -130,6 +135,19 @@ function getFilePath(fileDiff: FileDiffMetadata, index: number) {
   return fileDiff.name ?? fileDiff.prevName ?? String(index);
 }
 
+function collectDirectoryPaths(nodes: FileNode[]) {
+  const paths: string[] = [];
+  const walk = (items: FileNode[]) => {
+    for (const node of items) {
+      if (node.type !== "directory") continue;
+      paths.push(node.path);
+      if (node.children?.length) walk(node.children);
+    }
+  };
+  walk(nodes);
+  return paths;
+}
+
 export const Route = createFileRoute("/$workspace/$repo/pull-requests/$pullRequestId")({
   component: PullRequestReviewPage,
 });
@@ -148,12 +166,14 @@ function PullRequestReviewPage() {
     [libOptions],
   );
   const {
+    root,
+    dirState,
     setTree,
     setKinds,
-    reset: resetTree,
     allFiles,
     activeFile,
     setActiveFile,
+    setDirectoryExpandedMap,
   } = useFileTree();
   const queryClient = useQueryClient();
 
@@ -171,6 +191,7 @@ function PullRequestReviewPage() {
   const [closeSourceBranch, setCloseSourceBranch] = useState(true);
   const [treeWidth, setTreeWidth] = useState(DEFAULT_TREE_WIDTH);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
+  const [dirStateHydrated, setDirStateHydrated] = useState(false);
   const prQueryKey = useMemo(
     () => ["bitbucket-pr-bundle", workspace, repo, pullRequestId, auth?.accessToken] as const,
     [auth?.accessToken, pullRequestId, repo, workspace],
@@ -191,6 +212,11 @@ function PullRequestReviewPage() {
     if (!prData) return "";
     return `bitbucket_viewed:${prData.prRef.workspace}/${prData.prRef.repo}/${prData.prRef.pullRequestId}`;
   }, [prData]);
+
+  const directoryStateStorageKey = useMemo(
+    () => `${DIRECTORY_STATE_KEY_PREFIX}:${workspace}/${repo}/${pullRequestId}`,
+    [pullRequestId, repo, workspace],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -244,6 +270,40 @@ function PullRequestReviewPage() {
     window.localStorage.setItem(viewedStorageKey, JSON.stringify(Array.from(viewedFiles)));
   }, [viewedStorageKey, viewedFiles]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setDirStateHydrated(false);
+    try {
+      const raw = window.localStorage.getItem(directoryStateStorageKey);
+      if (!raw) {
+        setDirectoryExpandedMap({});
+        setDirStateHydrated(true);
+        return;
+      }
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const next: Record<string, boolean> = {};
+      for (const [path, expanded] of Object.entries(parsed)) {
+        if (!path) continue;
+        next[path] = expanded === true;
+      }
+      setDirectoryExpandedMap(next);
+    } catch {
+      setDirectoryExpandedMap({});
+    } finally {
+      setDirStateHydrated(true);
+    }
+  }, [directoryStateStorageKey, setDirectoryExpandedMap]);
+
+  useEffect(() => {
+    if (!dirStateHydrated || typeof window === "undefined") return;
+    const toStore: Record<string, boolean> = {};
+    for (const [path, state] of Object.entries(dirState)) {
+      if (!path) continue;
+      toStore[path] = state.expanded;
+    }
+    window.localStorage.setItem(directoryStateStorageKey, JSON.stringify(toStore));
+  }, [dirState, dirStateHydrated, directoryStateStorageKey]);
+
   const diffText = prData?.diff ?? "";
 
   const fileDiffs = useMemo(() => {
@@ -291,6 +351,7 @@ function PullRequestReviewPage() {
     [visibleFilePaths, viewedFiles],
   );
   const treeFilePaths = useMemo(() => allFiles().map((file) => file.path), [allFiles]);
+  const directoryPaths = useMemo(() => collectDirectoryPaths(root), [root]);
   const treeOrderedVisiblePaths = useMemo(() => {
     if (treeFilePaths.length === 0) return [];
     return treeFilePaths.filter((path) => visiblePathSet.has(path));
@@ -326,9 +387,11 @@ function PullRequestReviewPage() {
   }, [prData, setKinds, setTree]);
 
   useEffect(() => {
-    resetTree();
+    setTree([]);
+    setKinds(new Map());
+    setActiveFile(undefined);
     setSearchQuery("");
-  }, [pullRequestId, repo, resetTree, workspace]);
+  }, [pullRequestId, repo, setActiveFile, setKinds, setTree, workspace]);
 
   useEffect(() => {
     if (treeOrderedVisiblePaths.length === 0) {
@@ -568,6 +631,22 @@ function PullRequestReviewPage() {
     });
   };
 
+  const collapseAllDirectories = useCallback(() => {
+    const next: Record<string, boolean> = {};
+    for (const path of directoryPaths) {
+      next[path] = false;
+    }
+    setDirectoryExpandedMap(next);
+  }, [directoryPaths, setDirectoryExpandedMap]);
+
+  const expandAllDirectories = useCallback(() => {
+    const next: Record<string, boolean> = {};
+    for (const path of directoryPaths) {
+      next[path] = true;
+    }
+    setDirectoryExpandedMap(next);
+  }, [directoryPaths, setDirectoryExpandedMap]);
+
   const submitInlineComment = useCallback(() => {
     if (!inlineComment) return;
     const content = inlineComment.content.trim();
@@ -741,13 +820,43 @@ function PullRequestReviewPage() {
                 <PanelLeftClose className="size-3.5" />
               </Button>
             </div>
-            <div className="h-10 px-2 border-b border-border flex items-center">
+            <div className="h-10 px-2 border-b border-border flex items-center gap-1">
               <Input
-                className="h-7 text-[12px] w-full"
+                className="h-7 text-[12px] flex-1 min-w-0"
                 placeholder="search files"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="size-7 p-0"
+                    onClick={collapseAllDirectories}
+                    aria-label="Collapse all directories"
+                  >
+                    <FolderMinus className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Collapse all directories</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="size-7 p-0"
+                    onClick={expandAllDirectories}
+                    aria-label="Expand all directories"
+                  >
+                    <FolderPlus className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Expand all directories</TooltipContent>
+              </Tooltip>
             </div>
             <div className="flex-1 overflow-auto py-2">
               <FileTree

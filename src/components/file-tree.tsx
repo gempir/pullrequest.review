@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useFileTree, type FileNode, type ChangeKind } from "@/lib/file-tree-context";
 import { Check, ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
 import { FileIcon } from "react-files-icons";
@@ -123,7 +122,8 @@ function DirectoryNode({
   onToggleViewed?: (path: string) => void;
   onFileClick?: (node: FileNode) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const tree = useFileTree();
+  const expanded = tree.isExpanded(node.path);
   const kind = kinds.get(node.path);
 
   return (
@@ -136,7 +136,7 @@ function DirectoryNode({
           "text-[12px] text-muted-foreground",
         )}
         style={{ paddingLeft: `${4 + level * 12}px` }}
-        onClick={() => setExpanded((prev) => !prev)}
+        onClick={() => tree.toggle(node.path)}
         aria-expanded={expanded}
       >
         <span

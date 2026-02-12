@@ -32,8 +32,8 @@ import { type AppThemeMode, useAppearance } from "@/lib/appearance-context";
 import { useFileTree } from "@/lib/file-tree-context";
 import {
   FONT_FAMILY_OPTIONS,
-  SANS_FONT_FAMILY_OPTIONS,
   type FontFamilyValue,
+  SANS_FONT_FAMILY_OPTIONS,
 } from "@/lib/font-options";
 import { type ShortcutConfig, useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
@@ -350,9 +350,7 @@ function AppearanceTab() {
           <h3 className="text-[13px] font-medium">Comment Typography</h3>
         </div>
         <div className="space-y-1 max-w-sm">
-          <Label className="text-[12px] text-muted-foreground">
-            Sans Font
-          </Label>
+          <Label className="text-[12px] text-muted-foreground">Sans Font</Label>
           <Select
             value={commentFontFamily}
             onValueChange={(value) =>
@@ -488,11 +486,7 @@ function TreeTab() {
   );
 }
 
-function WorkspaceTab({
-  onDisconnect,
-}: {
-  onDisconnect?: () => void;
-}) {
+function WorkspaceTab({ onDisconnect }: { onDisconnect?: () => void }) {
   return (
     <div className="space-y-4">
       <div>

@@ -1,4 +1,9 @@
 import {
+  BoldPlugin,
+  CodePlugin,
+  ItalicPlugin,
+} from "@platejs/basic-nodes/react";
+import {
   Bold,
   Code2,
   Italic,
@@ -6,10 +11,9 @@ import {
   List,
   Quote,
 } from "lucide-react";
-import { useEffect, useMemo } from "react";
 import type { Value } from "platejs";
-import { BoldPlugin, CodePlugin, ItalicPlugin } from "@platejs/basic-nodes/react";
 import { Plate, PlateContent, usePlateEditor } from "platejs/react";
+import { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 
 function normalizeDraftText(text: string): string {

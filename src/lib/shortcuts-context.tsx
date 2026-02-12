@@ -26,6 +26,8 @@ export interface Shortcuts {
   scrollUp: ShortcutConfig;
   nextFile: ShortcutConfig;
   previousFile: ShortcutConfig;
+  approvePullRequest: ShortcutConfig;
+  requestChangesPullRequest: ShortcutConfig;
 }
 
 const DEFAULT_SHORTCUTS: Shortcuts = {
@@ -58,6 +60,16 @@ const DEFAULT_SHORTCUTS: Shortcuts = {
     key: "h",
     modifiers: {},
     description: "Navigate to previous file",
+  },
+  approvePullRequest: {
+    key: "a",
+    modifiers: { shift: true },
+    description: "Approve pull request",
+  },
+  requestChangesPullRequest: {
+    key: "r",
+    modifiers: { shift: true },
+    description: "Request changes on pull request",
   },
 };
 
@@ -153,6 +165,8 @@ export function useKeyboardNavigation({
   onScrollUp,
   onNextFile,
   onPreviousFile,
+  onApprovePullRequest,
+  onRequestChangesPullRequest,
 }: {
   onNextUnviewedFile?: () => void;
   onPreviousUnviewedFile?: () => void;
@@ -160,6 +174,8 @@ export function useKeyboardNavigation({
   onScrollUp?: () => void;
   onNextFile?: () => void;
   onPreviousFile?: () => void;
+  onApprovePullRequest?: () => void;
+  onRequestChangesPullRequest?: () => void;
 }) {
   const { shortcuts } = useShortcuts();
 
@@ -201,6 +217,12 @@ export function useKeyboardNavigation({
       } else if (matchesShortcut(shortcuts.previousFile)) {
         e.preventDefault();
         onPreviousFile?.();
+      } else if (matchesShortcut(shortcuts.approvePullRequest)) {
+        e.preventDefault();
+        onApprovePullRequest?.();
+      } else if (matchesShortcut(shortcuts.requestChangesPullRequest)) {
+        e.preventDefault();
+        onRequestChangesPullRequest?.();
       }
     };
 
@@ -214,5 +236,7 @@ export function useKeyboardNavigation({
     onScrollUp,
     onNextFile,
     onPreviousFile,
+    onApprovePullRequest,
+    onRequestChangesPullRequest,
   ]);
 }

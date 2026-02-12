@@ -6,6 +6,30 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+  font-family: "Geist Sans";
+  src: url("/fonts/geist/Geist-Variable.woff2") format("woff2-variations");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist/GeistMono-Variable.woff2") format("woff2-variations");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Pixel";
+  src: url("/fonts/geist/GeistPixel-Square.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
 :root {
   --background: #0a0a0a;
   --foreground: #e0e0e0;
@@ -67,6 +91,11 @@
   --font-geist-mono:
     "Geist Mono", "JetBrains Mono", "Fira Code", "SF Mono", Monaco,
     "Roboto Mono", Consolas, "Courier New", monospace;
+  --font-geist-sans:
+    "Geist Sans", Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-geist-pixel:
+    "Geist Pixel", "Geist Mono", "JetBrains Mono", "Fira Code", "SF Mono",
+    Monaco, "Roboto Mono", Consolas, "Courier New", monospace;
   --font-ui-monospace:
     ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
@@ -77,7 +106,7 @@
   --app-font-family: var(--font-jetbrains-mono);
   --app-font-size: 13px;
   --app-line-height: 1.5;
-  --tree-font-family: var(--app-font-family);
+  --tree-font-family: var(--font-geist-sans);
   --tree-font-size: 12px;
   --tree-line-height: 1.45;
   --diff-font-family: var(--app-font-family);

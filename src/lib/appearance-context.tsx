@@ -42,7 +42,7 @@ const defaultAppearance: AppearanceSettings = {
   pageFontFamily: DEFAULT_FONT_FAMILY,
   pageFontSize: 13,
   pageLineHeight: 1.5,
-  treeFontFamily: DEFAULT_FONT_FAMILY,
+  treeFontFamily: "geist-sans",
   treeFontSize: 12,
   treeLineHeight: 1.45,
 };

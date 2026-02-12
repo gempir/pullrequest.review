@@ -1,0 +1,23 @@
+package.json
+  d53e06efd6727f71 11-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "a65c44f57d2cef998f021b2d758da06cd3a100e0",
+  "prompts": {
+    "d53e06efd6727f71": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d45230f8-e780-449e-8479-9e7b48066070",
+        "model": "claude-4.6-opus-high"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

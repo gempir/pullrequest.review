@@ -1,5 +1,12 @@
 export type FontFamilyValue =
+  | "geist-sans"
   | "jetbrains-mono"
+  | "inter"
+  | "manrope"
+  | "sora"
+  | "ui-sans"
+  | "system-ui"
+  | "geist-pixel"
   | "fira-code"
   | "cascadia-code"
   | "source-code-pro"
@@ -14,10 +21,52 @@ export const FONT_FAMILY_OPTIONS: ReadonlyArray<{
   cssFamily: string;
 }> = [
   {
+    value: "geist-sans",
+    label: "Geist Sans",
+    cssFamily:
+      '"Geist Sans", Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  },
+  {
     value: "jetbrains-mono",
     label: "JetBrains Mono",
     cssFamily:
       '"JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
+  },
+  {
+    value: "inter",
+    label: "Inter",
+    cssFamily:
+      'Inter, "Geist Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  },
+  {
+    value: "manrope",
+    label: "Manrope",
+    cssFamily:
+      'Manrope, Inter, "Geist Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  },
+  {
+    value: "sora",
+    label: "Sora",
+    cssFamily:
+      'Sora, Inter, "Geist Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  },
+  {
+    value: "ui-sans",
+    label: "UI Sans",
+    cssFamily:
+      'ui-sans-serif, "Geist Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  },
+  {
+    value: "system-ui",
+    label: "System UI",
+    cssFamily:
+      'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  },
+  {
+    value: "geist-pixel",
+    label: "Geist Pixel",
+    cssFamily:
+      '"Geist Pixel", "Geist Mono", "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
   },
   {
     value: "fira-code",

@@ -17,6 +17,7 @@ export type AppThemeMode = "auto" | "light" | "dark";
 
 type AppearanceSettings = {
   appThemeMode: AppThemeMode;
+  syncAppColorsWithDiffTheme: boolean;
   pageFontFamily: FontFamilyValue;
   pageFontSize: number;
   pageLineHeight: number;
@@ -28,6 +29,7 @@ type AppearanceSettings = {
 
 type AppearanceContextValue = AppearanceSettings & {
   setAppThemeMode: (mode: AppThemeMode) => void;
+  setSyncAppColorsWithDiffTheme: (enabled: boolean) => void;
   setPageFontFamily: (font: FontFamilyValue) => void;
   setPageFontSize: (size: number) => void;
   setPageLineHeight: (lineHeight: number) => void;
@@ -41,6 +43,7 @@ const STORAGE_KEY = "pr_review_appearance";
 
 const defaultAppearance: AppearanceSettings = {
   appThemeMode: "auto",
+  syncAppColorsWithDiffTheme: true,
   pageFontFamily: DEFAULT_FONT_FAMILY,
   pageFontSize: 13,
   pageLineHeight: 1.5,
@@ -75,6 +78,10 @@ function parseStoredSettings(raw: string | null): AppearanceSettings | null {
         : defaultAppearance.appThemeMode;
     return {
       appThemeMode,
+      syncAppColorsWithDiffTheme:
+        typeof parsed.syncAppColorsWithDiffTheme === "boolean"
+          ? parsed.syncAppColorsWithDiffTheme
+          : defaultAppearance.syncAppColorsWithDiffTheme,
       pageFontFamily:
         (parsed.pageFontFamily as FontFamilyValue) ??
         defaultAppearance.pageFontFamily,
@@ -196,6 +203,9 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   const setAppThemeMode = useCallback((mode: AppThemeMode) => {
     setSettings((prev) => ({ ...prev, appThemeMode: mode }));
   }, []);
+  const setSyncAppColorsWithDiffTheme = useCallback((enabled: boolean) => {
+    setSettings((prev) => ({ ...prev, syncAppColorsWithDiffTheme: enabled }));
+  }, []);
   const setPageFontFamily = useCallback((font: FontFamilyValue) => {
     setSettings((prev) => ({ ...prev, pageFontFamily: font }));
   }, []);
@@ -234,6 +244,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     () => ({
       ...settings,
       setAppThemeMode,
+      setSyncAppColorsWithDiffTheme,
       setPageFontFamily,
       setPageFontSize,
       setPageLineHeight,
@@ -245,6 +256,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     [
       settings,
       setAppThemeMode,
+      setSyncAppColorsWithDiffTheme,
       setPageFontFamily,
       setPageFontSize,
       setPageLineHeight,

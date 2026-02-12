@@ -10,6 +10,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   Check,
+  Copy,
   FileText,
   FolderMinus,
   FolderPlus,
@@ -280,10 +281,12 @@ function PullRequestReviewPage() {
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const diffScrollRef = useRef<HTMLElement | null>(null);
   const inlineDraftTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const copyPathResetTimeoutRef = useRef<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("single");
   const [searchQuery, setSearchQuery] = useState("");
   const [showUnviewedOnly, setShowUnviewedOnly] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
+  const [copiedFilePath, setCopiedFilePath] = useState<string | null>(null);
   const [inlineComment, setInlineComment] = useState<InlineCommentDraft | null>(
     null,
   );
@@ -386,6 +389,15 @@ function PullRequestReviewPage() {
       JSON.stringify(Array.from(viewedFiles)),
     );
   }, [viewedStorageKey, viewedFiles]);
+
+  useEffect(
+    () => () => {
+      if (copyPathResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyPathResetTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -996,6 +1008,23 @@ function PullRequestReviewPage() {
     });
   }, [createCommentMutation, getInlineDraftContent, inlineComment]);
 
+  const handleCopyFilePath = useCallback((path: string) => {
+    if (!navigator.clipboard?.writeText) return;
+    void navigator.clipboard
+      .writeText(path)
+      .then(() => {
+        setCopiedFilePath(path);
+        if (copyPathResetTimeoutRef.current !== null) {
+          window.clearTimeout(copyPathResetTimeoutRef.current);
+        }
+        copyPathResetTimeoutRef.current = window.setTimeout(() => {
+          setCopiedFilePath((current) => (current === path ? null : current));
+          copyPathResetTimeoutRef.current = null;
+        }, 1200);
+      })
+      .catch(() => {});
+  }, []);
+
   const handleDiffLineEnter = useCallback(
     (props: OnDiffLineEnterLeaveProps) => {
       props.lineElement.style.cursor = "copy";
@@ -1391,6 +1420,29 @@ function PullRequestReviewPage() {
                   <span className="font-mono text-[12px] truncate">
                     {selectedFilePath}
                   </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="size-6"
+                        onClick={() => handleCopyFilePath(selectedFilePath)}
+                        aria-label="Copy file path"
+                      >
+                        {copiedFilePath === selectedFilePath ? (
+                          <Check className="size-3 text-status-added" />
+                        ) : (
+                          <Copy className="size-3 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {copiedFilePath === selectedFilePath
+                        ? "Copied path"
+                        : "Copy path"}
+                    </TooltipContent>
+                  </Tooltip>
                   <button
                     type="button"
                     className="ml-auto flex items-center gap-2 text-[12px] text-muted-foreground"
@@ -1616,6 +1668,29 @@ function PullRequestReviewPage() {
                     <div className="border-b border-border px-3 py-2 flex items-center gap-3 text-[12px]">
                       <FileText className="size-4 text-muted-foreground" />
                       <span className="font-mono truncate">{filePath}</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            className="size-6"
+                            onClick={() => handleCopyFilePath(filePath)}
+                            aria-label="Copy file path"
+                          >
+                            {copiedFilePath === filePath ? (
+                              <Check className="size-3 text-status-added" />
+                            ) : (
+                              <Copy className="size-3 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {copiedFilePath === filePath
+                            ? "Copied path"
+                            : "Copy path"}
+                        </TooltipContent>
+                      </Tooltip>
                       {fileUnresolvedCount > 0 && (
                         <span className="ml-auto text-muted-foreground">
                           {fileUnresolvedCount} unresolved

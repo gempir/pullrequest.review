@@ -9,13 +9,11 @@
     "format": "biome format --write .",
     "check": "biome check .",
     "build": "vite build && cp dist/client/_shell.html dist/client/index.html",
-    "build:prod": "vite build --mode prod && cp dist/client/_shell.html dist/client/index.html",
-    "build:preview": "vite build --mode preview && cp dist/client/_shell.html dist/client/index.html",
     "serve": "vite preview",
+    "worker:dev": "wrangler dev --config wrangler.jsonc",
+    "worker:preview": "wrangler dev --config wrangler.jsonc --remote",
     "cf-typegen": "wrangler types",
-    "deploy": "bun run deploy:prod",
-    "deploy:prod": "CLOUDFLARE_ENV=prod bun run build:prod && CLOUDFLARE_ENV=prod wrangler deploy --config wrangler.jsonc --env prod",
-    "deploy:preview": "CLOUDFLARE_ENV=preview bun run build:preview && CLOUDFLARE_ENV=preview wrangler deploy --config wrangler.jsonc --env preview",
+    "deploy": "bun run build && wrangler deploy --config wrangler.jsonc",
     "wrangler": "wrangler"
   },
   "dependencies": {

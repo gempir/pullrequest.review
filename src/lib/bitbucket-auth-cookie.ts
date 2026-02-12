@@ -22,7 +22,9 @@ function parseStoredCredentials(
 
 function readStoredCredentials() {
   if (typeof window === "undefined") return null;
-  return parseStoredCredentials(window.localStorage.getItem(BITBUCKET_AUTH_KEY));
+  return parseStoredCredentials(
+    window.localStorage.getItem(BITBUCKET_AUTH_KEY),
+  );
 }
 
 function encodeBasicAuth(email: string, apiToken: string) {

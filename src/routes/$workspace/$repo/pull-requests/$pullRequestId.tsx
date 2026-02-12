@@ -1340,7 +1340,8 @@ function PullRequestReviewPage() {
               className="h-8"
               disabled={
                 !isApproved ||
-                approveMutation.isPending || unapproveMutation.isPending
+                approveMutation.isPending ||
+                unapproveMutation.isPending
               }
               onClick={handleRequestChangesPullRequest}
             >

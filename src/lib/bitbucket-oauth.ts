@@ -43,9 +43,7 @@ export async function loginWithApiCredentials(data: {
           error?: { message?: string; detail?: string };
         };
         details =
-          payload.error?.detail?.trim() ||
-          payload.error?.message?.trim() ||
-          "";
+          payload.error?.detail?.trim() || payload.error?.message?.trim() || "";
       } catch {
         details = "";
       }

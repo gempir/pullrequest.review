@@ -397,7 +397,9 @@ export async function createPullRequestComment(data: {
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-    throw new Error(`Failed to create comment: ${res.status} ${res.statusText}`);
+    throw new Error(
+      `Failed to create comment: ${res.status} ${res.statusText}`,
+    );
   }
 
   return { ok: true };
@@ -420,7 +422,9 @@ export async function resolvePullRequestComment(data: {
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to ${action} comment: ${res.status} ${res.statusText}`);
+    throw new Error(
+      `Failed to ${action} comment: ${res.status} ${res.statusText}`,
+    );
   }
 
   return { ok: true };

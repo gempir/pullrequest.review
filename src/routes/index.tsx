@@ -26,7 +26,8 @@ export const Route = createFileRoute("/")({
 function LandingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { isAuthenticated, repos, setRepos, clearRepos, logout } = usePrContext();
+  const { isAuthenticated, repos, setRepos, clearRepos, logout } =
+    usePrContext();
   const [manageReposOpen, setManageReposOpen] = useState(false);
 
   const repoPrsQuery = useQuery({

@@ -19,7 +19,9 @@ function OAuthCallback() {
           <span className="text-[13px] font-medium">Redirecting</span>
         </div>
         <div className="p-6">
-          <div className="text-[13px] text-muted-foreground">Returning home...</div>
+          <div className="text-[13px] text-muted-foreground">
+            Returning home...
+          </div>
         </div>
       </div>
     </div>

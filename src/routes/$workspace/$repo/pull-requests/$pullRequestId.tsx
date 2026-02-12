@@ -590,25 +590,6 @@ function PullRequestReviewPage() {
     [activeFile, selectAndRevealFile],
   );
 
-  useKeyboardNavigation({
-    onNextUnviewedFile: () =>
-      selectFromPaths(
-        treeOrderedVisiblePaths.filter((path) => !viewedFiles.has(path)),
-        "next",
-      ),
-    onPreviousUnviewedFile: () =>
-      selectFromPaths(
-        treeOrderedVisiblePaths.filter((path) => !viewedFiles.has(path)),
-        "previous",
-      ),
-    onNextFile: () => selectFromPaths(treeOrderedVisiblePaths, "next"),
-    onPreviousFile: () => selectFromPaths(treeOrderedVisiblePaths, "previous"),
-    onScrollDown: () =>
-      diffScrollRef.current?.scrollBy({ top: 120, behavior: "smooth" }),
-    onScrollUp: () =>
-      diffScrollRef.current?.scrollBy({ top: -120, behavior: "smooth" }),
-  });
-
   const selectedFilePath = useMemo(() => {
     if (!activeFile) return undefined;
     if (!diffByPath.has(activeFile)) return undefined;
@@ -688,6 +669,7 @@ function PullRequestReviewPage() {
   const isApproved = Boolean(
     prData?.pr.participants?.some((participant) => participant.approved),
   );
+
   const ensurePrRef = useCallback(() => {
     if (!prData) {
       throw new Error("Pull request data is not loaded");
@@ -749,6 +731,41 @@ function PullRequestReviewPage() {
         error instanceof Error ? error.message : "Failed to merge pull request",
       );
     },
+  });
+
+  const handleApprovePullRequest = useCallback(() => {
+    if (isApproved) return;
+    if (approveMutation.isPending || unapproveMutation.isPending) return;
+    if (!window.confirm("Approve this pull request?")) return;
+    approveMutation.mutate();
+  }, [approveMutation, isApproved, unapproveMutation]);
+
+  const handleRequestChangesPullRequest = useCallback(() => {
+    if (!isApproved) return;
+    if (approveMutation.isPending || unapproveMutation.isPending) return;
+    if (!window.confirm("Request changes on this pull request?")) return;
+    unapproveMutation.mutate();
+  }, [approveMutation, isApproved, unapproveMutation]);
+
+  useKeyboardNavigation({
+    onNextUnviewedFile: () =>
+      selectFromPaths(
+        treeOrderedVisiblePaths.filter((path) => !viewedFiles.has(path)),
+        "next",
+      ),
+    onPreviousUnviewedFile: () =>
+      selectFromPaths(
+        treeOrderedVisiblePaths.filter((path) => !viewedFiles.has(path)),
+        "previous",
+      ),
+    onNextFile: () => selectFromPaths(treeOrderedVisiblePaths, "next"),
+    onPreviousFile: () => selectFromPaths(treeOrderedVisiblePaths, "previous"),
+    onApprovePullRequest: handleApprovePullRequest,
+    onRequestChangesPullRequest: handleRequestChangesPullRequest,
+    onScrollDown: () =>
+      diffScrollRef.current?.scrollBy({ top: 120, behavior: "smooth" }),
+    onScrollUp: () =>
+      diffScrollRef.current?.scrollBy({ top: -120, behavior: "smooth" }),
   });
 
   const createCommentMutation = useMutation({
@@ -1309,25 +1326,28 @@ function PullRequestReviewPage() {
               size="sm"
               className="h-8"
               disabled={
-                approveMutation.isPending || unapproveMutation.isPending
+                isApproved ||
+                approveMutation.isPending ||
+                unapproveMutation.isPending
               }
-              onClick={() => {
-                if (isApproved) {
-                  if (
-                    !window.confirm("Remove approval from this pull request?")
-                  )
-                    return;
-                  unapproveMutation.mutate();
-                  return;
-                }
-                if (!window.confirm("Approve this pull request?")) return;
-                approveMutation.mutate();
-              }}
+              onClick={handleApprovePullRequest}
             >
-              <Check className="size-3.5" />
-              {isApproved ? "Approved" : "Approve"}
+              Approve
             </Button>
             <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              disabled={
+                !isApproved ||
+                approveMutation.isPending || unapproveMutation.isPending
+              }
+              onClick={handleRequestChangesPullRequest}
+            >
+              Request Changes
+            </Button>
+            <Button
+              variant="outline"
               size="sm"
               className="h-8"
               onClick={() => setMergeOpen(true)}

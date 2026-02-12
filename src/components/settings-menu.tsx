@@ -161,6 +161,18 @@ function ShortcutsTab() {
           shortcut={shortcuts.previousFile}
           onChange={(config) => updateShortcut("previousFile", config)}
         />
+        <ShortcutRow
+          label="Approve Pull Request"
+          shortcut={shortcuts.approvePullRequest}
+          onChange={(config) => updateShortcut("approvePullRequest", config)}
+        />
+        <ShortcutRow
+          label="Request Changes"
+          shortcut={shortcuts.requestChangesPullRequest}
+          onChange={(config) =>
+            updateShortcut("requestChangesPullRequest", config)
+          }
+        />
       </div>
     </div>
   );

@@ -77,7 +77,7 @@ export function FileTree({
   const nodes = rawNodes.filter(matchesNode);
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col tree-font-scope">
       {nodes.map((node) => {
         if (node.type === "directory") {
           return (
@@ -134,8 +134,24 @@ function DirectoryNode({
   onFileClick?: (node: FileNode) => void;
 }) {
   const tree = useFileTree();
-  const expanded = tree.isExpanded(node.path);
-  const kind = kinds.get(node.path);
+  const compactEnabled = tree.compactSingleChildDirectories;
+  let displayNode = node;
+  const nameParts = [node.name];
+
+  if (compactEnabled) {
+    while (true) {
+      const children = tree.children(displayNode.path);
+      if (children.length !== 1) break;
+      const nextNode = children[0];
+      if (nextNode.type !== "directory") break;
+      nameParts.push(nextNode.name);
+      displayNode = nextNode;
+    }
+  }
+
+  const expanded = tree.isExpanded(displayNode.path);
+  const kind = kinds.get(displayNode.path);
+  const displayName = nameParts.join("/");
 
   return (
     <div>
@@ -144,10 +160,10 @@ function DirectoryNode({
         className={cn(
           "group w-full min-w-0 flex items-center gap-3 py-1 text-left",
           "hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer",
-          "text-[12px] text-muted-foreground",
+          "text-muted-foreground",
         )}
         style={{ paddingLeft: `${4 + level * 12}px` }}
-        onClick={() => tree.toggle(node.path)}
+        onClick={() => tree.toggle(displayNode.path)}
         aria-expanded={expanded}
       >
         <span
@@ -172,7 +188,7 @@ function DirectoryNode({
         </span>
         {kindMarker(kind)}
         <span className="flex-1 min-w-0 truncate text-foreground">
-          {node.name}
+          {displayName}
         </span>
       </button>
       {expanded && (
@@ -182,7 +198,7 @@ function DirectoryNode({
             style={{ left: `${4 + level * 12 + 8}px` }}
           />
           <FileTree
-            path={node.path}
+            path={displayNode.path}
             level={level + 1}
             kinds={kinds}
             activeFile={activeFile}
@@ -225,7 +241,6 @@ function FileNodeRow({
       className={cn(
         "w-full min-w-0 flex items-center gap-3 py-1 text-left",
         "hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer",
-        "text-[12px]",
         isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
       )}
       style={{ paddingLeft: `${4 + level * 12}px` }}

@@ -7,7 +7,6 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Dark terminal-inspired color palette */
   --background: #0a0a0a;
   --foreground: #e0e0e0;
   --card: #111111;
@@ -15,41 +14,32 @@
   --popover: #111111;
   --popover-foreground: #e0e0e0;
 
-  /* Primary - subtle accent */
   --primary: #e0e0e0;
   --primary-foreground: #0a0a0a;
 
-  /* Secondary - slightly lighter background */
   --secondary: #1a1a1a;
   --secondary-foreground: #e0e0e0;
 
-  /* Muted - darker elements */
   --muted: #141414;
   --muted-foreground: #707070;
 
-  /* Accent - subtle highlight */
   --accent: #1f1f1f;
   --accent-foreground: #e0e0e0;
 
-  /* Destructive */
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
-  /* Borders - sharp, defined */
   --border: #2a2a2a;
   --input: #2a2a2a;
   --ring: #404040;
 
-  /* Status colors */
   --status-added: #22c55e;
   --status-removed: #ef4444;
   --status-modified: #eab308;
   --status-renamed: #3b82f6;
 
-  /* Minimal border radius */
   --radius: 2px;
 
-  /* Sidebar */
   --sidebar: #0f0f0f;
   --sidebar-foreground: #e0e0e0;
   --sidebar-primary: #e0e0e0;
@@ -58,6 +48,71 @@
   --sidebar-accent-foreground: #e0e0e0;
   --sidebar-border: #2a2a2a;
   --sidebar-ring: #404040;
+
+  --font-jetbrains-mono:
+    "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code",
+    "Roboto Mono", Consolas, "Courier New", monospace;
+  --font-fira-code:
+    "Fira Code", "JetBrains Mono", "SF Mono", Monaco, "Cascadia Code",
+    "Roboto Mono", Consolas, "Courier New", monospace;
+  --font-cascadia-code:
+    "Cascadia Code", "JetBrains Mono", "Fira Code", "SF Mono", Monaco,
+    "Roboto Mono", Consolas, "Courier New", monospace;
+  --font-source-code-pro:
+    "Source Code Pro", "JetBrains Mono", "Fira Code", "SF Mono", Monaco,
+    "Roboto Mono", Consolas, "Courier New", monospace;
+  --font-ibm-plex-mono:
+    "IBM Plex Mono", "JetBrains Mono", "Fira Code", "SF Mono", Monaco,
+    "Roboto Mono", Consolas, "Courier New", monospace;
+  --font-geist-mono:
+    "Geist Mono", "JetBrains Mono", "Fira Code", "SF Mono", Monaco,
+    "Roboto Mono", Consolas, "Courier New", monospace;
+  --font-ui-monospace:
+    ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  --font-system-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+    Cantarell, "Helvetica Neue", Arial, sans-serif;
+
+  --app-font-family: var(--font-jetbrains-mono);
+  --app-font-size: 13px;
+  --app-line-height: 1.5;
+  --tree-font-family: var(--app-font-family);
+  --tree-font-size: 12px;
+  --tree-line-height: 1.45;
+  --diff-font-family: var(--app-font-family);
+  --diff-font-size: 13px;
+  --diff-line-height: 1.45;
+}
+
+:root.light {
+  --background: #f7f7f8;
+  --foreground: #141414;
+  --card: #ffffff;
+  --card-foreground: #141414;
+  --popover: #ffffff;
+  --popover-foreground: #141414;
+  --primary: #111111;
+  --primary-foreground: #fafafa;
+  --secondary: #ededee;
+  --secondary-foreground: #141414;
+  --muted: #f1f1f3;
+  --muted-foreground: #56565f;
+  --accent: #e5e7eb;
+  --accent-foreground: #111111;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #d4d4d8;
+  --input: #d4d4d8;
+  --ring: #8b8b96;
+  --sidebar: #f3f4f6;
+  --sidebar-foreground: #111111;
+  --sidebar-primary: #111111;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #e5e7eb;
+  --sidebar-accent-foreground: #111111;
+  --sidebar-border: #d4d4d8;
+  --sidebar-ring: #8b8b96;
 }
 
 @theme inline {
@@ -124,11 +179,9 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family:
-      "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code",
-      "Roboto Mono", Consolas, "Courier New", monospace;
-    font-size: 13px;
-    line-height: 1.5;
+    font-family: var(--app-font-family);
+    font-size: var(--app-font-size);
+    line-height: var(--app-line-height);
     overflow-x: hidden;
     max-width: 100vw;
     width: 100%;
@@ -270,5 +323,26 @@
   .commentable-diff [data-line],
   .commentable-diff [data-column-number] {
     cursor: copy;
+  }
+
+  .tree-font-scope {
+    font-family: var(--tree-font-family);
+    font-size: var(--tree-font-size);
+    line-height: var(--tree-line-height);
+  }
+
+  .pr-diff-font {
+    font-family: var(--diff-font-family);
+    font-size: var(--diff-font-size);
+    line-height: var(--diff-line-height);
+  }
+
+  .pr-diff-font pre,
+  .pr-diff-font code,
+  .pr-diff-font [data-line],
+  .pr-diff-font [data-column-number] {
+    font-family: var(--diff-font-family);
+    font-size: var(--diff-font-size);
+    line-height: var(--diff-line-height);
   }
 }

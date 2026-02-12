@@ -6,6 +6,8 @@ import {
   RotateCcw,
   MonitorCog,
   LogOut,
+  Palette,
+  FolderOpen,
 } from "lucide-react";
 import {
   Dialog,
@@ -17,10 +19,23 @@ import {
 import { Button } from "@/components/ui/button";
 import { DiffToolbar } from "@/components/diff-toolbar";
 import { useShortcuts, type ShortcutConfig } from "@/lib/shortcuts-context";
+import { useAppearance, type AppThemeMode } from "@/lib/appearance-context";
+import { FONT_FAMILY_OPTIONS, type FontFamilyValue } from "@/lib/font-options";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { useFileTree } from "@/lib/file-tree-context";
 import { cn } from "@/lib/utils";
 
 type WorkspaceMode = "single" | "all";
-type Tab = "diff" | "shortcuts" | "workspace";
+type Tab = "diff" | "appearance" | "tree" | "shortcuts" | "workspace";
 
 function ShortcutRow({
   label,
@@ -68,7 +83,7 @@ function ShortcutRow({
   };
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-border last:border-0">
+    <div className="flex items-center justify-between py-3 border-b border-border last:border-0 gap-3">
       <div className="flex flex-col">
         <span className="text-[13px]">{label}</span>
         <span className="text-[11px] text-muted-foreground">
@@ -99,7 +114,7 @@ function ShortcutsTab() {
   const { shortcuts, updateShortcut, resetToDefaults } = useShortcuts();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <p className="text-[13px] text-muted-foreground">
           Click on a shortcut to change it. Press Escape to cancel.
@@ -115,7 +130,7 @@ function ShortcutsTab() {
         </Button>
       </div>
 
-      <div className="border border-border rounded-sm">
+      <div className="border border-border rounded-sm bg-card">
         <ShortcutRow
           label="Next Unviewed File"
           shortcut={shortcuts.nextUnviewedFile}
@@ -153,11 +168,225 @@ function ShortcutsTab() {
 
 function DiffSettingsTab() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <p className="text-[13px] text-muted-foreground">
         Configure how diffs are displayed.
       </p>
-      <DiffToolbar />
+      <div className="border border-border bg-card p-4">
+        <DiffToolbar />
+      </div>
+    </div>
+  );
+}
+
+function AppearanceTab() {
+  const {
+    appThemeMode,
+    pageFontFamily,
+    pageFontSize,
+    pageLineHeight,
+    setAppThemeMode,
+    setPageFontFamily,
+    setPageFontSize,
+    setPageLineHeight,
+  } = useAppearance();
+
+  return (
+    <div className="space-y-5">
+      <div className="border border-border bg-card p-4 space-y-4">
+        <div>
+          <h3 className="text-[13px] font-medium">General Appearance</h3>
+          <p className="text-[12px] text-muted-foreground">
+            Configure app-wide theme and typography.
+          </p>
+        </div>
+      </div>
+
+      <div className="border border-border bg-card p-4 space-y-4">
+        <div>
+          <h3 className="text-[13px] font-medium">App Theme</h3>
+          <p className="text-[12px] text-muted-foreground">
+            Auto follows browser preference.
+          </p>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[12px] text-muted-foreground">Theme Mode</Label>
+          <Select
+            value={appThemeMode}
+            onValueChange={(value) => setAppThemeMode(value as AppThemeMode)}
+          >
+            <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto" className="text-[12px]">
+                Auto
+              </SelectItem>
+              <SelectItem value="light" className="text-[12px]">
+                Light
+              </SelectItem>
+              <SelectItem value="dark" className="text-[12px]">
+                Dark
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="border border-border bg-card p-4 space-y-4">
+        <div>
+          <h3 className="text-[13px] font-medium">Page Typography</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1">
+            <Label className="text-[12px] text-muted-foreground">Font Family</Label>
+            <Select
+              value={pageFontFamily}
+              onValueChange={(value) =>
+                setPageFontFamily(value as FontFamilyValue)
+              }
+            >
+              <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {FONT_FAMILY_OPTIONS.map((font) => (
+                  <SelectItem
+                    key={font.value}
+                    value={font.value}
+                    className="text-[12px]"
+                  >
+                    {font.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[12px] text-muted-foreground">Font Size</Label>
+            <Input
+              type="number"
+              value={pageFontSize}
+              min={11}
+              max={20}
+              onChange={(event) => setPageFontSize(Number(event.target.value))}
+              className="h-8 text-[12px]"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[12px] text-muted-foreground">Line Height</Label>
+            <Input
+              type="number"
+              value={pageLineHeight}
+              min={1}
+              max={2.2}
+              step={0.05}
+              onChange={(event) => setPageLineHeight(Number(event.target.value))}
+              className="h-8 text-[12px]"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TreeTab() {
+  const {
+    setTreeFontFamily,
+    setTreeFontSize,
+    setTreeLineHeight,
+    treeFontFamily,
+    treeFontSize,
+    treeLineHeight,
+  } = useAppearance();
+  const { compactSingleChildDirectories, setCompactSingleChildDirectories } =
+    useFileTree();
+
+  return (
+    <div className="space-y-5">
+      <div className="border border-border bg-card p-4 space-y-4">
+        <div>
+          <h3 className="text-[13px] font-medium">Directory Tree</h3>
+          <p className="text-[12px] text-muted-foreground">
+            Control how folders are displayed in the sidebar tree.
+          </p>
+        </div>
+        <div className="flex items-start justify-between gap-4 border border-border bg-background px-3 py-2.5">
+          <div className="space-y-1">
+            <Label
+              htmlFor="tree-compact-single-child"
+              className="text-[12px] text-foreground"
+            >
+              Compact single-child folder chains
+            </Label>
+            <p className="text-[11px] text-muted-foreground">
+              Example: services/foo/bar/file.php displays as services/foo/bar
+              when this is a linear directory chain.
+            </p>
+          </div>
+          <Switch
+            id="tree-compact-single-child"
+            checked={compactSingleChildDirectories}
+            onCheckedChange={setCompactSingleChildDirectories}
+            size="sm"
+          />
+        </div>
+      </div>
+      <div className="border border-border bg-card p-4 space-y-4">
+        <div>
+          <h3 className="text-[13px] font-medium">File Tree Typography</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1">
+            <Label className="text-[12px] text-muted-foreground">Font Family</Label>
+            <Select
+              value={treeFontFamily}
+              onValueChange={(value) =>
+                setTreeFontFamily(value as FontFamilyValue)
+              }
+            >
+              <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {FONT_FAMILY_OPTIONS.map((font) => (
+                  <SelectItem
+                    key={font.value}
+                    value={font.value}
+                    className="text-[12px]"
+                  >
+                    {font.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[12px] text-muted-foreground">Font Size</Label>
+            <Input
+              type="number"
+              value={treeFontSize}
+              min={10}
+              max={18}
+              onChange={(event) => setTreeFontSize(Number(event.target.value))}
+              className="h-8 text-[12px]"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[12px] text-muted-foreground">Line Height</Label>
+            <Input
+              type="number"
+              value={treeLineHeight}
+              min={1}
+              max={2.2}
+              step={0.05}
+              onChange={(event) => setTreeLineHeight(Number(event.target.value))}
+              className="h-8 text-[12px]"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -237,23 +466,22 @@ export function SettingsMenu({
           <Settings className="size-3.5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col p-0">
-        <DialogHeader className="px-4 py-3 border-b border-border bg-secondary">
-          <DialogTitle className="text-[13px] font-medium flex items-center gap-2">
+      <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0">
+        <DialogHeader className="px-5 py-4 border-b border-border bg-secondary">
+          <DialogTitle className="text-[14px] font-medium flex items-center gap-2">
             <Settings className="size-4" />
             Settings
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-1 min-h-0">
-          {/* Sidebar */}
-          <div className="w-48 border-r border-border bg-sidebar">
-            <nav className="p-2 space-y-1">
+          <div className="w-56 border-r border-border bg-sidebar">
+            <nav className="p-3 space-y-1.5">
               <button
                 type="button"
                 onClick={() => setActiveTab("diff")}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[13px] transition-colors",
+                  "w-full flex items-center gap-2 px-3 py-2.5 text-[13px] transition-colors",
                   activeTab === "diff"
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-accent/50",
@@ -264,9 +492,35 @@ export function SettingsMenu({
               </button>
               <button
                 type="button"
+                onClick={() => setActiveTab("tree")}
+                className={cn(
+                  "w-full flex items-center gap-2 px-3 py-2.5 text-[13px] transition-colors",
+                  activeTab === "tree"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-accent/50",
+                )}
+              >
+                <FolderOpen className="size-4" />
+                Directory Tree
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("appearance")}
+                className={cn(
+                  "w-full flex items-center gap-2 px-3 py-2.5 text-[13px] transition-colors",
+                  activeTab === "appearance"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-accent/50",
+                )}
+              >
+                <Palette className="size-4" />
+                General Appearance
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveTab("shortcuts")}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-[13px] transition-colors",
+                  "w-full flex items-center gap-2 px-3 py-2.5 text-[13px] transition-colors",
                   activeTab === "shortcuts"
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-accent/50",
@@ -280,7 +534,7 @@ export function SettingsMenu({
                   type="button"
                   onClick={() => setActiveTab("workspace")}
                   className={cn(
-                    "w-full flex items-center gap-2 px-3 py-2 text-[13px] transition-colors",
+                    "w-full flex items-center gap-2 px-3 py-2.5 text-[13px] transition-colors",
                     activeTab === "workspace"
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:bg-accent/50",
@@ -293,9 +547,10 @@ export function SettingsMenu({
             </nav>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 p-4 overflow-auto">
+          <div className="flex-1 p-5 overflow-auto">
             {activeTab === "diff" && <DiffSettingsTab />}
+            {activeTab === "appearance" && <AppearanceTab />}
+            {activeTab === "tree" && <TreeTab />}
             {activeTab === "shortcuts" && <ShortcutsTab />}
             {activeTab === "workspace" && (
               <WorkspaceTab

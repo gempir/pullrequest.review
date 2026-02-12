@@ -1,5 +1,6 @@
 import { useDiffOptions, type DiffOptions } from "@/lib/diff-options-context";
 import { DIFF_THEMES, type DiffTheme } from "@/lib/diff-themes";
+import { FONT_FAMILY_OPTIONS, type FontFamilyValue } from "@/lib/font-options";
 import {
   Select,
   SelectContent,
@@ -30,18 +31,15 @@ function OptionSelect<K extends keyof DiffOptions>({
 }) {
   const { options, setOption } = useDiffOptions();
   return (
-    <div className="flex items-center gap-2">
-      <Label className="text-[11px] whitespace-nowrap text-muted-foreground">
+    <div className="space-y-1">
+      <Label className="text-[12px] whitespace-nowrap text-muted-foreground">
         {label}
       </Label>
       <Select
         value={String(options[optionKey])}
         onValueChange={(v) => setOption(optionKey, v as DiffOptions[K])}
       >
-        <SelectTrigger
-          className="h-7 text-[12px] w-auto min-w-[80px]"
-          size="sm"
-        >
+        <SelectTrigger className="h-8 text-[12px] w-full min-w-[120px]" size="sm">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -69,7 +67,7 @@ function OptionSwitch({
 }) {
   const { options, setOption } = useDiffOptions();
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 pt-5">
       <Switch
         id={optionKey}
         checked={options[optionKey]}
@@ -78,7 +76,7 @@ function OptionSwitch({
       />
       <Label
         htmlFor={optionKey}
-        className="text-[11px] whitespace-nowrap text-muted-foreground"
+        className="text-[12px] whitespace-nowrap text-muted-foreground"
       >
         {label}
       </Label>
@@ -91,16 +89,18 @@ function OptionNumber({
   optionKey,
   min,
   max,
+  step,
 }: {
   label: string;
   optionKey: NumberOptionKey;
   min?: number;
   max?: number;
+  step?: number;
 }) {
   const { options, setOption } = useDiffOptions();
   return (
-    <div className="flex items-center gap-2">
-      <Label className="text-[11px] whitespace-nowrap text-muted-foreground">
+    <div className="space-y-1">
+      <Label className="text-[12px] whitespace-nowrap text-muted-foreground">
         {label}
       </Label>
       <Input
@@ -109,7 +109,8 @@ function OptionNumber({
         onChange={(e) => setOption(optionKey, Number(e.target.value))}
         min={min}
         max={max}
-        className="h-7 w-16 text-[12px]"
+        step={step}
+        className="h-8 w-full text-[12px]"
       />
     </div>
   );
@@ -119,79 +120,104 @@ export function DiffToolbar() {
   const { options, setOption } = useDiffOptions();
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <div className="flex items-center gap-2">
-        <Label className="text-[11px] whitespace-nowrap text-muted-foreground">
-          Theme
-        </Label>
-        <Select
-          value={options.theme}
-          onValueChange={(v) => setOption("theme", v as DiffTheme)}
-        >
-          <SelectTrigger
-            className="h-7 text-[12px] w-auto min-w-[140px]"
-            size="sm"
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1 md:col-span-2">
+          <Label className="text-[12px] whitespace-nowrap text-muted-foreground">
+            Theme
+          </Label>
+          <Select
+            value={options.theme}
+            onValueChange={(v) => setOption("theme", v as DiffTheme)}
           >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="max-h-60">
-            {DIFF_THEMES.map((t) => (
-              <SelectItem key={t} value={t} className="text-[12px]">
-                {t}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-h-80">
+              {DIFF_THEMES.map((t) => (
+                <SelectItem key={t} value={t} className="text-[12px]">
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-[12px] whitespace-nowrap text-muted-foreground">
+            Diff Font Family
+          </Label>
+          <Select
+            value={options.diffFontFamily}
+            onValueChange={(v) => setOption("diffFontFamily", v as FontFamilyValue)}
+          >
+            <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-h-60">
+              {FONT_FAMILY_OPTIONS.map((font) => (
+                <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                  {font.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <OptionNumber
+          label="Diff Font Size"
+          optionKey="diffFontSize"
+          min={10}
+          max={20}
+        />
+        <OptionNumber
+          label="Diff Line Height"
+          optionKey="diffLineHeight"
+          min={1}
+          max={2.2}
+          step={0.05}
+        />
       </div>
 
-      <div className="w-px h-4 bg-border" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <OptionSelect
+          label="Diff Layout"
+          optionKey="diffStyle"
+          values={["unified", "split"]}
+        />
+        <OptionSelect
+          label="Change Indicators"
+          optionKey="diffIndicators"
+          values={["classic", "bars", "none"]}
+        />
+        <OptionSelect
+          label="Hunk Separators"
+          optionKey="hunkSeparators"
+          values={["simple", "metadata", "line-info"]}
+        />
+        <OptionSelect
+          label="Inline Diff"
+          optionKey="lineDiffType"
+          values={["word-alt", "word", "char", "none"]}
+        />
+        <OptionSelect
+          label="Line Overflow"
+          optionKey="overflow"
+          values={["scroll", "wrap"]}
+        />
+        <OptionNumber
+          label="Expansion Lines"
+          optionKey="expansionLineCount"
+          min={1}
+          max={200}
+        />
+      </div>
 
-      <OptionSelect
-        label="Diff"
-        optionKey="diffStyle"
-        values={["unified", "split"]}
-      />
-
-      <OptionSelect
-        label="Indicators"
-        optionKey="diffIndicators"
-        values={["classic", "bars", "none"]}
-      />
-
-      <OptionSwitch label="Background" optionKey="disableBackground" />
-
-      <div className="w-px h-4 bg-border" />
-
-      <OptionSelect
-        label="Separators"
-        optionKey="hunkSeparators"
-        values={["simple", "metadata", "line-info"]}
-      />
-
-      <OptionSwitch label="Expand" optionKey="expandUnchanged" />
-
-      <OptionNumber
-        label="Lines"
-        optionKey="expansionLineCount"
-        min={1}
-        max={200}
-      />
-
-      <div className="w-px h-4 bg-border" />
-
-      <OptionSelect
-        label="Diff"
-        optionKey="lineDiffType"
-        values={["word-alt", "word", "char", "none"]}
-      />
-
-      <OptionSwitch label="Hide Lines" optionKey="disableLineNumbers" />
-
-      <OptionSelect
-        label="Overflow"
-        optionKey="overflow"
-        values={["scroll", "wrap"]}
-      />
+      <div className="flex flex-wrap items-center gap-5">
+        <OptionSwitch label="Disable Background" optionKey="disableBackground" />
+        <OptionSwitch label="Expand Unchanged" optionKey="expandUnchanged" />
+        <OptionSwitch label="Hide Line Numbers" optionKey="disableLineNumbers" />
+      </div>
     </div>
   );
 }

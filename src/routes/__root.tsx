@@ -13,6 +13,7 @@ import { PrProvider, usePrContext } from "@/lib/pr-context";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
+import { AppearanceProvider } from "@/lib/appearance-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginWithApiCredentials } from "@/lib/bitbucket-oauth";
@@ -57,15 +58,17 @@ function RootComponent() {
   return (
     <RootDocument>
       <QueryClientProvider client={queryClient}>
-        <PrProvider>
-          <DiffOptionsProvider>
-            <FileTreeProvider>
-              <ShortcutsProvider>
-                <AppLayout />
-              </ShortcutsProvider>
-            </FileTreeProvider>
-          </DiffOptionsProvider>
-        </PrProvider>
+        <AppearanceProvider>
+          <PrProvider>
+            <DiffOptionsProvider>
+              <FileTreeProvider>
+                <ShortcutsProvider>
+                  <AppLayout />
+                </ShortcutsProvider>
+              </FileTreeProvider>
+            </DiffOptionsProvider>
+          </PrProvider>
+        </AppearanceProvider>
       </QueryClientProvider>
     </RootDocument>
   );

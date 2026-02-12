@@ -31,12 +31,12 @@ export interface Shortcuts {
 const DEFAULT_SHORTCUTS: Shortcuts = {
   nextUnviewedFile: {
     key: "l",
-    modifiers: {},
+    modifiers: { shift: true },
     description: "Navigate to next unviewed file",
   },
   previousUnviewedFile: {
     key: "h",
-    modifiers: {},
+    modifiers: { shift: true },
     description: "Navigate to previous unviewed file",
   },
   scrollDown: {
@@ -51,12 +51,12 @@ const DEFAULT_SHORTCUTS: Shortcuts = {
   },
   nextFile: {
     key: "l",
-    modifiers: { shift: true },
+    modifiers: {},
     description: "Navigate to next file",
   },
   previousFile: {
     key: "h",
-    modifiers: { shift: true },
+    modifiers: {},
     description: "Navigate to previous file",
   },
 };

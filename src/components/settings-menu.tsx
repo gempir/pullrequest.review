@@ -227,11 +227,13 @@ function DiffSettingsTab({
 function AppearanceTab() {
   const {
     appThemeMode,
+    syncAppColorsWithDiffTheme,
     pageFontFamily,
     pageFontSize,
     pageLineHeight,
     commentFontFamily,
     setAppThemeMode,
+    setSyncAppColorsWithDiffTheme,
     setPageFontFamily,
     setPageFontSize,
     setPageLineHeight,
@@ -279,6 +281,25 @@ function AppearanceTab() {
               </SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div className="flex items-start justify-between gap-4 border border-border bg-background px-3 py-2.5">
+          <div className="space-y-1">
+            <Label
+              htmlFor="shiki-theme-sync"
+              className="text-[12px] text-foreground"
+            >
+              Use active Shiki theme for app colors
+            </Label>
+            <p className="text-[11px] text-muted-foreground">
+              Derive global UI colors from the selected diff theme.
+            </p>
+          </div>
+          <Switch
+            id="shiki-theme-sync"
+            checked={syncAppColorsWithDiffTheme}
+            onCheckedChange={setSyncAppColorsWithDiffTheme}
+            size="sm"
+          />
         </div>
       </div>
 

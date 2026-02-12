@@ -1,6 +1,5 @@
-import { useDiffOptions, type DiffOptions } from "@/lib/diff-options-context";
-import { DIFF_THEMES, type DiffTheme } from "@/lib/diff-themes";
-import { FONT_FAMILY_OPTIONS, type FontFamilyValue } from "@/lib/font-options";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -9,8 +8,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { type DiffOptions, useDiffOptions } from "@/lib/diff-options-context";
+import { DIFF_THEMES, type DiffTheme } from "@/lib/diff-themes";
+import { FONT_FAMILY_OPTIONS, type FontFamilyValue } from "@/lib/font-options";
 
 type BooleanOptionKey = {
   [K in keyof DiffOptions]: DiffOptions[K] extends boolean ? K : never;

@@ -1,58 +1,12 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  parsePatchFiles,
   type FileDiffOptions,
   type OnDiffLineClickProps,
   type OnDiffLineEnterLeaveProps,
+  parsePatchFiles,
 } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type MouseEvent as ReactMouseEvent,
-} from "react";
-import { usePrContext } from "@/lib/pr-context";
-import { useDiffOptions, toLibraryOptions } from "@/lib/diff-options-context";
-import { useKeyboardNavigation } from "@/lib/shortcuts-context";
-import {
-  buildKindMapForTree,
-  buildTreeFromPaths,
-  useFileTree,
-  type ChangeKind,
-  type FileNode,
-} from "@/lib/file-tree-context";
-import {
-  approvePullRequest,
-  createPullRequestComment,
-  fetchBitbucketPullRequestBundleByRef,
-  mergePullRequest,
-  resolvePullRequestComment,
-  unapprovePullRequest,
-  type BitbucketComment,
-} from "@/lib/bitbucket-api";
-import { fileAnchorId } from "@/lib/file-anchors";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { FileTree } from "@/components/file-tree";
-import { SettingsMenu } from "@/components/settings-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   Check,
@@ -64,6 +18,52 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
+import {
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { FileTree } from "@/components/file-tree";
+import { SettingsMenu } from "@/components/settings-menu";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  approvePullRequest,
+  type BitbucketComment,
+  createPullRequestComment,
+  fetchBitbucketPullRequestBundleByRef,
+  mergePullRequest,
+  resolvePullRequestComment,
+  unapprovePullRequest,
+} from "@/lib/bitbucket-api";
+import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
+import { fileAnchorId } from "@/lib/file-anchors";
+import {
+  buildKindMapForTree,
+  buildTreeFromPaths,
+  type ChangeKind,
+  type FileNode,
+  useFileTree,
+} from "@/lib/file-tree-context";
+import { usePrContext } from "@/lib/pr-context";
+import { useKeyboardNavigation } from "@/lib/shortcuts-context";
 
 type ViewMode = "single" | "all";
 

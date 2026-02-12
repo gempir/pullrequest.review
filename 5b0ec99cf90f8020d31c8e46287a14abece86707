@@ -1,0 +1,43 @@
+src/routes/index.tsx
+  d53e06efd6727f71 29,33-35
+src/lib/bitbucket-api.ts
+  d53e06efd6727f71 104-107,109,225,273-276,284,317,335,354,380,420,457
+src/components/repository-selector.tsx
+  d53e06efd6727f71 24,26-29,32
+src/routes/__root.tsx
+  d53e06efd6727f71 10,17-19,75-87,99,103-109,112-113,116-178,180,182,185-188,196,205-206,209
+AGENTS.md
+  d53e06efd6727f71 68
+package.json
+  d53e06efd6727f71 11-14,23,27,29,31-32,58
+src/routes/$workspace/$repo/pull-requests/$pullRequestId.tsx
+  d53e06efd6727f71 247,295,297,304,306,691,709,1337,1343-1345
+src/lib/pr-context.tsx
+  d53e06efd6727f71 10,14-18,28-29,31-43,59,65,68,71-78,88-92,99,102-105
+src/lib/bitbucket-oauth.ts
+  d53e06efd6727f71 3-4,7,10,12-18,21,23-24,29-30,32-50,52,54-56,60-61,63,66-71,73,76-78
+src/routes/oauth/callback.tsx
+  d53e06efd6727f71 2,12-13,19,22
+src/lib/bitbucket-auth-cookie.ts
+  d53e06efd6727f71 1-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "5b0ec99cf90f8020d31c8e46287a14abece86707",
+  "prompts": {
+    "d53e06efd6727f71": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d45230f8-e780-449e-8479-9e7b48066070",
+        "model": "claude-4.6-opus-high"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 508,
+      "total_deletions": 497,
+      "accepted_lines": 332,
+      "overriden_lines": 1
+    }
+  }
+}

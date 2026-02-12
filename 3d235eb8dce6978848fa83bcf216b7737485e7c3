@@ -1,0 +1,25 @@
+src/routes/index.tsx
+  d53e06efd6727f71 29,69-87
+src/routes/__root.tsx
+  d53e06efd6727f71 94,98,102,105,112,163,171,175,183,188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "3d235eb8dce6978848fa83bcf216b7737485e7c3",
+  "prompts": {
+    "d53e06efd6727f71": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d45230f8-e780-449e-8479-9e7b48066070",
+        "model": "claude-4.6-opus-high"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 46,
+      "total_deletions": 24,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    }
+  }
+}

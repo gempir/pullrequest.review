@@ -1,0 +1,39 @@
+src/routes/$workspace/$repo/pull-requests/$pullRequestId.tsx
+  d53e06efd6727f71 304,691,709,729,761,794
+src/lib/bitbucket-api.ts
+  d53e06efd6727f71 1,199,211,255-263,266,269,271-282,285,288-302,304-310,312,317,325,327,332,340,342,346-347,356,374,376,381,399-401,403,406-407,409-410,419,423,427
+src/lib/bitbucket-auth-cookie.ts
+  d53e06efd6727f71 1,8-9,11,13,23-25,29-35,39,47-49,55,60-61
+src/routes/__root.tsx
+  d53e06efd6727f71 145,187
+src/components/repository-selector.tsx
+  d53e06efd6727f71 5,21,35-36,38-40,43-44,88
+src/routes/index.tsx
+  d53e06efd6727f71 34
+wrangler.jsonc
+  d53e06efd6727f71 5-8
+vite.config.ts
+  d53e06efd6727f71 8,26-28,30
+src/lib/bitbucket-oauth.ts
+  d53e06efd6727f71 2-5,8-13,16,18,27,34,54-56,60-61,66,72,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "0bc9b0a94104cb9bfb7406952cb23ecb029786d5",
+  "prompts": {
+    "d53e06efd6727f71": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d45230f8-e780-449e-8479-9e7b48066070",
+        "model": "claude-4.6-opus-high"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 315,
+      "total_deletions": 375,
+      "accepted_lines": 155,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -18,6 +18,7 @@ import { loginWithApiCredentials } from "@/lib/bitbucket-oauth";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
+import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
 
 import "../../styles.css";
@@ -62,6 +63,7 @@ function RootComponent() {
         <AppearanceProvider>
           <PrProvider>
             <DiffOptionsProvider>
+              <ShikiAppThemeSync />
               <FileTreeProvider>
                 <ShortcutsProvider>
                   <AppLayout />

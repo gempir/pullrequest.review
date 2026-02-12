@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+import { requireBitbucketBasicAuthHeader } from "@/lib/bitbucket-auth-cookie";
 
 export interface BitbucketRepo {
   workspace: string;
@@ -102,9 +102,6 @@ export interface BitbucketPullRequestBundle {
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
-  const { requireBitbucketBasicAuthHeader } = await import(
-    "./bitbucket-auth-cookie"
-  );
   const headers: Record<string, string> = {};
   headers.Authorization = requireBitbucketBasicAuthHeader();
   return headers;
@@ -199,23 +196,19 @@ async function fetchAllComments(
   return values;
 }
 
-export const fetchBitbucketPullRequestBundle = createServerFn({
-  method: "GET",
-})
-  .inputValidator((data: { prUrl: string }) => data)
-  .handler(async ({ data }) => {
-    const url = data.prUrl.trim();
-    if (!url) {
-      throw new Error("Bitbucket PR URL is required");
-    }
+export async function fetchBitbucketPullRequestBundle(data: { prUrl: string }) {
+  const url = data.prUrl.trim();
+  if (!url) {
+    throw new Error("Bitbucket PR URL is required");
+  }
 
-    const parsed = parseBitbucketPullRequestUrl(url);
-    if (!parsed) {
-      throw new Error("Invalid Bitbucket Cloud pull request URL");
-    }
+  const parsed = parseBitbucketPullRequestUrl(url);
+  if (!parsed) {
+    throw new Error("Invalid Bitbucket Cloud pull request URL");
+  }
 
-    return fetchPullRequestBundleByRef(parsed);
-  });
+  return fetchPullRequestBundleByRef(parsed);
+}
 
 async function fetchPullRequestBundleByRef(
   prRef: BitbucketPrRef,
@@ -259,217 +252,176 @@ async function fetchPullRequestBundleByRef(
   } satisfies BitbucketPullRequestBundle;
 }
 
-export const fetchBitbucketPullRequestBundleByRef = createServerFn({
-  method: "GET",
-})
-  .inputValidator((data: { prRef: BitbucketPrRef }) => data)
-  .handler(async ({ data }) => fetchPullRequestBundleByRef(data.prRef));
+export async function fetchBitbucketPullRequestBundleByRef(data: {
+  prRef: BitbucketPrRef;
+}) {
+  return fetchPullRequestBundleByRef(data.prRef);
+}
 
-export const fetchBitbucketRepoPullRequests = createServerFn({
-  method: "GET",
-})
-  .inputValidator((data: { repos: BitbucketRepo[] }) => data)
-  .handler(async ({ data }) => {
-    const { requireBitbucketBasicAuthHeader } = await import(
-      "./bitbucket-auth-cookie"
-    );
-    const authHeader = requireBitbucketBasicAuthHeader();
-    if (!data.repos.length)
-      return [] as {
-        repo: BitbucketRepo;
-        pullRequests: BitbucketPullRequestSummary[];
-      }[];
-
-    const headers = {
-      Authorization: authHeader,
-      Accept: "application/json",
-    };
-    const results: {
+export async function fetchBitbucketRepoPullRequests(data: {
+  repos: BitbucketRepo[];
+}) {
+  const authHeader = requireBitbucketBasicAuthHeader();
+  if (!data.repos.length)
+    return [] as {
       repo: BitbucketRepo;
       pullRequests: BitbucketPullRequestSummary[];
-    }[] = [];
+    }[];
 
-    for (const repo of data.repos) {
-      const url = `https://api.bitbucket.org/2.0/repositories/${repo.workspace}/${repo.slug}/pullrequests?pagelen=20`;
-      const res = await fetch(url, { headers });
-      if (!res.ok) {
-        throw new Error(
-          `Failed to fetch pull requests for ${repo.fullName}: ${res.status} ${res.statusText}`,
-        );
-      }
-      const page = (await res.json()) as BitbucketPullRequestPage;
-      results.push({ repo, pullRequests: page.values ?? [] });
-    }
+  const headers = {
+    Authorization: authHeader,
+    Accept: "application/json",
+  };
+  const results: {
+    repo: BitbucketRepo;
+    pullRequests: BitbucketPullRequestSummary[];
+  }[] = [];
 
-    return results;
-  });
-
-export const fetchBitbucketCommitDiff = createServerFn({
-  method: "GET",
-})
-  .inputValidator(
-    (data: {
-      prRef: BitbucketPrRef;
-      commitHash: string;
-    }) => data,
-  )
-  .handler(async ({ data }) => {
-    const headers = await authHeaders();
-    const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/diff/${data.commitHash}`;
-    const res = await fetch(url, {
-      headers: { ...headers, Accept: "text/plain" },
-    });
+  for (const repo of data.repos) {
+    const url = `https://api.bitbucket.org/2.0/repositories/${repo.workspace}/${repo.slug}/pullrequests?pagelen=20`;
+    const res = await fetch(url, { headers });
     if (!res.ok) {
       throw new Error(
-        `Failed to fetch commit diff: ${res.status} ${res.statusText}`,
+        `Failed to fetch pull requests for ${repo.fullName}: ${res.status} ${res.statusText}`,
       );
     }
-    return { diff: await res.text() };
+    const page = (await res.json()) as BitbucketPullRequestPage;
+    results.push({ repo, pullRequests: page.values ?? [] });
+  }
+
+  return results;
+}
+
+export async function fetchBitbucketCommitDiff(data: {
+  prRef: BitbucketPrRef;
+  commitHash: string;
+}) {
+  const headers = await authHeaders();
+  const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/diff/${data.commitHash}`;
+  const res = await fetch(url, {
+    headers: { ...headers, Accept: "text/plain" },
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Failed to fetch commit diff: ${res.status} ${res.statusText}`,
+    );
+  }
+  return { diff: await res.text() };
+}
+
+export async function approvePullRequest(data: { prRef: BitbucketPrRef }) {
+  const headers = await authHeaders();
+  const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { ...headers, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Failed to approve pull request: ${res.status} ${res.statusText}`,
+    );
+  }
+  return { ok: true };
+}
+
+export async function unapprovePullRequest(data: { prRef: BitbucketPrRef }) {
+  const headers = await authHeaders();
+  const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: { ...headers, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Failed to remove approval: ${res.status} ${res.statusText}`,
+    );
+  }
+  return { ok: true };
+}
+
+export async function mergePullRequest(data: {
+  prRef: BitbucketPrRef;
+  closeSourceBranch?: boolean;
+  message?: string;
+  mergeStrategy?: string;
+}) {
+  const headers = await authHeaders();
+  const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/merge`;
+  const payload: Record<string, unknown> = {
+    close_source_branch: Boolean(data.closeSourceBranch),
+  };
+  if (data.message?.trim()) payload.message = data.message.trim();
+  if (data.mergeStrategy?.trim())
+    payload.merge_strategy = data.mergeStrategy.trim();
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      ...headers,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
   });
 
-export const approvePullRequest = createServerFn({
-  method: "POST",
-})
-  .inputValidator((data: { prRef: BitbucketPrRef }) => data)
-  .handler(async ({ data }) => {
-    const headers = await authHeaders();
-    const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { ...headers, Accept: "application/json" },
-    });
-    if (!res.ok) {
-      throw new Error(
-        `Failed to approve pull request: ${res.status} ${res.statusText}`,
-      );
-    }
-    return { ok: true };
+  if (!res.ok) {
+    throw new Error(
+      `Failed to merge pull request: ${res.status} ${res.statusText}`,
+    );
+  }
+
+  return { ok: true };
+}
+
+export async function createPullRequestComment(data: {
+  prRef: BitbucketPrRef;
+  content: string;
+  inline?: { path: string; to?: number; from?: number };
+  parentId?: number;
+}) {
+  const headers = await authHeaders();
+  const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments`;
+  const payload: Record<string, unknown> = {
+    content: { raw: data.content },
+  };
+  if (data.inline) payload.inline = data.inline;
+  if (data.parentId) payload.parent = { id: data.parentId };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      ...headers,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to create comment: ${res.status} ${res.statusText}`);
+  }
+
+  return { ok: true };
+}
+
+export async function resolvePullRequestComment(data: {
+  prRef: BitbucketPrRef;
+  commentId: number;
+  resolve: boolean;
+}) {
+  const headers = await authHeaders();
+  const action = data.resolve ? "resolve" : "unresolve";
+  const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}/${action}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      ...headers,
+      Accept: "application/json",
+    },
   });
 
-export const unapprovePullRequest = createServerFn({
-  method: "POST",
-})
-  .inputValidator((data: { prRef: BitbucketPrRef }) => data)
-  .handler(async ({ data }) => {
-    const headers = await authHeaders();
-    const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
-    const res = await fetch(url, {
-      method: "DELETE",
-      headers: { ...headers, Accept: "application/json" },
-    });
-    if (!res.ok) {
-      throw new Error(
-        `Failed to remove approval: ${res.status} ${res.statusText}`,
-      );
-    }
-    return { ok: true };
-  });
+  if (!res.ok) {
+    throw new Error(`Failed to ${action} comment: ${res.status} ${res.statusText}`);
+  }
 
-export const mergePullRequest = createServerFn({
-  method: "POST",
-})
-  .inputValidator(
-    (data: {
-      prRef: BitbucketPrRef;
-      closeSourceBranch?: boolean;
-      message?: string;
-      mergeStrategy?: string;
-    }) => data,
-  )
-  .handler(async ({ data }) => {
-    const headers = await authHeaders();
-    const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/merge`;
-    const payload: Record<string, unknown> = {
-      close_source_branch: Boolean(data.closeSourceBranch),
-    };
-    if (data.message?.trim()) payload.message = data.message.trim();
-    if (data.mergeStrategy?.trim())
-      payload.merge_strategy = data.mergeStrategy.trim();
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        ...headers,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      throw new Error(
-        `Failed to merge pull request: ${res.status} ${res.statusText}`,
-      );
-    }
-
-    return { ok: true };
-  });
-
-export const createPullRequestComment = createServerFn({
-  method: "POST",
-})
-  .inputValidator(
-    (data: {
-      prRef: BitbucketPrRef;
-      content: string;
-      inline?: { path: string; to?: number; from?: number };
-      parentId?: number;
-    }) => data,
-  )
-  .handler(async ({ data }) => {
-    const headers = await authHeaders();
-    const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments`;
-    const payload: Record<string, unknown> = {
-      content: { raw: data.content },
-    };
-    if (data.inline) payload.inline = data.inline;
-    if (data.parentId) payload.parent = { id: data.parentId };
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        ...headers,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      throw new Error(
-        `Failed to create comment: ${res.status} ${res.statusText}`,
-      );
-    }
-
-    return { ok: true };
-  });
-
-export const resolvePullRequestComment = createServerFn({
-  method: "POST",
-})
-  .inputValidator(
-    (data: {
-      prRef: BitbucketPrRef;
-      commentId: number;
-      resolve: boolean;
-    }) => data,
-  )
-  .handler(async ({ data }) => {
-    const headers = await authHeaders();
-    const action = data.resolve ? "resolve" : "unresolve";
-    const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}/${action}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        ...headers,
-        Accept: "application/json",
-      },
-    });
-
-    if (!res.ok) {
-      throw new Error(
-        `Failed to ${action} comment: ${res.status} ${res.statusText}`,
-      );
-    }
-
-    return { ok: true };
-  });
+  return { ok: true };
+}

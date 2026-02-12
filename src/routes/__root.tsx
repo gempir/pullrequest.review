@@ -142,7 +142,7 @@ function OnboardingScreen() {
               event.preventDefault();
               setIsSubmitting(true);
               setError(null);
-              loginWithApiCredentials({ data: { email, apiToken } })
+              loginWithApiCredentials({ email, apiToken })
                 .then(() => {
                   setAuthenticated(true);
                 })
@@ -184,7 +184,7 @@ function OnboardingScreen() {
           )}
 
           <p className="text-[11px] text-muted-foreground">
-            The token is stored in a secure HttpOnly cookie.
+            Credentials are stored in browser local storage.
           </p>
         </div>
       </div>

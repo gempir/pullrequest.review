@@ -65,6 +65,7 @@ This project is a PR review UI with Bitbucket Cloud OAuth. It renders diffs and 
 ## Conventions and notes
 - Use ASCII in source files.
 - No nested bullet lists in responses.
+- Use Bun only for dependency management and scripts. Do not use npm, yarn, or pnpm.
 - Use `pullrequestdotreview` as the canonical name of the project when pullrequest.review is not possible
 - Prefer existing contexts (`pr-context`, `file-tree-context`, `shortcuts-context`) over adding new global state.
 - Wrap context provider values in `useMemo` to prevent unnecessary re-renders.

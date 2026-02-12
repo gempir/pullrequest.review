@@ -1,119 +1,79 @@
 import { createServerFn } from "@tanstack/react-start";
 
-export interface OAuthTokenResult {
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt?: number;
+function encodeBasicAuth(email: string, apiToken: string) {
+  return Buffer.from(`${email}:${apiToken}`).toString("base64");
 }
 
-interface OAuthTokenResponse {
-  access_token: string;
-  refresh_token?: string;
-  expires_in?: number;
-}
-
-function encodeBasicAuth(clientId: string, clientSecret: string) {
-  return Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-}
-
-export function buildAuthorizeUrl(params: {
-  clientId: string;
-  redirectUri: string;
-  state: string;
-  scope?: string;
-}) {
-  const url = new URL("https://bitbucket.org/site/oauth2/authorize");
-  url.searchParams.set("client_id", params.clientId);
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("redirect_uri", params.redirectUri);
-  url.searchParams.set("state", params.state);
-  if (params.scope) {
-    url.searchParams.set("scope", params.scope);
-  }
-  return url.toString();
-}
-
-export const exchangeOAuthCode = createServerFn({
+export const loginWithApiCredentials = createServerFn({
   method: "POST",
 })
-  .inputValidator((data: { code: string; redirectUri: string }) => data)
+  .inputValidator((data: { email: string; apiToken: string }) => data)
   .handler(async ({ data }) => {
-    const clientId = process.env.VITE_BITBUCKET_CLIENT_ID ?? "";
-    const clientSecret = process.env.BITBUCKET_CLIENT_SECRET ?? "";
-    if (!clientId || !clientSecret) {
-      throw new Error(
-        "Missing VITE_BITBUCKET_CLIENT_ID or BITBUCKET_CLIENT_SECRET",
-      );
+    const email = data.email.trim();
+    const token = data.apiToken.trim();
+    if (!email) {
+      throw new Error("Email is required");
+    }
+    if (!token) {
+      throw new Error("API token is required");
     }
 
-    const body = new URLSearchParams({
-      grant_type: "authorization_code",
-      code: data.code,
-      redirect_uri: data.redirectUri,
-    });
-
-    const res = await fetch("https://bitbucket.org/site/oauth2/access_token", {
-      method: "POST",
+    const res = await fetch("https://api.bitbucket.org/2.0/user", {
       headers: {
-        Authorization: `Basic ${encodeBasicAuth(clientId, clientSecret)}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${encodeBasicAuth(email, token)}`,
+        Accept: "application/json",
       },
-      body,
     });
 
     if (!res.ok) {
+      const contentType = res.headers.get("content-type") ?? "";
+      let details = "";
+
+      if (contentType.includes("application/json")) {
+        try {
+          const payload = (await res.json()) as {
+            error?: { message?: string; detail?: string };
+          };
+          details =
+            payload.error?.detail?.trim() ||
+            payload.error?.message?.trim() ||
+            "";
+        } catch {
+          details = "";
+        }
+      } else {
+        try {
+          details = (await res.text()).trim();
+        } catch {
+          details = "";
+        }
+      }
+
+      const status = `${res.status} ${res.statusText}`;
       throw new Error(
-        `OAuth token exchange failed: ${res.status} ${res.statusText}`,
+        details
+          ? `Bitbucket authentication failed (${status}): ${details}`
+          : `Bitbucket authentication failed (${status})`,
       );
     }
 
-    const payload = (await res.json()) as OAuthTokenResponse;
-    return {
-      accessToken: payload.access_token,
-      refreshToken: payload.refresh_token,
-      expiresAt: payload.expires_in
-        ? Date.now() + payload.expires_in * 1000
-        : undefined,
-    } as OAuthTokenResult;
+    const { setBitbucketCredentials } = await import("./bitbucket-auth-cookie");
+    setBitbucketCredentials(email, token);
+
+    return { authenticated: true };
   });
 
-export const refreshOAuthToken = createServerFn({
+export const getSessionAuth = createServerFn({
+  method: "GET",
+}).handler(async () => {
+  const { hasBitbucketSession } = await import("./bitbucket-auth-cookie");
+  return { authenticated: hasBitbucketSession() };
+});
+
+export const logoutSession = createServerFn({
   method: "POST",
-})
-  .inputValidator((data: { refreshToken: string }) => data)
-  .handler(async ({ data }) => {
-    const clientId = process.env.VITE_BITBUCKET_CLIENT_ID ?? "";
-    const clientSecret = process.env.BITBUCKET_CLIENT_SECRET ?? "";
-    if (!clientId || !clientSecret) {
-      throw new Error(
-        "Missing VITE_BITBUCKET_CLIENT_ID or BITBUCKET_CLIENT_SECRET",
-      );
-    }
-
-    const body = new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: data.refreshToken,
-    });
-
-    const res = await fetch("https://bitbucket.org/site/oauth2/access_token", {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${encodeBasicAuth(clientId, clientSecret)}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body,
-    });
-
-    if (!res.ok) {
-      throw new Error(`OAuth refresh failed: ${res.status} ${res.statusText}`);
-    }
-
-    const payload = (await res.json()) as OAuthTokenResponse;
-    return {
-      accessToken: payload.access_token,
-      refreshToken: payload.refresh_token,
-      expiresAt: payload.expires_in
-        ? Date.now() + payload.expires_in * 1000
-        : undefined,
-    } as OAuthTokenResult;
-  });
+}).handler(async () => {
+  const { clearBitbucketSession } = await import("./bitbucket-auth-cookie");
+  clearBitbucketSession();
+  return { authenticated: false };
+});

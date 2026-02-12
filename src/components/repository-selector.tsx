@@ -21,15 +21,15 @@ interface BitbucketRepoPage {
 const fetchBitbucketRepos = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: { accessToken: string }) => data)
-  .handler(async ({ data }) => {
-    const token = data.accessToken.trim();
-    if (!token) {
-      throw new Error("Access token is required");
-    }
+  .inputValidator((data: Record<string, never>) => data)
+  .handler(async () => {
+    const { requireBitbucketBasicAuthHeader } = await import(
+      "@/lib/bitbucket-auth-cookie"
+    );
+    const authHeader = requireBitbucketBasicAuthHeader();
 
     const headers = {
-      Authorization: `Bearer ${token}`,
+      Authorization: authHeader,
       Accept: "application/json",
     };
     const values: BitbucketRepoEntry[] = [];
@@ -69,13 +69,11 @@ function toSelectedRepo(repo: BitbucketRepoEntry): BitbucketRepo | null {
 }
 
 export function RepositorySelector({
-  accessToken,
   initialSelected,
   onSave,
   onCancel,
   saveLabel = "Save Repositories",
 }: {
-  accessToken?: string;
   initialSelected: BitbucketRepo[];
   onSave: (repos: BitbucketRepo[]) => void;
   onCancel?: () => void;
@@ -94,10 +92,8 @@ export function RepositorySelector({
   }, [selectedKeys]);
 
   const reposQuery = useQuery({
-    queryKey: ["bitbucket-repositories", accessToken],
-    queryFn: () =>
-      fetchBitbucketRepos({ data: { accessToken: accessToken ?? "" } }),
-    enabled: Boolean(accessToken),
+    queryKey: ["bitbucket-repositories"],
+    queryFn: () => fetchBitbucketRepos({ data: {} }),
   });
 
   const entries = reposQuery.data ?? [];

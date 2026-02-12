@@ -1,9 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 
-export interface BitbucketAuthPayload {
-  accessToken: string;
-}
-
 export interface BitbucketRepo {
   workspace: string;
   slug: string;
@@ -105,14 +101,12 @@ export interface BitbucketPullRequestBundle {
   comments: BitbucketComment[];
 }
 
-function authHeaders(
-  auth?: BitbucketAuthPayload | null,
-): Record<string, string> {
+async function authHeaders(): Promise<Record<string, string>> {
+  const { requireBitbucketBasicAuthHeader } = await import(
+    "./bitbucket-auth-cookie"
+  );
   const headers: Record<string, string> = {};
-  const token = auth?.accessToken?.trim();
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
+  headers.Authorization = requireBitbucketBasicAuthHeader();
   return headers;
 }
 
@@ -208,9 +202,7 @@ async function fetchAllComments(
 export const fetchBitbucketPullRequestBundle = createServerFn({
   method: "GET",
 })
-  .inputValidator(
-    (data: { prUrl: string; auth?: BitbucketAuthPayload | null }) => data,
-  )
+  .inputValidator((data: { prUrl: string }) => data)
   .handler(async ({ data }) => {
     const url = data.prUrl.trim();
     if (!url) {
@@ -222,16 +214,15 @@ export const fetchBitbucketPullRequestBundle = createServerFn({
       throw new Error("Invalid Bitbucket Cloud pull request URL");
     }
 
-    return fetchPullRequestBundleByRef(parsed, data.auth);
+    return fetchPullRequestBundleByRef(parsed);
   });
 
 async function fetchPullRequestBundleByRef(
   prRef: BitbucketPrRef,
-  auth?: BitbucketAuthPayload | null,
 ): Promise<BitbucketPullRequestBundle> {
   const { workspace, repo, pullRequestId } = prRef;
   const baseApi = `https://api.bitbucket.org/2.0/repositories/${workspace}/${repo}/pullrequests/${pullRequestId}`;
-  const headers = authHeaders(auth);
+  const headers = await authHeaders();
 
   const [prRes, diffRes, diffstat, commits, comments] = await Promise.all([
     fetch(baseApi, { headers: { ...headers, Accept: "application/json" } }),
@@ -271,26 +262,18 @@ async function fetchPullRequestBundleByRef(
 export const fetchBitbucketPullRequestBundleByRef = createServerFn({
   method: "GET",
 })
-  .inputValidator(
-    (data: { prRef: BitbucketPrRef; auth?: BitbucketAuthPayload | null }) =>
-      data,
-  )
-  .handler(async ({ data }) =>
-    fetchPullRequestBundleByRef(data.prRef, data.auth),
-  );
+  .inputValidator((data: { prRef: BitbucketPrRef }) => data)
+  .handler(async ({ data }) => fetchPullRequestBundleByRef(data.prRef));
 
 export const fetchBitbucketRepoPullRequests = createServerFn({
   method: "GET",
 })
-  .inputValidator(
-    (data: { repos: BitbucketRepo[]; auth?: BitbucketAuthPayload | null }) =>
-      data,
-  )
+  .inputValidator((data: { repos: BitbucketRepo[] }) => data)
   .handler(async ({ data }) => {
-    const token = data.auth?.accessToken?.trim();
-    if (!token) {
-      throw new Error("Access token is required");
-    }
+    const { requireBitbucketBasicAuthHeader } = await import(
+      "./bitbucket-auth-cookie"
+    );
+    const authHeader = requireBitbucketBasicAuthHeader();
     if (!data.repos.length)
       return [] as {
         repo: BitbucketRepo;
@@ -298,7 +281,7 @@ export const fetchBitbucketRepoPullRequests = createServerFn({
       }[];
 
     const headers = {
-      Authorization: `Bearer ${token}`,
+      Authorization: authHeader,
       Accept: "application/json",
     };
     const results: {
@@ -328,11 +311,10 @@ export const fetchBitbucketCommitDiff = createServerFn({
     (data: {
       prRef: BitbucketPrRef;
       commitHash: string;
-      auth?: BitbucketAuthPayload | null;
     }) => data,
   )
   .handler(async ({ data }) => {
-    const headers = authHeaders(data.auth);
+    const headers = await authHeaders();
     const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/diff/${data.commitHash}`;
     const res = await fetch(url, {
       headers: { ...headers, Accept: "text/plain" },
@@ -348,12 +330,9 @@ export const fetchBitbucketCommitDiff = createServerFn({
 export const approvePullRequest = createServerFn({
   method: "POST",
 })
-  .inputValidator(
-    (data: { prRef: BitbucketPrRef; auth?: BitbucketAuthPayload | null }) =>
-      data,
-  )
+  .inputValidator((data: { prRef: BitbucketPrRef }) => data)
   .handler(async ({ data }) => {
-    const headers = authHeaders(data.auth);
+    const headers = await authHeaders();
     const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
     const res = await fetch(url, {
       method: "POST",
@@ -370,12 +349,9 @@ export const approvePullRequest = createServerFn({
 export const unapprovePullRequest = createServerFn({
   method: "POST",
 })
-  .inputValidator(
-    (data: { prRef: BitbucketPrRef; auth?: BitbucketAuthPayload | null }) =>
-      data,
-  )
+  .inputValidator((data: { prRef: BitbucketPrRef }) => data)
   .handler(async ({ data }) => {
-    const headers = authHeaders(data.auth);
+    const headers = await authHeaders();
     const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
     const res = await fetch(url, {
       method: "DELETE",
@@ -395,14 +371,13 @@ export const mergePullRequest = createServerFn({
   .inputValidator(
     (data: {
       prRef: BitbucketPrRef;
-      auth?: BitbucketAuthPayload | null;
       closeSourceBranch?: boolean;
       message?: string;
       mergeStrategy?: string;
     }) => data,
   )
   .handler(async ({ data }) => {
-    const headers = authHeaders(data.auth);
+    const headers = await authHeaders();
     const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/merge`;
     const payload: Record<string, unknown> = {
       close_source_branch: Boolean(data.closeSourceBranch),
@@ -436,14 +411,13 @@ export const createPullRequestComment = createServerFn({
   .inputValidator(
     (data: {
       prRef: BitbucketPrRef;
-      auth?: BitbucketAuthPayload | null;
       content: string;
       inline?: { path: string; to?: number; from?: number };
       parentId?: number;
     }) => data,
   )
   .handler(async ({ data }) => {
-    const headers = authHeaders(data.auth);
+    const headers = await authHeaders();
     const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments`;
     const payload: Record<string, unknown> = {
       content: { raw: data.content },
@@ -475,13 +449,12 @@ export const resolvePullRequestComment = createServerFn({
   .inputValidator(
     (data: {
       prRef: BitbucketPrRef;
-      auth?: BitbucketAuthPayload | null;
       commentId: number;
       resolve: boolean;
     }) => data,
   )
   .handler(async ({ data }) => {
-    const headers = authHeaders(data.auth);
+    const headers = await authHeaders();
     const action = data.resolve ? "resolve" : "unresolve";
     const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}/${action}`;
     const res = await fetch(url, {

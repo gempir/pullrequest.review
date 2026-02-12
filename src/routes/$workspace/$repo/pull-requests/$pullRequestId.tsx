@@ -244,7 +244,7 @@ export const Route = createFileRoute(
 function PullRequestReviewPage() {
   const navigate = useNavigate();
   const { workspace, repo, pullRequestId } = Route.useParams();
-  const { auth, clearAuth, clearRepos } = usePrContext();
+  const { clearRepos, isAuthenticated, logout } = usePrContext();
   const { options } = useDiffOptions();
   const libOptions = toLibraryOptions(options);
   const compactDiffOptions = useMemo<FileDiffOptions<undefined>>(
@@ -292,18 +292,18 @@ function PullRequestReviewPage() {
         workspace,
         repo,
         pullRequestId,
-        auth?.accessToken,
+        isAuthenticated,
       ] as const,
-    [auth?.accessToken, pullRequestId, repo, workspace],
+    [isAuthenticated, pullRequestId, repo, workspace],
   );
 
   const prQuery = useQuery({
     queryKey: prQueryKey,
     queryFn: () =>
       fetchBitbucketPullRequestBundleByRef({
-        data: { prRef: { workspace, repo, pullRequestId }, auth },
+        data: { prRef: { workspace, repo, pullRequestId } },
       }),
-    enabled: Boolean(auth?.accessToken),
+    enabled: isAuthenticated,
   });
 
   const prData = prQuery.data;
@@ -688,7 +688,7 @@ function PullRequestReviewPage() {
   const approveMutation = useMutation({
     mutationFn: () => {
       const prRef = ensurePrRef();
-      return approvePullRequest({ data: { prRef, auth } });
+      return approvePullRequest({ data: { prRef } });
     },
     onSuccess: async () => {
       setActionError(null);
@@ -706,7 +706,7 @@ function PullRequestReviewPage() {
   const unapproveMutation = useMutation({
     mutationFn: () => {
       const prRef = ensurePrRef();
-      return unapprovePullRequest({ data: { prRef, auth } });
+      return unapprovePullRequest({ data: { prRef } });
     },
     onSuccess: async () => {
       setActionError(null);
@@ -725,7 +725,6 @@ function PullRequestReviewPage() {
       return mergePullRequest({
         data: {
           prRef,
-          auth,
           message: mergeMessage,
           mergeStrategy,
           closeSourceBranch,
@@ -755,7 +754,6 @@ function PullRequestReviewPage() {
       return createPullRequestComment({
         data: {
           prRef,
-          auth,
           content: payload.content,
           inline: payload.line
             ? {
@@ -797,7 +795,6 @@ function PullRequestReviewPage() {
       return resolvePullRequestComment({
         data: {
           prRef,
-          auth,
           commentId: payload.commentId,
           resolve: payload.resolve,
         },
@@ -1337,13 +1334,15 @@ function PullRequestReviewPage() {
               workspaceMode={viewMode}
               onWorkspaceModeChange={setViewMode}
               onDisconnect={() => {
-                setTreeCollapsed(false);
-                setSearchQuery("");
-                setInlineComment(null);
-                setViewedFiles(new Set());
-                clearRepos();
-                clearAuth();
-                navigate({ to: "/" });
+                void (async () => {
+                  setTreeCollapsed(false);
+                  setSearchQuery("");
+                  setInlineComment(null);
+                  setViewedFiles(new Set());
+                  clearRepos();
+                  await logout();
+                  navigate({ to: "/" });
+                })();
               }}
             />
           </div>

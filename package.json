@@ -13,7 +13,7 @@
     "worker:dev": "wrangler dev --config wrangler.jsonc",
     "worker:preview": "wrangler dev --config wrangler.jsonc --remote",
     "cf-typegen": "wrangler types",
-    "deploy": "bun run build && wrangler deploy --config wrangler.jsonc",
+    "deploy": "wrangler deploy --config wrangler.jsonc",
     "wrangler": "wrangler"
   },
   "dependencies": {

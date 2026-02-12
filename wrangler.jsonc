@@ -5,5 +5,11 @@
   "assets": {
     "directory": "./dist/client",
     "not_found_handling": "single-page-application"
-  }
+  },
+  "routes": [
+    {
+      "pattern": "pullrequest.review",
+      "custom_domain": true
+    }
+  ]
 }

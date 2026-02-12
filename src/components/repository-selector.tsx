@@ -3,71 +3,19 @@ import { AlertCircle, FolderGit, Loader2, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { BitbucketRepo } from "@/lib/bitbucket-api";
-import { requireBitbucketBasicAuthHeader } from "@/lib/bitbucket-auth-cookie";
-
-interface BitbucketRepoEntry {
-  name: string;
-  full_name: string;
-  slug: string;
-  workspace?: { slug?: string };
-}
-
-interface BitbucketRepoPage {
-  values: BitbucketRepoEntry[];
-  next?: string;
-}
-
-async function fetchBitbucketRepos() {
-  const authHeader = requireBitbucketBasicAuthHeader();
-  const headers = {
-    Authorization: authHeader,
-    Accept: "application/json",
-  };
-  const values: BitbucketRepoEntry[] = [];
-  let nextUrl: string | undefined =
-    "https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100";
-
-  while (nextUrl) {
-    const res = await fetch(nextUrl, { headers });
-    if (!res.ok) {
-      throw new Error(
-        `Failed to fetch repositories: ${res.status} ${res.statusText}`,
-      );
-    }
-    const page = (await res.json()) as BitbucketRepoPage;
-    values.push(...(page.values ?? []));
-    nextUrl = page.next;
-  }
-
-  return values;
-}
-
-function toFullName(repo: BitbucketRepoEntry) {
-  const fallbackName = `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
-  return repo.full_name ?? fallbackName;
-}
-
-function toSelectedRepo(repo: BitbucketRepoEntry): BitbucketRepo | null {
-  const fullName = toFullName(repo);
-  const workspace = repo.workspace?.slug ?? fullName.split("/")[0];
-  if (!workspace || !repo.slug) return null;
-  return {
-    name: repo.name,
-    fullName,
-    slug: repo.slug,
-    workspace,
-  };
-}
+import { listRepositoriesForHost } from "@/lib/git-host/service";
+import type { GitHost, RepoRef } from "@/lib/git-host/types";
 
 export function RepositorySelector({
+  host,
   initialSelected,
   onSave,
   onCancel,
   saveLabel = "Save Repositories",
 }: {
-  initialSelected: BitbucketRepo[];
-  onSave: (repos: BitbucketRepo[]) => void;
+  host: GitHost;
+  initialSelected: RepoRef[];
+  onSave: (repos: RepoRef[]) => void;
   onCancel?: () => void;
   saveLabel?: string;
 }) {
@@ -84,8 +32,8 @@ export function RepositorySelector({
   }, [selectedKeys]);
 
   const reposQuery = useQuery({
-    queryKey: ["bitbucket-repositories"],
-    queryFn: () => fetchBitbucketRepos(),
+    queryKey: ["repos", host],
+    queryFn: () => listRepositoriesForHost({ host }),
   });
 
   const entries = reposQuery.data ?? [];
@@ -93,9 +41,9 @@ export function RepositorySelector({
     const term = query.trim().toLowerCase();
     if (!term) return entries;
     return entries.filter((repo) => {
-      const fullName = repo.full_name?.toLowerCase() ?? "";
-      const name = repo.name?.toLowerCase() ?? "";
-      return fullName.includes(term) || name.includes(term);
+      const fullName = repo.fullName.toLowerCase();
+      const displayName = repo.displayName.toLowerCase();
+      return fullName.includes(term) || displayName.includes(term);
     });
   }, [entries, query]);
 
@@ -138,11 +86,10 @@ export function RepositorySelector({
         <div className="border border-border bg-background max-h-80 overflow-auto">
           <div className="divide-y divide-border">
             {filtered.map((repo) => {
-              const fullName = toFullName(repo);
-              const checked = selected.has(fullName);
+              const checked = selected.has(repo.fullName);
               return (
                 <label
-                  key={fullName}
+                  key={repo.fullName}
                   className="flex items-center gap-3 px-4 py-2.5 text-[13px] hover:bg-accent cursor-pointer transition-colors"
                 >
                   <input
@@ -152,14 +99,14 @@ export function RepositorySelector({
                     onChange={(e) => {
                       setSelected((prev) => {
                         const next = new Set(prev);
-                        if (e.target.checked) next.add(fullName);
-                        else next.delete(fullName);
+                        if (e.target.checked) next.add(repo.fullName);
+                        else next.delete(repo.fullName);
                         return next;
                       });
                     }}
                   />
                   <span className="flex-1 truncate font-mono text-xs">
-                    {fullName}
+                    {repo.fullName}
                   </span>
                 </label>
               );
@@ -181,11 +128,9 @@ export function RepositorySelector({
         )}
         <Button
           onClick={() => {
-            const selectedRepos = entries
-              .map((repo) => ({ entry: repo, fullName: toFullName(repo) }))
-              .filter(({ fullName }) => selected.has(fullName))
-              .map(({ entry }) => toSelectedRepo(entry))
-              .filter((repo): repo is BitbucketRepo => Boolean(repo));
+            const selectedRepos = entries.filter((repo) =>
+              selected.has(repo.fullName),
+            );
             onSave(selectedRepos);
           }}
           disabled={reposQuery.isLoading}

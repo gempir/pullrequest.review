@@ -13,6 +13,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { usePrContext } from "@/lib/pr-context";
@@ -246,6 +247,15 @@ function PullRequestReviewPage() {
   const { workspace, repo, pullRequestId } = Route.useParams();
   const { clearRepos, isAuthenticated, logout } = usePrContext();
   const { options } = useDiffOptions();
+  const diffTypographyStyle = useMemo(
+    () =>
+      ({
+        "--diff-font-family": `var(--font-${options.diffFontFamily})`,
+        "--diff-font-size": `${options.diffFontSize}px`,
+        "--diff-line-height": String(options.diffLineHeight),
+      }) as CSSProperties,
+    [options.diffFontFamily, options.diffFontSize, options.diffLineHeight],
+  );
   const libOptions = toLibraryOptions(options);
   const compactDiffOptions = useMemo<FileDiffOptions<undefined>>(
     () => ({
@@ -1241,7 +1251,7 @@ function PullRequestReviewPage() {
                 <TooltipContent>Expand all directories</TooltipContent>
               </Tooltip>
             </div>
-            <div className="flex-1 overflow-auto py-2">
+            <div className="flex-1 overflow-auto py-2 tree-font-scope">
               <FileTree
                 path=""
                 filterQuery={searchQuery}
@@ -1382,7 +1392,8 @@ function PullRequestReviewPage() {
                   <FileDiff
                     fileDiff={selectedFileDiff}
                     options={singleFileDiffOptions}
-                    className="compact-diff commentable-diff"
+                    className="compact-diff commentable-diff pr-diff-font"
+                    style={diffTypographyStyle}
                     lineAnnotations={singleFileAnnotations}
                     renderAnnotation={(annotation) => {
                       const metadata = annotation.metadata;
@@ -1594,7 +1605,8 @@ function PullRequestReviewPage() {
                       <FileDiff
                         fileDiff={fileDiff}
                         options={compactDiffOptions}
-                        className="compact-diff"
+                        className="compact-diff pr-diff-font"
+                        style={diffTypographyStyle}
                       />
                     </div>
                   </div>

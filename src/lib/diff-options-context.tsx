@@ -2,15 +2,24 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import type { BaseDiffOptions } from "@pierre/diffs";
 import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
+import { registerExtendedDiffThemes } from "@/lib/diff-theme-registration";
+import {
+  DEFAULT_FONT_FAMILY,
+  type FontFamilyValue,
+} from "@/lib/font-options";
 
 export interface DiffOptions {
   theme: DiffTheme;
+  diffFontFamily: FontFamilyValue;
+  diffFontSize: number;
+  diffLineHeight: number;
   diffStyle: "unified" | "split";
   diffIndicators: "classic" | "bars" | "none";
   disableBackground: boolean;
@@ -23,8 +32,13 @@ export interface DiffOptions {
   overflow: "scroll" | "wrap";
 }
 
+const STORAGE_KEY = "pr_review_diff_options";
+
 const defaultOptions: DiffOptions = {
   theme: DEFAULT_DIFF_THEME,
+  diffFontFamily: DEFAULT_FONT_FAMILY,
+  diffFontSize: 13,
+  diffLineHeight: 1.45,
   diffStyle: "unified",
   diffIndicators: "none",
   disableBackground: false,
@@ -47,12 +61,71 @@ interface DiffOptionsContextType {
 
 const DiffOptionsContext = createContext<DiffOptionsContextType | null>(null);
 
+function normalizeDiffFontSize(value: number) {
+  if (!Number.isFinite(value)) return 13;
+  return Math.min(20, Math.max(10, Math.round(value)));
+}
+
+function normalizeDiffLineHeight(value: number) {
+  if (!Number.isFinite(value)) return 1.45;
+  const clamped = Math.min(2.2, Math.max(1, value));
+  return Number(clamped.toFixed(2));
+}
+
+function parseStoredOptions(raw: string | null): DiffOptions | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<DiffOptions>;
+    return {
+      ...defaultOptions,
+      ...parsed,
+      diffFontFamily:
+        (parsed.diffFontFamily as FontFamilyValue) ?? defaultOptions.diffFontFamily,
+      diffFontSize: normalizeDiffFontSize(
+        Number(parsed.diffFontSize ?? defaultOptions.diffFontSize),
+      ),
+      diffLineHeight: normalizeDiffLineHeight(
+        Number(parsed.diffLineHeight ?? defaultOptions.diffLineHeight),
+      ),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function DiffOptionsProvider({ children }: { children: ReactNode }) {
   const [options, setOptions] = useState<DiffOptions>(defaultOptions);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    registerExtendedDiffThemes();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const parsed = parseStoredOptions(window.localStorage.getItem(STORAGE_KEY));
+    if (parsed) {
+      setOptions(parsed);
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") return;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(options));
+  }, [hydrated, options]);
 
   const setOption = useCallback(
     <K extends keyof DiffOptions>(key: K, value: DiffOptions[K]) => {
-      setOptions((prev) => ({ ...prev, [key]: value }));
+      setOptions((prev) => {
+        if (key === "diffFontSize") {
+          return { ...prev, diffFontSize: normalizeDiffFontSize(Number(value)) };
+        }
+        if (key === "diffLineHeight") {
+          return { ...prev, diffLineHeight: normalizeDiffLineHeight(Number(value)) };
+        }
+        return { ...prev, [key]: value };
+      });
     },
     [],
   );

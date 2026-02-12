@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useState,
   useCallback,
@@ -26,6 +27,7 @@ interface FileTreeContextType {
   kinds: ReadonlyMap<string, ChangeKind>;
   dirState: Record<string, DirectoryState>;
   activeFile: string | undefined;
+  compactSingleChildDirectories: boolean;
   setTree: (tree: FileNode[]) => void;
   setKinds: (kinds: ReadonlyMap<string, ChangeKind>) => void;
   reset: () => void;
@@ -35,6 +37,7 @@ interface FileTreeContextType {
   setDirectoryExpandedMap: (next: Record<string, boolean>) => void;
   isExpanded: (path: string) => boolean;
   setActiveFile: (path: string | undefined) => void;
+  setCompactSingleChildDirectories: (enabled: boolean) => void;
   firstFile: () => string | undefined;
   ensureActiveFile: (allowedPaths?: ReadonlySet<string>) => string | undefined;
   children: (path: string) => FileNode[];
@@ -44,6 +47,7 @@ interface FileTreeContextType {
 }
 
 const FileTreeContext = createContext<FileTreeContextType | null>(null);
+const TREE_SETTINGS_KEY = "pr_review_tree_settings";
 
 function sortTree(nodes: FileNode[]): FileNode[] {
   const sorted = [...nodes].sort((a, b) => {
@@ -160,6 +164,32 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
     "": { expanded: true },
   });
   const [activeFile, setActiveFile] = useState<string | undefined>();
+  const [compactSingleChildDirectories, setCompactSingleChildDirectories] =
+    useState(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(TREE_SETTINGS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        compactSingleChildDirectories?: unknown;
+      };
+      if (typeof parsed.compactSingleChildDirectories === "boolean") {
+        setCompactSingleChildDirectories(parsed.compactSingleChildDirectories);
+      }
+    } catch {
+      window.localStorage.removeItem(TREE_SETTINGS_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      TREE_SETTINGS_KEY,
+      JSON.stringify({ compactSingleChildDirectories }),
+    );
+  }, [compactSingleChildDirectories]);
 
   const nodeIndex = useMemo(() => buildNodeIndex(tree), [tree]);
 
@@ -295,6 +325,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
       kinds,
       dirState,
       activeFile,
+      compactSingleChildDirectories,
       setTree,
       setKinds,
       reset,
@@ -304,6 +335,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
       setDirectoryExpandedMap,
       isExpanded,
       setActiveFile,
+      setCompactSingleChildDirectories,
       firstFile,
       ensureActiveFile,
       children: getChildren,
@@ -316,6 +348,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
       kinds,
       dirState,
       activeFile,
+      compactSingleChildDirectories,
       reset,
       expand,
       collapse,

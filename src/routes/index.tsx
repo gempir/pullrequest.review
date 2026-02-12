@@ -26,7 +26,7 @@ export const Route = createFileRoute("/")({
 function LandingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { isAuthenticated, repos, setRepos } = usePrContext();
+  const { isAuthenticated, repos, setRepos, clearRepos, logout } = usePrContext();
   const [manageReposOpen, setManageReposOpen] = useState(false);
 
   const repoPrsQuery = useQuery({
@@ -65,6 +65,26 @@ function LandingPage() {
           >
             <Settings2 className="size-3.5" />
             Manage Repositories
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={() => {
+              if (!window.confirm("Disconnect and clear stored credentials?")) {
+                return;
+              }
+              void (async () => {
+                clearRepos();
+                await logout();
+                await queryClient.invalidateQueries({
+                  queryKey: ["bitbucket-repo-prs"],
+                });
+                navigate({ to: "/" });
+              })();
+            }}
+          >
+            Disconnect
           </Button>
         </div>
 

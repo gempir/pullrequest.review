@@ -91,13 +91,36 @@ function OnboardingScreen() {
       <div className="w-full max-w-lg border border-border bg-card">
         <div className="border-b border-border px-4 py-3 flex items-center gap-3 bg-secondary">
           <GitPullRequest className="size-4 text-muted-foreground" />
-          <span className="text-[13px] font-medium">Connect Bitbucket</span>
+          <span className="text-[14px] font-medium">Connect Bitbucket</span>
         </div>
 
         <div className="p-4 space-y-4">
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-[14px] text-muted-foreground">
             Use your Bitbucket email and API token to continue.
           </p>
+
+          <div className="border border-border bg-background p-3 text-[13px] space-y-2">
+            <div className="text-muted-foreground">Required scopes</div>
+            <div className="leading-relaxed break-words">{requiredScopesText}</div>
+            <div className="border border-yellow-500/50 bg-yellow-500/15 text-yellow-300 px-2 py-1.5 text-[12px]">
+              Hint: You can paste these into "Search by scope name".
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => {
+                void navigator.clipboard.writeText(requiredScopesText);
+                setCopiedScopes(true);
+                window.setTimeout(() => {
+                  setCopiedScopes(false);
+                }, 1200);
+              }}
+            >
+              {copiedScopes ? "Copied" : "Copy scopes"}
+            </Button>
+          </div>
 
           <Button
             className="w-full text-white bg-[#0146b3] border-[#0146b3] hover:bg-[#0052cc] hover:border-[#0052cc] cursor-pointer"
@@ -112,29 +135,6 @@ function OnboardingScreen() {
             <ExternalLink className="size-3.5" />
             Create Atlassian Bitbucket Scoped API Token
           </Button>
-
-          <div className="border border-border bg-background p-3 text-[12px] space-y-2">
-            <div className="text-muted-foreground">Required scopes</div>
-            <div className="leading-relaxed break-words">{requiredScopesText}</div>
-            <div className="text-[11px] text-muted-foreground">
-              Hint: You can paste these into "Search by scope name".
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => {
-                void navigator.clipboard.writeText(requiredScopesText);
-                setCopiedScopes(true);
-                window.setTimeout(() => {
-                  setCopiedScopes(false);
-                }, 1200);
-              }}
-            >
-              {copiedScopes ? "Copied" : "Copy scopes"}
-            </Button>
-          </div>
 
           <form
             className="space-y-2"
@@ -160,6 +160,7 @@ function OnboardingScreen() {
               onChange={(event) => setEmail(event.target.value)}
               placeholder="Bitbucket account email"
               autoComplete="email"
+              className="text-[14px] h-10"
             />
             <Input
               type="password"
@@ -167,10 +168,11 @@ function OnboardingScreen() {
               onChange={(event) => setApiToken(event.target.value)}
               placeholder="Bitbucket API token"
               autoComplete="current-password"
+              className="text-[14px] h-10"
             />
             <Button
               type="submit"
-              className="w-full"
+              className="w-full text-[14px] h-10"
               disabled={isSubmitting || !email.trim() || !apiToken.trim()}
             >
               Authenticate
@@ -178,12 +180,12 @@ function OnboardingScreen() {
           </form>
 
           {error && (
-            <div className="border border-destructive bg-destructive/10 p-3 text-destructive text-[12px]">
+            <div className="border border-destructive bg-destructive/10 p-3 text-destructive text-[13px]">
               [AUTH ERROR] {error}
             </div>
           )}
 
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[12px] text-muted-foreground">
             Credentials are stored in browser local storage.
           </p>
         </div>

@@ -1,0 +1,49 @@
+src/lib/font-options.ts
+  d53e06efd6727f71 1-71
+src/routes/__root.tsx
+  d53e06efd6727f71 16,61-62,70-71
+src/components/file-tree.tsx
+  d53e06efd6727f71 80,137-139,141-154,163,166,191,201
+src/lib/diff-themes.ts
+  d53e06efd6727f71 4-16,18-20,22-37,39,41-57,60
+src/components/diff-toolbar.tsx
+  d53e06efd6727f71 3,34-35,42,70,79,92,98,102-103,112-113,123-126,133-134,136,139-160,164-179,182-184,188-189,193-194,198-199,201-206,208-209,212-214,216-220
+src/lib/shortcuts-context.tsx
+  d53e06efd6727f71 34,39,54,59
+styles.css
+  d53e06efd6727f71 51-115,182-184,327-346
+src/routes/$workspace/$repo/pull-requests/$pullRequestId.tsx
+  d53e06efd6727f71 16,250-258,1254,1395-1396,1608-1609
+src/lib/diff-theme-registration.ts
+  d53e06efd6727f71 1-26
+src/lib/diff-options-context.tsx
+  d53e06efd6727f71 5,12-16,20-22,35-36,39-41,64-67,69-95,98-116,120-128
+src/lib/shiki-runtime.ts
+  d53e06efd6727f71 17-31,33-36,38-56,59-76
+src/components/settings-menu.tsx
+  d53e06efd6727f71 9-10,22-34,38,86,117,133,171,175-289,293-297,299-300,302-389,469-471,478-479,484,493-504,508,510-511,516-518,523,537,550,552-553
+src/lib/file-tree-context.tsx
+  d53e06efd6727f71 4,30,40,50,167-192,328,338,351
+src/lib/appearance-context.tsx
+  d53e06efd6727f71 1-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "87f1b315131ef85acd3518540dcdec0b9fe319bf",
+  "prompts": {
+    "d53e06efd6727f71": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d45230f8-e780-449e-8479-9e7b48066070",
+        "model": "claude-4.6-opus-high"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 1146,
+      "total_deletions": 212,
+      "accepted_lines": 1044,
+      "overriden_lines": 2
+    }
+  }
+}

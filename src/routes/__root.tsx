@@ -10,13 +10,13 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { ExternalLink, GitPullRequest } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppearanceProvider } from "@/lib/appearance-context";
-import { loginWithApiCredentials } from "@/lib/bitbucket-oauth";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
+import type { GitHost } from "@/lib/git-host/types";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
 
@@ -75,41 +75,90 @@ function RootComponent() {
   );
 }
 
+function HostTabs({
+  activeHost,
+  onChange,
+}: {
+  activeHost: GitHost;
+  onChange: (host: GitHost) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <Button
+        type="button"
+        variant={activeHost === "bitbucket" ? "default" : "outline"}
+        onClick={() => onChange("bitbucket")}
+      >
+        Bitbucket
+      </Button>
+      <Button
+        type="button"
+        variant={activeHost === "github" ? "default" : "outline"}
+        onClick={() => onChange("github")}
+      >
+        GitHub
+      </Button>
+    </div>
+  );
+}
+
 function OnboardingScreen() {
-  const { setAuthenticated } = usePrContext();
+  const { login, setActiveHost, activeHost } = usePrContext();
+
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
+  const [githubToken, setGithubToken] = useState("");
   const [copiedScopes, setCopiedScopes] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const requiredScopes = [
+
+  const bitbucketScopes = [
     "read:repository:bitbucket",
     "read:user:bitbucket",
     "read:pullrequest:bitbucket",
     "write:pullrequest:bitbucket",
   ];
-  const requiredScopesText = requiredScopes.join(", ");
+
+  const githubScopes = [
+    "Repository Metadata: Read",
+    "Repository Contents: Read",
+    "Repository Pull requests: Read and Write",
+  ];
+
+  const scopeText = useMemo(
+    () =>
+      (activeHost === "bitbucket" ? bitbucketScopes : githubScopes).join(", "),
+    [activeHost],
+  );
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
       <div className="w-full max-w-lg border border-border bg-card">
         <div className="border-b border-border px-4 py-3 flex items-center gap-3 bg-secondary">
           <GitPullRequest className="size-4 text-muted-foreground" />
-          <span className="text-[14px] font-medium">Connect Bitbucket</span>
+          <span className="text-[14px] font-medium">Connect Git Host</span>
         </div>
 
         <div className="p-4 space-y-4">
+          <HostTabs
+            activeHost={activeHost}
+            onChange={(host) => {
+              setActiveHost(host);
+              setError(null);
+            }}
+          />
+
           <p className="text-[14px] text-muted-foreground">
-            Use your Bitbucket email and API token to continue.
+            {activeHost === "bitbucket"
+              ? "Use your Bitbucket email and API token to continue."
+              : "Use a GitHub fine-grained personal access token to continue."}
           </p>
 
           <div className="border border-border bg-background p-3 text-[13px] space-y-2">
             <div className="text-muted-foreground">Required scopes</div>
-            <div className="leading-relaxed break-words">
-              {requiredScopesText}
-            </div>
+            <div className="leading-relaxed break-words">{scopeText}</div>
             <div className="border border-yellow-500/50 bg-yellow-500/15 text-yellow-300 px-2 py-1.5 text-[12px]">
-              Hint: You can paste these into "Search by scope name".
+              Hint: Copy these permissions while creating the token.
             </div>
             <Button
               type="button"
@@ -117,30 +166,45 @@ function OnboardingScreen() {
               size="sm"
               className="h-7 px-2 text-[11px]"
               onClick={() => {
-                void navigator.clipboard.writeText(requiredScopesText);
+                void navigator.clipboard.writeText(scopeText);
                 setCopiedScopes(true);
-                window.setTimeout(() => {
-                  setCopiedScopes(false);
-                }, 1200);
+                window.setTimeout(() => setCopiedScopes(false), 1200);
               }}
             >
               {copiedScopes ? "Copied" : "Copy scopes"}
             </Button>
           </div>
 
-          <Button
-            className="w-full text-white bg-[#0146b3] border-[#0146b3] hover:bg-[#0052cc] hover:border-[#0052cc] cursor-pointer"
-            onClick={() =>
-              window.open(
-                "https://id.atlassian.com/manage-profile/security/api-tokens",
-                "_blank",
-                "noopener,noreferrer",
-              )
-            }
-          >
-            <ExternalLink className="size-3.5" />
-            Create Atlassian Bitbucket Scoped API Token
-          </Button>
+          {activeHost === "bitbucket" ? (
+            <Button
+              className="w-full text-white bg-[#0146b3] border-[#0146b3] hover:bg-[#0052cc] hover:border-[#0052cc] cursor-pointer"
+              onClick={() =>
+                window.open(
+                  "https://id.atlassian.com/manage-profile/security/api-tokens",
+                  "_blank",
+                  "noopener,noreferrer",
+                )
+              }
+            >
+              <ExternalLink className="size-3.5" />
+              Create Atlassian Bitbucket Scoped API Token
+            </Button>
+          ) : (
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() =>
+                window.open(
+                  "https://github.com/settings/personal-access-tokens/new",
+                  "_blank",
+                  "noopener,noreferrer",
+                )
+              }
+            >
+              <ExternalLink className="size-3.5" />
+              Create GitHub Fine-Grained Token
+            </Button>
+          )}
 
           <form
             className="space-y-2"
@@ -148,10 +212,13 @@ function OnboardingScreen() {
               event.preventDefault();
               setIsSubmitting(true);
               setError(null);
-              loginWithApiCredentials({ email, apiToken })
-                .then(() => {
-                  setAuthenticated(true);
-                })
+
+              const authPromise =
+                activeHost === "bitbucket"
+                  ? login({ host: "bitbucket", email, apiToken })
+                  : login({ host: "github", token: githubToken });
+
+              authPromise
                 .catch((err) => {
                   const msg =
                     err instanceof Error
@@ -159,29 +226,50 @@ function OnboardingScreen() {
                       : "Failed to authenticate";
                   setError(msg);
                 })
-                .finally(() => setIsSubmitting(false));
+                .finally(() => {
+                  setIsSubmitting(false);
+                });
             }}
           >
-            <Input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="Bitbucket account email"
-              autoComplete="email"
-              className="text-[14px] h-10"
-            />
-            <Input
-              type="password"
-              value={apiToken}
-              onChange={(event) => setApiToken(event.target.value)}
-              placeholder="Bitbucket API token"
-              autoComplete="current-password"
-              className="text-[14px] h-10"
-            />
+            {activeHost === "bitbucket" ? (
+              <>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="Bitbucket account email"
+                  autoComplete="email"
+                  className="text-[14px] h-10"
+                />
+                <Input
+                  type="password"
+                  value={apiToken}
+                  onChange={(event) => setApiToken(event.target.value)}
+                  placeholder="Bitbucket API token"
+                  autoComplete="current-password"
+                  className="text-[14px] h-10"
+                />
+              </>
+            ) : (
+              <Input
+                type="password"
+                value={githubToken}
+                onChange={(event) => setGithubToken(event.target.value)}
+                placeholder="GitHub fine-grained personal access token"
+                autoComplete="current-password"
+                className="text-[14px] h-10"
+              />
+            )}
+
             <Button
               type="submit"
               className="w-full text-[14px] h-10"
-              disabled={isSubmitting || !email.trim() || !apiToken.trim()}
+              disabled={
+                isSubmitting ||
+                (activeHost === "bitbucket"
+                  ? !email.trim() || !apiToken.trim()
+                  : !githubToken.trim())
+              }
             >
               Authenticate
             </Button>
@@ -207,6 +295,7 @@ function AppLayout() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
+  const isGithubPullPath = /^\/[^/]+\/[^/]+\/pull\/[^/]+/.test(pathname);
 
   if (pathname.startsWith("/oauth/callback")) {
     return <Outlet />;
@@ -216,7 +305,7 @@ function AppLayout() {
     return null;
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isGithubPullPath) {
     return <OnboardingScreen />;
   }
 

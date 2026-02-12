@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
+import { Route as WorkspaceRepoPullPullRequestIdRouteImport } from './routes/$workspace/$repo/pull/$pullRequestId'
 import { Route as WorkspaceRepoPullRequestsPullRequestIdRouteImport } from './routes/$workspace/$repo/pull-requests/$pullRequestId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,12 @@ const OauthCallbackRoute = OauthCallbackRouteImport.update({
   path: '/oauth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WorkspaceRepoPullPullRequestIdRoute =
+  WorkspaceRepoPullPullRequestIdRouteImport.update({
+    id: '/$workspace/$repo/pull/$pullRequestId',
+    path: '/$workspace/$repo/pull/$pullRequestId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const WorkspaceRepoPullRequestsPullRequestIdRoute =
   WorkspaceRepoPullRequestsPullRequestIdRouteImport.update({
     id: '/$workspace/$repo/pull-requests/$pullRequestId',
@@ -34,17 +41,20 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/$workspace/$repo/pull-requests/$pullRequestId': typeof WorkspaceRepoPullRequestsPullRequestIdRoute
+  '/$workspace/$repo/pull/$pullRequestId': typeof WorkspaceRepoPullPullRequestIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/$workspace/$repo/pull-requests/$pullRequestId': typeof WorkspaceRepoPullRequestsPullRequestIdRoute
+  '/$workspace/$repo/pull/$pullRequestId': typeof WorkspaceRepoPullPullRequestIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/$workspace/$repo/pull-requests/$pullRequestId': typeof WorkspaceRepoPullRequestsPullRequestIdRoute
+  '/$workspace/$repo/pull/$pullRequestId': typeof WorkspaceRepoPullPullRequestIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -52,19 +62,26 @@ export interface FileRouteTypes {
     | '/'
     | '/oauth/callback'
     | '/$workspace/$repo/pull-requests/$pullRequestId'
+    | '/$workspace/$repo/pull/$pullRequestId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/oauth/callback' | '/$workspace/$repo/pull-requests/$pullRequestId'
+  to:
+    | '/'
+    | '/oauth/callback'
+    | '/$workspace/$repo/pull-requests/$pullRequestId'
+    | '/$workspace/$repo/pull/$pullRequestId'
   id:
     | '__root__'
     | '/'
     | '/oauth/callback'
     | '/$workspace/$repo/pull-requests/$pullRequestId'
+    | '/$workspace/$repo/pull/$pullRequestId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   OauthCallbackRoute: typeof OauthCallbackRoute
   WorkspaceRepoPullRequestsPullRequestIdRoute: typeof WorkspaceRepoPullRequestsPullRequestIdRoute
+  WorkspaceRepoPullPullRequestIdRoute: typeof WorkspaceRepoPullPullRequestIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -83,6 +100,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OauthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$workspace/$repo/pull/$pullRequestId': {
+      id: '/$workspace/$repo/pull/$pullRequestId'
+      path: '/$workspace/$repo/pull/$pullRequestId'
+      fullPath: '/$workspace/$repo/pull/$pullRequestId'
+      preLoaderRoute: typeof WorkspaceRepoPullPullRequestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$workspace/$repo/pull-requests/$pullRequestId': {
       id: '/$workspace/$repo/pull-requests/$pullRequestId'
       path: '/$workspace/$repo/pull-requests/$pullRequestId'
@@ -98,6 +122,7 @@ const rootRouteChildren: RootRouteChildren = {
   OauthCallbackRoute: OauthCallbackRoute,
   WorkspaceRepoPullRequestsPullRequestIdRoute:
     WorkspaceRepoPullRequestsPullRequestIdRoute,
+  WorkspaceRepoPullPullRequestIdRoute: WorkspaceRepoPullPullRequestIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

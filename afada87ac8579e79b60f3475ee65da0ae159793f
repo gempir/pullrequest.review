@@ -1,0 +1,23 @@
+wrangler.jsonc
+  fea0b9e220ede446 8-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "afada87ac8579e79b60f3475ee65da0ae159793f",
+  "prompts": {
+    "fea0b9e220ede446": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "74c2ab7f-1168-481c-815a-7dc06510442b",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 1,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    }
+  }
+}

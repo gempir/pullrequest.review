@@ -112,6 +112,19 @@ export const FONT_FAMILY_OPTIONS: ReadonlyArray<{
   },
 ];
 
+export const SANS_FONT_FAMILY_OPTIONS: ReadonlyArray<{
+  value: FontFamilyValue;
+  label: string;
+}> = [
+  { value: "geist-sans", label: "Geist Sans" },
+  { value: "inter", label: "Inter" },
+  { value: "manrope", label: "Manrope" },
+  { value: "sora", label: "Sora" },
+  { value: "ui-sans", label: "UI Sans" },
+  { value: "system-ui", label: "System UI" },
+  { value: "system-sans", label: "System Sans" },
+];
+
 export const DEFAULT_FONT_FAMILY: FontFamilyValue = "jetbrains-mono";
 
 export function fontFamilyToCss(value: FontFamilyValue): string {

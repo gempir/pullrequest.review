@@ -20,6 +20,7 @@ type AppearanceSettings = {
   pageFontFamily: FontFamilyValue;
   pageFontSize: number;
   pageLineHeight: number;
+  commentFontFamily: FontFamilyValue;
   treeFontFamily: FontFamilyValue;
   treeFontSize: number;
   treeLineHeight: number;
@@ -30,6 +31,7 @@ type AppearanceContextValue = AppearanceSettings & {
   setPageFontFamily: (font: FontFamilyValue) => void;
   setPageFontSize: (size: number) => void;
   setPageLineHeight: (lineHeight: number) => void;
+  setCommentFontFamily: (font: FontFamilyValue) => void;
   setTreeFontFamily: (font: FontFamilyValue) => void;
   setTreeFontSize: (size: number) => void;
   setTreeLineHeight: (lineHeight: number) => void;
@@ -42,6 +44,7 @@ const defaultAppearance: AppearanceSettings = {
   pageFontFamily: DEFAULT_FONT_FAMILY,
   pageFontSize: 13,
   pageLineHeight: 1.5,
+  commentFontFamily: "geist-sans",
   treeFontFamily: "geist-sans",
   treeFontSize: 12,
   treeLineHeight: 1.45,
@@ -85,6 +88,9 @@ function parseStoredSettings(raw: string | null): AppearanceSettings | null {
         1,
         2.2,
       ),
+      commentFontFamily:
+        (parsed.commentFontFamily as FontFamilyValue) ??
+        defaultAppearance.commentFontFamily,
       treeFontFamily:
         (parsed.treeFontFamily as FontFamilyValue) ??
         defaultAppearance.treeFontFamily,
@@ -141,6 +147,10 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
       "--tree-font-family",
       fontFamilyToCss(settings.treeFontFamily),
     );
+    root.style.setProperty(
+      "--comment-font-family",
+      fontFamilyToCss(settings.commentFontFamily),
+    );
     root.style.setProperty("--tree-font-size", `${settings.treeFontSize}px`);
     root.style.setProperty(
       "--tree-line-height",
@@ -150,6 +160,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     settings.pageFontFamily,
     settings.pageFontSize,
     settings.pageLineHeight,
+    settings.commentFontFamily,
     settings.treeFontFamily,
     settings.treeFontSize,
     settings.treeLineHeight,
@@ -200,6 +211,9 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
       pageLineHeight: normalizeLineHeight(lineHeight, 1, 2.2),
     }));
   }, []);
+  const setCommentFontFamily = useCallback((font: FontFamilyValue) => {
+    setSettings((prev) => ({ ...prev, commentFontFamily: font }));
+  }, []);
   const setTreeFontFamily = useCallback((font: FontFamilyValue) => {
     setSettings((prev) => ({ ...prev, treeFontFamily: font }));
   }, []);
@@ -223,6 +237,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
       setPageFontFamily,
       setPageFontSize,
       setPageLineHeight,
+      setCommentFontFamily,
       setTreeFontFamily,
       setTreeFontSize,
       setTreeLineHeight,
@@ -233,6 +248,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
       setPageFontFamily,
       setPageFontSize,
       setPageLineHeight,
+      setCommentFontFamily,
       setTreeFontFamily,
       setTreeFontSize,
       setTreeLineHeight,

@@ -106,6 +106,7 @@
   --app-font-family: var(--font-jetbrains-mono);
   --app-font-size: 13px;
   --app-line-height: 1.5;
+  --comment-font-family: var(--font-geist-sans);
   --tree-font-family: var(--font-geist-sans);
   --tree-font-size: 12px;
   --tree-line-height: 1.45;
@@ -216,6 +217,14 @@
     width: 100%;
     margin: 0;
     padding: 0;
+  }
+
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
   }
 
   /* Selection style */

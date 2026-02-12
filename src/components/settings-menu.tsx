@@ -30,7 +30,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { type AppThemeMode, useAppearance } from "@/lib/appearance-context";
 import { useFileTree } from "@/lib/file-tree-context";
-import { FONT_FAMILY_OPTIONS, type FontFamilyValue } from "@/lib/font-options";
+import {
+  FONT_FAMILY_OPTIONS,
+  SANS_FONT_FAMILY_OPTIONS,
+  type FontFamilyValue,
+} from "@/lib/font-options";
 import { type ShortcutConfig, useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
@@ -178,9 +182,38 @@ function ShortcutsTab() {
   );
 }
 
-function DiffSettingsTab() {
+function DiffSettingsTab({
+  workspaceMode,
+  onWorkspaceModeChange,
+}: {
+  workspaceMode?: WorkspaceMode;
+  onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
+}) {
   return (
     <div className="space-y-5">
+      {workspaceMode && onWorkspaceModeChange && (
+        <div className="border border-border bg-card p-4 space-y-3">
+          <p className="text-[13px] text-muted-foreground">Review mode</p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={workspaceMode === "single" ? "default" : "outline"}
+              size="sm"
+              className="h-8"
+              onClick={() => onWorkspaceModeChange("single")}
+            >
+              Single file
+            </Button>
+            <Button
+              variant={workspaceMode === "all" ? "default" : "outline"}
+              size="sm"
+              className="h-8"
+              onClick={() => onWorkspaceModeChange("all")}
+            >
+              All files
+            </Button>
+          </div>
+        </div>
+      )}
       <p className="text-[13px] text-muted-foreground">
         Configure how diffs are displayed.
       </p>
@@ -197,10 +230,12 @@ function AppearanceTab() {
     pageFontFamily,
     pageFontSize,
     pageLineHeight,
+    commentFontFamily,
     setAppThemeMode,
     setPageFontFamily,
     setPageFontSize,
     setPageLineHeight,
+    setCommentFontFamily,
   } = useAppearance();
 
   return (
@@ -307,6 +342,38 @@ function AppearanceTab() {
               className="h-8 text-[12px]"
             />
           </div>
+        </div>
+      </div>
+
+      <div className="border border-border bg-card p-4 space-y-4">
+        <div>
+          <h3 className="text-[13px] font-medium">Comment Typography</h3>
+        </div>
+        <div className="space-y-1 max-w-sm">
+          <Label className="text-[12px] text-muted-foreground">
+            Sans Font
+          </Label>
+          <Select
+            value={commentFontFamily}
+            onValueChange={(value) =>
+              setCommentFontFamily(value as FontFamilyValue)
+            }
+          >
+            <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-h-60">
+              {SANS_FONT_FAMILY_OPTIONS.map((font) => (
+                <SelectItem
+                  key={font.value}
+                  value={font.value}
+                  className="text-[12px]"
+                >
+                  {font.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
     </div>
@@ -422,41 +489,13 @@ function TreeTab() {
 }
 
 function WorkspaceTab({
-  workspaceMode,
-  onWorkspaceModeChange,
   onDisconnect,
 }: {
-  workspaceMode?: WorkspaceMode;
-  onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
   onDisconnect?: () => void;
 }) {
-  const selectedMode = workspaceMode ?? "single";
-
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-[13px] text-muted-foreground mb-2">Review mode</p>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={selectedMode === "single" ? "default" : "outline"}
-            size="sm"
-            className="h-8"
-            onClick={() => onWorkspaceModeChange?.("single")}
-          >
-            Single file
-          </Button>
-          <Button
-            variant={selectedMode === "all" ? "default" : "outline"}
-            size="sm"
-            className="h-8"
-            onClick={() => onWorkspaceModeChange?.("all")}
-          >
-            All files
-          </Button>
-        </div>
-      </div>
-
-      <div className="pt-2 border-t border-border">
         <Button
           variant="outline"
           className="gap-2"
@@ -482,7 +521,7 @@ export function SettingsMenu({
 } = {}) {
   const [activeTab, setActiveTab] = useState<Tab>("diff");
   const [open, setOpen] = useState(false);
-  const showWorkspaceTab = Boolean(onWorkspaceModeChange || onDisconnect);
+  const showWorkspaceTab = Boolean(onDisconnect);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -578,16 +617,17 @@ export function SettingsMenu({
           </div>
 
           <div className="flex-1 p-5 overflow-auto">
-            {activeTab === "diff" && <DiffSettingsTab />}
+            {activeTab === "diff" && (
+              <DiffSettingsTab
+                workspaceMode={workspaceMode}
+                onWorkspaceModeChange={onWorkspaceModeChange}
+              />
+            )}
             {activeTab === "appearance" && <AppearanceTab />}
             {activeTab === "tree" && <TreeTab />}
             {activeTab === "shortcuts" && <ShortcutsTab />}
             {activeTab === "workspace" && (
-              <WorkspaceTab
-                workspaceMode={workspaceMode}
-                onWorkspaceModeChange={onWorkspaceModeChange}
-                onDisconnect={onDisconnect}
-              />
+              <WorkspaceTab onDisconnect={onDisconnect} />
             )}
           </div>
         </div>

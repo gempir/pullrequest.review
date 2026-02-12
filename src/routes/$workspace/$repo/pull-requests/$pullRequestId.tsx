@@ -28,6 +28,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { CommentEditor } from "@/components/comment-editor";
 import { FileTree } from "@/components/file-tree";
 import { SettingsMenu } from "@/components/settings-menu";
 import { Button } from "@/components/ui/button";
@@ -280,7 +281,7 @@ function PullRequestReviewPage() {
 
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const diffScrollRef = useRef<HTMLElement | null>(null);
-  const inlineDraftTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const inlineDraftFocusRef = useRef<(() => void) | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("single");
   const [searchQuery, setSearchQuery] = useState("");
   const [showUnviewedOnly, setShowUnviewedOnly] = useState(false);
@@ -1047,41 +1048,38 @@ function PullRequestReviewPage() {
     [],
   );
 
-  const handleDiffLineClick = useCallback(
-    (props: OnDiffLineClickProps) => {
-      if (!selectedFilePath) return;
+  const openInlineCommentDraft = useCallback(
+    (path: string, props: OnDiffLineClickProps) => {
       setInlineComment((prev) => {
         const side = props.annotationSide ?? "additions";
-        if (
-          prev &&
-          prev.path === selectedFilePath &&
-          prev.line === props.lineNumber &&
-          prev.side === side
-        ) {
+        if (prev && prev.path === path && prev.line === props.lineNumber && prev.side === side) {
           return prev;
         }
         if (prev && getInlineDraftContent(prev).trim().length > 0) {
           return prev;
         }
         return {
-          path: selectedFilePath,
+          path,
           line: props.lineNumber,
           side,
         };
       });
     },
-    [getInlineDraftContent, selectedFilePath],
+    [getInlineDraftContent],
+  );
+
+  const handleSingleDiffLineClick = useCallback(
+    (props: OnDiffLineClickProps) => {
+      if (!selectedFilePath) return;
+      openInlineCommentDraft(selectedFilePath, props);
+    },
+    [openInlineCommentDraft, selectedFilePath],
   );
 
   useEffect(() => {
     if (!inlineComment) return;
     const timeoutId = window.setTimeout(() => {
-      inlineDraftTextareaRef.current?.focus();
-      const valueLength = inlineDraftTextareaRef.current?.value.length ?? 0;
-      inlineDraftTextareaRef.current?.setSelectionRange(
-        valueLength,
-        valueLength,
-      );
+      inlineDraftFocusRef.current?.();
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [
@@ -1091,6 +1089,46 @@ function PullRequestReviewPage() {
     inlineComment,
   ]);
 
+  const buildFileAnnotations = useCallback(
+    (filePath: string) => {
+      const fileThreads = (threadsByPath.get(filePath) ?? []).filter(
+        (thread) => !thread.root.deleted && Boolean(getCommentInlinePosition(thread.root)),
+      );
+      const annotations: Array<{
+        side: CommentLineSide;
+        lineNumber: number;
+        metadata: SingleFileAnnotationMetadata;
+      }> = [];
+
+      for (const thread of fileThreads) {
+        const position = getCommentInlinePosition(thread.root);
+        if (!position) continue;
+        annotations.push({
+          side: position.side,
+          lineNumber: position.lineNumber,
+          metadata: {
+            kind: "thread",
+            thread,
+          },
+        });
+      }
+
+      if (inlineComment && inlineComment.path === filePath) {
+        annotations.push({
+          side: inlineComment.side,
+          lineNumber: inlineComment.line,
+          metadata: {
+            kind: "draft",
+            draft: inlineComment,
+          },
+        });
+      }
+
+      return annotations;
+    },
+    [inlineComment, threadsByPath],
+  );
+
   const singleFileAnnotations = useMemo(() => {
     if (!selectedFilePath)
       return [] as Array<{
@@ -1098,51 +1136,20 @@ function PullRequestReviewPage() {
         lineNumber: number;
         metadata: SingleFileAnnotationMetadata;
       }>;
-
-    const annotations: Array<{
-      side: CommentLineSide;
-      lineNumber: number;
-      metadata: SingleFileAnnotationMetadata;
-    }> = [];
-
-    for (const thread of selectedInlineThreads) {
-      const position = getCommentInlinePosition(thread.root);
-      if (!position) continue;
-      annotations.push({
-        side: position.side,
-        lineNumber: position.lineNumber,
-        metadata: {
-          kind: "thread",
-          thread,
-        },
-      });
-    }
-
-    if (inlineComment && inlineComment.path === selectedFilePath) {
-      annotations.push({
-        side: inlineComment.side,
-        lineNumber: inlineComment.line,
-        metadata: {
-          kind: "draft",
-          draft: inlineComment,
-        },
-      });
-    }
-
-    return annotations;
-  }, [inlineComment, selectedFilePath, selectedInlineThreads]);
+    return buildFileAnnotations(selectedFilePath);
+  }, [buildFileAnnotations, selectedFilePath]);
 
   const singleFileDiffOptions = useMemo<FileDiffOptions<undefined>>(
     () => ({
       ...compactDiffOptions,
-      onLineClick: handleDiffLineClick,
-      onLineNumberClick: handleDiffLineClick,
+      onLineClick: handleSingleDiffLineClick,
+      onLineNumberClick: handleSingleDiffLineClick,
       onLineEnter: handleDiffLineEnter,
       onLineLeave: handleDiffLineLeave,
     }),
     [
       compactDiffOptions,
-      handleDiffLineClick,
+      handleSingleDiffLineClick,
       handleDiffLineEnter,
       handleDiffLineLeave,
     ],
@@ -1469,42 +1476,25 @@ function PullRequestReviewPage() {
                         <div className="px-2 py-1.5 border-y border-border bg-background/70">
                           {metadata.kind === "draft" ? (
                             <div className="space-y-2">
-                              <textarea
+                              <CommentEditor
                                 key={inlineDraftStorageKey(
                                   workspace,
                                   repo,
                                   pullRequestId,
                                   metadata.draft,
                                 )}
-                                ref={inlineDraftTextareaRef}
-                                rows={2}
+                                value={getInlineDraftContent(metadata.draft)}
                                 placeholder="Add a line comment"
-                                defaultValue={getInlineDraftContent(
-                                  metadata.draft,
-                                )}
-                                className="flex min-h-14 w-full resize-y border border-input bg-background px-3 py-1 text-[13px] transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring"
-                                onChange={(e) =>
-                                  setInlineDraftContent(
-                                    metadata.draft,
-                                    e.target.value,
-                                  )
-                                }
-                                onKeyDown={(e) => {
-                                  if (
-                                    e.key === "Enter" &&
-                                    (e.metaKey || e.ctrlKey)
-                                  ) {
-                                    e.preventDefault();
-                                    submitInlineComment();
-                                  }
+                                disabled={createCommentMutation.isPending}
+                                onReady={(focus) => {
+                                  inlineDraftFocusRef.current = focus;
                                 }}
+                                onChange={(nextValue) =>
+                                  setInlineDraftContent(metadata.draft, nextValue)
+                                }
+                                onSubmit={submitInlineComment}
                               />
                               <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                  {metadata.draft.side === "deletions"
-                                    ? "old line"
-                                    : "new line"}
-                                </span>
                                 <Button
                                   size="sm"
                                   className="h-7"
@@ -1684,9 +1674,18 @@ function PullRequestReviewPage() {
                     <div>
                       <FileDiff
                         fileDiff={fileDiff}
-                        options={compactDiffOptions}
-                        className="compact-diff pr-diff-font"
+                        options={{
+                          ...compactDiffOptions,
+                          onLineClick: (props) =>
+                            openInlineCommentDraft(filePath, props),
+                          onLineNumberClick: (props) =>
+                            openInlineCommentDraft(filePath, props),
+                          onLineEnter: handleDiffLineEnter,
+                          onLineLeave: handleDiffLineLeave,
+                        }}
+                        className="compact-diff commentable-diff pr-diff-font"
                         style={diffTypographyStyle}
+                        lineAnnotations={buildFileAnnotations(filePath)}
                       />
                     </div>
                   </div>

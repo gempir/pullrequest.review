@@ -1,0 +1,27 @@
+src/routes/$workspace/$repo/pull-requests/$pullRequestId.tsx
+  d53e06efd6727f71 672,736-749,763-764,1329,1333,1335-1342,1345,1347,1350
+src/lib/shortcuts-context.tsx
+  d53e06efd6727f71 29-30,64-73,168-169,177-178,220-225,239-240
+src/components/settings-menu.tsx
+  d53e06efd6727f71 164-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "e78cf99e29125cbd8934584e08c6595da0144f14",
+  "prompts": {
+    "d53e06efd6727f71": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d45230f8-e780-449e-8479-9e7b48066070",
+        "model": "claude-4.6-opus-high"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 95,
+      "total_deletions": 39,
+      "accepted_lines": 73,
+      "overriden_lines": 0
+    }
+  }
+}

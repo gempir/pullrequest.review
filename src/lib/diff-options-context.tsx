@@ -10,10 +10,7 @@ import {
 import type { BaseDiffOptions } from "@pierre/diffs";
 import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
 import { registerExtendedDiffThemes } from "@/lib/diff-theme-registration";
-import {
-  DEFAULT_FONT_FAMILY,
-  type FontFamilyValue,
-} from "@/lib/font-options";
+import { DEFAULT_FONT_FAMILY, type FontFamilyValue } from "@/lib/font-options";
 
 export interface DiffOptions {
   theme: DiffTheme;
@@ -80,7 +77,8 @@ function parseStoredOptions(raw: string | null): DiffOptions | null {
       ...defaultOptions,
       ...parsed,
       diffFontFamily:
-        (parsed.diffFontFamily as FontFamilyValue) ?? defaultOptions.diffFontFamily,
+        (parsed.diffFontFamily as FontFamilyValue) ??
+        defaultOptions.diffFontFamily,
       diffFontSize: normalizeDiffFontSize(
         Number(parsed.diffFontSize ?? defaultOptions.diffFontSize),
       ),
@@ -119,10 +117,16 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
     <K extends keyof DiffOptions>(key: K, value: DiffOptions[K]) => {
       setOptions((prev) => {
         if (key === "diffFontSize") {
-          return { ...prev, diffFontSize: normalizeDiffFontSize(Number(value)) };
+          return {
+            ...prev,
+            diffFontSize: normalizeDiffFontSize(Number(value)),
+          };
         }
         if (key === "diffLineHeight") {
-          return { ...prev, diffLineHeight: normalizeDiffLineHeight(Number(value)) };
+          return {
+            ...prev,
+            diffLineHeight: normalizeDiffLineHeight(Number(value)),
+          };
         }
         return { ...prev, [key]: value };
       });

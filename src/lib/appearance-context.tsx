@@ -105,12 +105,15 @@ function parseStoredSettings(raw: string | null): AppearanceSettings | null {
 }
 
 export function AppearanceProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<AppearanceSettings>(defaultAppearance);
+  const [settings, setSettings] =
+    useState<AppearanceSettings>(defaultAppearance);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const parsed = parseStoredSettings(window.localStorage.getItem(STORAGE_KEY));
+    const parsed = parseStoredSettings(
+      window.localStorage.getItem(STORAGE_KEY),
+    );
     if (parsed) {
       setSettings(parsed);
     }
@@ -130,13 +133,19 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
       fontFamilyToCss(settings.pageFontFamily),
     );
     root.style.setProperty("--app-font-size", `${settings.pageFontSize}px`);
-    root.style.setProperty("--app-line-height", String(settings.pageLineHeight));
+    root.style.setProperty(
+      "--app-line-height",
+      String(settings.pageLineHeight),
+    );
     root.style.setProperty(
       "--tree-font-family",
       fontFamilyToCss(settings.treeFontFamily),
     );
     root.style.setProperty("--tree-font-size", `${settings.treeFontSize}px`);
-    root.style.setProperty("--tree-line-height", String(settings.treeLineHeight));
+    root.style.setProperty(
+      "--tree-line-height",
+      String(settings.treeLineHeight),
+    );
   }, [
     settings.pageFontFamily,
     settings.pageFontSize,
@@ -180,7 +189,10 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => ({ ...prev, pageFontFamily: font }));
   }, []);
   const setPageFontSize = useCallback((size: number) => {
-    setSettings((prev) => ({ ...prev, pageFontSize: normalizeFontSize(size, 11, 20) }));
+    setSettings((prev) => ({
+      ...prev,
+      pageFontSize: normalizeFontSize(size, 11, 20),
+    }));
   }, []);
   const setPageLineHeight = useCallback((lineHeight: number) => {
     setSettings((prev) => ({
@@ -192,7 +204,10 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => ({ ...prev, treeFontFamily: font }));
   }, []);
   const setTreeFontSize = useCallback((size: number) => {
-    setSettings((prev) => ({ ...prev, treeFontSize: normalizeFontSize(size, 10, 18) }));
+    setSettings((prev) => ({
+      ...prev,
+      treeFontSize: normalizeFontSize(size, 10, 18),
+    }));
   }, []);
   const setTreeLineHeight = useCallback((lineHeight: number) => {
     setSettings((prev) => ({

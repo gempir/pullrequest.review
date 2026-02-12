@@ -39,7 +39,10 @@ function OptionSelect<K extends keyof DiffOptions>({
         value={String(options[optionKey])}
         onValueChange={(v) => setOption(optionKey, v as DiffOptions[K])}
       >
-        <SelectTrigger className="h-8 text-[12px] w-full min-w-[120px]" size="sm">
+        <SelectTrigger
+          className="h-8 text-[12px] w-full min-w-[120px]"
+          size="sm"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -149,14 +152,20 @@ export function DiffToolbar() {
           </Label>
           <Select
             value={options.diffFontFamily}
-            onValueChange={(v) => setOption("diffFontFamily", v as FontFamilyValue)}
+            onValueChange={(v) =>
+              setOption("diffFontFamily", v as FontFamilyValue)
+            }
           >
             <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-60">
               {FONT_FAMILY_OPTIONS.map((font) => (
-                <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                <SelectItem
+                  key={font.value}
+                  value={font.value}
+                  className="text-[12px]"
+                >
                   {font.label}
                 </SelectItem>
               ))}
@@ -214,9 +223,15 @@ export function DiffToolbar() {
       </div>
 
       <div className="flex flex-wrap items-center gap-5">
-        <OptionSwitch label="Disable Background" optionKey="disableBackground" />
+        <OptionSwitch
+          label="Disable Background"
+          optionKey="disableBackground"
+        />
         <OptionSwitch label="Expand Unchanged" optionKey="expandUnchanged" />
-        <OptionSwitch label="Hide Line Numbers" optionKey="disableLineNumbers" />
+        <OptionSwitch
+          label="Hide Line Numbers"
+          optionKey="disableLineNumbers"
+        />
       </div>
     </div>
   );

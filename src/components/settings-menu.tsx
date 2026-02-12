@@ -222,7 +222,9 @@ function AppearanceTab() {
           </p>
         </div>
         <div className="space-y-1">
-          <Label className="text-[12px] text-muted-foreground">Theme Mode</Label>
+          <Label className="text-[12px] text-muted-foreground">
+            Theme Mode
+          </Label>
           <Select
             value={appThemeMode}
             onValueChange={(value) => setAppThemeMode(value as AppThemeMode)}
@@ -251,7 +253,9 @@ function AppearanceTab() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-1">
-            <Label className="text-[12px] text-muted-foreground">Font Family</Label>
+            <Label className="text-[12px] text-muted-foreground">
+              Font Family
+            </Label>
             <Select
               value={pageFontFamily}
               onValueChange={(value) =>
@@ -275,7 +279,9 @@ function AppearanceTab() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-[12px] text-muted-foreground">Font Size</Label>
+            <Label className="text-[12px] text-muted-foreground">
+              Font Size
+            </Label>
             <Input
               type="number"
               value={pageFontSize}
@@ -286,14 +292,18 @@ function AppearanceTab() {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-[12px] text-muted-foreground">Line Height</Label>
+            <Label className="text-[12px] text-muted-foreground">
+              Line Height
+            </Label>
             <Input
               type="number"
               value={pageLineHeight}
               min={1}
               max={2.2}
               step={0.05}
-              onChange={(event) => setPageLineHeight(Number(event.target.value))}
+              onChange={(event) =>
+                setPageLineHeight(Number(event.target.value))
+              }
               className="h-8 text-[12px]"
             />
           </div>
@@ -351,7 +361,9 @@ function TreeTab() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-1">
-            <Label className="text-[12px] text-muted-foreground">Font Family</Label>
+            <Label className="text-[12px] text-muted-foreground">
+              Font Family
+            </Label>
             <Select
               value={treeFontFamily}
               onValueChange={(value) =>
@@ -375,7 +387,9 @@ function TreeTab() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-[12px] text-muted-foreground">Font Size</Label>
+            <Label className="text-[12px] text-muted-foreground">
+              Font Size
+            </Label>
             <Input
               type="number"
               value={treeFontSize}
@@ -386,14 +400,18 @@ function TreeTab() {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-[12px] text-muted-foreground">Line Height</Label>
+            <Label className="text-[12px] text-muted-foreground">
+              Line Height
+            </Label>
             <Input
               type="number"
               value={treeLineHeight}
               min={1}
               max={2.2}
               step={0.05}
-              onChange={(event) => setTreeLineHeight(Number(event.target.value))}
+              onChange={(event) =>
+                setTreeLineHeight(Number(event.target.value))
+              }
               className="h-8 text-[12px]"
             />
           </div>

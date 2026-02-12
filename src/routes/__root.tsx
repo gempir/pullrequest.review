@@ -104,7 +104,9 @@ function OnboardingScreen() {
 
           <div className="border border-border bg-background p-3 text-[13px] space-y-2">
             <div className="text-muted-foreground">Required scopes</div>
-            <div className="leading-relaxed break-words">{requiredScopesText}</div>
+            <div className="leading-relaxed break-words">
+              {requiredScopesText}
+            </div>
             <div className="border border-yellow-500/50 bg-yellow-500/15 text-yellow-300 px-2 py-1.5 text-[12px]">
               Hint: You can paste these into "Search by scope name".
             </div>
@@ -151,7 +153,9 @@ function OnboardingScreen() {
                 })
                 .catch((err) => {
                   const msg =
-                    err instanceof Error ? err.message : "Failed to authenticate";
+                    err instanceof Error
+                      ? err.message
+                      : "Failed to authenticate";
                   setError(msg);
                 })
                 .finally(() => setIsSubmitting(false));

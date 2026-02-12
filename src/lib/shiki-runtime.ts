@@ -44,7 +44,8 @@ export const bundledThemes = {
   laserwave: () => import("@shikijs/themes/laserwave"),
   "light-plus": () => import("@shikijs/themes/light-plus"),
   "material-theme": () => import("@shikijs/themes/material-theme"),
-  "material-theme-darker": () => import("@shikijs/themes/material-theme-darker"),
+  "material-theme-darker": () =>
+    import("@shikijs/themes/material-theme-darker"),
   "material-theme-lighter": () =>
     import("@shikijs/themes/material-theme-lighter"),
   "material-theme-ocean": () => import("@shikijs/themes/material-theme-ocean"),

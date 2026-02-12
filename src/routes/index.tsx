@@ -1,6 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   FolderGit,
@@ -8,8 +7,7 @@ import {
   Loader2,
   Settings2,
 } from "lucide-react";
-import { fetchBitbucketRepoPullRequests } from "@/lib/bitbucket-api";
-import { usePrContext } from "@/lib/pr-context";
+import { useMemo, useState } from "react";
 import { RepositorySelector } from "@/components/repository-selector";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +16,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { fetchBitbucketRepoPullRequests } from "@/lib/bitbucket-api";
+import { usePrContext } from "@/lib/pr-context";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,

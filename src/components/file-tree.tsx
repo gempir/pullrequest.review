@@ -1,9 +1,4 @@
 import {
-  useFileTree,
-  type FileNode,
-  type ChangeKind,
-} from "@/lib/file-tree-context";
-import {
   Check,
   ChevronDown,
   ChevronRight,
@@ -11,6 +6,11 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { FileIcon } from "react-files-icons";
+import {
+  type ChangeKind,
+  type FileNode,
+  useFileTree,
+} from "@/lib/file-tree-context";
 import { cn } from "@/lib/utils";
 
 interface FileTreeProps {

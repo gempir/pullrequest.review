@@ -1,4 +1,6 @@
 /// <reference types="vite/client" />
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createRootRoute,
   HeadContent,
@@ -7,17 +9,16 @@ import {
   Scripts,
   useRouterState,
 } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { PrProvider, usePrContext } from "@/lib/pr-context";
-import { DiffOptionsProvider } from "@/lib/diff-options-context";
-import { FileTreeProvider } from "@/lib/file-tree-context";
-import { ShortcutsProvider } from "@/lib/shortcuts-context";
-import { AppearanceProvider } from "@/lib/appearance-context";
+import { ExternalLink, GitPullRequest } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AppearanceProvider } from "@/lib/appearance-context";
 import { loginWithApiCredentials } from "@/lib/bitbucket-oauth";
-import { ExternalLink, GitPullRequest } from "lucide-react";
+import { DiffOptionsProvider } from "@/lib/diff-options-context";
+import { FileTreeProvider } from "@/lib/file-tree-context";
+import { PrProvider, usePrContext } from "@/lib/pr-context";
+import { ShortcutsProvider } from "@/lib/shortcuts-context";
 
 import "../../styles.css";
 

@@ -1,15 +1,15 @@
+import type { BaseDiffOptions } from "@pierre/diffs";
 import {
   createContext,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
-  type ReactNode,
 } from "react";
-import type { BaseDiffOptions } from "@pierre/diffs";
-import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
 import { registerExtendedDiffThemes } from "@/lib/diff-theme-registration";
+import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue } from "@/lib/font-options";
 
 export interface DiffOptions {

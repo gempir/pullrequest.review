@@ -1,14 +1,16 @@
-import { useState } from "react";
 import {
-  Settings,
-  Keyboard,
-  SlidersHorizontal,
-  RotateCcw,
-  MonitorCog,
-  LogOut,
-  Palette,
   FolderOpen,
+  Keyboard,
+  LogOut,
+  MonitorCog,
+  Palette,
+  RotateCcw,
+  Settings,
+  SlidersHorizontal,
 } from "lucide-react";
+import { useState } from "react";
+import { DiffToolbar } from "@/components/diff-toolbar";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -16,11 +18,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { DiffToolbar } from "@/components/diff-toolbar";
-import { useShortcuts, type ShortcutConfig } from "@/lib/shortcuts-context";
-import { useAppearance, type AppThemeMode } from "@/lib/appearance-context";
-import { FONT_FAMILY_OPTIONS, type FontFamilyValue } from "@/lib/font-options";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -28,10 +27,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { type AppThemeMode, useAppearance } from "@/lib/appearance-context";
 import { useFileTree } from "@/lib/file-tree-context";
+import { FONT_FAMILY_OPTIONS, type FontFamilyValue } from "@/lib/font-options";
+import { type ShortcutConfig, useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
 type WorkspaceMode = "single" | "all";

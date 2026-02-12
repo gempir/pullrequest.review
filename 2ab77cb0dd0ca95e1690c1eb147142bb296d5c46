@@ -1,0 +1,35 @@
+src/routes/$workspace/$repo/pull-requests/$pullRequestId.tsx
+  a49c052dd1c39b5c 31,284,1051-1052,1055,1068-1074,1076,1082,1092-1097,1101,1103-1114,1116,1118-1119,1121-1122,1127-1129,1139-1140,1145-1146,1152,1479,1486,1488-1490,1492-1495,1677-1686,1688
+src/lib/appearance-context.tsx
+  a49c052dd1c39b5c 23,34,47,91-93,150-153,163,214-215,240,251
+styles.css
+  a49c052dd1c39b5c 109,222-228
+src/components/settings-menu.tsx
+  a49c052dd1c39b5c 35-36,185-191,194-202,207-210,216,233,238,347-376,620,622-623,625
+src/lib/font-options.ts
+  a49c052dd1c39b5c 115-127
+src/components/comment-editor.tsx
+  a49c052dd1c39b5c 1-188
+src/components/ui/button.tsx
+  a49c052dd1c39b5c 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "2ab77cb0dd0ca95e1690c1eb147142bb296d5c46",
+  "prompts": {
+    "a49c052dd1c39b5c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0249bc6d-ef78-4293-a488-cdfd4fc373bb",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 514,
+      "total_deletions": 249,
+      "accepted_lines": 362,
+      "overriden_lines": 0
+    }
+  }
+}

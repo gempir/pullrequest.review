@@ -1,0 +1,23 @@
+package.json
+  fea0b9e220ede446 13-14,16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "869c3e1a6feb5d4a8b64e2a177c30d650f7d8e47",
+  "prompts": {
+    "fea0b9e220ede446": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "74c2ab7f-1168-481c-815a-7dc06510442b",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 25,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

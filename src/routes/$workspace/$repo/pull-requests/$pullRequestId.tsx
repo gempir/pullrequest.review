@@ -10,6 +10,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   Check,
+  Copy,
   FileText,
   FolderMinus,
   FolderPlus,
@@ -292,9 +293,11 @@ function PullRequestReviewPage() {
   const [mergeMessage, setMergeMessage] = useState("");
   const [mergeStrategy, setMergeStrategy] = useState("merge_commit");
   const [closeSourceBranch, setCloseSourceBranch] = useState(true);
+  const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [treeWidth, setTreeWidth] = useState(DEFAULT_TREE_WIDTH);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [dirStateHydrated, setDirStateHydrated] = useState(false);
+  const copyResetTimeoutRef = useRef<number | null>(null);
   const prQueryKey = useMemo(
     () =>
       [
@@ -363,6 +366,14 @@ function PullRequestReviewPage() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(VIEW_MODE_KEY, viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyResetTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!viewedStorageKey || typeof window === "undefined") return;
@@ -996,6 +1007,26 @@ function PullRequestReviewPage() {
     });
   }, [createCommentMutation, getInlineDraftContent, inlineComment]);
 
+  const handleCopyPath = useCallback(async (path: string) => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) {
+      setActionError("Clipboard is not available");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(path);
+      setActionError(null);
+      setCopiedPath(path);
+      if (copyResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyResetTimeoutRef.current);
+      }
+      copyResetTimeoutRef.current = window.setTimeout(() => {
+        setCopiedPath((current) => (current === path ? null : current));
+      }, 1400);
+    } catch {
+      setActionError("Failed to copy file path");
+    }
+  }, []);
+
   const handleDiffLineEnter = useCallback(
     (props: OnDiffLineEnterLeaveProps) => {
       props.lineElement.style.cursor = "copy";
@@ -1391,6 +1422,20 @@ function PullRequestReviewPage() {
                   <span className="font-mono text-[12px] truncate">
                     {selectedFilePath}
                   </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 shrink-0"
+                    onClick={() => handleCopyPath(selectedFilePath)}
+                    aria-label="Copy file path"
+                  >
+                    {copiedPath === selectedFilePath ? (
+                      <Check className="size-3.5" />
+                    ) : (
+                      <Copy className="size-3.5" />
+                    )}
+                  </Button>
                   <button
                     type="button"
                     className="ml-auto flex items-center gap-2 text-[12px] text-muted-foreground"
@@ -1616,6 +1661,20 @@ function PullRequestReviewPage() {
                     <div className="border-b border-border px-3 py-2 flex items-center gap-3 text-[12px]">
                       <FileText className="size-4 text-muted-foreground" />
                       <span className="font-mono truncate">{filePath}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 shrink-0"
+                        onClick={() => handleCopyPath(filePath)}
+                        aria-label="Copy file path"
+                      >
+                        {copiedPath === filePath ? (
+                          <Check className="size-3.5" />
+                        ) : (
+                          <Copy className="size-3.5" />
+                        )}
+                      </Button>
                       {fileUnresolvedCount > 0 && (
                         <span className="ml-auto text-muted-foreground">
                           {fileUnresolvedCount} unresolved

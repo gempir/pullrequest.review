@@ -301,7 +301,7 @@ function PullRequestReviewPage() {
     queryKey: prQueryKey,
     queryFn: () =>
       fetchBitbucketPullRequestBundleByRef({
-        data: { prRef: { workspace, repo, pullRequestId } },
+        prRef: { workspace, repo, pullRequestId },
       }),
     enabled: isAuthenticated,
   });
@@ -688,7 +688,7 @@ function PullRequestReviewPage() {
   const approveMutation = useMutation({
     mutationFn: () => {
       const prRef = ensurePrRef();
-      return approvePullRequest({ data: { prRef } });
+      return approvePullRequest({ prRef });
     },
     onSuccess: async () => {
       setActionError(null);
@@ -706,7 +706,7 @@ function PullRequestReviewPage() {
   const unapproveMutation = useMutation({
     mutationFn: () => {
       const prRef = ensurePrRef();
-      return unapprovePullRequest({ data: { prRef } });
+      return unapprovePullRequest({ prRef });
     },
     onSuccess: async () => {
       setActionError(null);
@@ -723,12 +723,10 @@ function PullRequestReviewPage() {
     mutationFn: () => {
       const prRef = ensurePrRef();
       return mergePullRequest({
-        data: {
-          prRef,
-          message: mergeMessage,
-          mergeStrategy,
-          closeSourceBranch,
-        },
+        prRef,
+        message: mergeMessage,
+        mergeStrategy,
+        closeSourceBranch,
       });
     },
     onSuccess: async () => {
@@ -752,17 +750,15 @@ function PullRequestReviewPage() {
     }) => {
       const prRef = ensurePrRef();
       return createPullRequestComment({
-        data: {
-          prRef,
-          content: payload.content,
-          inline: payload.line
-            ? {
-                path: payload.path,
-                to: payload.side === "deletions" ? undefined : payload.line,
-                from: payload.side === "deletions" ? payload.line : undefined,
-              }
-            : { path: payload.path },
-        },
+        prRef,
+        content: payload.content,
+        inline: payload.line
+          ? {
+              path: payload.path,
+              to: payload.side === "deletions" ? undefined : payload.line,
+              from: payload.side === "deletions" ? payload.line : undefined,
+            }
+          : { path: payload.path },
       });
     },
     onSuccess: async (_, vars) => {
@@ -793,11 +789,9 @@ function PullRequestReviewPage() {
     mutationFn: (payload: { commentId: number; resolve: boolean }) => {
       const prRef = ensurePrRef();
       return resolvePullRequestComment({
-        data: {
-          prRef,
-          commentId: payload.commentId,
-          resolve: payload.resolve,
-        },
+        prRef,
+        commentId: payload.commentId,
+        resolve: payload.resolve,
       });
     },
     onSuccess: async () => {

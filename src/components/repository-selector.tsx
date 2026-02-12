@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { createServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, FolderGit, Loader2, Search } from "lucide-react";
 import type { BitbucketRepo } from "@/lib/bitbucket-api";
+import { requireBitbucketBasicAuthHeader } from "@/lib/bitbucket-auth-cookie";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -18,38 +18,30 @@ interface BitbucketRepoPage {
   next?: string;
 }
 
-const fetchBitbucketRepos = createServerFn({
-  method: "GET",
-})
-  .inputValidator((data: Record<string, never>) => data)
-  .handler(async () => {
-    const { requireBitbucketBasicAuthHeader } = await import(
-      "@/lib/bitbucket-auth-cookie"
-    );
-    const authHeader = requireBitbucketBasicAuthHeader();
+async function fetchBitbucketRepos() {
+  const authHeader = requireBitbucketBasicAuthHeader();
+  const headers = {
+    Authorization: authHeader,
+    Accept: "application/json",
+  };
+  const values: BitbucketRepoEntry[] = [];
+  let nextUrl: string | undefined =
+    "https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100";
 
-    const headers = {
-      Authorization: authHeader,
-      Accept: "application/json",
-    };
-    const values: BitbucketRepoEntry[] = [];
-    let nextUrl: string | undefined =
-      "https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100";
-
-    while (nextUrl) {
-      const res = await fetch(nextUrl, { headers });
-      if (!res.ok) {
-        throw new Error(
-          `Failed to fetch repositories: ${res.status} ${res.statusText}`,
-        );
-      }
-      const page = (await res.json()) as BitbucketRepoPage;
-      values.push(...(page.values ?? []));
-      nextUrl = page.next;
+  while (nextUrl) {
+    const res = await fetch(nextUrl, { headers });
+    if (!res.ok) {
+      throw new Error(
+        `Failed to fetch repositories: ${res.status} ${res.statusText}`,
+      );
     }
+    const page = (await res.json()) as BitbucketRepoPage;
+    values.push(...(page.values ?? []));
+    nextUrl = page.next;
+  }
 
-    return values;
-  });
+  return values;
+}
 
 function toFullName(repo: BitbucketRepoEntry) {
   const fallbackName = `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
@@ -93,7 +85,7 @@ export function RepositorySelector({
 
   const reposQuery = useQuery({
     queryKey: ["bitbucket-repositories"],
-    queryFn: () => fetchBitbucketRepos({ data: {} }),
+    queryFn: () => fetchBitbucketRepos(),
   });
 
   const entries = reposQuery.data ?? [];

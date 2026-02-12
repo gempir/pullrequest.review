@@ -31,7 +31,7 @@ function LandingPage() {
 
   const repoPrsQuery = useQuery({
     queryKey: ["bitbucket-repo-prs", repos, isAuthenticated],
-    queryFn: () => fetchBitbucketRepoPullRequests({ data: { repos } }),
+    queryFn: () => fetchBitbucketRepoPullRequests({ repos }),
     enabled: isAuthenticated && repos.length > 0,
   });
 

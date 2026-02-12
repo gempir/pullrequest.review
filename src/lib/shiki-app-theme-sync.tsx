@@ -153,11 +153,7 @@ function buildPalette(theme: ShikiThemeLike) {
     darkBackground ? 0.45 : 0.5,
   );
   const accent = mixColors(selection, background, darkBackground ? 0.45 : 0.3);
-  const border = mixColors(
-    background,
-    foreground,
-    darkBackground ? 0.2 : 0.22,
-  );
+  const border = mixColors(background, foreground, darkBackground ? 0.2 : 0.22);
   const ring = mixColors(selection, foreground, 0.25);
   const sidebar = mixColors(
     background,

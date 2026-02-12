@@ -635,16 +635,6 @@ function PullRequestReviewPage() {
     return (threadsByPath.get(selectedFilePath) ?? []).sort(commentThreadSort);
   }, [selectedFilePath, threadsByPath]);
 
-  const selectedInlineThreads = useMemo(
-    () =>
-      selectedThreads.filter(
-        (thread) =>
-          !thread.root.deleted &&
-          Boolean(getCommentInlinePosition(thread.root)),
-      ),
-    [selectedThreads],
-  );
-
   const selectedFileLevelThreads = useMemo(
     () =>
       selectedThreads.filter(
@@ -1052,7 +1042,12 @@ function PullRequestReviewPage() {
     (path: string, props: OnDiffLineClickProps) => {
       setInlineComment((prev) => {
         const side = props.annotationSide ?? "additions";
-        if (prev && prev.path === path && prev.line === props.lineNumber && prev.side === side) {
+        if (
+          prev &&
+          prev.path === path &&
+          prev.line === props.lineNumber &&
+          prev.side === side
+        ) {
           return prev;
         }
         if (prev && getInlineDraftContent(prev).trim().length > 0) {
@@ -1092,7 +1087,9 @@ function PullRequestReviewPage() {
   const buildFileAnnotations = useCallback(
     (filePath: string) => {
       const fileThreads = (threadsByPath.get(filePath) ?? []).filter(
-        (thread) => !thread.root.deleted && Boolean(getCommentInlinePosition(thread.root)),
+        (thread) =>
+          !thread.root.deleted &&
+          Boolean(getCommentInlinePosition(thread.root)),
       );
       const annotations: Array<{
         side: CommentLineSide;
@@ -1490,7 +1487,10 @@ function PullRequestReviewPage() {
                                   inlineDraftFocusRef.current = focus;
                                 }}
                                 onChange={(nextValue) =>
-                                  setInlineDraftContent(metadata.draft, nextValue)
+                                  setInlineDraftContent(
+                                    metadata.draft,
+                                    nextValue,
+                                  )
                                 }
                                 onSubmit={submitInlineComment}
                               />

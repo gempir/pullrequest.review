@@ -14,8 +14,8 @@
     "serve": "vite preview",
     "cf-typegen": "wrangler types",
     "deploy": "bun run deploy:prod",
-    "deploy:prod": "CLOUDFLARE_ENV=prod bun run build:prod && CLOUDFLARE_ENV=prod wrangler deploy --env prod",
-    "deploy:preview": "CLOUDFLARE_ENV=preview bun run build:preview && CLOUDFLARE_ENV=preview wrangler deploy --env preview",
+    "deploy:prod": "CLOUDFLARE_ENV=prod bun run build:prod && CLOUDFLARE_ENV=prod wrangler deploy --config wrangler.jsonc --env prod",
+    "deploy:preview": "CLOUDFLARE_ENV=preview bun run build:preview && CLOUDFLARE_ENV=preview wrangler deploy --config wrangler.jsonc --env preview",
     "wrangler": "wrangler"
   },
   "dependencies": {

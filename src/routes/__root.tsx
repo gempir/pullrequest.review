@@ -7,15 +7,16 @@ import {
   Scripts,
   useRouterState,
 } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
 import { Button } from "@/components/ui/button";
-import { buildAuthorizeUrl } from "@/lib/bitbucket-oauth";
-import { GitPullRequest } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { loginWithApiCredentials } from "@/lib/bitbucket-oauth";
+import { ExternalLink, GitPullRequest } from "lucide-react";
 
 import "../../styles.css";
 
@@ -71,9 +72,19 @@ function RootComponent() {
 }
 
 function OnboardingScreen() {
-  const clientId = import.meta.env.VITE_BITBUCKET_CLIENT_ID as
-    | string
-    | undefined;
+  const { setAuthenticated } = usePrContext();
+  const [email, setEmail] = useState("");
+  const [apiToken, setApiToken] = useState("");
+  const [copiedScopes, setCopiedScopes] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requiredScopes = [
+    "read:repository:bitbucket",
+    "read:user:bitbucket",
+    "read:pullrequest:bitbucket",
+    "write:pullrequest:bitbucket",
+  ];
+  const requiredScopesText = requiredScopes.join(", ");
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -85,36 +96,96 @@ function OnboardingScreen() {
 
         <div className="p-4 space-y-4">
           <p className="text-[13px] text-muted-foreground">
-            Connect your Bitbucket Cloud account to continue.
+            Use your Bitbucket email and API token to continue.
           </p>
 
           <Button
-            onClick={() => {
-              if (!clientId) return;
-              const state = crypto
-                .getRandomValues(new Uint32Array(4))
-                .join("-");
-              const redirectUri = `${window.location.origin}/oauth/callback`;
-              window.localStorage.setItem("bitbucket_oauth_state", state);
-              const url = buildAuthorizeUrl({
-                clientId,
-                redirectUri,
-                state,
-                scope: "repository pullrequest",
-              });
-              window.location.assign(url);
-            }}
-            className="w-full"
-            disabled={!clientId}
+            className="w-full text-white bg-[#0146b3] border-[#0146b3] hover:bg-[#0052cc] hover:border-[#0052cc] cursor-pointer"
+            onClick={() =>
+              window.open(
+                "https://id.atlassian.com/manage-profile/security/api-tokens",
+                "_blank",
+                "noopener,noreferrer",
+              )
+            }
           >
-            Connect with Bitbucket
+            <ExternalLink className="size-3.5" />
+            Create Atlassian Bitbucket Scoped API Token
           </Button>
 
-          {!clientId && (
+          <div className="border border-border bg-background p-3 text-[12px] space-y-2">
+            <div className="text-muted-foreground">Required scopes</div>
+            <div className="leading-relaxed break-words">{requiredScopesText}</div>
+            <div className="text-[11px] text-muted-foreground">
+              Hint: You can paste these into "Search by scope name".
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => {
+                void navigator.clipboard.writeText(requiredScopesText);
+                setCopiedScopes(true);
+                window.setTimeout(() => {
+                  setCopiedScopes(false);
+                }, 1200);
+              }}
+            >
+              {copiedScopes ? "Copied" : "Copy scopes"}
+            </Button>
+          </div>
+
+          <form
+            className="space-y-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setIsSubmitting(true);
+              setError(null);
+              loginWithApiCredentials({ data: { email, apiToken } })
+                .then(() => {
+                  setAuthenticated(true);
+                })
+                .catch((err) => {
+                  const msg =
+                    err instanceof Error ? err.message : "Failed to authenticate";
+                  setError(msg);
+                })
+                .finally(() => setIsSubmitting(false));
+            }}
+          >
+            <Input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="Bitbucket account email"
+              autoComplete="email"
+            />
+            <Input
+              type="password"
+              value={apiToken}
+              onChange={(event) => setApiToken(event.target.value)}
+              placeholder="Bitbucket API token"
+              autoComplete="current-password"
+            />
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isSubmitting || !email.trim() || !apiToken.trim()}
+            >
+              Authenticate
+            </Button>
+          </form>
+
+          {error && (
             <div className="border border-destructive bg-destructive/10 p-3 text-destructive text-[12px]">
-              [CONFIG ERROR] Missing VITE_BITBUCKET_CLIENT_ID in environment
+              [AUTH ERROR] {error}
             </div>
           )}
+
+          <p className="text-[11px] text-muted-foreground">
+            The token is stored in a secure HttpOnly cookie.
+          </p>
         </div>
       </div>
     </div>
@@ -122,7 +193,7 @@ function OnboardingScreen() {
 }
 
 function AppLayout() {
-  const { auth } = usePrContext();
+  const { authHydrated, isAuthenticated } = usePrContext();
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -131,7 +202,11 @@ function AppLayout() {
     return <Outlet />;
   }
 
-  if (!auth?.accessToken) {
+  if (!authHydrated) {
+    return null;
+  }
+
+  if (!isAuthenticated) {
     return <OnboardingScreen />;
   }
 

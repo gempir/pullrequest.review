@@ -26,13 +26,13 @@ export const Route = createFileRoute("/")({
 function LandingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { auth, repos, setRepos } = usePrContext();
+  const { isAuthenticated, repos, setRepos } = usePrContext();
   const [manageReposOpen, setManageReposOpen] = useState(false);
 
   const repoPrsQuery = useQuery({
-    queryKey: ["bitbucket-repo-prs", repos, auth?.accessToken],
-    queryFn: () => fetchBitbucketRepoPullRequests({ data: { repos, auth } }),
-    enabled: Boolean(auth?.accessToken) && repos.length > 0,
+    queryKey: ["bitbucket-repo-prs", repos, isAuthenticated],
+    queryFn: () => fetchBitbucketRepoPullRequests({ data: { repos } }),
+    enabled: isAuthenticated && repos.length > 0,
   });
 
   const groupedPullRequests = useMemo(() => {
@@ -161,7 +161,6 @@ function LandingPage() {
 
           <div className="p-4 overflow-auto">
             <RepositorySelector
-              accessToken={auth?.accessToken}
               initialSelected={repos}
               saveLabel="Save Selection"
               onCancel={() => setManageReposOpen(false)}

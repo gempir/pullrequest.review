@@ -263,16 +263,15 @@ function collectDirectoryPaths(nodes: FileNode[]) {
   return paths;
 }
 
-export const Route = createFileRoute(
-  "/$workspace/$repo/pull-requests/$pullRequestId",
-)({
+export const Route = createFileRoute("/$workspace/$repo/pull/$pullRequestId")({
   component: PullRequestReviewPage,
 });
 
 function PullRequestReviewPage() {
   const navigate = useNavigate();
   const { workspace, repo, pullRequestId } = Route.useParams();
-  const { clearAllRepos, isAuthenticated, logout } = usePrContext();
+  const { clearAllRepos, authByHost, logout } = usePrContext();
+  const isGithubAuthenticated = authByHost.github;
   const { options } = useDiffOptions();
   const diffTypographyStyle = useMemo(
     () =>
@@ -325,7 +324,7 @@ function PullRequestReviewPage() {
   const [dirStateHydrated, setDirStateHydrated] = useState(false);
   const copyResetTimeoutRef = useRef<number | null>(null);
   const prQueryKey = useMemo(
-    () => ["pr-bundle", "bitbucket", workspace, repo, pullRequestId] as const,
+    () => ["pr-bundle", "github", workspace, repo, pullRequestId] as const,
     [pullRequestId, repo, workspace],
   );
 
@@ -334,13 +333,13 @@ function PullRequestReviewPage() {
     queryFn: () =>
       fetchPullRequestBundleByRef({
         prRef: {
-          host: "bitbucket",
+          host: "github",
           workspace,
           repo,
           pullRequestId,
         },
       }),
-    enabled: isAuthenticated,
+    enabled: true,
   });
 
   const prData = prQuery.data;
@@ -696,10 +695,7 @@ function PullRequestReviewPage() {
     () => linesUpdated(prData?.diffstat ?? []),
     [prData?.diffstat],
   );
-  const hostCapabilities = useMemo(
-    () => getCapabilitiesForHost("bitbucket"),
-    [],
-  );
+  const hostCapabilities = useMemo(() => getCapabilitiesForHost("github"), []);
   useEffect(() => {
     if (!prData) return;
     if (prData.prRef.host === "github") {
@@ -781,13 +777,20 @@ function PullRequestReviewPage() {
   });
 
   const handleApprovePullRequest = useCallback(() => {
+    if (!isGithubAuthenticated) return;
     if (isApproved) return;
     if (approveMutation.isPending || requestChangesMutation.isPending) return;
     if (!window.confirm("Approve this pull request?")) return;
     approveMutation.mutate();
-  }, [approveMutation, isApproved, requestChangesMutation]);
+  }, [
+    approveMutation,
+    isApproved,
+    isGithubAuthenticated,
+    requestChangesMutation,
+  ]);
 
   const handleRequestChangesPullRequest = useCallback(() => {
+    if (!isGithubAuthenticated) return;
     if (!hostCapabilities.requestChangesAvailable) return;
     if (prData?.prRef.host === "bitbucket" && !isApproved) return;
     if (approveMutation.isPending || requestChangesMutation.isPending) return;
@@ -797,6 +800,7 @@ function PullRequestReviewPage() {
     approveMutation,
     hostCapabilities.requestChangesAvailable,
     isApproved,
+    isGithubAuthenticated,
     prData?.prRef.host,
     requestChangesMutation,
   ]);
@@ -1071,6 +1075,10 @@ function PullRequestReviewPage() {
   }, [directoryPaths, setDirectoryExpandedMap]);
 
   const submitInlineComment = useCallback(() => {
+    if (!isGithubAuthenticated) {
+      setActionError("GitHub token required to create comments");
+      return;
+    }
     if (!inlineComment) return;
     const content = getInlineDraftContent(inlineComment).trim();
     if (!content) return;
@@ -1080,7 +1088,12 @@ function PullRequestReviewPage() {
       line: inlineComment.line,
       side: inlineComment.side,
     });
-  }, [createCommentMutation, getInlineDraftContent, inlineComment]);
+  }, [
+    createCommentMutation,
+    getInlineDraftContent,
+    inlineComment,
+    isGithubAuthenticated,
+  ]);
 
   const handleCopyPath = useCallback(async (path: string) => {
     if (typeof navigator === "undefined" || !navigator.clipboard) {
@@ -1445,6 +1458,7 @@ function PullRequestReviewPage() {
               size="sm"
               className="h-8"
               disabled={
+                !isGithubAuthenticated ||
                 isApproved ||
                 approveMutation.isPending ||
                 requestChangesMutation.isPending
@@ -1458,6 +1472,7 @@ function PullRequestReviewPage() {
               size="sm"
               className="h-8"
               disabled={
+                !isGithubAuthenticated ||
                 !hostCapabilities.requestChangesAvailable ||
                 (prData.prRef.host === "bitbucket" && !isApproved) ||
                 approveMutation.isPending ||
@@ -1471,6 +1486,7 @@ function PullRequestReviewPage() {
               variant="outline"
               size="sm"
               className="h-8"
+              disabled={!isGithubAuthenticated}
               onClick={() => setMergeOpen(true)}
             >
               Merge
@@ -1567,7 +1583,10 @@ function PullRequestReviewPage() {
                                 )}
                                 value={getInlineDraftContent(metadata.draft)}
                                 placeholder="Add a line comment"
-                                disabled={createCommentMutation.isPending}
+                                disabled={
+                                  createCommentMutation.isPending ||
+                                  !isGithubAuthenticated
+                                }
                                 onReady={(focus) => {
                                   inlineDraftFocusRef.current = focus;
                                 }}
@@ -1583,7 +1602,10 @@ function PullRequestReviewPage() {
                                 <Button
                                   size="sm"
                                   className="h-7"
-                                  disabled={createCommentMutation.isPending}
+                                  disabled={
+                                    createCommentMutation.isPending ||
+                                    !isGithubAuthenticated
+                                  }
                                   onClick={submitInlineComment}
                                 >
                                   Comment
@@ -1849,7 +1871,7 @@ function PullRequestReviewPage() {
                 Cancel
               </Button>
               <Button
-                disabled={mergeMutation.isPending}
+                disabled={mergeMutation.isPending || !isGithubAuthenticated}
                 onClick={() => mergeMutation.mutate()}
               >
                 {mergeMutation.isPending && (

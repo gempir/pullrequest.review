@@ -6,6 +6,9 @@
     "directory": "./dist/client",
     "not_found_handling": "single-page-application"
   },
+  "vars": {
+    "SKIP_DEPENDENCY_INSTALL": "1"
+  },
   "routes": [
     {
       "pattern": "pullrequest.review",

@@ -1,0 +1,27 @@
+src/lib/appearance-context.tsx
+  a49c052dd1c39b5c 45
+src/lib/font-options.ts
+  a49c052dd1c39b5c 2,4-9,24-28,35-69
+styles.css
+  a49c052dd1c39b5c 9-32,94-98,109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "8e5f52641c2140a62040f75caa0108f324ddf481",
+  "prompts": {
+    "a49c052dd1c39b5c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0249bc6d-ef78-4293-a488-cdfd4fc373bb",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 83,
+      "total_deletions": 4,
+      "accepted_lines": 80,
+      "overriden_lines": 0
+    }
+  }
+}

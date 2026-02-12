@@ -1,0 +1,25 @@
+wrangler.jsonc
+  fea0b9e220ede446 9-11
+.github/workflows/ci.yml
+  fea0b9e220ede446 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "e600b6dd72f7c6525f770e238a93a018747dc498",
+  "prompts": {
+    "fea0b9e220ede446": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "74c2ab7f-1168-481c-815a-7dc06510442b",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 46,
+      "total_deletions": 0,
+      "accepted_lines": 43,
+      "overriden_lines": 0
+    }
+  }
+}

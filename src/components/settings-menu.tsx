@@ -18,8 +18,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumberStepperInput } from "@/components/ui/number-stepper-input";
 import {
   Select,
   SelectContent,
@@ -87,7 +87,7 @@ function ShortcutRow({
   };
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-border last:border-0 gap-3">
+    <div className="flex items-center justify-between px-3 py-3 border-b border-border last:border-0 gap-3">
       <div className="flex flex-col">
         <span className="text-[13px]">{label}</span>
         <span className="text-[11px] text-muted-foreground">
@@ -101,7 +101,7 @@ function ShortcutRow({
           onKeyDown={handleKeyDown}
           onBlur={() => setIsRecording(false)}
           className={cn(
-            "h-8 px-3 text-[13px] border transition-colors min-w-[100px] text-center",
+            "h-9 px-3 text-[13px] border transition-colors min-w-[100px] text-center",
             isRecording
               ? "border-ring bg-accent text-accent-foreground"
               : "border-input bg-background hover:border-ring",
@@ -266,7 +266,7 @@ function AppearanceTab() {
             value={appThemeMode}
             onValueChange={(value) => setAppThemeMode(value as AppThemeMode)}
           >
-            <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+            <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -318,7 +318,7 @@ function AppearanceTab() {
                 setPageFontFamily(value as FontFamilyValue)
               }
             >
-              <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+              <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="max-h-60">
@@ -338,29 +338,24 @@ function AppearanceTab() {
             <Label className="text-[12px] text-muted-foreground">
               Font Size
             </Label>
-            <Input
-              type="number"
+            <NumberStepperInput
               value={pageFontSize}
               min={11}
               max={20}
-              onChange={(event) => setPageFontSize(Number(event.target.value))}
-              className="h-8 text-[12px]"
+              step={1}
+              onValueChange={setPageFontSize}
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[12px] text-muted-foreground">
               Line Height
             </Label>
-            <Input
-              type="number"
+            <NumberStepperInput
               value={pageLineHeight}
               min={1}
               max={2.2}
               step={0.05}
-              onChange={(event) =>
-                setPageLineHeight(Number(event.target.value))
-              }
-              className="h-8 text-[12px]"
+              onValueChange={setPageLineHeight}
             />
           </div>
         </div>
@@ -378,7 +373,7 @@ function AppearanceTab() {
               setCommentFontFamily(value as FontFamilyValue)
             }
           >
-            <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+            <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-60">
@@ -408,8 +403,12 @@ function TreeTab() {
     treeFontSize,
     treeLineHeight,
   } = useAppearance();
-  const { compactSingleChildDirectories, setCompactSingleChildDirectories } =
-    useFileTree();
+  const {
+    compactSingleChildDirectories,
+    setCompactSingleChildDirectories,
+    treeIndentSize,
+    setTreeIndentSize,
+  } = useFileTree();
 
   return (
     <div className="space-y-5">
@@ -440,6 +439,18 @@ function TreeTab() {
             size="sm"
           />
         </div>
+        <div className="max-w-56 space-y-1">
+          <Label className="text-[12px] text-muted-foreground">
+            Indentation Size
+          </Label>
+          <NumberStepperInput
+            value={treeIndentSize}
+            min={8}
+            max={24}
+            step={1}
+            onValueChange={setTreeIndentSize}
+          />
+        </div>
       </div>
       <div className="border border-border bg-card p-4 space-y-4">
         <div>
@@ -456,7 +467,7 @@ function TreeTab() {
                 setTreeFontFamily(value as FontFamilyValue)
               }
             >
-              <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+              <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="max-h-60">
@@ -476,29 +487,24 @@ function TreeTab() {
             <Label className="text-[12px] text-muted-foreground">
               Font Size
             </Label>
-            <Input
-              type="number"
+            <NumberStepperInput
               value={treeFontSize}
               min={10}
               max={18}
-              onChange={(event) => setTreeFontSize(Number(event.target.value))}
-              className="h-8 text-[12px]"
+              step={1}
+              onValueChange={setTreeFontSize}
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[12px] text-muted-foreground">
               Line Height
             </Label>
-            <Input
-              type="number"
+            <NumberStepperInput
               value={treeLineHeight}
               min={1}
               max={2.2}
               step={0.05}
-              onChange={(event) =>
-                setTreeLineHeight(Number(event.target.value))
-              }
-              className="h-8 text-[12px]"
+              onValueChange={setTreeLineHeight}
             />
           </div>
         </div>

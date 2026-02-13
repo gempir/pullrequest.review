@@ -27,6 +27,7 @@ export interface DiffOptions {
   lineDiffType: "word-alt" | "word" | "char" | "none";
   disableLineNumbers: boolean;
   overflow: "scroll" | "wrap";
+  collapseViewedFilesByDefault: boolean;
 }
 
 const STORAGE_KEY = "pr_review_diff_options";
@@ -46,6 +47,7 @@ const defaultOptions: DiffOptions = {
   lineDiffType: "word",
   disableLineNumbers: false,
   overflow: "scroll",
+  collapseViewedFilesByDefault: true,
 };
 
 interface DiffOptionsContextType {

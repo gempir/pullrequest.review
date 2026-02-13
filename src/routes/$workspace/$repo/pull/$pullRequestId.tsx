@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  ExternalLink,
   FolderMinus,
   FolderPlus,
   Loader2,
@@ -32,6 +33,7 @@ import {
 import { FileIcon } from "react-files-icons";
 import { CommentEditor } from "@/components/comment-editor";
 import { FileTree } from "@/components/file-tree";
+import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
 import { SettingsMenu } from "@/components/settings-menu";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,8 +69,12 @@ import {
   requestChangesOnPullRequest,
   resolvePullRequestComment,
 } from "@/lib/git-host/service";
-import type { Comment as PullRequestComment } from "@/lib/git-host/types";
+import {
+  HostApiError,
+  type Comment as PullRequestComment,
+} from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
+import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
@@ -274,7 +280,7 @@ export const Route = createFileRoute("/$workspace/$repo/pull/$pullRequestId")({
 function PullRequestReviewPage() {
   const navigate = useNavigate();
   const { workspace, repo, pullRequestId } = Route.useParams();
-  const { clearAllRepos, authByHost, logout } = usePrContext();
+  const { clearAllRepos, authByHost, login, logout } = usePrContext();
   const isGithubAuthenticated = authByHost.github;
   const { options } = useDiffOptions();
   const diffTypographyStyle = useMemo(
@@ -330,6 +336,9 @@ function PullRequestReviewPage() {
   const [treeWidth, setTreeWidth] = useState(DEFAULT_TREE_WIDTH);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [dirStateHydrated, setDirStateHydrated] = useState(false);
+  const [githubToken, setGithubToken] = useState("");
+  const [authPromptError, setAuthPromptError] = useState<string | null>(null);
+  const [authPromptSubmitting, setAuthPromptSubmitting] = useState(false);
   const autoMarkedViewedFilesRef = useRef<Set<string>>(new Set());
   const copyResetTimeoutRef = useRef<number | null>(null);
   const prQueryKey = useMemo(
@@ -352,6 +361,25 @@ function PullRequestReviewPage() {
   });
 
   const prData = prQuery.data;
+  const isPrQueryFetching = prQuery.isFetching;
+  const refetchPrQuery = prQuery.refetch;
+  const hasPendingBuildStatuses = useMemo(
+    () =>
+      prData?.buildStatuses?.some((status) => status.state === "pending") ??
+      false,
+    [prData?.buildStatuses],
+  );
+
+  useEffect(() => {
+    if (!hasPendingBuildStatuses) return;
+    const intervalId = window.setInterval(() => {
+      if (isPrQueryFetching) return;
+      void refetchPrQuery();
+    }, 10_000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [hasPendingBuildStatuses, isPrQueryFetching, refetchPrQuery]);
 
   const viewedStorageKey = useMemo(() => {
     if (!prData) return "";
@@ -519,7 +547,7 @@ function PullRequestReviewPage() {
   }, [filteredDiffs]);
 
   const visiblePathSet = useMemo(
-    () => new Set(visibleFilePaths),
+    () => new Set([PR_SUMMARY_PATH, ...visibleFilePaths]),
     [visibleFilePaths],
   );
   const viewedVisibleCount = useMemo(
@@ -570,6 +598,12 @@ function PullRequestReviewPage() {
       .filter((path): path is string => Boolean(path));
 
     const tree = buildTreeFromPaths(paths);
+    const summaryNode: FileNode = {
+      name: PR_SUMMARY_NAME,
+      path: PR_SUMMARY_PATH,
+      type: "summary",
+    };
+    const treeWithSummary = [summaryNode, ...tree];
     const fileKinds = new Map<string, ChangeKind>();
     for (const entry of prData.diffstat) {
       const path = entry.new?.path ?? entry.old?.path;
@@ -588,8 +622,8 @@ function PullRequestReviewPage() {
       }
     }
 
-    setTree(tree);
-    setKinds(buildKindMapForTree(tree, fileKinds));
+    setTree(treeWithSummary);
+    setKinds(buildKindMapForTree(treeWithSummary, fileKinds));
   }, [prData, setKinds, setTree]);
 
   useEffect(() => {
@@ -604,10 +638,16 @@ function PullRequestReviewPage() {
       return;
     }
 
-    if (!activeFile || !visiblePathSet.has(activeFile)) {
+    if (!activeFile) {
+      setActiveFile(PR_SUMMARY_PATH);
+      return;
+    }
+
+    if (!visiblePathSet.has(activeFile)) {
       const firstUnviewed =
-        treeOrderedVisiblePaths.find((path) => !viewedFiles.has(path)) ??
-        treeOrderedVisiblePaths[0];
+        treeOrderedVisiblePaths.find(
+          (path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path),
+        ) ?? treeOrderedVisiblePaths[0];
       setActiveFile(firstUnviewed);
     }
   }, [
@@ -621,6 +661,7 @@ function PullRequestReviewPage() {
   useEffect(() => {
     if (showUnviewedOnly) return;
     if (!activeFile || !visiblePathSet.has(activeFile)) return;
+    if (activeFile === PR_SUMMARY_PATH) return;
     if (autoMarkedViewedFilesRef.current.has(activeFile)) return;
     autoMarkedViewedFilesRef.current.add(activeFile);
     setViewedFiles((prev) => {
@@ -635,6 +676,7 @@ function PullRequestReviewPage() {
     (path: string) => {
       setActiveFile(path);
       if (viewMode === "all") {
+        if (path === PR_SUMMARY_PATH) return;
         setCollapsedAllModeFiles((prev) => ({ ...prev, [path]: false }));
         requestAnimationFrame(() => {
           const anchor = document.getElementById(fileAnchorId(path));
@@ -681,6 +723,7 @@ function PullRequestReviewPage() {
     if (!selectedFilePath) return undefined;
     return diffByPath.get(selectedFilePath);
   }, [diffByPath, selectedFilePath]);
+  const isSummarySelected = activeFile === PR_SUMMARY_PATH;
 
   const comments = prData?.comments ?? [];
   const threads = useMemo(() => buildThreads(comments), [comments]);
@@ -1349,6 +1392,17 @@ function PullRequestReviewPage() {
   }
 
   if (prQuery.error) {
+    const errorMessage =
+      prQuery.error instanceof Error
+        ? prQuery.error.message
+        : "Failed to load pull request";
+    const isRateLimited =
+      (prQuery.error instanceof HostApiError &&
+        (prQuery.error.status === 429 || prQuery.error.status === 403)) ||
+      errorMessage.includes("429") ||
+      errorMessage.includes("403");
+    const showGithubAuthPrompt = isRateLimited && !isGithubAuthenticated;
+
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="border border-destructive bg-destructive/10 p-6 max-w-lg">
@@ -1356,11 +1410,82 @@ function PullRequestReviewPage() {
             <AlertCircle className="size-5" />
             <span className="text-[13px] font-medium">[ERROR]</span>
           </div>
-          <p className="text-destructive text-[13px]">
-            {prQuery.error instanceof Error
-              ? prQuery.error.message
-              : "Failed to load pull request"}
-          </p>
+          <p className="text-destructive text-[13px]">{errorMessage}</p>
+          {isRateLimited ? (
+            <p className="mt-2 text-[12px] text-destructive">
+              GitHub is rate limiting requests because there are too many
+              unauthenticated requests from your network IP. Connect a GitHub
+              token to continue and retry.
+            </p>
+          ) : null}
+          {showGithubAuthPrompt ? (
+            <form
+              className="mt-4 space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setAuthPromptError(null);
+                setAuthPromptSubmitting(true);
+                login({ host: "github", token: githubToken })
+                  .then(async () => {
+                    setGithubToken("");
+                    await prQuery.refetch();
+                  })
+                  .catch((error) => {
+                    setAuthPromptError(
+                      error instanceof Error
+                        ? error.message
+                        : "Failed to authenticate GitHub",
+                    );
+                  })
+                  .finally(() => {
+                    setAuthPromptSubmitting(false);
+                  });
+              }}
+            >
+              <p className="text-[13px] text-destructive">
+                Use a GitHub fine-grained personal access token to continue.
+              </p>
+              <Button
+                type="button"
+                className="w-full"
+                variant="outline"
+                onClick={() =>
+                  window.open(
+                    "https://github.com/settings/personal-access-tokens/new",
+                    "_blank",
+                    "noopener,noreferrer",
+                  )
+                }
+              >
+                <ExternalLink className="size-3.5" />
+                Create GitHub Fine-Grained Token
+              </Button>
+              <Input
+                type="password"
+                value={githubToken}
+                onChange={(event) => setGithubToken(event.target.value)}
+                placeholder="GitHub fine-grained personal access token"
+                disabled={authPromptSubmitting}
+              />
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={authPromptSubmitting || !githubToken.trim()}
+              >
+                {authPromptSubmitting
+                  ? "Authenticating..."
+                  : "Authenticate and Retry"}
+              </Button>
+              {authPromptError ? (
+                <p className="text-[12px] text-destructive">
+                  [AUTH ERROR] {authPromptError}
+                </p>
+              ) : null}
+              <p className="text-[12px] text-muted-foreground">
+                Credentials are stored in browser local storage.
+              </p>
+            </form>
+          ) : null}
         </div>
       </div>
     );
@@ -1569,7 +1694,15 @@ function PullRequestReviewPage() {
         )}
 
         <ScrollArea className="flex-1 min-h-0" viewportRef={diffScrollRef}>
-          {viewMode === "single" ? (
+          {isSummarySelected && prData ? (
+            <PullRequestSummaryPanel
+              bundle={prData}
+              onRefreshBuildStatus={() => {
+                void refetchPrQuery();
+              }}
+              refreshingBuildStatus={isPrQueryFetching}
+            />
+          ) : viewMode === "single" ? (
             selectedFileDiff && selectedFilePath ? (
               <div
                 id={fileAnchorId(selectedFilePath)}

@@ -506,6 +506,7 @@ function mapHistory(
 export const bitbucketClient: GitHostClient = {
   host: "bitbucket",
   capabilities: {
+    publicReadSupported: false,
     supportsThreadResolution: true,
     requestChangesAvailable: true,
   },

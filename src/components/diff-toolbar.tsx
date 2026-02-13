@@ -1,5 +1,5 @@
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumberStepperInput } from "@/components/ui/number-stepper-input";
 import {
   Select,
   SelectContent,
@@ -40,7 +40,7 @@ function OptionSelect<K extends keyof DiffOptions>({
         onValueChange={(v) => setOption(optionKey, v as DiffOptions[K])}
       >
         <SelectTrigger
-          className="h-8 text-[12px] w-full min-w-[120px]"
+          className="h-9 text-[12px] w-full min-w-[120px]"
           size="sm"
         >
           <SelectValue />
@@ -106,14 +106,13 @@ function OptionNumber({
       <Label className="text-[12px] whitespace-nowrap text-muted-foreground">
         {label}
       </Label>
-      <Input
-        type="number"
+      <NumberStepperInput
         value={options[optionKey]}
-        onChange={(e) => setOption(optionKey, Number(e.target.value))}
+        onValueChange={(value) => setOption(optionKey, value)}
         min={min}
         max={max}
         step={step}
-        className="h-8 w-full text-[12px]"
+        className="w-full"
       />
     </div>
   );
@@ -133,7 +132,7 @@ export function DiffToolbar() {
             value={options.theme}
             onValueChange={(v) => setOption("theme", v as DiffTheme)}
           >
-            <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+            <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-80">
@@ -156,7 +155,7 @@ export function DiffToolbar() {
               setOption("diffFontFamily", v as FontFamilyValue)
             }
           >
-            <SelectTrigger className="h-8 text-[12px] w-full" size="sm">
+            <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-60">
@@ -231,6 +230,10 @@ export function DiffToolbar() {
         <OptionSwitch
           label="Hide Line Numbers"
           optionKey="disableLineNumbers"
+        />
+        <OptionSwitch
+          label="Fold Viewed Files By Default"
+          optionKey="collapseViewedFilesByDefault"
         />
       </div>
     </div>

@@ -10,8 +10,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   Check,
+  ChevronDown,
+  ChevronRight,
   Copy,
-  FileText,
   FolderMinus,
   FolderPlus,
   Loader2,
@@ -28,6 +29,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { FileIcon } from "react-files-icons";
 import { CommentEditor } from "@/components/comment-editor";
 import { FileTree } from "@/components/file-tree";
 import { SettingsMenu } from "@/components/settings-menu";
@@ -40,6 +42,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
@@ -67,6 +70,7 @@ import {
 import type { Comment as PullRequestComment } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
+import { cn } from "@/lib/utils";
 
 type ViewMode = "single" | "all";
 
@@ -304,12 +308,16 @@ function PullRequestReviewPage() {
   const queryClient = useQueryClient();
 
   const workspaceRef = useRef<HTMLDivElement | null>(null);
-  const diffScrollRef = useRef<HTMLElement | null>(null);
+  const diffScrollRef = useRef<HTMLDivElement | null>(null);
   const inlineDraftFocusRef = useRef<(() => void) | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("single");
+  const [viewModeHydrated, setViewModeHydrated] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showUnviewedOnly, setShowUnviewedOnly] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
+  const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<
+    Record<string, boolean>
+  >({});
   const [inlineComment, setInlineComment] = useState<InlineCommentDraft | null>(
     null,
   );
@@ -322,6 +330,7 @@ function PullRequestReviewPage() {
   const [treeWidth, setTreeWidth] = useState(DEFAULT_TREE_WIDTH);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [dirStateHydrated, setDirStateHydrated] = useState(false);
+  const autoMarkedViewedFilesRef = useRef<Set<string>>(new Set());
   const copyResetTimeoutRef = useRef<number | null>(null);
   const prQueryKey = useMemo(
     () => ["pr-bundle", "github", workspace, repo, pullRequestId] as const,
@@ -373,6 +382,7 @@ function PullRequestReviewPage() {
     if (storedMode === "single" || storedMode === "all") {
       setViewMode(storedMode);
     }
+    setViewModeHydrated(true);
   }, []);
 
   useEffect(() => {
@@ -386,9 +396,9 @@ function PullRequestReviewPage() {
   }, [treeCollapsed]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !viewModeHydrated) return;
     window.localStorage.setItem(VIEW_MODE_KEY, viewMode);
-  }, [viewMode]);
+  }, [viewMode, viewModeHydrated]);
 
   useEffect(() => {
     return () => {
@@ -400,6 +410,7 @@ function PullRequestReviewPage() {
 
   useEffect(() => {
     if (!viewedStorageKey || typeof window === "undefined") return;
+    autoMarkedViewedFilesRef.current = new Set();
     const legacyKey = `bitbucket_viewed:${workspace}/${repo}/${pullRequestId}`;
     try {
       const raw =
@@ -524,6 +535,33 @@ function PullRequestReviewPage() {
     if (treeFilePaths.length === 0) return [];
     return treeFilePaths.filter((path) => visiblePathSet.has(path));
   }, [treeFilePaths, visiblePathSet]);
+  const allModeDiffEntries = useMemo(() => {
+    const byPath = new Map<string, FileDiffMetadata>();
+    const ordered: Array<{ filePath: string; fileDiff: FileDiffMetadata }> = [];
+
+    filteredDiffs.forEach((fileDiff, index) => {
+      const path = getFilePath(fileDiff, index);
+      if (!byPath.has(path)) {
+        byPath.set(path, fileDiff);
+      }
+    });
+
+    for (const path of treeOrderedVisiblePaths) {
+      const fileDiff = byPath.get(path);
+      if (!fileDiff) continue;
+      ordered.push({ filePath: path, fileDiff });
+      byPath.delete(path);
+    }
+
+    filteredDiffs.forEach((fileDiff, index) => {
+      const path = getFilePath(fileDiff, index);
+      if (!byPath.has(path)) return;
+      ordered.push({ filePath: path, fileDiff });
+      byPath.delete(path);
+    });
+
+    return ordered;
+  }, [filteredDiffs, treeOrderedVisiblePaths]);
 
   useEffect(() => {
     if (!prData) return;
@@ -583,6 +621,8 @@ function PullRequestReviewPage() {
   useEffect(() => {
     if (showUnviewedOnly) return;
     if (!activeFile || !visiblePathSet.has(activeFile)) return;
+    if (autoMarkedViewedFilesRef.current.has(activeFile)) return;
+    autoMarkedViewedFilesRef.current.add(activeFile);
     setViewedFiles((prev) => {
       if (prev.has(activeFile)) return prev;
       const next = new Set(prev);
@@ -595,6 +635,7 @@ function PullRequestReviewPage() {
     (path: string) => {
       setActiveFile(path);
       if (viewMode === "all") {
+        setCollapsedAllModeFiles((prev) => ({ ...prev, [path]: false }));
         requestAnimationFrame(() => {
           const anchor = document.getElementById(fileAnchorId(path));
           anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -695,6 +736,18 @@ function PullRequestReviewPage() {
     () => linesUpdated(prData?.diffstat ?? []),
     [prData?.diffstat],
   );
+  const fileLineStats = useMemo(() => {
+    const map = new Map<string, { added: number; removed: number }>();
+    for (const entry of prData?.diffstat ?? []) {
+      const path = entry.new?.path ?? entry.old?.path;
+      if (!path) continue;
+      map.set(path, {
+        added: Number(entry.lines_added ?? 0),
+        removed: Number(entry.lines_removed ?? 0),
+      });
+    }
+    return map;
+  }, [prData?.diffstat]);
   const hostCapabilities = useMemo(() => getCapabilitiesForHost("github"), []);
   useEffect(() => {
     if (!prData) return;
@@ -1048,11 +1101,16 @@ function PullRequestReviewPage() {
 
   const toggleViewed = (path: string) => {
     setViewedFiles((prev) => {
+      const wasViewed = prev.has(path);
       const next = new Set(prev);
-      if (next.has(path)) {
+      if (wasViewed) {
         next.delete(path);
       } else {
         next.add(path);
+        setCollapsedAllModeFiles((collapsed) => ({
+          ...collapsed,
+          [path]: true,
+        }));
       }
       return next;
     });
@@ -1400,24 +1458,19 @@ function PullRequestReviewPage() {
                 <TooltipContent>Expand all directories</TooltipContent>
               </Tooltip>
             </div>
-            <div className="flex-1 overflow-auto py-2 tree-font-scope">
+            <ScrollArea
+              className="flex-1 min-h-0"
+              viewportClassName="tree-font-scope py-2"
+            >
               <FileTree
                 path=""
                 filterQuery={searchQuery}
                 allowedFiles={visiblePathSet}
                 viewedFiles={viewedFiles}
                 onToggleViewed={toggleViewed}
-                onFileClick={(node) => {
-                  const anchor = document.getElementById(
-                    fileAnchorId(node.path),
-                  );
-                  anchor?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
-                  });
-                }}
+                onFileClick={(node) => selectAndRevealFile(node.path)}
               />
-            </div>
+            </ScrollArea>
             <button
               type="button"
               className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-border/30"
@@ -1515,7 +1568,7 @@ function PullRequestReviewPage() {
           </div>
         )}
 
-        <main ref={diffScrollRef} className="flex-1 min-h-0 overflow-auto">
+        <ScrollArea className="flex-1 min-h-0" viewportRef={diffScrollRef}>
           {viewMode === "single" ? (
             selectedFileDiff && selectedFilePath ? (
               <div
@@ -1523,7 +1576,14 @@ function PullRequestReviewPage() {
                 className="h-full flex flex-col"
               >
                 <div className="h-10 border-b border-border px-3 flex items-center gap-3">
-                  <FileText className="size-4 text-muted-foreground" />
+                  <span className="size-4 flex items-center justify-center shrink-0">
+                    <FileIcon
+                      name={
+                        selectedFilePath.split("/").pop() || selectedFilePath
+                      }
+                      className="size-3.5"
+                    />
+                  </span>
                   <span className="font-mono text-[12px] truncate">
                     {selectedFilePath}
                   </span>
@@ -1541,6 +1601,12 @@ function PullRequestReviewPage() {
                       <Copy className="size-3.5" />
                     )}
                   </Button>
+                  <span className="text-[12px] text-status-added">
+                    +{fileLineStats.get(selectedFilePath)?.added ?? 0}
+                  </span>
+                  <span className="text-[12px] text-status-removed">
+                    -{fileLineStats.get(selectedFilePath)?.removed ?? 0}
+                  </span>
                   <button
                     type="button"
                     className="ml-auto flex items-center gap-2 text-[12px] text-muted-foreground"
@@ -1555,11 +1621,10 @@ function PullRequestReviewPage() {
                     >
                       <Check className="size-3" />
                     </span>
-                    Viewed
                   </button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-auto">
+                <div className="min-h-0 flex-1">
                   <FileDiff
                     fileDiff={selectedFileDiff}
                     options={singleFileDiffOptions}
@@ -1746,30 +1811,62 @@ function PullRequestReviewPage() {
               </div>
             )
           ) : (
-            <div className="space-y-1 p-1">
-              {filteredDiffs.map((fileDiff, index) => {
-                const filePath = getFilePath(fileDiff, index);
+            <div>
+              {allModeDiffEntries.map(({ fileDiff, filePath }, index) => {
                 const fileUnresolvedCount = (
                   threadsByPath.get(filePath) ?? []
                 ).filter(
                   (thread) => !thread.root.resolution && !thread.root.deleted,
                 ).length;
+                const fileStats = fileLineStats.get(filePath) ?? {
+                  added: 0,
+                  removed: 0,
+                };
+                const fileName = filePath.split("/").pop() || filePath;
+                const isCollapsed =
+                  collapsedAllModeFiles[filePath] ??
+                  (options.collapseViewedFilesByDefault &&
+                    viewedFiles.has(filePath));
 
                 return (
                   <div
                     key={filePath}
                     id={fileAnchorId(filePath)}
-                    className="border border-border bg-card"
+                    className="border border-l-0 border-t-0 border-border bg-card"
+                    style={index === 0 ? { borderTopWidth: 0 } : undefined}
                   >
-                    <div className="border-b border-border px-3 py-2 flex items-center gap-3 text-[12px]">
-                      <FileText className="size-4 text-muted-foreground" />
-                      <span className="font-mono truncate">{filePath}</span>
+                    <div
+                      className={cn(
+                        "group relative px-2 py-1 flex items-center gap-2 text-[12px]",
+                        !isCollapsed && "border-b border-border",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        onClick={() =>
+                          setCollapsedAllModeFiles((prev) => ({
+                            ...prev,
+                            [filePath]: !isCollapsed,
+                          }))
+                        }
+                      >
+                        <span className="size-4 flex items-center justify-center shrink-0">
+                          <FileIcon name={fileName} className="size-3.5" />
+                        </span>
+                        <span className="max-w-[42vw] font-mono truncate">
+                          {filePath}
+                        </span>
+                      </button>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0 shrink-0"
-                        onClick={() => handleCopyPath(filePath)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleCopyPath(filePath);
+                        }}
                         aria-label="Copy file path"
                       >
                         {copiedPath === filePath ? (
@@ -1778,41 +1875,79 @@ function PullRequestReviewPage() {
                           <Copy className="size-3.5" />
                         )}
                       </Button>
+                      <span className="text-status-added">
+                        +{fileStats.added}
+                      </span>
+                      <span className="text-status-removed">
+                        -{fileStats.removed}
+                      </span>
                       {fileUnresolvedCount > 0 && (
-                        <span className="ml-auto text-muted-foreground">
+                        <span className="text-muted-foreground">
                           {fileUnresolvedCount} unresolved
                         </span>
                       )}
+                      <span
+                        className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
+                        aria-hidden
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="size-3.5" />
+                        ) : (
+                          <ChevronDown className="size-3.5" />
+                        )}
+                      </span>
+                      <div className="ml-auto flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="flex items-center text-[12px] text-muted-foreground"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleViewed(filePath);
+                          }}
+                        >
+                          <span
+                            className={
+                              viewedFiles.has(filePath)
+                                ? "size-4 bg-accent text-foreground flex items-center justify-center"
+                                : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                            }
+                          >
+                            <Check className="size-3" />
+                          </span>
+                        </button>
+                      </div>
                     </div>
-                    <div>
-                      <FileDiff
-                        fileDiff={fileDiff}
-                        options={{
-                          ...compactDiffOptions,
-                          onLineClick: (props) =>
-                            openInlineCommentDraft(filePath, props),
-                          onLineNumberClick: (props) =>
-                            openInlineCommentDraft(filePath, props),
-                          onLineEnter: handleDiffLineEnter,
-                          onLineLeave: handleDiffLineLeave,
-                        }}
-                        className="compact-diff commentable-diff pr-diff-font"
-                        style={diffTypographyStyle}
-                        lineAnnotations={buildFileAnnotations(filePath)}
-                      />
-                    </div>
+                    {!isCollapsed && (
+                      <div>
+                        <FileDiff
+                          fileDiff={fileDiff}
+                          options={{
+                            ...compactDiffOptions,
+                            onLineClick: (props) =>
+                              openInlineCommentDraft(filePath, props),
+                            onLineNumberClick: (props) =>
+                              openInlineCommentDraft(filePath, props),
+                            onLineEnter: handleDiffLineEnter,
+                            onLineLeave: handleDiffLineLeave,
+                          }}
+                          className="compact-diff commentable-diff pr-diff-font"
+                          style={diffTypographyStyle}
+                          lineAnnotations={buildFileAnnotations(filePath)}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
 
-              {filteredDiffs.length === 0 && (
+              {allModeDiffEntries.length === 0 && (
                 <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">
                   No files match the current search.
                 </div>
               )}
             </div>
           )}
-        </main>
+        </ScrollArea>
       </div>
 
       <Dialog open={mergeOpen} onOpenChange={setMergeOpen}>

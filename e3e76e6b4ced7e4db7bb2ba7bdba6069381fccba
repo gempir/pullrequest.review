@@ -1,0 +1,25 @@
+src/routes/$workspace/$repo/pull-requests/$pullRequestId.tsx
+  00d308be1a138af9 3,1792,1947,1949-1953,1957-1958,1963-1979,1990,1996,2007,2009-2011,2016,2021,2023
+src/routes/$workspace/$repo/pull/$pullRequestId.tsx
+  00d308be1a138af9 3,1903,2058,2060-2064,2068-2069,2074-2090,2101,2107,2118,2120-2122,2127,2132,2134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "e3e76e6b4ced7e4db7bb2ba7bdba6069381fccba",
+  "prompts": {
+    "00d308be1a138af9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8fd46171-a525-4576-997d-f91c64516f47",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 246,
+      "total_deletions": 218,
+      "accepted_lines": 92,
+      "overriden_lines": 0
+    }
+  }
+}

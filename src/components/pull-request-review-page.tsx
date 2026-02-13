@@ -17,8 +17,10 @@ import {
   Copy,
   Eye,
   EyeOff,
+  FolderGit,
   FolderMinus,
   FolderPlus,
+  GitPullRequest,
   Loader2,
   MessageSquare,
   Minus,
@@ -1826,6 +1828,36 @@ export function PullRequestReviewPage({
                 data-component="settings"
               >
                 <Settings2 className="size-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() =>
+                  navigate({
+                    to: "/",
+                    search: { mode: "repositories" },
+                  })
+                }
+                aria-label="Repository selection"
+              >
+                <FolderGit className="size-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() =>
+                  navigate({
+                    to: "/",
+                    search: { mode: "pull-requests" },
+                  })
+                }
+                aria-label="Pull requests"
+              >
+                <GitPullRequest className="size-3.5" />
               </Button>
               <Button
                 variant="ghost"

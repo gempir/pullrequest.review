@@ -9,13 +9,14 @@ import {
   Scripts,
   useRouterState,
 } from "@tanstack/react-router";
-import { ExternalLink, GitPullRequest } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { ExternalLink, FolderGit, GitPullRequest } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppearanceProvider } from "@/lib/appearance-context";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
+import { getHostLabel } from "@/lib/git-host/service";
 import type { GitHost } from "@/lib/git-host/types";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
 import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
@@ -79,33 +80,6 @@ function RootComponent() {
   );
 }
 
-function HostTabs({
-  activeHost,
-  onChange,
-}: {
-  activeHost: GitHost;
-  onChange: (host: GitHost) => void;
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      <Button
-        type="button"
-        variant={activeHost === "bitbucket" ? "default" : "outline"}
-        onClick={() => onChange("bitbucket")}
-      >
-        Bitbucket
-      </Button>
-      <Button
-        type="button"
-        variant={activeHost === "github" ? "default" : "outline"}
-        onClick={() => onChange("github")}
-      >
-        GitHub
-      </Button>
-    </div>
-  );
-}
-
 function OnboardingScreen() {
   const { login, setActiveHost, activeHost } = usePrContext();
 
@@ -123,63 +97,99 @@ function OnboardingScreen() {
     "write:pullrequest:bitbucket",
   ];
 
-  const githubScopes = [
-    "Repository Metadata: Read",
-    "Repository Contents: Read",
-    "Repository Pull requests: Read and Write",
-  ];
-
-  const scopeText = useMemo(
-    () =>
-      (activeHost === "bitbucket" ? bitbucketScopes : githubScopes).join(", "),
-    [activeHost],
-  );
+  const scopeText = bitbucketScopes.join(", ");
 
   return (
-    <div className="h-full overflow-auto bg-background">
-      <div className="min-h-full flex items-center justify-center p-6">
-        <div className="w-full max-w-lg border border-border bg-card">
-          <div className="border-b border-border px-4 py-3 flex items-center gap-3 bg-secondary">
-            <GitPullRequest className="size-4 text-muted-foreground" />
-            <span className="text-[14px] font-medium">Connect Git Host</span>
-          </div>
-
-          <div className="p-4 space-y-4">
-            <HostTabs
-              activeHost={activeHost}
-              onChange={(host) => {
+    <div className="h-full min-h-0 flex bg-background">
+      <aside
+        data-component="sidebar"
+        className="w-[300px] shrink-0 border-r border-border bg-sidebar flex flex-col"
+      >
+        <div
+          data-component="top-sidebar"
+          className="h-11 px-2 border-b border-border flex items-center text-[11px] text-muted-foreground"
+        >
+          <span className="px-2">Onboarding</span>
+        </div>
+        <div
+          data-component="search-sidebar"
+          className="h-10 pl-2 pr-2 border-b border-border flex items-center"
+        >
+          <span className="text-[11px] text-muted-foreground px-1">
+            Select host
+          </span>
+        </div>
+        <div
+          className="flex-1 min-h-0 overflow-y-auto px-1 py-1"
+          data-component="tree"
+        >
+          {(["bitbucket", "github"] as GitHost[]).map((host) => (
+            <button
+              key={host}
+              type="button"
+              className={`w-full flex items-center gap-2 px-2 py-1 text-left text-[12px] hover:bg-accent ${
+                activeHost === host
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground"
+              }`}
+              onClick={() => {
                 setActiveHost(host);
                 setError(null);
               }}
-            />
+            >
+              <FolderGit className="size-3.5" />
+              <span className="truncate">{getHostLabel(host)}</span>
+            </button>
+          ))}
+        </div>
+      </aside>
 
-            <p className="text-[14px] text-muted-foreground">
+      <section className="flex-1 min-w-0 min-h-0 flex flex-col">
+        <header
+          data-component="navbar"
+          className="h-11 border-b border-border bg-card px-3 flex items-center gap-2 text-[12px]"
+        >
+          <GitPullRequest className="size-3.5 text-muted-foreground" />
+          <span className="text-muted-foreground">Connect Git Host</span>
+          <span className="ml-auto text-muted-foreground">
+            {getHostLabel(activeHost)}
+          </span>
+        </header>
+
+        <main
+          data-component="diff-view"
+          className="flex-1 min-h-0 overflow-y-auto p-4"
+        >
+          <div className="max-w-2xl space-y-4">
+            <p className="text-[13px] text-muted-foreground">
               {activeHost === "bitbucket"
                 ? "Use your Bitbucket email and API token to continue."
                 : "Use a GitHub fine-grained personal access token to continue."}
             </p>
 
-            <div className="border border-border bg-background p-3 text-[13px] space-y-2">
-              <div className="text-muted-foreground">Required scopes</div>
-              <div className="leading-relaxed break-words">{scopeText}</div>
-              <div className="border border-yellow-500/50 bg-yellow-500/15 text-yellow-300 px-2 py-1.5 text-[12px]">
-                Hint: Paste these scopes into "Search by scope name" while
-                creating the token
+            {activeHost === "bitbucket" ? (
+              <div className="border border-border bg-card p-3 text-[13px] space-y-2">
+                <div className="text-muted-foreground">Required scopes</div>
+                <div className="leading-relaxed break-words">{scopeText}</div>
+                <div className="border border-yellow-500/50 bg-yellow-500/15 text-yellow-300 px-2 py-1.5 text-[12px]">
+                  Hint: Paste these scopes into "Search by scope name" while
+                  creating the token
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(scopeText);
+                    setCopiedScopes(true);
+                    window.setTimeout(() => setCopiedScopes(false), 1200);
+                  }}
+                >
+                  {copiedScopes ? "Copied" : "Copy scopes"}
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-[11px]"
-                onClick={() => {
-                  void navigator.clipboard.writeText(scopeText);
-                  setCopiedScopes(true);
-                  window.setTimeout(() => setCopiedScopes(false), 1200);
-                }}
-              >
-                {copiedScopes ? "Copied" : "Copy scopes"}
-              </Button>
-            </div>
+            ) : null}
 
             {activeHost === "bitbucket" ? (
               <Button
@@ -291,8 +301,8 @@ function OnboardingScreen() {
               Credentials are stored in browser local storage.
             </p>
           </div>
-        </div>
-      </div>
+        </main>
+      </section>
     </div>
   );
 }

@@ -1,0 +1,39 @@
+src/lib/git-host/types.ts
+  8e9474aee016a085 31,39,49,52,61,64-68,79,84-140,148-150
+src/lib/pr-summary.ts
+  8e9474aee016a085 1-2
+src/lib/file-tree-context.tsx
+  8e9474aee016a085 11,59-61,63,121-123,160
+src/lib/git-host/providers/bitbucket.ts
+  8e9474aee016a085 9,12-13,29-53,59-64,68,72-85,87,103-134,234,250-358,380-428,430-499,587,594,597-603,612-614
+src/routes/$workspace/$repo/pull-requests/$pullRequestId.tsx
+  8e9474aee016a085 35,72,358-374,542,593-598,617-618,633-638,641,657,672,719,1591-1599
+src/components/pr-summary-panel.tsx
+  8e9474aee016a085 1-262,264-330,332-467
+src/components/file-tree.tsx
+  8e9474aee016a085 5-6,68-72,244,262-264,266,272
+src/lib/git-host/providers/github.ts
+  8e9474aee016a085 9,12-13,27,41,43-47,50,81,90,98,109-110,114-147,261,269,276,278-282,294,301-375,379-530,539-540,554-555,569-570,705,710,713-733,770-771,777-779
+src/routes/$workspace/$repo/pull/$pullRequestId.tsx
+  8e9474aee016a085 35,72,357-373,541,592-597,616-617,632-637,640,656,671,718,1607-1615
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "abc3369e3e3f998f800332ba38fb5aa6d6864a29",
+  "prompts": {
+    "8e9474aee016a085": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e6ece4cd-12f0-4756-b5a4-21d8806903f0",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 1806,
+      "total_deletions": 521,
+      "accepted_lines": 1308,
+      "overriden_lines": 2
+    }
+  }
+}

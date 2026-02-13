@@ -32,6 +32,7 @@ import {
 import { FileIcon } from "react-files-icons";
 import { CommentEditor } from "@/components/comment-editor";
 import { FileTree } from "@/components/file-tree";
+import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
 import { SettingsMenu } from "@/components/settings-menu";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,6 +69,7 @@ import {
   resolvePullRequestComment,
 } from "@/lib/git-host/service";
 import type { Comment as PullRequestComment } from "@/lib/git-host/types";
+import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { usePrContext } from "@/lib/pr-context";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
@@ -352,6 +354,23 @@ function PullRequestReviewPage() {
   });
 
   const prData = prQuery.data;
+  const isPrQueryFetching = prQuery.isFetching;
+  const refetchPrQuery = prQuery.refetch;
+  const hasPendingBuildStatuses = useMemo(
+    () => prData?.buildStatuses?.some((status) => status.state === "pending") ?? false,
+    [prData?.buildStatuses],
+  );
+
+  useEffect(() => {
+    if (!hasPendingBuildStatuses) return;
+    const intervalId = window.setInterval(() => {
+      if (isPrQueryFetching) return;
+      void refetchPrQuery();
+    }, 10_000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [hasPendingBuildStatuses, isPrQueryFetching, refetchPrQuery]);
 
   const viewedStorageKey = useMemo(() => {
     if (!prData) return "";
@@ -519,7 +538,7 @@ function PullRequestReviewPage() {
   }, [filteredDiffs]);
 
   const visiblePathSet = useMemo(
-    () => new Set(visibleFilePaths),
+    () => new Set([PR_SUMMARY_PATH, ...visibleFilePaths]),
     [visibleFilePaths],
   );
   const viewedVisibleCount = useMemo(
@@ -570,6 +589,12 @@ function PullRequestReviewPage() {
       .filter((path): path is string => Boolean(path));
 
     const tree = buildTreeFromPaths(paths);
+    const summaryNode: FileNode = {
+      name: PR_SUMMARY_NAME,
+      path: PR_SUMMARY_PATH,
+      type: "summary",
+    };
+    const treeWithSummary = [summaryNode, ...tree];
     const fileKinds = new Map<string, ChangeKind>();
     for (const entry of prData.diffstat) {
       const path = entry.new?.path ?? entry.old?.path;
@@ -588,8 +613,8 @@ function PullRequestReviewPage() {
       }
     }
 
-    setTree(tree);
-    setKinds(buildKindMapForTree(tree, fileKinds));
+    setTree(treeWithSummary);
+    setKinds(buildKindMapForTree(treeWithSummary, fileKinds));
   }, [prData, setKinds, setTree]);
 
   useEffect(() => {
@@ -604,9 +629,16 @@ function PullRequestReviewPage() {
       return;
     }
 
-    if (!activeFile || !visiblePathSet.has(activeFile)) {
+    if (!activeFile) {
+      setActiveFile(PR_SUMMARY_PATH);
+      return;
+    }
+
+    if (!visiblePathSet.has(activeFile)) {
       const firstUnviewed =
-        treeOrderedVisiblePaths.find((path) => !viewedFiles.has(path)) ??
+        treeOrderedVisiblePaths.find(
+          (path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path),
+        ) ??
         treeOrderedVisiblePaths[0];
       setActiveFile(firstUnviewed);
     }
@@ -621,6 +653,7 @@ function PullRequestReviewPage() {
   useEffect(() => {
     if (showUnviewedOnly) return;
     if (!activeFile || !visiblePathSet.has(activeFile)) return;
+    if (activeFile === PR_SUMMARY_PATH) return;
     if (autoMarkedViewedFilesRef.current.has(activeFile)) return;
     autoMarkedViewedFilesRef.current.add(activeFile);
     setViewedFiles((prev) => {
@@ -635,6 +668,7 @@ function PullRequestReviewPage() {
     (path: string) => {
       setActiveFile(path);
       if (viewMode === "all") {
+        if (path === PR_SUMMARY_PATH) return;
         setCollapsedAllModeFiles((prev) => ({ ...prev, [path]: false }));
         requestAnimationFrame(() => {
           const anchor = document.getElementById(fileAnchorId(path));
@@ -681,6 +715,7 @@ function PullRequestReviewPage() {
     if (!selectedFilePath) return undefined;
     return diffByPath.get(selectedFilePath);
   }, [diffByPath, selectedFilePath]);
+  const isSummarySelected = activeFile === PR_SUMMARY_PATH;
 
   const comments = prData?.comments ?? [];
   const threads = useMemo(() => buildThreads(comments), [comments]);
@@ -1569,7 +1604,15 @@ function PullRequestReviewPage() {
         )}
 
         <ScrollArea className="flex-1 min-h-0" viewportRef={diffScrollRef}>
-          {viewMode === "single" ? (
+          {isSummarySelected && prData ? (
+            <PullRequestSummaryPanel
+              bundle={prData}
+              onRefreshBuildStatus={() => {
+                void refetchPrQuery();
+              }}
+              refreshingBuildStatus={isPrQueryFetching}
+            />
+          ) : viewMode === "single" ? (
             selectedFileDiff && selectedFilePath ? (
               <div
                 id={fileAnchorId(selectedFilePath)}

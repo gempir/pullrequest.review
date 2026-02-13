@@ -1,4 +1,10 @@
-import { ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Folder,
+  FolderOpen,
+  ScrollText,
+} from "lucide-react";
 import { FileIcon } from "react-files-icons";
 import {
   type ChangeKind,
@@ -59,6 +65,11 @@ export function FileTree({
   const normalizedQuery = filterQuery?.trim().toLowerCase() ?? "";
 
   const matchesNode = (node: FileNode): boolean => {
+    if (node.type === "summary") {
+      if (!normalizedQuery) return true;
+      const summarySearch = `${node.name} ${node.path}`.toLowerCase();
+      return summarySearch.includes(normalizedQuery);
+    }
     if (node.type === "file") {
       const queryMatch =
         !normalizedQuery || node.path.toLowerCase().includes(normalizedQuery);
@@ -230,7 +241,7 @@ function FileNodeRow({
   onFileClick?: (node: FileNode) => void;
 }) {
   const tree = useFileTree();
-  const kind = kinds.get(node.path);
+  const kind = node.type === "summary" ? undefined : kinds.get(node.path);
   const isActive = node.path === active;
 
   return (
@@ -248,13 +259,17 @@ function FileNodeRow({
       }}
     >
       <span className={cn("size-4 flex items-center justify-center shrink-0")}>
-        <FileIcon name={node.name} className="size-3.5" />
+        {node.type === "summary" ? (
+          <ScrollText className="size-3.5" />
+        ) : (
+          <FileIcon name={node.name} className="size-3.5" />
+        )}
       </span>
       {kindMarker(kind)}
       <span className="flex-1 min-w-0 truncate pr-2 text-foreground">
         {node.name}
       </span>
-      {!viewed && (
+      {node.type !== "summary" && !viewed && (
         <span
           className="sticky right-2 ml-auto size-2.5 shrink-0 rounded-full bg-accent"
           aria-hidden

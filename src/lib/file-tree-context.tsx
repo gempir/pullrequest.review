@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 
-export type FileNodeType = "file" | "directory";
+export type FileNodeType = "summary" | "file" | "directory";
 export type ChangeKind = "add" | "del" | "mix";
 
 export interface FileNode {
@@ -56,7 +56,11 @@ const MAX_TREE_INDENT_SIZE = 24;
 
 function sortTree(nodes: FileNode[]): FileNode[] {
   const sorted = [...nodes].sort((a, b) => {
-    if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
+    if (a.type !== b.type) {
+      if (a.type === "summary") return -1;
+      if (b.type === "summary") return 1;
+      return a.type === "directory" ? -1 : 1;
+    }
     return a.name.localeCompare(b.name);
   });
   for (const node of sorted) {
@@ -114,6 +118,9 @@ export function buildKindMapForTree(
   const result = new Map(fileKinds);
 
   const visit = (node: FileNode): ChangeKind | undefined => {
+    if (node.type === "summary") {
+      return undefined;
+    }
     if (node.type === "file") {
       return fileKinds.get(node.path);
     }
@@ -150,7 +157,7 @@ function buildNodeIndex(nodes: FileNode[]): Map<string, FileNode[]> {
 function getAllFiles(nodes: FileNode[]): FileNode[] {
   const files: FileNode[] = [];
   const visit = (node: FileNode) => {
-    if (node.type === "file") {
+    if (node.type === "file" || node.type === "summary") {
       files.push(node);
     } else if (node.children) {
       node.children.forEach(visit);

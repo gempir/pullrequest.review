@@ -28,7 +28,7 @@ export interface PullRequestSummary {
   title: string;
   state: string;
   links?: { html?: { href?: string } };
-  author?: { display_name?: string };
+  author?: { display_name?: string; avatar_url?: string };
 }
 
 export interface Commit {
@@ -36,7 +36,7 @@ export interface Commit {
   date?: string;
   message?: string;
   summary?: { raw?: string };
-  author?: { user?: { display_name?: string }; raw?: string };
+  author?: { user?: { display_name?: string; avatar_url?: string }; raw?: string };
 }
 
 export interface Comment {
@@ -46,10 +46,10 @@ export interface Comment {
   deleted?: boolean;
   pending?: boolean;
   content?: { raw?: string; html?: string };
-  user?: { display_name?: string };
+  user?: { display_name?: string; avatar_url?: string };
   inline?: { path?: string; to?: number; from?: number };
   parent?: { id?: number };
-  resolution?: { user?: { display_name?: string } } | null;
+  resolution?: { user?: { display_name?: string; avatar_url?: string } } | null;
   hostThreadId?: string;
 }
 
@@ -58,9 +58,14 @@ export interface PullRequestDetails {
   title: string;
   description?: string;
   state: string;
+  draft?: boolean;
   comment_count?: number;
   task_count?: number;
-  author?: { display_name?: string };
+  created_on?: string;
+  updated_on?: string;
+  closed_on?: string;
+  merged_on?: string;
+  author?: { display_name?: string; avatar_url?: string };
   source?: {
     branch?: { name?: string };
     repository?: { full_name?: string };
@@ -71,9 +76,66 @@ export interface PullRequestDetails {
   };
   participants?: Array<{
     approved?: boolean;
-    user?: { display_name?: string };
+    user?: { display_name?: string; avatar_url?: string };
   }>;
   links?: { html?: { href?: string } };
+}
+
+export type PullRequestHistoryEventType =
+  | "comment"
+  | "approved"
+  | "changes_requested"
+  | "review_requested"
+  | "review_dismissed"
+  | "reviewer_added"
+  | "reviewer_removed"
+  | "opened"
+  | "updated"
+  | "closed"
+  | "merged"
+  | "reopened";
+
+export interface PullRequestHistoryEvent {
+  id: string;
+  type: PullRequestHistoryEventType;
+  created_on?: string;
+  actor?: { display_name?: string; avatar_url?: string };
+  content?: string;
+  details?: string;
+}
+
+export type PullRequestReviewerStatus =
+  | "approved"
+  | "changes_requested"
+  | "commented"
+  | "pending";
+
+export interface PullRequestReviewer {
+  id: string;
+  display_name?: string;
+  avatar_url?: string;
+  status: PullRequestReviewerStatus;
+  approved: boolean;
+  requested?: boolean;
+  updated_on?: string;
+}
+
+export type PullRequestBuildState =
+  | "success"
+  | "failed"
+  | "pending"
+  | "skipped"
+  | "neutral"
+  | "unknown";
+
+export interface PullRequestBuildStatus {
+  id: string;
+  name: string;
+  state: PullRequestBuildState;
+  url?: string;
+  provider?: string;
+  started_on?: string;
+  completed_on?: string;
 }
 
 export interface PullRequestBundle {
@@ -83,6 +145,9 @@ export interface PullRequestBundle {
   diffstat: DiffStatEntry[];
   commits: Commit[];
   comments: Comment[];
+  history?: PullRequestHistoryEvent[];
+  reviewers?: PullRequestReviewer[];
+  buildStatuses?: PullRequestBuildStatus[];
 }
 
 export interface MergeOptions {

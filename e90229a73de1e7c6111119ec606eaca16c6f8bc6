@@ -1,0 +1,27 @@
+styles.css
+  ce1533b5f15fbec5 400-421
+src/routes/$workspace/$repo/pull/$pullRequestId.tsx
+  ce1533b5f15fbec5 1696-1698,1712,1714,1723,1763,1950,1971-1974,1979,1987-1988,1990,1992-1993,1995,2005,2007-2017,2019,2022,2025,2032,2035-2039,2043-2045,2052,2054,2083
+src/routes/$workspace/$repo/pull-requests/$pullRequestId.tsx
+  ce1533b5f15fbec5 1591-1593,1607,1609,1618,1658,1839,1860-1863,1868,1876-1877,1879,1881-1882,1884,1894,1896-1906,1908,1911,1914,1921,1924-1928,1932-1934,1941,1943,1972
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "e90229a73de1e7c6111119ec606eaca16c6f8bc6",
+  "prompts": {
+    "ce1533b5f15fbec5": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "4e274413-5715-4c2e-89ec-49315e8244c8",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 280,
+      "total_deletions": 258,
+      "accepted_lines": 126,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1410,13 +1410,12 @@ function PullRequestReviewPage() {
             <AlertCircle className="size-5" />
             <span className="text-[13px] font-medium">[ERROR]</span>
           </div>
-          <p className="text-destructive text-[13px]">
-            {errorMessage}
-          </p>
+          <p className="text-destructive text-[13px]">{errorMessage}</p>
           {isRateLimited ? (
             <p className="mt-2 text-[12px] text-destructive">
-              GitHub is rate limiting requests because there are too many unauthenticated
-              requests from your network IP. Connect a GitHub token to continue and retry.
+              GitHub is rate limiting requests because there are too many
+              unauthenticated requests from your network IP. Connect a GitHub
+              token to continue and retry.
             </p>
           ) : null}
           {showGithubAuthPrompt ? (

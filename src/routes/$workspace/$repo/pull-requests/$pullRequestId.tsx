@@ -1,8 +1,8 @@
 import {
   type FileDiffOptions,
+  getFiletypeFromFileName,
   type OnDiffLineClickProps,
   type OnDiffLineEnterLeaveProps,
-  getFiletypeFromFileName,
   parsePatchFiles,
   preloadHighlighter,
 } from "@pierre/diffs";
@@ -546,7 +546,9 @@ function PullRequestReviewPage() {
     setDiffPlainTextFallback(false);
     void preloadHighlighter({
       themes: [options.theme],
-      langs: preloadLanguages as Parameters<typeof preloadHighlighter>[0]["langs"],
+      langs: preloadLanguages as Parameters<
+        typeof preloadHighlighter
+      >[0]["langs"],
     })
       .then(() => {
         if (cancelled) return;
@@ -1786,7 +1788,9 @@ function PullRequestReviewPage() {
                                       "Unknown"}
                                   </span>
                                   <span>
-                                    {formatDate(metadata.thread.root.created_on)}
+                                    {formatDate(
+                                      metadata.thread.root.created_on,
+                                    )}
                                   </span>
                                   <span className="ml-auto">
                                     {metadata.thread.root.resolution
@@ -1800,9 +1804,14 @@ function PullRequestReviewPage() {
                                 {metadata.thread.replies.length > 0 && (
                                   <div className="mt-2 pl-3 border-l border-border space-y-1">
                                     {metadata.thread.replies.map((reply) => (
-                                      <div key={reply.id} className="text-[12px]">
+                                      <div
+                                        key={reply.id}
+                                        className="text-[12px]"
+                                      >
                                         <span className="text-muted-foreground">
-                                          {reply.user?.display_name ?? "Unknown"}:
+                                          {reply.user?.display_name ??
+                                            "Unknown"}
+                                          :
                                         </span>{" "}
                                         {reply.content?.raw ?? ""}
                                       </div>
@@ -1933,32 +1942,58 @@ function PullRequestReviewPage() {
                     )}
                     style={index === 0 ? { borderTopWidth: 0 } : undefined}
                   >
-                  <div
-                    className={cn(
-                      "group sticky top-0 z-20 h-10 min-w-0 cursor-pointer border-b border-border bg-card px-2 flex items-center gap-2 overflow-hidden text-[12px]",
-                    )}
-                    onClick={() =>
-                      setCollapsedAllModeFiles((prev) => ({
-                        ...prev,
-                        [filePath]: !isCollapsed,
-                      }))
-                    }
-                  >
-                    <div className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden">
-                      <span className="size-4 flex items-center justify-center shrink-0">
-                        <FileIcon name={fileName} className="size-3.5" />
+                    <div
+                      className={cn(
+                        "group sticky top-0 z-20 h-10 min-w-0 border-b border-border bg-card px-2 flex items-center gap-2 overflow-hidden text-[12px]",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden text-left"
+                        onClick={() =>
+                          setCollapsedAllModeFiles((prev) => ({
+                            ...prev,
+                            [filePath]: !isCollapsed,
+                          }))
+                        }
+                      >
+                        <span className="size-4 flex items-center justify-center shrink-0">
+                          <FileIcon name={fileName} className="size-3.5" />
+                        </span>
+                        <span className="min-w-0 max-w-full truncate font-mono">
+                          {filePath}
+                        </span>
+                        <div className="ml-auto flex shrink-0 items-center gap-2">
+                          <span className="shrink-0 select-none text-status-added">
+                            +{fileStats.added}
+                          </span>
+                          <span className="shrink-0 select-none text-status-removed">
+                            -{fileStats.removed}
+                          </span>
+                          {fileUnresolvedCount > 0 ? (
+                            <span className="shrink-0 text-muted-foreground">
+                              {fileUnresolvedCount} unresolved
+                            </span>
+                          ) : null}
+                        </div>
+                      </button>
+                      <span
+                        className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
+                        aria-hidden
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="size-3.5" />
+                        ) : (
+                          <ChevronDown className="size-3.5" />
+                        )}
                       </span>
-                      <span className="min-w-0 max-w-full truncate font-mono">
-                        {filePath}
-                      </span>
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="ml-auto flex shrink-0 items-center gap-2">
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           className="h-7 w-7 p-0 shrink-0"
-                          onClick={(event) => {
-                            event.stopPropagation();
+                          onClick={() => {
                             void handleCopyPath(filePath);
                           }}
                           aria-label="Copy file path"
@@ -1969,46 +2004,25 @@ function PullRequestReviewPage() {
                             <Copy className="size-3.5" />
                           )}
                         </Button>
-                        <span className="shrink-0 select-none text-status-added">+{fileStats.added}</span>
-                        <span className="shrink-0 select-none text-status-removed">-{fileStats.removed}</span>
-                        {fileUnresolvedCount > 0 ? (
-                          <span className="shrink-0 text-muted-foreground">
-                            {fileUnresolvedCount} unresolved
+                        <button
+                          type="button"
+                          className="flex items-center text-[12px] text-muted-foreground"
+                          onClick={() => {
+                            toggleViewed(filePath);
+                          }}
+                        >
+                          <span
+                            className={
+                              viewedFiles.has(filePath)
+                                ? "size-4 bg-accent text-foreground flex items-center justify-center"
+                                : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                            }
+                          >
+                            <Check className="size-3" />
                           </span>
-                        ) : null}
+                        </button>
                       </div>
                     </div>
-                    <span
-                      className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
-                      aria-hidden
-                    >
-                      {isCollapsed ? (
-                        <ChevronRight className="size-3.5" />
-                      ) : (
-                        <ChevronDown className="size-3.5" />
-                      )}
-                    </span>
-                    <div className="ml-auto flex shrink-0 items-center gap-2">
-                      <button
-                        type="button"
-                        className="flex items-center text-[12px] text-muted-foreground"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleViewed(filePath);
-                        }}
-                      >
-                        <span
-                          className={
-                            viewedFiles.has(filePath)
-                              ? "size-4 bg-accent text-foreground flex items-center justify-center"
-                              : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
-                          }
-                        >
-                          <Check className="size-3" />
-                        </span>
-                      </button>
-                    </div>
-                  </div>
                     {!isCollapsed && (
                       <div className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">
                         {diffHighlighterReady ? (

@@ -2,7 +2,9 @@ import {
   type FileDiffOptions,
   type OnDiffLineClickProps,
   type OnDiffLineEnterLeaveProps,
+  getFiletypeFromFileName,
   parsePatchFiles,
+  preloadHighlighter,
 } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -121,6 +123,7 @@ const INLINE_ACTIVE_DRAFT_STORAGE_KEY_PREFIX_LEGACY =
 const DEFAULT_TREE_WIDTH = 280;
 const MIN_TREE_WIDTH = 180;
 const MAX_TREE_WIDTH = 520;
+const DEFAULT_DOCUMENT_TITLE = "pullrequest.review";
 
 function commentThreadSort(a: CommentThread, b: CommentThread) {
   const left = new Date(a.root.created_on ?? 0).getTime();
@@ -339,6 +342,8 @@ function PullRequestReviewPage() {
   const [githubToken, setGithubToken] = useState("");
   const [authPromptError, setAuthPromptError] = useState<string | null>(null);
   const [authPromptSubmitting, setAuthPromptSubmitting] = useState(false);
+  const [diffHighlighterReady, setDiffHighlighterReady] = useState(false);
+  const [diffPlainTextFallback, setDiffPlainTextFallback] = useState(false);
   const autoMarkedViewedFilesRef = useRef<Set<string>>(new Set());
   const copyResetTimeoutRef = useRef<number | null>(null);
   const prQueryKey = useMemo(
@@ -363,6 +368,19 @@ function PullRequestReviewPage() {
   const prData = prQuery.data;
   const isPrQueryFetching = prQuery.isFetching;
   const refetchPrQuery = prQuery.refetch;
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (prQuery.isLoading) {
+      document.title = DEFAULT_DOCUMENT_TITLE;
+      return;
+    }
+    const nextTitle = prData?.pr.title?.trim();
+    document.title =
+      nextTitle && nextTitle.length > 0 ? nextTitle : DEFAULT_DOCUMENT_TITLE;
+    return () => {
+      document.title = DEFAULT_DOCUMENT_TITLE;
+    };
+  }, [prData?.pr.title, prQuery.isLoading]);
   const hasPendingBuildStatuses = useMemo(
     () =>
       prData?.buildStatuses?.some((status) => status.state === "pending") ??
@@ -510,6 +528,51 @@ function PullRequestReviewPage() {
     const patches = parsePatchFiles(diffText);
     return patches.flatMap((patch) => patch.files);
   }, [diffText]);
+
+  const preloadLanguages = useMemo(() => {
+    const langs = new Set<string>(["text", "javascript"]);
+    fileDiffs.forEach((fileDiff) => {
+      if (fileDiff.lang) langs.add(fileDiff.lang);
+      langs.add(getFiletypeFromFileName(fileDiff.name));
+      if (fileDiff.prevName) {
+        langs.add(getFiletypeFromFileName(fileDiff.prevName));
+      }
+    });
+    return [...langs];
+  }, [fileDiffs]);
+
+  useEffect(() => {
+    if (fileDiffs.length === 0) {
+      setDiffHighlighterReady(true);
+      setDiffPlainTextFallback(false);
+      return;
+    }
+    let cancelled = false;
+    setDiffHighlighterReady(false);
+    setDiffPlainTextFallback(false);
+    void preloadHighlighter({
+      themes: [options.theme],
+      langs: preloadLanguages as Parameters<typeof preloadHighlighter>[0]["langs"],
+    })
+      .then(() => {
+        if (cancelled) return;
+        setDiffHighlighterReady(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDiffPlainTextFallback(true);
+        setDiffHighlighterReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fileDiffs.length, options.theme, preloadLanguages]);
+
+  const toRenderableFileDiff = useCallback(
+    (fileDiff: FileDiffMetadata): FileDiffMetadata =>
+      diffPlainTextFallback ? { ...fileDiff, lang: "text" } : fileDiff,
+    [diffPlainTextFallback],
+  );
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -1761,128 +1824,135 @@ function PullRequestReviewPage() {
                 </div>
 
                 <div className="diff-content-scroll min-h-0 min-w-0 w-full max-w-full flex-1 overflow-x-auto">
-                  <FileDiff
-                    fileDiff={selectedFileDiff}
-                    options={singleFileDiffOptions}
-                    className="compact-diff commentable-diff pr-diff-font"
-                    style={diffTypographyStyle}
-                    lineAnnotations={singleFileAnnotations}
-                    renderAnnotation={(annotation) => {
-                      const metadata = annotation.metadata;
-                      if (!metadata) return null;
+                  {diffHighlighterReady ? (
+                    <FileDiff
+                      fileDiff={toRenderableFileDiff(selectedFileDiff)}
+                      options={singleFileDiffOptions}
+                      className="compact-diff commentable-diff pr-diff-font"
+                      style={diffTypographyStyle}
+                      lineAnnotations={singleFileAnnotations}
+                      renderAnnotation={(annotation) => {
+                        const metadata = annotation.metadata;
+                        if (!metadata) return null;
 
-                      return (
-                        <div className="px-2 py-1.5 border-y border-border bg-background/70">
-                          {metadata.kind === "draft" ? (
-                            <div className="space-y-2">
-                              <CommentEditor
-                                key={inlineDraftStorageKey(
-                                  workspace,
-                                  repo,
-                                  pullRequestId,
-                                  metadata.draft,
-                                )}
-                                value={getInlineDraftContent(metadata.draft)}
-                                placeholder="Add a line comment"
-                                disabled={
-                                  createCommentMutation.isPending ||
-                                  !isGithubAuthenticated
-                                }
-                                onReady={(focus) => {
-                                  inlineDraftFocusRef.current = focus;
-                                }}
-                                onChange={(nextValue) =>
-                                  setInlineDraftContent(
+                        return (
+                          <div className="px-2 py-1.5 border-y border-border bg-background/70">
+                            {metadata.kind === "draft" ? (
+                              <div className="space-y-2">
+                                <CommentEditor
+                                  key={inlineDraftStorageKey(
+                                    workspace,
+                                    repo,
+                                    pullRequestId,
                                     metadata.draft,
-                                    nextValue,
-                                  )
-                                }
-                                onSubmit={submitInlineComment}
-                              />
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  size="sm"
-                                  className="h-7"
+                                  )}
+                                  value={getInlineDraftContent(metadata.draft)}
+                                  placeholder="Add a line comment"
                                   disabled={
                                     createCommentMutation.isPending ||
                                     !isGithubAuthenticated
                                   }
-                                  onClick={submitInlineComment}
-                                >
-                                  Comment
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  onClick={() => {
-                                    clearInlineDraftContent(metadata.draft);
-                                    setInlineComment(null);
+                                  onReady={(focus) => {
+                                    inlineDraftFocusRef.current = focus;
                                   }}
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="border border-border bg-background p-2 text-[12px]">
-                              <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                                <MessageSquare className="size-3.5" />
-                                <span>
-                                  {metadata.thread.root.user?.display_name ??
-                                    "Unknown"}
-                                </span>
-                                <span>
-                                  {formatDate(metadata.thread.root.created_on)}
-                                </span>
-                                <span className="ml-auto">
-                                  {metadata.thread.root.resolution
-                                    ? "Resolved"
-                                    : "Unresolved"}
-                                </span>
-                              </div>
-                              <div className="text-[13px] whitespace-pre-wrap">
-                                {metadata.thread.root.content?.raw ?? ""}
-                              </div>
-                              {metadata.thread.replies.length > 0 && (
-                                <div className="mt-2 pl-3 border-l border-border space-y-1">
-                                  {metadata.thread.replies.map((reply) => (
-                                    <div key={reply.id} className="text-[12px]">
-                                      <span className="text-muted-foreground">
-                                        {reply.user?.display_name ?? "Unknown"}:
-                                      </span>{" "}
-                                      {reply.content?.raw ?? ""}
-                                    </div>
-                                  ))}
+                                  onChange={(nextValue) =>
+                                    setInlineDraftContent(
+                                      metadata.draft,
+                                      nextValue,
+                                    )
+                                  }
+                                  onSubmit={submitInlineComment}
+                                />
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="h-7"
+                                    disabled={
+                                      createCommentMutation.isPending ||
+                                      !isGithubAuthenticated
+                                    }
+                                    onClick={submitInlineComment}
+                                  >
+                                    Comment
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7"
+                                    onClick={() => {
+                                      clearInlineDraftContent(metadata.draft);
+                                      setInlineComment(null);
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
                                 </div>
-                              )}
-                              <div className="mt-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  disabled={
-                                    resolveCommentMutation.isPending ||
-                                    !hostCapabilities.supportsThreadResolution
-                                  }
-                                  onClick={() =>
-                                    resolveCommentMutation.mutate({
-                                      commentId: metadata.thread.root.id,
-                                      resolve: !metadata.thread.root.resolution,
-                                    })
-                                  }
-                                >
-                                  {metadata.thread.root.resolution
-                                    ? "Unresolve"
-                                    : "Resolve"}
-                                </Button>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }}
-                  />
+                            ) : (
+                              <div className="border border-border bg-background p-2 text-[12px]">
+                                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                                  <MessageSquare className="size-3.5" />
+                                  <span>
+                                    {metadata.thread.root.user?.display_name ??
+                                      "Unknown"}
+                                  </span>
+                                  <span>
+                                    {formatDate(metadata.thread.root.created_on)}
+                                  </span>
+                                  <span className="ml-auto">
+                                    {metadata.thread.root.resolution
+                                      ? "Resolved"
+                                      : "Unresolved"}
+                                  </span>
+                                </div>
+                                <div className="text-[13px] whitespace-pre-wrap">
+                                  {metadata.thread.root.content?.raw ?? ""}
+                                </div>
+                                {metadata.thread.replies.length > 0 && (
+                                  <div className="mt-2 pl-3 border-l border-border space-y-1">
+                                    {metadata.thread.replies.map((reply) => (
+                                      <div key={reply.id} className="text-[12px]">
+                                        <span className="text-muted-foreground">
+                                          {reply.user?.display_name ?? "Unknown"}:
+                                        </span>{" "}
+                                        {reply.content?.raw ?? ""}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="mt-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7"
+                                    disabled={
+                                      resolveCommentMutation.isPending ||
+                                      !hostCapabilities.supportsThreadResolution
+                                    }
+                                    onClick={() =>
+                                      resolveCommentMutation.mutate({
+                                        commentId: metadata.thread.root.id,
+                                        resolve:
+                                          !metadata.thread.root.resolution,
+                                      })
+                                    }
+                                  >
+                                    {metadata.thread.root.resolution
+                                      ? "Unresolve"
+                                      : "Resolve"}
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">
+                      Loading syntax highlighting...
+                    </div>
+                  )}
                 </div>
 
                 {selectedFileLevelThreads.length > 0 && (
@@ -2052,21 +2122,27 @@ function PullRequestReviewPage() {
                   </div>
                     {!isCollapsed && (
                       <div className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">
-                        <FileDiff
-                          fileDiff={fileDiff}
-                          options={{
-                            ...compactDiffOptions,
-                            onLineClick: (props) =>
-                              openInlineCommentDraft(filePath, props),
-                            onLineNumberClick: (props) =>
-                              openInlineCommentDraft(filePath, props),
-                            onLineEnter: handleDiffLineEnter,
-                            onLineLeave: handleDiffLineLeave,
-                          }}
-                          className="compact-diff commentable-diff pr-diff-font"
-                          style={diffTypographyStyle}
-                          lineAnnotations={buildFileAnnotations(filePath)}
-                        />
+                        {diffHighlighterReady ? (
+                          <FileDiff
+                            fileDiff={toRenderableFileDiff(fileDiff)}
+                            options={{
+                              ...compactDiffOptions,
+                              onLineClick: (props) =>
+                                openInlineCommentDraft(filePath, props),
+                              onLineNumberClick: (props) =>
+                                openInlineCommentDraft(filePath, props),
+                              onLineEnter: handleDiffLineEnter,
+                              onLineLeave: handleDiffLineLeave,
+                            }}
+                            className="compact-diff commentable-diff pr-diff-font"
+                            style={diffTypographyStyle}
+                            lineAnnotations={buildFileAnnotations(filePath)}
+                          />
+                        ) : (
+                          <div className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">
+                            Loading syntax highlighting...
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

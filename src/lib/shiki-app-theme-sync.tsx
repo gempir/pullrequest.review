@@ -1,7 +1,7 @@
 import { useEffect } from "react";
+import { bundledThemes } from "shiki";
 import { useAppearance } from "@/lib/appearance-context";
 import { useDiffOptions } from "@/lib/diff-options-context";
-import { bundledThemes } from "@/lib/shiki-runtime";
 
 type ShikiThemeLike = {
   type?: "light" | "dark" | string;

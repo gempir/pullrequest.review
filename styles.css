@@ -397,4 +397,26 @@
     font-size: var(--diff-font-size);
     line-height: var(--diff-line-height);
   }
+
+  .diff-content-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) var(--card);
+  }
+
+  .diff-content-scroll::-webkit-scrollbar-track {
+    background: var(--card);
+  }
+
+  .diff-content-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border: 2px solid var(--card);
+  }
+
+  .diff-content-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--ring);
+  }
+
+  .diff-content-scroll::-webkit-scrollbar-corner {
+    background: var(--card);
+  }
 }

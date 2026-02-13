@@ -1588,7 +1588,10 @@ function PullRequestReviewPage() {
           </div>
         )}
 
-        <ScrollArea className="flex-1 min-h-0" viewportRef={diffScrollRef}>
+        <div
+          ref={diffScrollRef}
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+        >
           {isSummarySelected && prData ? (
             <PullRequestSummaryPanel
               bundle={prData}
@@ -1601,9 +1604,9 @@ function PullRequestReviewPage() {
             selectedFileDiff && selectedFilePath ? (
               <div
                 id={fileAnchorId(selectedFilePath)}
-                className="h-full flex flex-col"
+                className="h-full min-w-0 max-w-full flex flex-col overflow-x-hidden"
               >
-                <div className="h-10 border-b border-border px-3 flex items-center gap-3">
+                <div className="h-10 min-w-0 border-b border-border px-3 flex items-center gap-2 overflow-hidden">
                   <span className="size-4 flex items-center justify-center shrink-0">
                     <FileIcon
                       name={
@@ -1612,7 +1615,7 @@ function PullRequestReviewPage() {
                       className="size-3.5"
                     />
                   </span>
-                  <span className="font-mono text-[12px] truncate">
+                  <span className="min-w-0 flex-1 font-mono text-[12px] truncate">
                     {selectedFilePath}
                   </span>
                   <Button
@@ -1652,7 +1655,7 @@ function PullRequestReviewPage() {
                   </button>
                 </div>
 
-                <div className="min-h-0 flex-1">
+                <div className="diff-content-scroll min-h-0 min-w-0 w-full max-w-full flex-1 overflow-x-auto">
                   <FileDiff
                     fileDiff={selectedFileDiff}
                     options={singleFileDiffOptions}
@@ -1833,7 +1836,7 @@ function PullRequestReviewPage() {
               </div>
             )
           ) : (
-            <div>
+            <div className="w-full max-w-full">
               {allModeDiffEntries.map(({ fileDiff, filePath }, index) => {
                 const fileUnresolvedCount = (
                   threadsByPath.get(filePath) ?? []
@@ -1854,93 +1857,90 @@ function PullRequestReviewPage() {
                   <div
                     key={filePath}
                     id={fileAnchorId(filePath)}
-                    className="border border-l-0 border-t-0 border-border bg-card"
+                    className={cn(
+                      "w-full max-w-full border border-l-0 border-t-0 border-border bg-card",
+                      isCollapsed && "border-b-0",
+                    )}
                     style={index === 0 ? { borderTopWidth: 0 } : undefined}
                   >
-                    <div
-                      className={cn(
-                        "group relative px-2 py-1 flex items-center gap-2 text-[12px]",
-                        !isCollapsed && "border-b border-border",
-                      )}
-                    >
-                      <button
-                        type="button"
-                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                        onClick={() =>
-                          setCollapsedAllModeFiles((prev) => ({
-                            ...prev,
-                            [filePath]: !isCollapsed,
-                          }))
-                        }
-                      >
-                        <span className="size-4 flex items-center justify-center shrink-0">
-                          <FileIcon name={fileName} className="size-3.5" />
-                        </span>
-                        <span className="max-w-[42vw] font-mono truncate">
-                          {filePath}
-                        </span>
-                      </button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 shrink-0"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleCopyPath(filePath);
-                        }}
-                        aria-label="Copy file path"
-                      >
-                        {copiedPath === filePath ? (
-                          <Check className="size-3.5" />
-                        ) : (
-                          <Copy className="size-3.5" />
-                        )}
-                      </Button>
-                      <span className="text-status-added">
-                        +{fileStats.added}
+                  <div
+                    className={cn(
+                      "group sticky top-0 z-20 h-10 min-w-0 cursor-pointer border-b border-border bg-card px-2 flex items-center gap-2 overflow-hidden text-[12px]",
+                    )}
+                    onClick={() =>
+                      setCollapsedAllModeFiles((prev) => ({
+                        ...prev,
+                        [filePath]: !isCollapsed,
+                      }))
+                    }
+                  >
+                    <div className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden">
+                      <span className="size-4 flex items-center justify-center shrink-0">
+                        <FileIcon name={fileName} className="size-3.5" />
                       </span>
-                      <span className="text-status-removed">
-                        -{fileStats.removed}
+                      <span className="min-w-0 max-w-full truncate font-mono">
+                        {filePath}
                       </span>
-                      {fileUnresolvedCount > 0 && (
-                        <span className="text-muted-foreground">
-                          {fileUnresolvedCount} unresolved
-                        </span>
-                      )}
-                      <span
-                        className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
-                        aria-hidden
-                      >
-                        {isCollapsed ? (
-                          <ChevronRight className="size-3.5" />
-                        ) : (
-                          <ChevronDown className="size-3.5" />
-                        )}
-                      </span>
-                      <div className="ml-auto flex items-center gap-2">
-                        <button
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button
                           type="button"
-                          className="flex items-center text-[12px] text-muted-foreground"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 shrink-0"
                           onClick={(event) => {
                             event.stopPropagation();
-                            toggleViewed(filePath);
+                            void handleCopyPath(filePath);
                           }}
+                          aria-label="Copy file path"
                         >
-                          <span
-                            className={
-                              viewedFiles.has(filePath)
-                                ? "size-4 bg-accent text-foreground flex items-center justify-center"
-                                : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
-                            }
-                          >
-                            <Check className="size-3" />
+                          {copiedPath === filePath ? (
+                            <Check className="size-3.5" />
+                          ) : (
+                            <Copy className="size-3.5" />
+                          )}
+                        </Button>
+                        <span className="shrink-0 text-status-added">+{fileStats.added}</span>
+                        <span className="shrink-0 text-status-removed">-{fileStats.removed}</span>
+                        {fileUnresolvedCount > 0 ? (
+                          <span className="shrink-0 text-muted-foreground">
+                            {fileUnresolvedCount} unresolved
                           </span>
-                        </button>
+                        ) : null}
                       </div>
                     </div>
+                    <span
+                      className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
+                      aria-hidden
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight className="size-3.5" />
+                      ) : (
+                        <ChevronDown className="size-3.5" />
+                      )}
+                    </span>
+                    <div className="ml-auto flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        className="flex items-center text-[12px] text-muted-foreground"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleViewed(filePath);
+                        }}
+                      >
+                        <span
+                          className={
+                            viewedFiles.has(filePath)
+                              ? "size-4 bg-accent text-foreground flex items-center justify-center"
+                              : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                          }
+                        >
+                          <Check className="size-3" />
+                        </span>
+                      </button>
+                    </div>
+                  </div>
                     {!isCollapsed && (
-                      <div>
+                      <div className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">
                         <FileDiff
                           fileDiff={fileDiff}
                           options={{
@@ -1969,7 +1969,7 @@ function PullRequestReviewPage() {
               )}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </div>
 
       <Dialog open={mergeOpen} onOpenChange={setMergeOpen}>

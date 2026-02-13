@@ -80,7 +80,7 @@ function HostTree({
 }
 
 function HostAuthPanel({ host }: { host: GitHost }) {
-  const { authByHost, login, logout } = usePrContext();
+  const { authByHost, login } = usePrContext();
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [githubToken, setGithubToken] = useState("");
@@ -95,14 +95,6 @@ function HostAuthPanel({ host }: { host: GitHost }) {
         <div className="text-[13px] text-muted-foreground">
           {getHostLabel(host)} is connected.
         </div>
-        <Button
-          variant="outline"
-          onClick={() => {
-            void logout(host);
-          }}
-        >
-          Disconnect {getHostLabel(host)}
-        </Button>
       </div>
     );
   }
@@ -505,28 +497,32 @@ function LandingPage() {
             <RefreshCw className="size-3.5" />
             Refresh
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8"
-            onClick={() => {
-              if (
-                !window.confirm(
-                  "Disconnect all hosts and clear stored credentials?",
-                )
-              ) {
-                return;
-              }
-              void (async () => {
-                clearAllRepos();
-                await logout();
-                await queryClient.invalidateQueries({ queryKey: ["repo-prs"] });
-                navigate({ to: "/" });
-              })();
-            }}
-          >
-            Disconnect All
-          </Button>
+          {mode !== "hosts" ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    "Disconnect all hosts and clear stored credentials?",
+                  )
+                ) {
+                  return;
+                }
+                void (async () => {
+                  clearAllRepos();
+                  await logout();
+                  await queryClient.invalidateQueries({
+                    queryKey: ["repo-prs"],
+                  });
+                  navigate({ to: "/" });
+                })();
+              }}
+            >
+              Disconnect All
+            </Button>
+          ) : null}
         </header>
 
         <main
@@ -567,6 +563,32 @@ function LandingPage() {
                       }}
                     >
                       Clear {getHostLabel(activeHost)} repositories
+                    </Button>
+                  </div>
+                  <div className="border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+                    <div className="text-[12px] text-muted-foreground">
+                      Danger zone
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            `Disconnect ${getHostLabel(activeHost)} and clear its repositories?`,
+                          )
+                        ) {
+                          return;
+                        }
+                        void (async () => {
+                          await logout(activeHost);
+                          await queryClient.invalidateQueries({
+                            queryKey: ["repo-prs"],
+                          });
+                        })();
+                      }}
+                    >
+                      Disconnect {getHostLabel(activeHost)}
                     </Button>
                   </div>
                 </>

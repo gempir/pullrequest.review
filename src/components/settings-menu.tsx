@@ -3,8 +3,6 @@ import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import {
   Command,
   FolderTree,
-  LogOut,
-  MonitorCog,
   RotateCcw,
   Settings2,
   SlidersHorizontal,
@@ -39,23 +37,16 @@ import { type ShortcutConfig, useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
 type WorkspaceMode = "single" | "all";
-export type SettingsTab =
-  | "appearance"
-  | "diff"
-  | "tree"
-  | "shortcuts"
-  | "workspace";
+export type SettingsTab = "appearance" | "diff" | "tree" | "shortcuts";
 
 const SETTINGS_NAV_ITEMS: ReadonlyArray<{
   tab: SettingsTab;
   name: string;
-  workspaceOnly?: boolean;
 }> = [
   { tab: "appearance", name: "Appearance" },
   { tab: "diff", name: "Diff" },
   { tab: "tree", name: "Tree" },
   { tab: "shortcuts", name: "Shortcuts" },
-  { tab: "workspace", name: "Workspace", workspaceOnly: true },
 ];
 
 export const SETTINGS_PATH_PREFIX = "__settings__/";
@@ -64,10 +55,8 @@ export function settingsPathForTab(tab: SettingsTab) {
   return `${SETTINGS_PATH_PREFIX}${tab}`;
 }
 
-export function getSettingsTreeItems(includeWorkspace: boolean) {
-  return SETTINGS_NAV_ITEMS.filter(
-    (item) => !item.workspaceOnly || includeWorkspace,
-  ).map((item) => ({
+export function getSettingsTreeItems() {
+  return SETTINGS_NAV_ITEMS.map((item) => ({
     tab: item.tab,
     name: item.name,
     path: settingsPathForTab(item.tab),
@@ -81,8 +70,7 @@ export function settingsTabFromPath(path?: string): SettingsTab | null {
     tab === "appearance" ||
     tab === "diff" ||
     tab === "tree" ||
-    tab === "shortcuts" ||
-    tab === "workspace"
+    tab === "shortcuts"
   ) {
     return tab;
   }
@@ -668,32 +656,12 @@ function TreeTab() {
   );
 }
 
-function WorkspaceTab({ onDisconnect }: { onDisconnect?: () => void }) {
-  return (
-    <div className="space-y-2.5">
-      <div>
-        <Button
-          variant="outline"
-          className="gap-2"
-          onClick={() => onDisconnect?.()}
-          disabled={!onDisconnect}
-        >
-          <LogOut className="size-3.5" />
-          Disconnect
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 export function SettingsMenu({
   workspaceMode,
   onWorkspaceModeChange,
-  onDisconnect,
 }: {
   workspaceMode?: WorkspaceMode;
   onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
-  onDisconnect?: () => void;
 } = {}) {
   return (
     <Dialog>
@@ -712,7 +680,6 @@ export function SettingsMenu({
         <SettingsPanel
           workspaceMode={workspaceMode}
           onWorkspaceModeChange={onWorkspaceModeChange}
-          onDisconnect={onDisconnect}
         />
       </DialogContent>
     </Dialog>
@@ -722,7 +689,6 @@ export function SettingsMenu({
 export function SettingsPanel({
   workspaceMode,
   onWorkspaceModeChange,
-  onDisconnect,
   onClose,
   activeTab: controlledActiveTab,
   onActiveTabChange,
@@ -730,7 +696,6 @@ export function SettingsPanel({
 }: {
   workspaceMode?: WorkspaceMode;
   onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
-  onDisconnect?: () => void;
   onClose?: () => void;
   activeTab?: SettingsTab;
   onActiveTabChange?: (tab: SettingsTab) => void;
@@ -746,7 +711,6 @@ export function SettingsPanel({
     }
     onActiveTabChange?.(next);
   };
-  const showWorkspaceTab = Boolean(onDisconnect);
   const settingsContent = (
     <>
       {activeTab === "diff" ? (
@@ -758,9 +722,6 @@ export function SettingsPanel({
       {activeTab === "appearance" ? <AppearanceTab /> : null}
       {activeTab === "tree" ? <TreeTab /> : null}
       {activeTab === "shortcuts" ? <ShortcutsTab /> : null}
-      {activeTab === "workspace" ? (
-        <WorkspaceTab onDisconnect={onDisconnect} />
-      ) : null}
     </>
   );
 
@@ -788,7 +749,7 @@ export function SettingsPanel({
         <div className="flex flex-1 min-h-0">
           <div className="w-56 border-r border-border bg-sidebar">
             <nav className="p-3 space-y-1.5">
-              {getSettingsTreeItems(showWorkspaceTab).map((item) => (
+              {getSettingsTreeItems().map((item) => (
                 <button
                   key={item.tab}
                   type="button"
@@ -808,9 +769,7 @@ export function SettingsPanel({
                     <FolderTree className="size-4" />
                   ) : item.tab === "shortcuts" ? (
                     <Command className="size-4" />
-                  ) : (
-                    <MonitorCog className="size-4" />
-                  )}
+                  ) : null}
                   {item.name}
                 </button>
               ))}

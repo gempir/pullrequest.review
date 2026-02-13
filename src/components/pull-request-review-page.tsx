@@ -93,7 +93,6 @@ import {
   type PullRequestBuildStatus,
   type Comment as PullRequestComment,
 } from "@/lib/git-host/types";
-import { usePrContext } from "@/lib/pr-context";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { makeDirectoryStateStorageKey } from "@/lib/review-storage";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
@@ -419,7 +418,6 @@ export function PullRequestReviewPage({
   authPromptSlot,
 }: PullRequestReviewPageProps) {
   const navigate = useNavigate();
-  const { clearAllRepos, logout } = usePrContext();
   const requestAuth = useCallback(
     (reason: "write" | "rate_limit") => {
       onRequireAuth?.(reason);
@@ -795,7 +793,7 @@ export function PullRequestReviewPage({
     });
     return values;
   }, [filteredDiffs]);
-  const settingsTreeItems = useMemo(() => getSettingsTreeItems(true), []);
+  const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
   const settingsPathSet = useMemo(
     () => new Set(settingsTreeItems.map((item) => item.path)),
     [settingsTreeItems],
@@ -1118,18 +1116,6 @@ export function PullRequestReviewPage({
     }
     return prData.prRef;
   }, [prData]);
-
-  const handleDisconnect = useCallback(() => {
-    void (async () => {
-      setTreeCollapsed(false);
-      setSearchQuery("");
-      setInlineComment(null);
-      setViewedFiles(new Set());
-      clearAllRepos();
-      await logout();
-      navigate({ to: "/" });
-    })();
-  }, [clearAllRepos, logout, navigate]);
 
   const approveMutation = useMutation({
     mutationFn: () => {
@@ -2272,7 +2258,6 @@ export function PullRequestReviewPage({
               <SettingsPanel
                 workspaceMode={viewMode}
                 onWorkspaceModeChange={setViewMode}
-                onDisconnect={handleDisconnect}
                 activeTab={settingsTabFromPath(activeFile) ?? "appearance"}
                 onActiveTabChange={(tab) => {
                   setActiveFile(settingsPathForTab(tab));

@@ -1,0 +1,46 @@
+src/routes/$workspace/$repo/pull/$pullRequestId.tsx
+  d2687d852ac3c8b4 5,7,345-346,532-569,571-576,1827,1829,1837,1846,1849-1850,1855-1856,1858-1872,1874-1878,1881-1885,1887-1889,1891-1906,1908-1921,1943,1950-1955,2125,2127,2140-2145
+  c5f9863a34b5bcf2 126,371-383
+src/lib/shiki-app-theme-sync.tsx
+  d2687d852ac3c8b4 2
+src/routes/$workspace/$repo/pull-requests/$pullRequestId.tsx
+  d2687d852ac3c8b4 5,7,339-340,526-563,565-570,1722,1724,1732,1741,1744-1745,1747-1748,1750-1767,1770-1774,1776-1778,1780-1795,1797-1810,1832,1839-1844,2014,2016,2029-2034
+  c5f9863a34b5bcf2 122,365-377
+src/lib/diff-theme-registration.ts
+  d2687d852ac3c8b4 2
+src/routes/__root.tsx
+  c5f9863a34b5bcf2 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "cf04e47b49ae230112ebf5ff4e18e8c0b468770f",
+  "prompts": {
+    "c5f9863a34b5bcf2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "be489eb8-d752-4afa-b4ae-048e9c3bdf83",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 1,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    },
+    "d2687d852ac3c8b4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f813e2e6-99bc-42b1-94d3-18f31c4eb4ab",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 387,
+      "total_deletions": 275,
+      "accepted_lines": 262,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import { registerCustomTheme } from "@pierre/diffs";
-import { bundledThemes } from "@/lib/shiki-runtime";
+import { bundledThemes } from "shiki";
 
 const BUILT_IN_DIFF_THEMES = new Set([
   "pierre-dark",

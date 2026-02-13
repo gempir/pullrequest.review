@@ -28,6 +28,7 @@ interface FileTreeContextType {
   dirState: Record<string, DirectoryState>;
   activeFile: string | undefined;
   compactSingleChildDirectories: boolean;
+  treeIndentSize: number;
   setTree: (tree: FileNode[]) => void;
   setKinds: (kinds: ReadonlyMap<string, ChangeKind>) => void;
   reset: () => void;
@@ -38,6 +39,7 @@ interface FileTreeContextType {
   isExpanded: (path: string) => boolean;
   setActiveFile: (path: string | undefined) => void;
   setCompactSingleChildDirectories: (enabled: boolean) => void;
+  setTreeIndentSize: (size: number) => void;
   firstFile: () => string | undefined;
   ensureActiveFile: (allowedPaths?: ReadonlySet<string>) => string | undefined;
   children: (path: string) => FileNode[];
@@ -48,6 +50,9 @@ interface FileTreeContextType {
 
 const FileTreeContext = createContext<FileTreeContextType | null>(null);
 const TREE_SETTINGS_KEY = "pr_review_tree_settings";
+const DEFAULT_TREE_INDENT_SIZE = 8;
+const MIN_TREE_INDENT_SIZE = 8;
+const MAX_TREE_INDENT_SIZE = 24;
 
 function sortTree(nodes: FileNode[]): FileNode[] {
   const sorted = [...nodes].sort((a, b) => {
@@ -166,6 +171,9 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
   const [activeFile, setActiveFile] = useState<string | undefined>();
   const [compactSingleChildDirectories, setCompactSingleChildDirectories] =
     useState(true);
+  const [treeIndentSize, setTreeIndentSizeState] = useState(
+    DEFAULT_TREE_INDENT_SIZE,
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -174,9 +182,18 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
       if (!raw) return;
       const parsed = JSON.parse(raw) as {
         compactSingleChildDirectories?: unknown;
+        treeIndentSize?: unknown;
       };
       if (typeof parsed.compactSingleChildDirectories === "boolean") {
         setCompactSingleChildDirectories(parsed.compactSingleChildDirectories);
+      }
+      const parsedIndentSize = Number(parsed.treeIndentSize);
+      if (
+        Number.isFinite(parsedIndentSize) &&
+        parsedIndentSize >= MIN_TREE_INDENT_SIZE &&
+        parsedIndentSize <= MAX_TREE_INDENT_SIZE
+      ) {
+        setTreeIndentSizeState(parsedIndentSize);
       }
     } catch {
       window.localStorage.removeItem(TREE_SETTINGS_KEY);
@@ -187,9 +204,17 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(
       TREE_SETTINGS_KEY,
-      JSON.stringify({ compactSingleChildDirectories }),
+      JSON.stringify({ compactSingleChildDirectories, treeIndentSize }),
     );
-  }, [compactSingleChildDirectories]);
+  }, [compactSingleChildDirectories, treeIndentSize]);
+
+  const setTreeIndentSize = useCallback((size: number) => {
+    const next = Math.max(
+      MIN_TREE_INDENT_SIZE,
+      Math.min(MAX_TREE_INDENT_SIZE, Math.round(size)),
+    );
+    setTreeIndentSizeState(next);
+  }, []);
 
   const nodeIndex = useMemo(() => buildNodeIndex(tree), [tree]);
 
@@ -326,6 +351,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
       dirState,
       activeFile,
       compactSingleChildDirectories,
+      treeIndentSize,
       setTree,
       setKinds,
       reset,
@@ -336,6 +362,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
       isExpanded,
       setActiveFile,
       setCompactSingleChildDirectories,
+      setTreeIndentSize,
       firstFile,
       ensureActiveFile,
       children: getChildren,
@@ -349,6 +376,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
       dirState,
       activeFile,
       compactSingleChildDirectories,
+      treeIndentSize,
       reset,
       expand,
       collapse,
@@ -356,6 +384,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
       setDirectoryExpandedMap,
       isExpanded,
       firstFile,
+      setTreeIndentSize,
       ensureActiveFile,
       getChildren,
       navigateToNextFile,

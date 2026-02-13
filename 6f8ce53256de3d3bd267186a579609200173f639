@@ -1,0 +1,43 @@
+src/components/ui/scroll-area.tsx
+  2ca6c122d220d907 9-10,12-15,19,24-28,33
+src/routes/$workspace/$repo/pull/$pullRequestId.tsx
+  2ca6c122d220d907 13-14,32,45,73,311,314,318-320,333,385,399,401,413,538-564,624-625,638,739-750,1104,1106,1110-1111,1113,1461-1463,1471,1473,1571,1579-1586,1604-1609,1627,1815,1821-1829,1835-1836,1838-1857,1859-1860,1866-1869,1878-1883,1885,1889-1911,1914-1918,1920-1934,1937-1938,1943,1950
+src/lib/file-tree-context.tsx
+  2ca6c122d220d907 31,42,53-55,174-176,185,190-196,207,209-217,354,365,379,387
+src/components/settings-menu.tsx
+  2ca6c122d220d907 22,90,104,269,321,341,345-346,353,358,376,408-410,442-451,470,490,494-495,502,507
+src/components/ui/number-stepper-input.tsx
+  2ca6c122d220d907 1-82
+src/components/diff-toolbar.tsx
+  2ca6c122d220d907 2,43,109,111,115,135,158,234-237
+src/lib/diff-options-context.tsx
+  2ca6c122d220d907 30,50
+src/routes/__root.tsx
+  2ca6c122d220d907 42-44,46-47,139-140,167,249-253,257-258,261-263,292,319-320
+src/components/file-tree.tsx
+  2ca6c122d220d907 58,83,99,114,125,163,196,218,226,244,254,257-260
+src/routes/$workspace/$repo/pull-requests/$pullRequestId.tsx
+  2ca6c122d220d907 13-14,32,45,73,312,315,319-321,334,386,400,402,414,539-565,625-626,639,740-751,1100,1102,1106-1107,1109,1448-1450,1458,1460,1555,1563-1570,1588-1593,1611,1793,1799-1807,1813-1814,1816-1835,1837-1838,1844-1847,1856-1861,1863,1867-1889,1892-1896,1898-1912,1915-1916,1921,1928
+styles.css
+  2ca6c122d220d907 200,203,217,220,233-242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "6f8ce53256de3d3bd267186a579609200173f639",
+  "prompts": {
+    "2ca6c122d220d907": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0f7db7b7-4326-433a-84d8-cf15855ae7ab",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 1850,
+      "total_deletions": 1456,
+      "accepted_lines": 752,
+      "overriden_lines": 8
+    }
+  }
+}

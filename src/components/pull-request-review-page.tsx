@@ -15,13 +15,18 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  Eye,
+  EyeOff,
   FolderMinus,
   FolderPlus,
   Loader2,
   MessageSquare,
+  Minus,
   PanelLeftClose,
   PanelLeftOpen,
   ScrollText,
+  Settings2,
+  X,
 } from "lucide-react";
 import {
   type CSSProperties,
@@ -37,7 +42,12 @@ import { FileIcon } from "react-files-icons";
 import { CommentEditor } from "@/components/comment-editor";
 import { FileTree } from "@/components/file-tree";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
-import { SettingsMenu } from "@/components/settings-menu";
+import {
+  getSettingsTreeItems,
+  SettingsPanel,
+  settingsPathForTab,
+  settingsTabFromPath,
+} from "@/components/settings-menu";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,6 +64,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useAppearance } from "@/lib/appearance-context";
 import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
 import { fileAnchorId } from "@/lib/file-anchors";
 import {
@@ -63,6 +74,7 @@ import {
   type FileNode,
   useFileTree,
 } from "@/lib/file-tree-context";
+import { fontFamilyToCss } from "@/lib/font-options";
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import {
   approvePullRequest,
@@ -76,6 +88,7 @@ import {
 import {
   type GitHost,
   HostApiError,
+  type PullRequestBuildStatus,
   type Comment as PullRequestComment,
 } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
@@ -182,6 +195,111 @@ function formatDate(value?: string) {
   } catch {
     return value;
   }
+}
+
+const RELATIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000;
+
+function formatRelative(value: Date, now: Date) {
+  const diffMs = value.getTime() - now.getTime();
+  const absMs = Math.abs(diffMs);
+  const rtf = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" });
+
+  if (absMs < 60_000) {
+    return rtf.format(Math.round(diffMs / 1_000), "second");
+  }
+  if (absMs < 3_600_000) {
+    return rtf.format(Math.round(diffMs / 60_000), "minute");
+  }
+  return rtf.format(Math.round(diffMs / 3_600_000), "hour");
+}
+
+function formatNavbarDate(value?: string) {
+  if (!value) return "Unknown";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const now = new Date();
+  const ageMs = Math.abs(now.getTime() - parsed.getTime());
+  if (ageMs < RELATIVE_THRESHOLD_MS) {
+    return formatRelative(parsed, now);
+  }
+  return formatDate(value);
+}
+
+function navbarStateClass(state?: string) {
+  const normalized = state?.toLowerCase() ?? "";
+  if (normalized === "merged")
+    return "border-status-added/50 bg-status-added/15 text-status-added";
+  if (normalized === "closed" || normalized === "declined")
+    return "border-status-removed/50 bg-status-removed/15 text-status-removed";
+  if (normalized === "open")
+    return "border-[#93c5fd]/50 bg-[#93c5fd]/15 text-[#93c5fd]";
+  return "border-border bg-secondary text-foreground";
+}
+
+function normalizeNavbarState(pr?: {
+  state?: string;
+  merged_on?: string;
+  closed_on?: string;
+}) {
+  if (pr?.merged_on) return "merged";
+  if (pr?.closed_on) return "closed";
+  return (pr?.state ?? "open").toLowerCase();
+}
+
+function buildStatusLabel(state?: string) {
+  const normalized = state?.toLowerCase() ?? "";
+  if (normalized === "success") return "success";
+  if (normalized === "failed") return "failed";
+  if (normalized === "pending") return "pending";
+  if (normalized === "skipped") return "skipped";
+  if (normalized === "neutral") return "neutral";
+  return "unknown";
+}
+
+function buildStatusBubbleClass(state?: string) {
+  const normalized = state?.toLowerCase() ?? "";
+  if (normalized === "success")
+    return "border-status-added/50 bg-status-added/15 text-status-added";
+  if (normalized === "failed")
+    return "border-status-removed/50 bg-status-removed/15 text-status-removed";
+  if (normalized === "pending")
+    return "border-[#eab308]/50 bg-[#eab308]/15 text-[#eab308]";
+  return "border-border text-muted-foreground";
+}
+
+function formatDuration(ms: number) {
+  if (!Number.isFinite(ms) || ms <= 0) return "0s";
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function buildRunningTime(build: PullRequestBuildStatus) {
+  const started = build.started_on ? new Date(build.started_on) : null;
+  const completed = build.completed_on ? new Date(build.completed_on) : null;
+  const hasStarted = Boolean(started && !Number.isNaN(started.getTime()));
+  const hasCompleted = Boolean(completed && !Number.isNaN(completed.getTime()));
+
+  if (hasStarted && hasCompleted && started && completed) {
+    return formatDuration(completed.getTime() - started.getTime());
+  }
+  if (build.state === "pending" && hasStarted && started) {
+    return `${formatDuration(Date.now() - started.getTime())} running`;
+  }
+  if (hasCompleted) {
+    return formatNavbarDate(build.completed_on);
+  }
+  return "n/a";
+}
+
+function aggregateBuildState(builds: PullRequestBuildStatus[]) {
+  if (builds.some((build) => build.state === "failed")) return "failed";
+  if (builds.some((build) => build.state === "pending")) return "pending";
+  return "success";
 }
 
 function linesUpdated(
@@ -307,14 +425,36 @@ export function PullRequestReviewPage({
     [onRequireAuth],
   );
   const { options } = useDiffOptions();
+  const { monospaceFontFamily, monospaceFontSize, monospaceLineHeight } =
+    useAppearance();
   const diffTypographyStyle = useMemo(
     () =>
       ({
-        "--diff-font-family": `var(--font-${options.diffFontFamily})`,
-        "--diff-font-size": `${options.diffFontSize}px`,
-        "--diff-line-height": String(options.diffLineHeight),
+        "--diff-font-family": fontFamilyToCss(
+          options.diffUseCustomTypography
+            ? options.diffFontFamily
+            : monospaceFontFamily,
+        ),
+        "--diff-font-size": `${
+          options.diffUseCustomTypography
+            ? options.diffFontSize
+            : monospaceFontSize
+        }px`,
+        "--diff-line-height": String(
+          options.diffUseCustomTypography
+            ? options.diffLineHeight
+            : monospaceLineHeight,
+        ),
       }) as CSSProperties,
-    [options.diffFontFamily, options.diffFontSize, options.diffLineHeight],
+    [
+      monospaceFontFamily,
+      monospaceFontSize,
+      monospaceLineHeight,
+      options.diffFontFamily,
+      options.diffFontSize,
+      options.diffLineHeight,
+      options.diffUseCustomTypography,
+    ],
   );
   const libOptions = toLibraryOptions(options);
   const compactDiffOptions = useMemo<FileDiffOptions<undefined>>(
@@ -354,11 +494,13 @@ export function PullRequestReviewPage({
     null,
   );
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeMessage, setMergeMessage] = useState("");
   const [mergeStrategy, setMergeStrategy] = useState("merge_commit");
   const [closeSourceBranch, setCloseSourceBranch] = useState(true);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
+  const [copiedSourceBranch, setCopiedSourceBranch] = useState(false);
   const [treeWidth, setTreeWidth] = useState(DEFAULT_TREE_WIDTH);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [dirStateHydrated, setDirStateHydrated] = useState(false);
@@ -366,6 +508,7 @@ export function PullRequestReviewPage({
   const [diffPlainTextFallback, setDiffPlainTextFallback] = useState(false);
   const autoMarkedViewedFilesRef = useRef<Set<string>>(new Set());
   const copyResetTimeoutRef = useRef<number | null>(null);
+  const copySourceBranchResetTimeoutRef = useRef<number | null>(null);
   const hostCapabilities = useMemo(() => getCapabilitiesForHost(host), [host]);
   const prQueryKey = useMemo(
     () => ["pr-bundle", host, workspace, repo, pullRequestId] as const,
@@ -487,6 +630,9 @@ export function PullRequestReviewPage({
     return () => {
       if (copyResetTimeoutRef.current !== null) {
         window.clearTimeout(copyResetTimeoutRef.current);
+      }
+      if (copySourceBranchResetTimeoutRef.current !== null) {
+        window.clearTimeout(copySourceBranchResetTimeoutRef.current);
       }
     };
   }, []);
@@ -647,14 +793,19 @@ export function PullRequestReviewPage({
     });
     return values;
   }, [filteredDiffs]);
+  const settingsTreeItems = useMemo(() => getSettingsTreeItems(true), []);
+  const settingsPathSet = useMemo(
+    () => new Set(settingsTreeItems.map((item) => item.path)),
+    [settingsTreeItems],
+  );
 
   const visiblePathSet = useMemo(
     () => new Set([PR_SUMMARY_PATH, ...visibleFilePaths]),
     [visibleFilePaths],
   );
-  const viewedVisibleCount = useMemo(
-    () => visibleFilePaths.filter((path) => viewedFiles.has(path)).length,
-    [visibleFilePaths, viewedFiles],
+  const allowedPathSet = useMemo(
+    () => (showSettingsPanel ? settingsPathSet : visiblePathSet),
+    [settingsPathSet, showSettingsPanel, visiblePathSet],
   );
   const treeFilePaths = useMemo(
     () => allFiles().map((file) => file.path),
@@ -694,6 +845,16 @@ export function PullRequestReviewPage({
   }, [filteredDiffs, treeOrderedVisiblePaths]);
 
   useEffect(() => {
+    if (showSettingsPanel) {
+      const settingsNodes: FileNode[] = settingsTreeItems.map((item) => ({
+        name: item.name,
+        path: item.path,
+        type: "file",
+      }));
+      setTree(settingsNodes);
+      setKinds(new Map());
+      return;
+    }
     if (!prData) return;
     const paths = prData.diffstat
       .map((entry) => entry.new?.path ?? entry.old?.path)
@@ -726,7 +887,7 @@ export function PullRequestReviewPage({
 
     setTree(treeWithSummary);
     setKinds(buildKindMapForTree(treeWithSummary, fileKinds));
-  }, [prData, setKinds, setTree]);
+  }, [prData, setKinds, setTree, settingsTreeItems, showSettingsPanel]);
 
   useEffect(() => {
     setTree([]);
@@ -736,6 +897,14 @@ export function PullRequestReviewPage({
   }, [setActiveFile, setKinds, setTree]);
 
   useEffect(() => {
+    if (showSettingsPanel) {
+      const firstSettingsPath = settingsTreeItems[0]?.path;
+      if (!firstSettingsPath) return;
+      if (!activeFile || !settingsPathSet.has(activeFile)) {
+        setActiveFile(firstSettingsPath);
+      }
+      return;
+    }
     if (treeOrderedVisiblePaths.length === 0) {
       return;
     }
@@ -754,6 +923,9 @@ export function PullRequestReviewPage({
     }
   }, [
     activeFile,
+    settingsPathSet,
+    settingsTreeItems,
+    showSettingsPanel,
     setActiveFile,
     treeOrderedVisiblePaths,
     viewedFiles,
@@ -761,6 +933,7 @@ export function PullRequestReviewPage({
   ]);
 
   useEffect(() => {
+    if (showSettingsPanel) return;
     if (showUnviewedOnly) return;
     if (!activeFile || !visiblePathSet.has(activeFile)) return;
     if (activeFile === PR_SUMMARY_PATH) return;
@@ -772,10 +945,17 @@ export function PullRequestReviewPage({
       next.add(activeFile);
       return next;
     });
-  }, [activeFile, showUnviewedOnly, visiblePathSet]);
+  }, [activeFile, showSettingsPanel, showUnviewedOnly, visiblePathSet]);
 
   const selectAndRevealFile = useCallback(
     (path: string) => {
+      if (settingsPathSet.has(path)) {
+        setShowSettingsPanel(true);
+        setActiveFile(path);
+        diffScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      setShowSettingsPanel(false);
       setActiveFile(path);
       if (viewMode === "all") {
         if (path === PR_SUMMARY_PATH) {
@@ -791,7 +971,7 @@ export function PullRequestReviewPage({
       }
       diffScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [setActiveFile, viewMode],
+    [settingsPathSet, setActiveFile, viewMode],
   );
 
   const selectFromPaths = useCallback(
@@ -884,6 +1064,16 @@ export function PullRequestReviewPage({
     () => linesUpdated(prData?.diffstat ?? []),
     [prData?.diffstat],
   );
+  const navbarStatusDate = useMemo(() => {
+    if (!prData) return "Unknown";
+    return formatNavbarDate(
+      prData.pr.merged_on ?? prData.pr.closed_on ?? prData.pr.updated_on,
+    );
+  }, [prData]);
+  const navbarState = useMemo(
+    () => normalizeNavbarState(prData?.pr),
+    [prData?.pr],
+  );
   const fileLineStats = useMemo(() => {
     const map = new Map<string, { added: number; removed: number }>();
     for (const entry of prData?.diffstat ?? []) {
@@ -926,6 +1116,18 @@ export function PullRequestReviewPage({
     }
     return prData.prRef;
   }, [prData]);
+
+  const handleDisconnect = useCallback(() => {
+    void (async () => {
+      setTreeCollapsed(false);
+      setSearchQuery("");
+      setInlineComment(null);
+      setViewedFiles(new Set());
+      clearAllRepos();
+      await logout();
+      navigate({ to: "/" });
+    })();
+  }, [clearAllRepos, logout, navigate]);
 
   const approveMutation = useMutation({
     mutationFn: () => {
@@ -1339,6 +1541,26 @@ export function PullRequestReviewPage({
     }
   }, []);
 
+  const handleCopySourceBranch = useCallback(async (branchName: string) => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) {
+      setActionError("Clipboard is not available");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(branchName);
+      setActionError(null);
+      setCopiedSourceBranch(true);
+      if (copySourceBranchResetTimeoutRef.current !== null) {
+        window.clearTimeout(copySourceBranchResetTimeoutRef.current);
+      }
+      copySourceBranchResetTimeoutRef.current = window.setTimeout(() => {
+        setCopiedSourceBranch(false);
+      }, 1400);
+    } catch {
+      setActionError("Failed to copy source branch");
+    }
+  }, []);
+
   const handleDiffLineEnter = useCallback(
     (props: OnDiffLineEnterLeaveProps) => {
       props.lineElement.style.cursor = "copy";
@@ -1565,44 +1787,45 @@ export function PullRequestReviewPage({
   return (
     <div ref={workspaceRef} className="h-full min-h-0 flex bg-background">
       <aside
-        className="relative shrink-0 border-r border-border bg-sidebar flex flex-col"
-        style={{ width: treeCollapsed ? 36 : treeWidth }}
+        className={cn(
+          "relative shrink-0 bg-sidebar flex flex-col overflow-hidden",
+          treeCollapsed ? "border-r-0" : "border-r border-border",
+        )}
+        style={{ width: treeCollapsed ? 0 : treeWidth }}
       >
-        {treeCollapsed ? (
-          <div className="h-full flex items-start justify-center pt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => setTreeCollapsed(false)}
-              aria-label="Expand file tree"
-            >
-              <PanelLeftOpen className="size-4" />
-            </Button>
-          </div>
-        ) : (
+        {!treeCollapsed ? (
           <>
-            <div className="h-11 px-2 border-b border-border flex items-center gap-2 text-[11px] text-muted-foreground">
-              <span>
-                {viewedVisibleCount}/{visibleFilePaths.length} viewed
-              </span>
+            <div
+              className="h-11 px-2 border-b border-border flex items-center gap-2 text-[11px] text-muted-foreground"
+              data-component="top-sidebar"
+            >
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-[10px] gap-1.5"
-                onClick={() => setShowUnviewedOnly((prev) => !prev)}
-              >
-                <span
-                  className={
-                    showUnviewedOnly
-                      ? "size-3.5 bg-accent text-foreground flex items-center justify-center"
-                      : "size-3.5 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                className={cn(
+                  "h-8 w-8 p-0",
+                  showSettingsPanel
+                    ? "text-status-renamed bg-status-renamed/20 border border-status-renamed/40 hover:bg-status-renamed/30"
+                    : "",
+                )}
+                onClick={() => {
+                  if (showSettingsPanel) {
+                    setShowSettingsPanel(false);
+                    setActiveFile(PR_SUMMARY_PATH);
+                    return;
                   }
-                >
-                  <Check className="size-2.5" />
-                </span>
-                Unviewed
+                  setShowSettingsPanel(true);
+                  if (!activeFile || !settingsPathSet.has(activeFile)) {
+                    setActiveFile(settingsPathForTab("appearance"));
+                  }
+                }}
+                aria-label={
+                  showSettingsPanel ? "Close settings" : "Open settings"
+                }
+                data-component="settings"
+              >
+                <Settings2 className="size-3.5" />
               </Button>
               <Button
                 variant="ghost"
@@ -1614,13 +1837,46 @@ export function PullRequestReviewPage({
                 <PanelLeftClose className="size-3.5" />
               </Button>
             </div>
-            <div className="h-10 px-2 border-b border-border flex items-center gap-1">
+            <div
+              className="h-10 pl-1 pr-2 border-b border-border flex items-center gap-1"
+              data-component="search-sidebar"
+            >
               <Input
-                className="h-7 text-[12px] flex-1 min-w-0"
+                className="h-7 text-[12px] flex-1 min-w-0 border-0 focus-visible:border-0 focus-visible:ring-0"
                 placeholder="search files"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "size-7 p-0",
+                      showUnviewedOnly ? "bg-accent text-foreground" : "",
+                    )}
+                    onClick={() => setShowUnviewedOnly((prev) => !prev)}
+                    aria-label={
+                      showUnviewedOnly
+                        ? "Show all files"
+                        : "Show unviewed files only"
+                    }
+                  >
+                    {showUnviewedOnly ? (
+                      <EyeOff className="size-3.5" />
+                    ) : (
+                      <Eye className="size-3.5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {showUnviewedOnly
+                    ? "Showing unviewed files"
+                    : "Show unviewed files only"}
+                </TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -1654,16 +1910,18 @@ export function PullRequestReviewPage({
             </div>
             <ScrollArea
               className="flex-1 min-h-0"
-              viewportClassName="tree-font-scope py-2"
+              viewportClassName="tree-font-scope pb-2"
             >
-              <FileTree
-                path=""
-                filterQuery={searchQuery}
-                allowedFiles={visiblePathSet}
-                viewedFiles={viewedFiles}
-                onToggleViewed={toggleViewed}
-                onFileClick={(node) => selectAndRevealFile(node.path)}
-              />
+              <div data-component="tree">
+                <FileTree
+                  path=""
+                  filterQuery={searchQuery}
+                  allowedFiles={allowedPathSet}
+                  viewedFiles={viewedFiles}
+                  onToggleViewed={toggleViewed}
+                  onFileClick={(node) => selectAndRevealFile(node.path)}
+                />
+              </div>
             </ScrollArea>
             <button
               type="button"
@@ -1672,23 +1930,252 @@ export function PullRequestReviewPage({
               aria-label="Resize file tree"
             />
           </>
-        )}
+        ) : null}
       </aside>
 
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-        <div className="h-11 border-b border-border bg-card px-3 flex items-center gap-3">
+        <div
+          className="h-11 border-b border-border bg-card px-3 flex items-center gap-3"
+          style={{ fontFamily: "var(--comment-font-family)" }}
+        >
           <div className="min-w-0 flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span className="truncate text-foreground font-medium">
-              {prData.pr.source?.repository?.full_name ?? "repo"}
+            {treeCollapsed ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 shrink-0"
+                onClick={() => setTreeCollapsed(false)}
+                aria-label="Expand file tree"
+              >
+                <PanelLeftOpen className="size-3.5" />
+              </Button>
+            ) : null}
+            <div className="group/source relative max-w-[180px] min-w-0">
+              <span className="block truncate text-foreground">
+                {prData.pr.source?.branch?.name ?? "source"}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 p-0 transition-opacity bg-card/95",
+                  copiedSourceBranch
+                    ? "opacity-100"
+                    : "opacity-0 pointer-events-none group-hover/source:opacity-100 group-hover/source:pointer-events-auto group-focus-within/source:opacity-100 group-focus-within/source:pointer-events-auto",
+                )}
+                onClick={() =>
+                  void handleCopySourceBranch(
+                    prData.pr.source?.branch?.name ?? "source",
+                  )
+                }
+                aria-label="Copy source branch"
+              >
+                {copiedSourceBranch ? (
+                  <Check className="size-3.5" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+              </Button>
+            </div>
+            <span>-&gt;</span>
+            <span className="max-w-[180px] truncate text-foreground">
+              {prData.pr.destination?.branch?.name ?? "target"}
             </span>
-            <span className="text-muted-foreground">/</span>
-            <span className="truncate">
-              {prData.pr.destination?.branch?.name ?? "branch"}
+            <span
+              className={cn(
+                "px-1.5 py-0.5 border uppercase text-[10px]",
+                navbarStateClass(navbarState),
+              )}
+            >
+              {navbarState}
             </span>
-            <span className="px-1.5 py-0.5 border border-border bg-secondary uppercase text-[10px] text-foreground">
-              {prData.pr.state}
-            </span>
-            <span className="text-[10px]">#{prData.pr.id}</span>
+            <span className="truncate">{navbarStatusDate}</span>
+            {prData.buildStatuses && prData.buildStatuses.length > 0 ? (
+              <div className="flex items-center gap-1">
+                {prData.buildStatuses.length > 3 ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className={cn(
+                          "inline-flex h-6 min-w-10 px-1.5 items-center justify-center rounded-full border text-[10px] leading-none font-medium",
+                          buildStatusBubbleClass(
+                            aggregateBuildState(prData.buildStatuses),
+                          ),
+                        )}
+                      >
+                        {
+                          prData.buildStatuses.filter(
+                            (build) => build.state === "success",
+                          ).length
+                        }
+                        /{prData.buildStatuses.length}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[520px]">
+                      <div className="space-y-1 text-[11px]">
+                        {prData.buildStatuses.map((build) => {
+                          const stateLabel = buildStatusLabel(build.state);
+                          const rowIcon =
+                            stateLabel === "success" ? (
+                              <Check className="size-3" />
+                            ) : stateLabel === "failed" ? (
+                              <X className="size-3" />
+                            ) : stateLabel === "pending" ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              <Minus className="size-3" />
+                            );
+                          const rowClass =
+                            "flex items-center gap-2 w-full rounded px-1.5 py-1";
+                          if (build.url) {
+                            return (
+                              <a
+                                key={`build-summary-${build.id}`}
+                                href={build.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={cn(
+                                  rowClass,
+                                  "hover:bg-accent cursor-pointer",
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "inline-flex size-4 items-center justify-center rounded-full border",
+                                    buildStatusBubbleClass(build.state),
+                                  )}
+                                >
+                                  {rowIcon}
+                                </span>
+                                <span className="w-20 shrink-0 text-muted-foreground">
+                                  {buildRunningTime(build)}
+                                </span>
+                                <span className="truncate text-foreground">
+                                  {build.name}
+                                </span>
+                              </a>
+                            );
+                          }
+                          return (
+                            <div
+                              key={`build-summary-${build.id}`}
+                              className={rowClass}
+                            >
+                              <span
+                                className={cn(
+                                  "inline-flex size-4 items-center justify-center rounded-full border",
+                                  buildStatusBubbleClass(build.state),
+                                )}
+                              >
+                                {rowIcon}
+                              </span>
+                              <span className="w-20 shrink-0 text-muted-foreground">
+                                {buildRunningTime(build)}
+                              </span>
+                              <span className="truncate text-foreground">
+                                {build.name}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  prData.buildStatuses.map((build) => {
+                    const stateLabel = buildStatusLabel(build.state);
+                    const bubbleClass = cn(
+                      "inline-flex size-6 items-center justify-center rounded-full border transition-colors",
+                      buildStatusBubbleClass(build.state),
+                    );
+                    const icon =
+                      stateLabel === "success" ? (
+                        <Check className="size-3" />
+                      ) : stateLabel === "failed" ? (
+                        <X className="size-3" />
+                      ) : stateLabel === "pending" ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Minus className="size-3" />
+                      );
+                    const tooltip = (
+                      <TooltipContent side="bottom" className="max-w-[420px]">
+                        <div className="space-y-1 text-[11px]">
+                          {build.url ? (
+                            <a
+                              href={build.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-2 w-full rounded px-1.5 py-1 hover:bg-accent cursor-pointer"
+                            >
+                              <span
+                                className={cn(
+                                  "inline-flex size-4 items-center justify-center rounded-full border",
+                                  buildStatusBubbleClass(build.state),
+                                )}
+                              >
+                                {icon}
+                              </span>
+                              <span className="w-20 shrink-0 text-muted-foreground">
+                                {buildRunningTime(build)}
+                              </span>
+                              <span className="truncate text-foreground">
+                                {build.name}
+                              </span>
+                            </a>
+                          ) : (
+                            <div className="flex items-center gap-2 w-full rounded px-1.5 py-1">
+                              <span
+                                className={cn(
+                                  "inline-flex size-4 items-center justify-center rounded-full border",
+                                  buildStatusBubbleClass(build.state),
+                                )}
+                              >
+                                {icon}
+                              </span>
+                              <span className="w-20 shrink-0 text-muted-foreground">
+                                {buildRunningTime(build)}
+                              </span>
+                              <span className="truncate text-foreground">
+                                {build.name}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </TooltipContent>
+                    );
+                    if (build.url) {
+                      return (
+                        <Tooltip key={build.id}>
+                          <TooltipTrigger asChild>
+                            <a
+                              href={build.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={bubbleClass}
+                              aria-label={`${build.name} ${stateLabel}`}
+                            >
+                              {icon}
+                              <span className="sr-only">{`${build.name} ${stateLabel}`}</span>
+                            </a>
+                          </TooltipTrigger>
+                          {tooltip}
+                        </Tooltip>
+                      );
+                    }
+                    return (
+                      <Tooltip key={build.id}>
+                        <TooltipTrigger asChild>
+                          <span className={bubbleClass}>{icon}</span>
+                        </TooltipTrigger>
+                        {tooltip}
+                      </Tooltip>
+                    );
+                  })
+                )}
+              </div>
+            ) : null}
           </div>
 
           <div className="ml-auto flex items-center gap-2 text-[11px]">
@@ -1734,21 +2221,6 @@ export function PullRequestReviewPage({
             >
               Merge
             </Button>
-            <SettingsMenu
-              workspaceMode={viewMode}
-              onWorkspaceModeChange={setViewMode}
-              onDisconnect={() => {
-                void (async () => {
-                  setTreeCollapsed(false);
-                  setSearchQuery("");
-                  setInlineComment(null);
-                  setViewedFiles(new Set());
-                  clearAllRepos();
-                  await logout();
-                  navigate({ to: "/" });
-                })();
-              }}
-            />
           </div>
         </div>
 
@@ -1760,9 +2232,27 @@ export function PullRequestReviewPage({
 
         <div
           ref={diffScrollRef}
+          data-component="diff-view"
           className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
         >
-          {viewMode === "single" ? (
+          {showSettingsPanel ? (
+            <div className="h-full min-h-0">
+              <SettingsPanel
+                workspaceMode={viewMode}
+                onWorkspaceModeChange={setViewMode}
+                onDisconnect={handleDisconnect}
+                activeTab={settingsTabFromPath(activeFile) ?? "appearance"}
+                onActiveTabChange={(tab) => {
+                  setActiveFile(settingsPathForTab(tab));
+                }}
+                showSidebar={false}
+                onClose={() => {
+                  setShowSettingsPanel(false);
+                  setActiveFile(PR_SUMMARY_PATH);
+                }}
+              />
+            </div>
+          ) : viewMode === "single" ? (
             isSummarySelected && prData ? (
               <div
                 id={fileAnchorId(PR_SUMMARY_PATH)}
@@ -1772,15 +2262,12 @@ export function PullRequestReviewPage({
                   bundle={prData}
                   headerTitle={prData.pr.title?.trim() || PR_SUMMARY_NAME}
                   diffStats={lineStats}
-                  onRefreshBuildStatus={() => {
-                    void refetchPrQuery();
-                  }}
-                  refreshingBuildStatus={isPrQueryFetching}
                 />
               </div>
             ) : selectedFileDiff && selectedFilePath ? (
               <div
                 id={fileAnchorId(selectedFilePath)}
+                data-component="diff-file-view"
                 className="h-full min-w-0 max-w-full flex flex-col overflow-x-hidden"
               >
                 <div className="h-10 min-w-0 border-b border-border px-3 flex items-center gap-2 overflow-hidden">
@@ -2033,7 +2520,7 @@ export function PullRequestReviewPage({
               </div>
             )
           ) : (
-            <div className="w-full max-w-full">
+            <div className="w-full max-w-full" data-component="diff-list-view">
               {prData ? (
                 <div
                   id={fileAnchorId(PR_SUMMARY_PATH)}
@@ -2085,10 +2572,6 @@ export function PullRequestReviewPage({
                     <PullRequestSummaryPanel
                       bundle={prData}
                       diffStats={lineStats}
-                      onRefreshBuildStatus={() => {
-                        void refetchPrQuery();
-                      }}
-                      refreshingBuildStatus={isPrQueryFetching}
                     />
                   )}
                 </div>
@@ -2266,6 +2749,7 @@ export function PullRequestReviewPage({
               ) : (
                 <Input
                   id="merge-strategy"
+                  className="border-0 focus-visible:border-0 focus-visible:ring-0"
                   value={mergeStrategy}
                   onChange={(e) => setMergeStrategy(e.target.value)}
                   placeholder="merge_commit"
@@ -2277,6 +2761,7 @@ export function PullRequestReviewPage({
               <Label htmlFor="merge-message">Merge message</Label>
               <Input
                 id="merge-message"
+                className="border-0 focus-visible:border-0 focus-visible:ring-0"
                 value={mergeMessage}
                 onChange={(e) => setMergeMessage(e.target.value)}
                 placeholder="Optional merge message"

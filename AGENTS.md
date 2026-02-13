@@ -35,3 +35,20 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 
 ## Naming
 - Use `pullrequestdotreview` as the canonical project name when `pullrequest.review` cannot be used.
+
+## UI Component Anchors
+- Use `data-component="<name>"` on shared layout and diff primitives.
+- Keep names canonical and kebab-case.
+- Prefer semantic HTML landmarks first (`nav`, `aside`, `header`, `main`), then use `data-component` for stable identification.
+
+- `navbar`
+- `sidebar`
+- `top-sidebar`
+- `search-sidebar`
+- `summary-page`
+- `summary-header` (PR title header in summary view)
+- `diff-view` (primary content viewport below navbar and right of sidebar; hosts summary/settings/single-diff/list-diff views)
+- `diff-list-view` (all file diffs container, multi-file stream)
+- `diff-file-view` (single file diff container)
+- `settings`
+- `tree` (directory tree)

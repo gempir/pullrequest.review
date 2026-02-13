@@ -13,7 +13,9 @@ import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue } from "@/lib/font-options";
 
 export interface DiffOptions {
+  followSystemTheme: boolean;
   theme: DiffTheme;
+  diffUseCustomTypography: boolean;
   diffFontFamily: FontFamilyValue;
   diffFontSize: number;
   diffLineHeight: number;
@@ -33,7 +35,9 @@ export interface DiffOptions {
 const STORAGE_KEY = "pr_review_diff_options";
 
 const defaultOptions: DiffOptions = {
+  followSystemTheme: true,
   theme: DEFAULT_DIFF_THEME,
+  diffUseCustomTypography: false,
   diffFontFamily: DEFAULT_FONT_FAMILY,
   diffFontSize: 13,
   diffLineHeight: 1.45,
@@ -78,6 +82,10 @@ function parseStoredOptions(raw: string | null): DiffOptions | null {
     return {
       ...defaultOptions,
       ...parsed,
+      followSystemTheme:
+        typeof parsed.followSystemTheme === "boolean"
+          ? parsed.followSystemTheme
+          : defaultOptions.followSystemTheme,
       diffFontFamily:
         (parsed.diffFontFamily as FontFamilyValue) ??
         defaultOptions.diffFontFamily,
@@ -114,6 +122,25 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
     if (!hydrated || typeof window === "undefined") return;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(options));
   }, [hydrated, options]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !options.followSystemTheme) return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = (isDark: boolean) => {
+      setOptions((prev) => {
+        if (!prev.followSystemTheme) return prev;
+        const nextTheme = isDark ? "pierre-dark" : "pierre-light";
+        if (prev.theme === nextTheme) return prev;
+        return { ...prev, theme: nextTheme };
+      });
+    };
+    apply(media.matches);
+    const onChange = (event: MediaQueryListEvent) => {
+      apply(event.matches);
+    };
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, [options.followSystemTheme]);
 
   const setOption = useCallback(
     <K extends keyof DiffOptions>(key: K, value: DiffOptions[K]) => {

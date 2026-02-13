@@ -1,13 +1,9 @@
-import { Check, Copy, RotateCw } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Button } from "@/components/ui/button";
 import type {
-  PullRequestBuildStatus,
   PullRequestBundle,
   PullRequestHistoryEvent,
-  PullRequestReviewer,
 } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
 
@@ -71,32 +67,6 @@ function eventLabel(type: PullRequestHistoryEvent["type"]) {
   }
 }
 
-function reviewerLabel(status: PullRequestReviewer["status"]) {
-  if (status === "approved") return "approved";
-  if (status === "changes_requested") return "changes requested";
-  if (status === "commented") return "commented";
-  return "pending";
-}
-
-function buildLabel(status: PullRequestBuildStatus["state"]) {
-  if (status === "success") return "success";
-  if (status === "failed") return "failed";
-  if (status === "pending") return "pending";
-  if (status === "skipped") return "skipped";
-  if (status === "neutral") return "neutral";
-  return "unknown";
-}
-
-function buildBadgeClass(status: PullRequestBuildStatus["state"]) {
-  if (status === "success")
-    return "border-status-added/40 bg-status-added/10 text-status-added";
-  if (status === "failed")
-    return "border-status-removed/40 bg-status-removed/10 text-status-removed";
-  if (status === "pending")
-    return "border-[#eab308]/40 bg-[#eab308]/10 text-[#eab308]";
-  return "border-border bg-secondary text-muted-foreground";
-}
-
 function MarkdownBlock({ text }: { text: string }) {
   return (
     <div className="space-y-2 text-[12px] leading-relaxed">
@@ -156,12 +126,12 @@ function Section({
   headerRight?: ReactNode;
 }) {
   return (
-    <section className="border border-border bg-card">
-      <div className="h-8 border-b border-border px-3 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+    <section>
+      <div className="h-8 px-2.5 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
         <span>{title}</span>
         {headerRight ? <span className="ml-auto">{headerRight}</span> : null}
       </div>
-      <div className="p-3">{children}</div>
+      <div className="p-2.5">{children}</div>
     </section>
   );
 }
@@ -201,20 +171,12 @@ export function PullRequestSummaryPanel({
   bundle,
   headerTitle,
   diffStats,
-  onRefreshBuildStatus,
-  refreshingBuildStatus,
 }: {
   bundle: PullRequestBundle;
   headerTitle?: string;
   diffStats?: { added: number; removed: number };
-  onRefreshBuildStatus?: () => void;
-  refreshingBuildStatus?: boolean;
 }) {
-  const { pr, commits, history, reviewers, buildStatuses } = bundle;
-  const sourceBranchName = pr.source?.branch?.name ?? "source";
-  const targetBranchName = pr.destination?.branch?.name ?? "target";
-  const [copiedSourceBranch, setCopiedSourceBranch] = useState(false);
-  const copyResetTimeoutRef = useRef<number | null>(null);
+  const { pr, commits, history } = bundle;
   const resolvedHistory: PullRequestHistoryEvent[] =
     history && history.length > 0
       ? history
@@ -240,52 +202,25 @@ export function PullRequestSummaryPanel({
       new Date(b.created_on ?? 0).getTime() -
       new Date(a.created_on ?? 0).getTime(),
   );
-  const resolvedReviewers =
-    reviewers && reviewers.length > 0
-      ? reviewers
-      : (pr.participants ?? []).map((participant, index) => ({
-          id: `fallback-reviewer-${index}`,
-          display_name: participant.user?.display_name,
-          avatar_url: participant.user?.avatar_url,
-          status: participant.approved
-            ? ("approved" as const)
-            : ("pending" as const),
-          approved: Boolean(participant.approved),
-        }));
-
-  useEffect(() => {
-    return () => {
-      if (copyResetTimeoutRef.current !== null) {
-        window.clearTimeout(copyResetTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const copySourceBranch = async () => {
-    if (typeof navigator === "undefined" || !navigator.clipboard) return;
-    try {
-      await navigator.clipboard.writeText(sourceBranchName);
-      setCopiedSourceBranch(true);
-      if (copyResetTimeoutRef.current !== null) {
-        window.clearTimeout(copyResetTimeoutRef.current);
-      }
-      copyResetTimeoutRef.current = window.setTimeout(() => {
-        setCopiedSourceBranch(false);
-      }, 1400);
-    } catch {
-      setCopiedSourceBranch(false);
-    }
-  };
 
   return (
-    <div className="pr-diff-font">
+    <div
+      className="pr-diff-font"
+      style={{ fontFamily: "var(--comment-font-family)" }}
+    >
       {headerTitle ? (
-        <div className="h-10 border-b border-border bg-card px-3 flex items-center gap-2 overflow-hidden">
-          <span className="min-w-0 flex-1 font-mono text-[12px] text-foreground truncate">
+        <div
+          className="h-10 border-b border-border bg-card px-2.5 flex items-center gap-2 overflow-hidden"
+          data-component="summary-header"
+        >
+          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+            #{pr.id}
+          </span>
+          <span className="min-w-0 flex-1 text-[12px] text-foreground truncate">
             {headerTitle}
           </span>
           {diffStats ? (
-            <div className="ml-auto shrink-0 text-[11px]">
+            <div className="ml-auto shrink-0 font-mono text-[11px]">
               <span className="text-status-added">+{diffStats.added}</span>
               <span className="ml-2 text-status-removed">
                 -{diffStats.removed}
@@ -294,176 +229,25 @@ export function PullRequestSummaryPanel({
           ) : null}
         </div>
       ) : null}
-      <div className="p-3 space-y-3">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-          <Section title="Meta">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-[12px]">
-              <div className="text-muted-foreground">Author</div>
-              <div className="text-foreground">
-                {pr.author?.display_name ?? "Unknown"}
-              </div>
-              <div className="text-muted-foreground">Branches</div>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-foreground truncate">
-                  {sourceBranchName}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 shrink-0"
-                  onClick={() => {
-                    void copySourceBranch();
-                  }}
-                  aria-label="Copy source branch"
-                >
-                  {copiedSourceBranch ? (
-                    <Check className="size-3.5" />
-                  ) : (
-                    <Copy className="size-3.5" />
-                  )}
-                </Button>
-                <span className="text-muted-foreground shrink-0">-&gt;</span>
-                <span className="text-foreground truncate">
-                  {targetBranchName}
-                </span>
-              </div>
-              <div className="text-muted-foreground">PR Number</div>
-              <div className="text-foreground">#{pr.id}</div>
-              <div className="text-muted-foreground">Status</div>
-              <div className="text-foreground">
-                {pr.draft ? "DRAFT " : ""}
-                {pr.state}
-              </div>
-              <div className="text-muted-foreground">Created</div>
-              <div className="text-foreground">{formatDate(pr.created_on)}</div>
-              <div className="text-muted-foreground">Updated</div>
-              <div className="text-foreground">{formatDate(pr.updated_on)}</div>
-              <div className="text-muted-foreground">Merged</div>
-              <div className="text-foreground">{formatDate(pr.merged_on)}</div>
-              <div className="text-muted-foreground">Closed</div>
-              <div className="text-foreground">{formatDate(pr.closed_on)}</div>
-            </div>
-            <div className="mt-3 space-y-1">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Reviewers
-              </div>
-              {resolvedReviewers.length > 0 ? (
-                resolvedReviewers.map((reviewer) => (
-                  <div
-                    key={reviewer.id}
-                    className="border border-border/70 bg-background px-2.5 py-2 flex items-center gap-2 text-[12px]"
-                  >
-                    <Avatar
-                      name={reviewer.display_name}
-                      url={reviewer.avatar_url}
-                      sizeClass="size-4"
-                    />
-                    <span className="text-foreground">
-                      {reviewer.display_name ?? "Unknown"}
-                    </span>
-                    <span className="ml-auto text-muted-foreground">
-                      {reviewerLabel(reviewer.status)}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="text-[12px] text-muted-foreground">
-                  No reviewers found.
-                </div>
-              )}
-            </div>
-          </Section>
-
-          <Section
-            title="Build Status"
-            headerRight={
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0"
-                onClick={onRefreshBuildStatus}
-                disabled={
-                  !onRefreshBuildStatus || Boolean(refreshingBuildStatus)
-                }
-                aria-label="Refresh build status"
-              >
-                <RotateCw
-                  className={cn(
-                    "size-3.5",
-                    refreshingBuildStatus ? "animate-spin" : "",
-                  )}
-                />
-              </Button>
-            }
-          >
-            {buildStatuses && buildStatuses.length > 0 ? (
-              <div className="space-y-2">
-                {buildStatuses.map((build) => (
-                  <div
-                    key={build.id}
-                    className="border border-border/70 bg-background px-2.5 py-2"
-                  >
-                    <div className="flex items-center gap-2 text-[12px]">
-                      <span className="text-foreground truncate">
-                        {build.name}
-                      </span>
-                      <span
-                        className={cn(
-                          "ml-auto px-1.5 py-0.5 border text-[10px] uppercase tracking-wide",
-                          buildBadgeClass(build.state),
-                        )}
-                      >
-                        {buildLabel(build.state)}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-[11px] text-muted-foreground flex items-center gap-2">
-                      <span>{build.provider ?? "provider"}</span>
-                      <span className="ml-auto">
-                        {formatDate(build.completed_on)}
-                      </span>
-                    </div>
-                    {build.url ? (
-                      <a
-                        href={build.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 block text-[11px] underline text-foreground"
-                      >
-                        Open build
-                      </a>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
+      <div className="p-2.5 space-y-2.5">
+        <section>
+          <div className="p-2.5">
+            {pr.description?.trim() ? (
+              <MarkdownBlock text={pr.description} />
             ) : (
               <div className="text-[12px] text-muted-foreground">
-                No build status found for latest commit.
+                No description.
               </div>
             )}
-          </Section>
-        </div>
-
-        <Section title="PR Description">
-          {pr.description?.trim() ? (
-            <MarkdownBlock text={pr.description} />
-          ) : (
-            <div className="text-[12px] text-muted-foreground">
-              No description.
-            </div>
-          )}
-        </Section>
+          </div>
+        </section>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
           <Section title="History">
             {orderedHistory.length > 0 ? (
               <div className="space-y-2">
                 {orderedHistory.map((event) => (
-                  <div
-                    key={event.id}
-                    className="border border-border/70 bg-background px-2.5 py-2"
-                  >
+                  <div key={event.id} className="px-2.5 py-2">
                     <div className="flex items-center gap-2 text-[11px]">
                       <Avatar
                         name={event.actor?.display_name}
@@ -502,7 +286,7 @@ export function PullRequestSummaryPanel({
 
           <Section title="Commits">
             {commits.length > 0 ? (
-              <div className="border border-border/70 bg-background">
+              <div>
                 <div className="grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/70">
                   <span>Author</span>
                   <span>Commit</span>
@@ -539,6 +323,7 @@ export function PullRequestSummaryPanel({
                       </div>
                       <span
                         className={cn(
+                          "font-mono",
                           mergedDevelop
                             ? "text-status-added/80"
                             : "text-[#93c5fd]",

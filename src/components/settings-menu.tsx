@@ -1,3 +1,5 @@
+import { type FileDiffOptions, parsePatchFiles } from "@pierre/diffs";
+import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import {
   Command,
   FolderTree,
@@ -8,16 +10,10 @@ import {
   SlidersHorizontal,
   SwatchBook,
 } from "lucide-react";
-import { useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 import { DiffToolbar } from "@/components/diff-toolbar";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { NumberStepperInput } from "@/components/ui/number-stepper-input";
 import {
@@ -28,18 +24,85 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { type AppThemeMode, useAppearance } from "@/lib/appearance-context";
+import { useAppearance } from "@/lib/appearance-context";
+import { useDiffOptions } from "@/lib/diff-options-context";
+import { DIFF_THEMES, type DiffTheme } from "@/lib/diff-themes";
 import { useFileTree } from "@/lib/file-tree-context";
 import {
   FONT_FAMILY_OPTIONS,
   type FontFamilyValue,
+  fontFamilyToCss,
+  MONO_FONT_FAMILY_OPTIONS,
   SANS_FONT_FAMILY_OPTIONS,
 } from "@/lib/font-options";
 import { type ShortcutConfig, useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
 type WorkspaceMode = "single" | "all";
-type Tab = "diff" | "appearance" | "tree" | "shortcuts" | "workspace";
+export type SettingsTab =
+  | "appearance"
+  | "diff"
+  | "tree"
+  | "shortcuts"
+  | "workspace";
+
+const SETTINGS_NAV_ITEMS: ReadonlyArray<{
+  tab: SettingsTab;
+  name: string;
+  workspaceOnly?: boolean;
+}> = [
+  { tab: "appearance", name: "Appearance" },
+  { tab: "diff", name: "Diff" },
+  { tab: "tree", name: "Tree" },
+  { tab: "shortcuts", name: "Shortcuts" },
+  { tab: "workspace", name: "Workspace", workspaceOnly: true },
+];
+
+export const SETTINGS_PATH_PREFIX = "__settings__/";
+
+export function settingsPathForTab(tab: SettingsTab) {
+  return `${SETTINGS_PATH_PREFIX}${tab}`;
+}
+
+export function getSettingsTreeItems(includeWorkspace: boolean) {
+  return SETTINGS_NAV_ITEMS.filter(
+    (item) => !item.workspaceOnly || includeWorkspace,
+  ).map((item) => ({
+    tab: item.tab,
+    name: item.name,
+    path: settingsPathForTab(item.tab),
+  }));
+}
+
+export function settingsTabFromPath(path?: string): SettingsTab | null {
+  if (!path || !path.startsWith(SETTINGS_PATH_PREFIX)) return null;
+  const tab = path.slice(SETTINGS_PATH_PREFIX.length);
+  if (
+    tab === "appearance" ||
+    tab === "diff" ||
+    tab === "tree" ||
+    tab === "shortcuts" ||
+    tab === "workspace"
+  ) {
+    return tab;
+  }
+  return null;
+}
+
+const DIFF_PREVIEW_PATCH = `diff --git a/src/feature.ts b/src/feature.ts
+index 1111111..2222222 100644
+--- a/src/feature.ts
++++ b/src/feature.ts
+@@ -1,5 +1,8 @@
+-const title = "settings-modal";
++const title = "settings-inline";
++const summary = "This preview includes a deliberately long line to verify wrapping behavior when overflow is set to wrap instead of scroll in the diff settings panel.";
++const notes = "Another verbose line for spacing checks: alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega.";
+ export function run() {
+-  return title;
++  return [title, summary, notes].join(" ");
+ }
+`;
 
 function ShortcutRow({
   label,
@@ -87,7 +150,7 @@ function ShortcutRow({
   };
 
   return (
-    <div className="flex items-center justify-between px-3 py-3 border-b border-border last:border-0 gap-3">
+    <div className="flex items-center justify-between px-2 py-2.5 gap-3">
       <div className="flex flex-col">
         <span className="text-[13px]">{label}</span>
         <span className="text-[11px] text-muted-foreground">
@@ -101,10 +164,10 @@ function ShortcutRow({
           onKeyDown={handleKeyDown}
           onBlur={() => setIsRecording(false)}
           className={cn(
-            "h-9 px-3 text-[13px] border transition-colors min-w-[100px] text-center",
+            "h-8 px-2.5 text-[12px] transition-colors min-w-[96px] text-center",
             isRecording
-              ? "border-ring bg-accent text-accent-foreground"
-              : "border-input bg-background hover:border-ring",
+              ? "bg-accent text-accent-foreground"
+              : "bg-secondary/40 hover:bg-secondary/60",
           )}
         >
           {isRecording ? "Press key..." : displayShortcut()}
@@ -118,11 +181,8 @@ function ShortcutsTab() {
   const { shortcuts, updateShortcut, resetToDefaults } = useShortcuts();
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <p className="text-[13px] text-muted-foreground">
-          Click on a shortcut to change it. Press Escape to cancel.
-        </p>
+    <div className="space-y-2.5 max-w-3xl">
+      <div className="flex items-center justify-end">
         <Button
           variant="outline"
           size="sm"
@@ -134,7 +194,7 @@ function ShortcutsTab() {
         </Button>
       </div>
 
-      <div className="border border-border rounded-sm bg-card">
+      <div className="divide-y divide-border/40">
         <ShortcutRow
           label="Next Unviewed File"
           shortcut={shortcuts.nextUnviewedFile}
@@ -189,11 +249,63 @@ function DiffSettingsTab({
   workspaceMode?: WorkspaceMode;
   onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
 }) {
+  const { options } = useDiffOptions();
+  const { monospaceFontFamily, monospaceFontSize, monospaceLineHeight } =
+    useAppearance();
+  const previewFileDiff = useMemo(() => {
+    const patches = parsePatchFiles(DIFF_PREVIEW_PATCH);
+    return patches[0]?.files[0];
+  }, []);
+  const previewStyle = useMemo(
+    () =>
+      ({
+        "--diff-font-family": fontFamilyToCss(
+          options.diffUseCustomTypography
+            ? options.diffFontFamily
+            : monospaceFontFamily,
+        ),
+        "--diff-font-size": `${
+          options.diffUseCustomTypography
+            ? options.diffFontSize
+            : monospaceFontSize
+        }px`,
+        "--diff-line-height": String(
+          options.diffUseCustomTypography
+            ? options.diffLineHeight
+            : monospaceLineHeight,
+        ),
+      }) as CSSProperties,
+    [
+      monospaceFontFamily,
+      monospaceFontSize,
+      monospaceLineHeight,
+      options.diffFontFamily,
+      options.diffFontSize,
+      options.diffLineHeight,
+      options.diffUseCustomTypography,
+    ],
+  );
+  const previewDiffOptions = useMemo<FileDiffOptions<undefined>>(
+    () => ({
+      theme: options.theme,
+      diffStyle: options.diffStyle,
+      diffIndicators: options.diffIndicators,
+      disableBackground: options.disableBackground,
+      hunkSeparators: options.hunkSeparators,
+      expandUnchanged: options.expandUnchanged,
+      expansionLineCount: options.expansionLineCount,
+      lineDiffType: options.lineDiffType,
+      disableLineNumbers: options.disableLineNumbers,
+      overflow: options.overflow,
+      disableFileHeader: true,
+    }),
+    [options],
+  );
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-2.5">
       {workspaceMode && onWorkspaceModeChange && (
-        <div className="border border-border bg-card p-4 space-y-3">
-          <p className="text-[13px] text-muted-foreground">Review mode</p>
+        <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
             <Button
               variant={workspaceMode === "single" ? "default" : "outline"}
@@ -214,11 +326,21 @@ function DiffSettingsTab({
           </div>
         </div>
       )}
-      <p className="text-[13px] text-muted-foreground">
-        Configure how diffs are displayed.
-      </p>
-      <div className="border border-border bg-card p-4">
-        <DiffToolbar />
+      <DiffToolbar />
+      <div className="space-y-1">
+        <div className="text-[11px] text-muted-foreground">Preview</div>
+        {previewFileDiff ? (
+          <FileDiff
+            fileDiff={previewFileDiff as FileDiffMetadata}
+            options={previewDiffOptions}
+            className="compact-diff pr-diff-font"
+            style={previewStyle}
+          />
+        ) : (
+          <div className="px-2 py-1.5 text-[11px] text-muted-foreground">
+            Preview unavailable.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -226,103 +348,72 @@ function DiffSettingsTab({
 
 function AppearanceTab() {
   const {
-    appThemeMode,
-    syncAppColorsWithDiffTheme,
-    pageFontFamily,
-    pageFontSize,
-    pageLineHeight,
-    commentFontFamily,
-    setAppThemeMode,
-    setSyncAppColorsWithDiffTheme,
-    setPageFontFamily,
-    setPageFontSize,
-    setPageLineHeight,
-    setCommentFontFamily,
+    sansFontFamily,
+    monospaceFontFamily,
+    sansFontSize,
+    sansLineHeight,
+    monospaceFontSize,
+    monospaceLineHeight,
+    setSansFontFamily,
+    setMonospaceFontFamily,
+    setSansFontSize,
+    setSansLineHeight,
+    setMonospaceFontSize,
+    setMonospaceLineHeight,
   } = useAppearance();
+  const { options, setOption } = useDiffOptions();
+  const appThemeValue = options.followSystemTheme
+    ? "__system__"
+    : options.theme;
 
   return (
-    <div className="space-y-5">
-      <div className="border border-border bg-card p-4 space-y-4">
-        <div>
-          <h3 className="text-[13px] font-medium">General Appearance</h3>
-          <p className="text-[12px] text-muted-foreground">
-            Configure app-wide theme and typography.
-          </p>
-        </div>
+    <div className="space-y-3 max-w-3xl">
+      <div className="space-y-1">
+        <Label className="text-[12px] text-muted-foreground">Theme</Label>
+        <Select
+          value={appThemeValue}
+          onValueChange={(value) => {
+            if (value === "__system__") {
+              setOption("followSystemTheme", true);
+              return;
+            }
+            setOption("followSystemTheme", false);
+            setOption("theme", value as DiffTheme);
+          }}
+        >
+          <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="max-h-80">
+            <SelectItem value="__system__" className="text-[12px]">
+              Detect browser preference (pierre dark/light)
+            </SelectItem>
+            {DIFF_THEMES.map((theme) => (
+              <SelectItem key={theme} value={theme} className="text-[12px]">
+                {theme}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      <div className="border border-border bg-card p-4 space-y-4">
-        <div>
-          <h3 className="text-[13px] font-medium">App Theme</h3>
-          <p className="text-[12px] text-muted-foreground">
-            Auto follows browser preference.
-          </p>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[12px] text-muted-foreground">
-            Theme Mode
-          </Label>
-          <Select
-            value={appThemeMode}
-            onValueChange={(value) => setAppThemeMode(value as AppThemeMode)}
-          >
-            <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto" className="text-[12px]">
-                Auto
-              </SelectItem>
-              <SelectItem value="light" className="text-[12px]">
-                Light
-              </SelectItem>
-              <SelectItem value="dark" className="text-[12px]">
-                Dark
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-start justify-between gap-4 border border-border bg-background px-3 py-2.5">
-          <div className="space-y-1">
-            <Label
-              htmlFor="shiki-theme-sync"
-              className="text-[12px] text-foreground"
-            >
-              Use active Shiki theme for app colors
-            </Label>
-            <p className="text-[11px] text-muted-foreground">
-              Derive global UI colors from the selected diff theme.
-            </p>
-          </div>
-          <Switch
-            id="shiki-theme-sync"
-            checked={syncAppColorsWithDiffTheme}
-            onCheckedChange={setSyncAppColorsWithDiffTheme}
-            size="sm"
-          />
-        </div>
-      </div>
-
-      <div className="border border-border bg-card p-4 space-y-4">
-        <div>
-          <h3 className="text-[13px] font-medium">Page Typography</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-3xl">
+        <div className="space-y-3">
           <div className="space-y-1">
             <Label className="text-[12px] text-muted-foreground">
-              Font Family
+              Sans Font
             </Label>
             <Select
-              value={pageFontFamily}
+              value={sansFontFamily}
               onValueChange={(value) =>
-                setPageFontFamily(value as FontFamilyValue)
+                setSansFontFamily(value as FontFamilyValue)
               }
             >
               <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="max-h-60">
-                {FONT_FAMILY_OPTIONS.map((font) => (
+                {SANS_FONT_FAMILY_OPTIONS.map((font) => (
                   <SelectItem
                     key={font.value}
                     value={font.value}
@@ -336,58 +427,117 @@ function AppearanceTab() {
           </div>
           <div className="space-y-1">
             <Label className="text-[12px] text-muted-foreground">
-              Font Size
+              Sans Font Size
             </Label>
             <NumberStepperInput
-              value={pageFontSize}
+              value={sansFontSize}
               min={11}
               max={20}
               step={1}
-              onValueChange={setPageFontSize}
+              onValueChange={setSansFontSize}
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[12px] text-muted-foreground">
-              Line Height
+              Sans Line Height
             </Label>
             <NumberStepperInput
-              value={pageLineHeight}
+              value={sansLineHeight}
               min={1}
               max={2.2}
               step={0.05}
-              onValueChange={setPageLineHeight}
+              onValueChange={setSansLineHeight}
             />
           </div>
+          <div className="py-1">
+            <div className="text-[11px] text-muted-foreground mb-1">Sans</div>
+            <div
+              className="space-y-1"
+              style={{
+                fontFamily: fontFamilyToCss(sansFontFamily),
+                fontSize: `${sansFontSize}px`,
+                lineHeight: String(sansLineHeight),
+              }}
+            >
+              <p>
+                Pull request summaries should stay readable even when comments
+                and metadata span several wrapped lines in a compact layout.
+              </p>
+              <p>
+                This intentionally long sentence exercises wrapping and makes
+                line-height changes obvious across multiple rows of sans text.
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div className="border border-border bg-card p-4 space-y-4">
-        <div>
-          <h3 className="text-[13px] font-medium">Comment Typography</h3>
-        </div>
-        <div className="space-y-1 max-w-sm">
-          <Label className="text-[12px] text-muted-foreground">Sans Font</Label>
-          <Select
-            value={commentFontFamily}
-            onValueChange={(value) =>
-              setCommentFontFamily(value as FontFamilyValue)
-            }
-          >
-            <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-60">
-              {SANS_FONT_FAMILY_OPTIONS.map((font) => (
-                <SelectItem
-                  key={font.value}
-                  value={font.value}
-                  className="text-[12px]"
-                >
-                  {font.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-[12px] text-muted-foreground">
+              Monospaced Font
+            </Label>
+            <Select
+              value={monospaceFontFamily}
+              onValueChange={(value) =>
+                setMonospaceFontFamily(value as FontFamilyValue)
+              }
+            >
+              <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {MONO_FONT_FAMILY_OPTIONS.map((font) => (
+                  <SelectItem
+                    key={font.value}
+                    value={font.value}
+                    className="text-[12px]"
+                  >
+                    {font.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[12px] text-muted-foreground">
+              Monospaced Font Size
+            </Label>
+            <NumberStepperInput
+              value={monospaceFontSize}
+              min={11}
+              max={20}
+              step={1}
+              onValueChange={setMonospaceFontSize}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[12px] text-muted-foreground">
+              Monospaced Line Height
+            </Label>
+            <NumberStepperInput
+              value={monospaceLineHeight}
+              min={1}
+              max={2.2}
+              step={0.05}
+              onValueChange={setMonospaceLineHeight}
+            />
+          </div>
+          <div className="py-1">
+            <div className="text-[11px] text-muted-foreground mb-1">
+              Monospace
+            </div>
+            <div
+              className="whitespace-pre-wrap"
+              style={{
+                fontFamily: fontFamilyToCss(monospaceFontFamily),
+                fontSize: `${monospaceFontSize}px`,
+                lineHeight: String(monospaceLineHeight),
+              }}
+            >
+              {
+                'const previewId = "A1B2C3";\nconst longLine = "monospace preview long line for wrapping and spacing checks in settings panel output with detailed identifiers and timestamps";\nreturn previewId + " " + longLine;'
+              }
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -396,6 +546,8 @@ function AppearanceTab() {
 
 function TreeTab() {
   const {
+    treeUseCustomTypography,
+    setTreeUseCustomTypography,
     setTreeFontFamily,
     setTreeFontSize,
     setTreeLineHeight,
@@ -411,102 +563,105 @@ function TreeTab() {
   } = useFileTree();
 
   return (
-    <div className="space-y-5">
-      <div className="border border-border bg-card p-4 space-y-4">
-        <div>
-          <h3 className="text-[13px] font-medium">Directory Tree</h3>
-          <p className="text-[12px] text-muted-foreground">
-            Control how folders are displayed in the sidebar tree.
+    <div className="space-y-3 max-w-3xl">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <Label
+            htmlFor="tree-compact-single-child"
+            className="text-[12px] text-foreground"
+          >
+            Compact single-child folder chains
+          </Label>
+          <p className="text-[11px] text-muted-foreground">
+            Example: services/foo/bar/file.php as services/foo/bar.
           </p>
         </div>
-        <div className="flex items-start justify-between gap-4 border border-border bg-background px-3 py-2.5">
-          <div className="space-y-1">
-            <Label
-              htmlFor="tree-compact-single-child"
-              className="text-[12px] text-foreground"
-            >
-              Compact single-child folder chains
-            </Label>
-            <p className="text-[11px] text-muted-foreground">
-              Example: services/foo/bar/file.php displays as services/foo/bar
-              when this is a linear directory chain.
-            </p>
-          </div>
-          <Switch
-            id="tree-compact-single-child"
-            checked={compactSingleChildDirectories}
-            onCheckedChange={setCompactSingleChildDirectories}
-            size="sm"
+        <Switch
+          id="tree-compact-single-child"
+          checked={compactSingleChildDirectories}
+          onCheckedChange={setCompactSingleChildDirectories}
+          size="sm"
+        />
+      </div>
+      <div className="max-w-56 space-y-1">
+        <Label className="text-[12px] text-muted-foreground">
+          Indentation Size
+        </Label>
+        <NumberStepperInput
+          value={treeIndentSize}
+          min={8}
+          max={24}
+          step={1}
+          onValueChange={setTreeIndentSize}
+        />
+      </div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <Label
+            htmlFor="tree-custom-typography"
+            className="text-[12px] text-foreground"
+          >
+            Override tree typography
+          </Label>
+        </div>
+        <Switch
+          id="tree-custom-typography"
+          checked={treeUseCustomTypography}
+          onCheckedChange={setTreeUseCustomTypography}
+          size="sm"
+        />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <Label className="text-[12px] text-muted-foreground">
+            Font Family
+          </Label>
+          <Select
+            value={treeFontFamily}
+            onValueChange={(value) =>
+              setTreeFontFamily(value as FontFamilyValue)
+            }
+            disabled={!treeUseCustomTypography}
+          >
+            <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-h-60">
+              {FONT_FAMILY_OPTIONS.map((font) => (
+                <SelectItem
+                  key={font.value}
+                  value={font.value}
+                  className="text-[12px]"
+                >
+                  {font.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[12px] text-muted-foreground">Font Size</Label>
+          <NumberStepperInput
+            value={treeFontSize}
+            min={10}
+            max={18}
+            step={1}
+            onValueChange={setTreeFontSize}
+            disabled={!treeUseCustomTypography}
           />
         </div>
-        <div className="max-w-56 space-y-1">
+        <div className="space-y-1">
           <Label className="text-[12px] text-muted-foreground">
-            Indentation Size
+            Line Height
           </Label>
           <NumberStepperInput
-            value={treeIndentSize}
-            min={8}
-            max={24}
-            step={1}
-            onValueChange={setTreeIndentSize}
+            value={treeLineHeight}
+            min={1}
+            max={2.2}
+            step={0.05}
+            onValueChange={setTreeLineHeight}
+            disabled={!treeUseCustomTypography}
           />
-        </div>
-      </div>
-      <div className="border border-border bg-card p-4 space-y-4">
-        <div>
-          <h3 className="text-[13px] font-medium">File Tree Typography</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-1">
-            <Label className="text-[12px] text-muted-foreground">
-              Font Family
-            </Label>
-            <Select
-              value={treeFontFamily}
-              onValueChange={(value) =>
-                setTreeFontFamily(value as FontFamilyValue)
-              }
-            >
-              <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {FONT_FAMILY_OPTIONS.map((font) => (
-                  <SelectItem
-                    key={font.value}
-                    value={font.value}
-                    className="text-[12px]"
-                  >
-                    {font.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[12px] text-muted-foreground">
-              Font Size
-            </Label>
-            <NumberStepperInput
-              value={treeFontSize}
-              min={10}
-              max={18}
-              step={1}
-              onValueChange={setTreeFontSize}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[12px] text-muted-foreground">
-              Line Height
-            </Label>
-            <NumberStepperInput
-              value={treeLineHeight}
-              min={1}
-              max={2.2}
-              step={0.05}
-              onValueChange={setTreeLineHeight}
-            />
-          </div>
         </div>
       </div>
     </div>
@@ -515,7 +670,7 @@ function TreeTab() {
 
 function WorkspaceTab({ onDisconnect }: { onDisconnect?: () => void }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       <div>
         <Button
           variant="outline"
@@ -540,119 +695,136 @@ export function SettingsMenu({
   onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
   onDisconnect?: () => void;
 } = {}) {
-  const [activeTab, setActiveTab] = useState<Tab>("diff");
-  const [open, setOpen] = useState(false);
-  const showWorkspaceTab = Boolean(onDisconnect);
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog>
       <DialogTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
           className="h-8 w-8 p-0"
           aria-label="Settings"
+          data-component="settings"
         >
           <Settings2 className="size-3.5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0">
-        <DialogHeader className="px-5 py-4 border-b border-border bg-secondary">
-          <DialogTitle className="text-[14px] font-medium flex items-center gap-2">
-            <Settings2 className="size-4" />
-            Settings
-          </DialogTitle>
-        </DialogHeader>
+        <SettingsPanel
+          workspaceMode={workspaceMode}
+          onWorkspaceModeChange={onWorkspaceModeChange}
+          onDisconnect={onDisconnect}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
 
+export function SettingsPanel({
+  workspaceMode,
+  onWorkspaceModeChange,
+  onDisconnect,
+  onClose,
+  activeTab: controlledActiveTab,
+  onActiveTabChange,
+  showSidebar = true,
+}: {
+  workspaceMode?: WorkspaceMode;
+  onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
+  onDisconnect?: () => void;
+  onClose?: () => void;
+  activeTab?: SettingsTab;
+  onActiveTabChange?: (tab: SettingsTab) => void;
+  showSidebar?: boolean;
+} = {}) {
+  const [internalActiveTab, setInternalActiveTab] =
+    useState<SettingsTab>("appearance");
+  const isControlled = controlledActiveTab !== undefined;
+  const activeTab = isControlled ? controlledActiveTab : internalActiveTab;
+  const setActiveTab = (next: SettingsTab) => {
+    if (!isControlled) {
+      setInternalActiveTab(next);
+    }
+    onActiveTabChange?.(next);
+  };
+  const showWorkspaceTab = Boolean(onDisconnect);
+  const settingsContent = (
+    <>
+      {activeTab === "diff" ? (
+        <DiffSettingsTab
+          workspaceMode={workspaceMode}
+          onWorkspaceModeChange={onWorkspaceModeChange}
+        />
+      ) : null}
+      {activeTab === "appearance" ? <AppearanceTab /> : null}
+      {activeTab === "tree" ? <TreeTab /> : null}
+      {activeTab === "shortcuts" ? <ShortcutsTab /> : null}
+      {activeTab === "workspace" ? (
+        <WorkspaceTab onDisconnect={onDisconnect} />
+      ) : null}
+    </>
+  );
+
+  return (
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="h-10 px-2.5 border-b border-border bg-card flex items-center gap-2">
+        <div className="text-[12px] font-medium flex items-center gap-2 w-full">
+          <Settings2 className="size-4" />
+          Settings
+          {onClose ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-7 px-2 text-[11px]"
+              onClick={onClose}
+            >
+              Back to review
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      {showSidebar ? (
         <div className="flex flex-1 min-h-0">
           <div className="w-56 border-r border-border bg-sidebar">
             <nav className="p-3 space-y-1.5">
-              <button
-                type="button"
-                onClick={() => setActiveTab("diff")}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2.5 text-[13px] transition-colors",
-                  activeTab === "diff"
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50",
-                )}
-              >
-                <SlidersHorizontal className="size-4" />
-                Diff Settings
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("tree")}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2.5 text-[13px] transition-colors",
-                  activeTab === "tree"
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50",
-                )}
-              >
-                <FolderTree className="size-4" />
-                Directory Tree
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("appearance")}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2.5 text-[13px] transition-colors",
-                  activeTab === "appearance"
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50",
-                )}
-              >
-                <SwatchBook className="size-4" />
-                General Appearance
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("shortcuts")}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2.5 text-[13px] transition-colors",
-                  activeTab === "shortcuts"
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50",
-                )}
-              >
-                <Command className="size-4" />
-                Keyboard Shortcuts
-              </button>
-              {showWorkspaceTab && (
+              {getSettingsTreeItems(showWorkspaceTab).map((item) => (
                 <button
+                  key={item.tab}
                   type="button"
-                  onClick={() => setActiveTab("workspace")}
+                  onClick={() => setActiveTab(item.tab)}
                   className={cn(
                     "w-full flex items-center gap-2 px-3 py-2.5 text-[13px] transition-colors",
-                    activeTab === "workspace"
+                    activeTab === item.tab
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:bg-accent/50",
                   )}
                 >
-                  <MonitorCog className="size-4" />
-                  Workspace
+                  {item.tab === "appearance" ? (
+                    <SwatchBook className="size-4" />
+                  ) : item.tab === "diff" ? (
+                    <SlidersHorizontal className="size-4" />
+                  ) : item.tab === "tree" ? (
+                    <FolderTree className="size-4" />
+                  ) : item.tab === "shortcuts" ? (
+                    <Command className="size-4" />
+                  ) : (
+                    <MonitorCog className="size-4" />
+                  )}
+                  {item.name}
                 </button>
-              )}
+              ))}
             </nav>
           </div>
-
-          <div className="flex-1 p-5 overflow-auto">
-            {activeTab === "diff" && (
-              <DiffSettingsTab
-                workspaceMode={workspaceMode}
-                onWorkspaceModeChange={onWorkspaceModeChange}
-              />
-            )}
-            {activeTab === "appearance" && <AppearanceTab />}
-            {activeTab === "tree" && <TreeTab />}
-            {activeTab === "shortcuts" && <ShortcutsTab />}
-            {activeTab === "workspace" && (
-              <WorkspaceTab onDisconnect={onDisconnect} />
-            )}
+          <div className="flex-1 px-3 py-2.5 overflow-auto">
+            {settingsContent}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      ) : (
+        <div className="flex-1 px-3 py-2.5 overflow-auto">
+          {settingsContent}
+        </div>
+      )}
+    </div>
   );
 }

@@ -7,7 +7,6 @@ import {
   Rows3,
   Ruler,
   SquareSplitVertical,
-  SwatchBook,
   TextCursorInput,
   Type,
   UnfoldVertical,
@@ -26,7 +25,6 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { type DiffOptions, useDiffOptions } from "@/lib/diff-options-context";
-import { DIFF_THEMES, type DiffTheme } from "@/lib/diff-themes";
 import { FONT_FAMILY_OPTIONS, type FontFamilyValue } from "@/lib/font-options";
 
 type BooleanOptionKey = {
@@ -111,7 +109,7 @@ function OptionSwitch({
 }) {
   const { options, setOption } = useDiffOptions();
   return (
-    <div className="flex items-center gap-2 pt-5">
+    <div className="flex items-center gap-2">
       <Switch
         id={optionKey}
         checked={options[optionKey]}
@@ -136,6 +134,7 @@ function OptionNumber({
   min,
   max,
   step,
+  disabled = false,
 }: {
   label: string;
   icon: IconComponent;
@@ -143,6 +142,7 @@ function OptionNumber({
   min?: number;
   max?: number;
   step?: number;
+  disabled?: boolean;
 }) {
   const { options, setOption } = useDiffOptions();
   return (
@@ -154,6 +154,7 @@ function OptionNumber({
         min={min}
         max={max}
         step={step}
+        disabled={disabled}
         className="w-full"
       />
     </div>
@@ -164,34 +165,32 @@ export function DiffToolbar() {
   const { options, setOption } = useDiffOptions();
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-1 md:col-span-2">
-          <SettingLabel label="Theme" icon={SwatchBook} />
-          <Select
-            value={options.theme}
-            onValueChange={(v) => setOption("theme", v as DiffTheme)}
-          >
-            <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-80">
-              {DIFF_THEMES.map((t) => (
-                <SelectItem key={t} value={t} className="text-[12px]">
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="space-y-1">
           <SettingLabel label="Diff Font Family" icon={Type} />
+          <div className="flex items-center justify-between px-0.5 py-1">
+            <Label
+              htmlFor="diff-custom-typography"
+              className="text-[12px] text-muted-foreground"
+            >
+              Override diff typography
+            </Label>
+            <Switch
+              id="diff-custom-typography"
+              checked={options.diffUseCustomTypography}
+              onCheckedChange={(value) =>
+                setOption("diffUseCustomTypography", value)
+              }
+              size="sm"
+            />
+          </div>
           <Select
             value={options.diffFontFamily}
             onValueChange={(v) =>
               setOption("diffFontFamily", v as FontFamilyValue)
             }
+            disabled={!options.diffUseCustomTypography}
           >
             <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
               <SelectValue />
@@ -216,6 +215,7 @@ export function DiffToolbar() {
           optionKey="diffFontSize"
           min={10}
           max={20}
+          disabled={!options.diffUseCustomTypography}
         />
         <OptionNumber
           label="Diff Line Height"
@@ -224,10 +224,11 @@ export function DiffToolbar() {
           min={1}
           max={2.2}
           step={0.05}
+          disabled={!options.diffUseCustomTypography}
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <OptionSelect
           label="Diff Layout"
           icon={SquareSplitVertical}
@@ -267,7 +268,7 @@ export function DiffToolbar() {
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-5">
+      <div className="flex flex-wrap items-center gap-3">
         <OptionSwitch
           label="Disable Background"
           icon={ImageOff}

@@ -36,7 +36,10 @@ export interface Commit {
   date?: string;
   message?: string;
   summary?: { raw?: string };
-  author?: { user?: { display_name?: string; avatar_url?: string }; raw?: string };
+  author?: {
+    user?: { display_name?: string; avatar_url?: string };
+    raw?: string;
+  };
 }
 
 export interface Comment {

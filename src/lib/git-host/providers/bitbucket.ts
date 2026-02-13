@@ -329,7 +329,9 @@ function mapPullRequest(pr: BitbucketPullRequestRaw): PullRequestDetails {
   };
 }
 
-async function fetchAllActivity(startUrl: string): Promise<BitbucketActivityEntry[]> {
+async function fetchAllActivity(
+  startUrl: string,
+): Promise<BitbucketActivityEntry[]> {
   const values: BitbucketActivityEntry[] = [];
   let nextUrl: string | undefined = startUrl;
 
@@ -377,7 +379,9 @@ function normalizeRepo(repo: BitbucketRepoEntry): RepoRef | null {
   };
 }
 
-function mapBuildState(state: string | undefined): PullRequestBuildStatus["state"] {
+function mapBuildState(
+  state: string | undefined,
+): PullRequestBuildStatus["state"] {
   const normalized = (state ?? "").toUpperCase();
   if (normalized === "SUCCESSFUL") return "success";
   if (normalized === "FAILED") return "failed";
@@ -421,10 +425,10 @@ function mapCommentToHistory(comment: Comment): PullRequestHistoryEvent | null {
     id: `bitbucket-comment-${comment.id}`,
     type: "comment",
     created_on: comment.created_on,
-      actor: {
-        display_name: comment.user?.display_name,
-        avatar_url: comment.user?.avatar_url,
-      },
+    actor: {
+      display_name: comment.user?.display_name,
+      avatar_url: comment.user?.avatar_url,
+    },
     content: comment.content?.raw,
   };
 }
@@ -586,13 +590,13 @@ export const bitbucketClient: GitHostClient = {
 
     const [prRes, diffRes, diffstat, commits, comments, activity] =
       await Promise.all([
-      request(baseApi, { headers: { Accept: "application/json" } }),
-      request(`${baseApi}/diff`, { headers: { Accept: "text/plain" } }),
-      fetchAllDiffStat(`${baseApi}/diffstat?pagelen=100`),
-      fetchAllCommits(`${baseApi}/commits?pagelen=50`),
-      fetchAllComments(`${baseApi}/comments?pagelen=100&sort=created_on`),
-      fetchAllActivity(`${baseApi}/activity?pagelen=50`).catch(() => []),
-    ]);
+        request(baseApi, { headers: { Accept: "application/json" } }),
+        request(`${baseApi}/diff`, { headers: { Accept: "text/plain" } }),
+        fetchAllDiffStat(`${baseApi}/diffstat?pagelen=100`),
+        fetchAllCommits(`${baseApi}/commits?pagelen=50`),
+        fetchAllComments(`${baseApi}/comments?pagelen=100&sort=created_on`),
+        fetchAllActivity(`${baseApi}/activity?pagelen=50`).catch(() => []),
+      ]);
 
     const pr = mapPullRequest((await prRes.json()) as BitbucketPullRequestRaw);
     const latestCommitHash = commits[0]?.hash;

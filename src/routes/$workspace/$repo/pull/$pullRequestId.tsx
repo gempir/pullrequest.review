@@ -69,8 +69,8 @@ import {
   resolvePullRequestComment,
 } from "@/lib/git-host/service";
 import type { Comment as PullRequestComment } from "@/lib/git-host/types";
-import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { usePrContext } from "@/lib/pr-context";
+import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
@@ -357,7 +357,9 @@ function PullRequestReviewPage() {
   const isPrQueryFetching = prQuery.isFetching;
   const refetchPrQuery = prQuery.refetch;
   const hasPendingBuildStatuses = useMemo(
-    () => prData?.buildStatuses?.some((status) => status.state === "pending") ?? false,
+    () =>
+      prData?.buildStatuses?.some((status) => status.state === "pending") ??
+      false,
     [prData?.buildStatuses],
   );
 
@@ -638,8 +640,7 @@ function PullRequestReviewPage() {
       const firstUnviewed =
         treeOrderedVisiblePaths.find(
           (path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path),
-        ) ??
-        treeOrderedVisiblePaths[0];
+        ) ?? treeOrderedVisiblePaths[0];
       setActiveFile(firstUnviewed);
     }
   }, [

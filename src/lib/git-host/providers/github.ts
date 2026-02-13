@@ -354,12 +354,17 @@ function mapIssueCommentToHistory(
     id: `github-issue-comment-${comment.id}`,
     type: "comment",
     created_on: comment.created_at,
-    actor: { display_name: comment.user?.login, avatar_url: comment.user?.avatar_url },
+    actor: {
+      display_name: comment.user?.login,
+      avatar_url: comment.user?.avatar_url,
+    },
     content: comment.body,
   };
 }
 
-function mapReviewToHistory(review: GithubReview): PullRequestHistoryEvent | null {
+function mapReviewToHistory(
+  review: GithubReview,
+): PullRequestHistoryEvent | null {
   const state = (review.state ?? "").toUpperCase();
   let type: PullRequestHistoryEvent["type"] | null = null;
   if (state === "APPROVED") type = "approved";
@@ -371,7 +376,10 @@ function mapReviewToHistory(review: GithubReview): PullRequestHistoryEvent | nul
     id: `github-review-${review.id}`,
     type,
     created_on: review.submitted_at,
-    actor: { display_name: review.user?.login, avatar_url: review.user?.avatar_url },
+    actor: {
+      display_name: review.user?.login,
+      avatar_url: review.user?.avatar_url,
+    },
     content: review.body,
   };
 }
@@ -385,7 +393,10 @@ function mapIssueEventToHistory(
       id: `github-issue-event-${event.id}`,
       type: "closed",
       created_on: event.created_at,
-      actor: { display_name: event.actor?.login, avatar_url: event.actor?.avatar_url },
+      actor: {
+        display_name: event.actor?.login,
+        avatar_url: event.actor?.avatar_url,
+      },
     };
   }
   if (kind === "merged") {
@@ -393,7 +404,10 @@ function mapIssueEventToHistory(
       id: `github-issue-event-${event.id}`,
       type: "merged",
       created_on: event.created_at,
-      actor: { display_name: event.actor?.login, avatar_url: event.actor?.avatar_url },
+      actor: {
+        display_name: event.actor?.login,
+        avatar_url: event.actor?.avatar_url,
+      },
     };
   }
   if (kind === "reopened") {
@@ -401,7 +415,10 @@ function mapIssueEventToHistory(
       id: `github-issue-event-${event.id}`,
       type: "reopened",
       created_on: event.created_at,
-      actor: { display_name: event.actor?.login, avatar_url: event.actor?.avatar_url },
+      actor: {
+        display_name: event.actor?.login,
+        avatar_url: event.actor?.avatar_url,
+      },
     };
   }
   if (kind === "review_requested") {
@@ -409,7 +426,10 @@ function mapIssueEventToHistory(
       id: `github-issue-event-${event.id}`,
       type: "review_requested",
       created_on: event.created_at,
-      actor: { display_name: event.actor?.login, avatar_url: event.actor?.avatar_url },
+      actor: {
+        display_name: event.actor?.login,
+        avatar_url: event.actor?.avatar_url,
+      },
       details: event.requested_reviewer?.login,
     };
   }
@@ -418,7 +438,10 @@ function mapIssueEventToHistory(
       id: `github-issue-event-${event.id}`,
       type: "reviewer_removed",
       created_on: event.created_at,
-      actor: { display_name: event.actor?.login, avatar_url: event.actor?.avatar_url },
+      actor: {
+        display_name: event.actor?.login,
+        avatar_url: event.actor?.avatar_url,
+      },
       details: event.requested_reviewer?.login,
     };
   }
@@ -431,7 +454,10 @@ function mapIssueEventToHistory(
       id: `github-issue-event-${event.id}`,
       type: "updated",
       created_on: event.created_at,
-      actor: { display_name: event.actor?.login, avatar_url: event.actor?.avatar_url },
+      actor: {
+        display_name: event.actor?.login,
+        avatar_url: event.actor?.avatar_url,
+      },
     };
   }
   return null;
@@ -473,7 +499,9 @@ function mapHistory(
   return events;
 }
 
-function mapCheckRunState(checkRun: GithubCheckRun): PullRequestBuildStatus["state"] {
+function mapCheckRunState(
+  checkRun: GithubCheckRun,
+): PullRequestBuildStatus["state"] {
   if ((checkRun.status ?? "").toLowerCase() !== "completed") return "pending";
   const conclusion = (checkRun.conclusion ?? "").toLowerCase();
   if (conclusion === "success") return "success";
@@ -491,7 +519,9 @@ function mapCheckRunState(checkRun: GithubCheckRun): PullRequestBuildStatus["sta
   return "unknown";
 }
 
-function mapStatusState(state: string | undefined): PullRequestBuildStatus["state"] {
+function mapStatusState(
+  state: string | undefined,
+): PullRequestBuildStatus["state"] {
   const normalized = (state ?? "").toLowerCase();
   if (normalized === "success") return "success";
   if (normalized === "pending") return "pending";
@@ -686,8 +716,15 @@ export const githubClient: GitHostClient = {
     const prRef = data.prRef;
     const basePath = `/repos/${prRef.workspace}/${prRef.repo}/pulls/${prRef.pullRequestId}`;
     const isAuthenticated = Boolean(authHeader());
-    const [prRes, diffRes, files, commits, issueComments, reviewComments, reviews] =
-      await Promise.all([
+    const [
+      prRes,
+      diffRes,
+      files,
+      commits,
+      issueComments,
+      reviewComments,
+      reviews,
+    ] = await Promise.all([
       request(basePath),
       request(`${basePath}`, {
         headers: { Accept: "application/vnd.github.v3.diff" },

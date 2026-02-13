@@ -1,14 +1,14 @@
+import { RotateCw } from "lucide-react";
+import type { ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Button } from "@/components/ui/button";
 import type {
   PullRequestBuildStatus,
   PullRequestBundle,
   PullRequestHistoryEvent,
   PullRequestReviewer,
 } from "@/lib/git-host/types";
-import { RotateCw } from "lucide-react";
-import type { ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 function formatDate(value?: string) {
@@ -212,16 +212,18 @@ export function PullRequestSummaryPanel({
       ? history
       : bundle.comments
           .filter((comment) => !comment.inline?.path)
-          .map((comment): PullRequestHistoryEvent => ({
-            id: `fallback-comment-${comment.id}`,
-            type: "comment",
-            created_on: comment.created_on,
-            actor: {
-              display_name: comment.user?.display_name,
-              avatar_url: comment.user?.avatar_url,
-            },
-            content: comment.content?.raw,
-          }));
+          .map(
+            (comment): PullRequestHistoryEvent => ({
+              id: `fallback-comment-${comment.id}`,
+              type: "comment",
+              created_on: comment.created_on,
+              actor: {
+                display_name: comment.user?.display_name,
+                avatar_url: comment.user?.avatar_url,
+              },
+              content: comment.content?.raw,
+            }),
+          );
   const visibleHistory = resolvedHistory.filter(
     (event) => event.type !== "reopened",
   );
@@ -237,7 +239,9 @@ export function PullRequestSummaryPanel({
           id: `fallback-reviewer-${index}`,
           display_name: participant.user?.display_name,
           avatar_url: participant.user?.avatar_url,
-          status: participant.approved ? ("approved" as const) : ("pending" as const),
+          status: participant.approved
+            ? ("approved" as const)
+            : ("pending" as const),
           approved: Boolean(participant.approved),
         }));
 
@@ -247,7 +251,9 @@ export function PullRequestSummaryPanel({
         <Section title="Meta">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-[12px]">
             <div className="text-muted-foreground">Author</div>
-            <div className="text-foreground">{pr.author?.display_name ?? "Unknown"}</div>
+            <div className="text-foreground">
+              {pr.author?.display_name ?? "Unknown"}
+            </div>
             <div className="text-muted-foreground">Branches</div>
             <div className="text-foreground">
               {pr.source?.branch?.name ?? "source"} -&gt;{" "}
@@ -293,7 +299,9 @@ export function PullRequestSummaryPanel({
                 </div>
               ))
             ) : (
-              <div className="text-[12px] text-muted-foreground">No reviewers found.</div>
+              <div className="text-[12px] text-muted-foreground">
+                No reviewers found.
+              </div>
             )}
           </div>
         </Section>
@@ -322,9 +330,14 @@ export function PullRequestSummaryPanel({
           {buildStatuses && buildStatuses.length > 0 ? (
             <div className="space-y-2">
               {buildStatuses.map((build) => (
-                <div key={build.id} className="border border-border/70 bg-background px-2.5 py-2">
+                <div
+                  key={build.id}
+                  className="border border-border/70 bg-background px-2.5 py-2"
+                >
                   <div className="flex items-center gap-2 text-[12px]">
-                    <span className="text-foreground truncate">{build.name}</span>
+                    <span className="text-foreground truncate">
+                      {build.name}
+                    </span>
                     <span
                       className={cn(
                         "ml-auto px-1.5 py-0.5 border text-[10px] uppercase tracking-wide",
@@ -336,7 +349,9 @@ export function PullRequestSummaryPanel({
                   </div>
                   <div className="mt-1 text-[11px] text-muted-foreground flex items-center gap-2">
                     <span>{build.provider ?? "provider"}</span>
-                    <span className="ml-auto">{formatDate(build.completed_on)}</span>
+                    <span className="ml-auto">
+                      {formatDate(build.completed_on)}
+                    </span>
                   </div>
                   {build.url ? (
                     <a
@@ -363,7 +378,9 @@ export function PullRequestSummaryPanel({
         {pr.description?.trim() ? (
           <MarkdownBlock text={pr.description} />
         ) : (
-          <div className="text-[12px] text-muted-foreground">No description.</div>
+          <div className="text-[12px] text-muted-foreground">
+            No description.
+          </div>
         )}
       </Section>
 
@@ -372,14 +389,19 @@ export function PullRequestSummaryPanel({
           {orderedHistory.length > 0 ? (
             <div className="space-y-2">
               {orderedHistory.map((event) => (
-                <div key={event.id} className="border border-border/70 bg-background px-2.5 py-2">
+                <div
+                  key={event.id}
+                  className="border border-border/70 bg-background px-2.5 py-2"
+                >
                   <div className="flex items-center gap-2 text-[11px]">
                     <Avatar
                       name={event.actor?.display_name}
                       url={event.actor?.avatar_url}
                       sizeClass="size-4"
                     />
-                    <span className="text-foreground">{eventLabel(event.type)}</span>
+                    <span className="text-foreground">
+                      {eventLabel(event.type)}
+                    </span>
                     <span className="text-muted-foreground">
                       {event.actor?.display_name ?? "Unknown"}
                     </span>
@@ -401,7 +423,9 @@ export function PullRequestSummaryPanel({
               ))}
             </div>
           ) : (
-            <div className="text-[12px] text-muted-foreground">No history yet.</div>
+            <div className="text-[12px] text-muted-foreground">
+              No history yet.
+            </div>
           )}
         </Section>
 
@@ -429,7 +453,10 @@ export function PullRequestSummaryPanel({
                   >
                     <div className="min-w-0 flex items-center gap-2">
                       <Avatar
-                        name={commit.author?.user?.display_name ?? commit.author?.raw}
+                        name={
+                          commit.author?.user?.display_name ??
+                          commit.author?.raw
+                        }
                         url={commit.author?.user?.avatar_url}
                         sizeClass="size-4"
                       />
@@ -439,13 +466,21 @@ export function PullRequestSummaryPanel({
                           "Unknown"}
                       </span>
                     </div>
-                    <span className={cn(mergedDevelop ? "text-status-added/80" : "text-[#93c5fd]")}>
+                    <span
+                      className={cn(
+                        mergedDevelop
+                          ? "text-status-added/80"
+                          : "text-[#93c5fd]",
+                      )}
+                    >
                       {shortHash(commit.hash)}
                     </span>
                     <span
                       className={cn(
                         "truncate",
-                        mergedDevelop ? "text-muted-foreground" : "text-foreground",
+                        mergedDevelop
+                          ? "text-muted-foreground"
+                          : "text-foreground",
                       )}
                     >
                       {message ?? "(no message)"}
@@ -458,7 +493,9 @@ export function PullRequestSummaryPanel({
               })}
             </div>
           ) : (
-            <div className="text-[12px] text-muted-foreground">No commits found.</div>
+            <div className="text-[12px] text-muted-foreground">
+              No commits found.
+            </div>
           )}
         </Section>
       </div>

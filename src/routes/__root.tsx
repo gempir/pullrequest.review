@@ -163,7 +163,7 @@ function OnboardingScreen() {
               <div className="text-muted-foreground">Required scopes</div>
               <div className="leading-relaxed break-words">{scopeText}</div>
               <div className="border border-yellow-500/50 bg-yellow-500/15 text-yellow-300 px-2 py-1.5 text-[12px]">
-                Hint: Copy these permissions while creating the token.
+                Hint: Paste these scopes into "Search by scope name" while creating the token
               </div>
               <Button
                 type="button"

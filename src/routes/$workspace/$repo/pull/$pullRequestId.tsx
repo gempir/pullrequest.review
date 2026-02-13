@@ -1737,10 +1737,10 @@ function PullRequestReviewPage() {
                       <Copy className="size-3.5" />
                     )}
                   </Button>
-                  <span className="text-[12px] text-status-added">
+                  <span className="select-none text-[12px] text-status-added">
                     +{fileLineStats.get(selectedFilePath)?.added ?? 0}
                   </span>
-                  <span className="text-[12px] text-status-removed">
+                  <span className="select-none text-[12px] text-status-removed">
                     -{fileLineStats.get(selectedFilePath)?.removed ?? 0}
                   </span>
                   <button
@@ -2010,8 +2010,8 @@ function PullRequestReviewPage() {
                             <Copy className="size-3.5" />
                           )}
                         </Button>
-                        <span className="shrink-0 text-status-added">+{fileStats.added}</span>
-                        <span className="shrink-0 text-status-removed">-{fileStats.removed}</span>
+                        <span className="shrink-0 select-none text-status-added">+{fileStats.added}</span>
+                        <span className="shrink-0 select-none text-status-removed">-{fileStats.removed}</span>
                         {fileUnresolvedCount > 0 ? (
                           <span className="shrink-0 text-muted-foreground">
                             {fileUnresolvedCount} unresolved

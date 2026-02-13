@@ -25,6 +25,9 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 - Keep components small and focused.
 - Use memoization for provider/context values when needed to avoid avoidable re-renders.
 
+## Validation
+- Always run `bun run tsc` and `bun run check` after code changes.
+
 ## UI Conventions
 - Monospaced-first typography.
 - Sharp corners and clean panel structure.

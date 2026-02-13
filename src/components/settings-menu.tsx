@@ -1,12 +1,12 @@
 import {
-  FolderOpen,
-  Keyboard,
+  Command,
+  FolderTree,
   LogOut,
   MonitorCog,
-  Palette,
   RotateCcw,
-  Settings,
+  Settings2,
   SlidersHorizontal,
+  SwatchBook,
 } from "lucide-react";
 import { useState } from "react";
 import { DiffToolbar } from "@/components/diff-toolbar";
@@ -553,13 +553,13 @@ export function SettingsMenu({
           className="h-8 w-8 p-0"
           aria-label="Settings"
         >
-          <Settings className="size-3.5" />
+          <Settings2 className="size-3.5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0">
         <DialogHeader className="px-5 py-4 border-b border-border bg-secondary">
           <DialogTitle className="text-[14px] font-medium flex items-center gap-2">
-            <Settings className="size-4" />
+            <Settings2 className="size-4" />
             Settings
           </DialogTitle>
         </DialogHeader>
@@ -590,7 +590,7 @@ export function SettingsMenu({
                     : "text-muted-foreground hover:bg-accent/50",
                 )}
               >
-                <FolderOpen className="size-4" />
+                <FolderTree className="size-4" />
                 Directory Tree
               </button>
               <button
@@ -603,7 +603,7 @@ export function SettingsMenu({
                     : "text-muted-foreground hover:bg-accent/50",
                 )}
               >
-                <Palette className="size-4" />
+                <SwatchBook className="size-4" />
                 General Appearance
               </button>
               <button
@@ -616,7 +616,7 @@ export function SettingsMenu({
                     : "text-muted-foreground hover:bg-accent/50",
                 )}
               >
-                <Keyboard className="size-4" />
+                <Command className="size-4" />
                 Keyboard Shortcuts
               </button>
               {showWorkspaceTab && (

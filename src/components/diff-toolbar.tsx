@@ -1,3 +1,20 @@
+import {
+  BetweenHorizontalStart,
+  Expand,
+  FoldVertical,
+  Hash,
+  ImageOff,
+  Rows3,
+  Ruler,
+  SquareSplitVertical,
+  SwatchBook,
+  TextCursorInput,
+  Type,
+  UnfoldVertical,
+  WholeWord,
+  WrapText,
+} from "lucide-react";
+import type { ComponentType } from "react";
 import { Label } from "@/components/ui/label";
 import { NumberStepperInput } from "@/components/ui/number-stepper-input";
 import {
@@ -20,21 +37,43 @@ type NumberOptionKey = {
   [K in keyof DiffOptions]: DiffOptions[K] extends number ? K : never;
 }[keyof DiffOptions];
 
+type IconComponent = ComponentType<{ className?: string }>;
+
+function SettingLabel({
+  label,
+  icon: Icon,
+  htmlFor,
+}: {
+  label: string;
+  icon: IconComponent;
+  htmlFor?: string;
+}) {
+  return (
+    <Label
+      htmlFor={htmlFor}
+      className="text-[12px] whitespace-nowrap text-muted-foreground inline-flex items-center gap-1.5"
+    >
+      <Icon className="size-3.5" />
+      {label}
+    </Label>
+  );
+}
+
 function OptionSelect<K extends keyof DiffOptions>({
   label,
+  icon,
   optionKey,
   values,
 }: {
   label: string;
+  icon: IconComponent;
   optionKey: K;
   values: readonly DiffOptions[K][];
 }) {
   const { options, setOption } = useDiffOptions();
   return (
     <div className="space-y-1">
-      <Label className="text-[12px] whitespace-nowrap text-muted-foreground">
-        {label}
-      </Label>
+      <SettingLabel label={label} icon={icon} />
       <Select
         value={String(options[optionKey])}
         onValueChange={(v) => setOption(optionKey, v as DiffOptions[K])}
@@ -63,9 +102,11 @@ function OptionSelect<K extends keyof DiffOptions>({
 
 function OptionSwitch({
   label,
+  icon: Icon,
   optionKey,
 }: {
   label: string;
+  icon: IconComponent;
   optionKey: BooleanOptionKey;
 }) {
   const { options, setOption } = useDiffOptions();
@@ -79,8 +120,9 @@ function OptionSwitch({
       />
       <Label
         htmlFor={optionKey}
-        className="text-[12px] whitespace-nowrap text-muted-foreground"
+        className="text-[12px] whitespace-nowrap text-muted-foreground inline-flex items-center gap-1.5"
       >
+        <Icon className="size-3.5" />
         {label}
       </Label>
     </div>
@@ -89,12 +131,14 @@ function OptionSwitch({
 
 function OptionNumber({
   label,
+  icon,
   optionKey,
   min,
   max,
   step,
 }: {
   label: string;
+  icon: IconComponent;
   optionKey: NumberOptionKey;
   min?: number;
   max?: number;
@@ -103,9 +147,7 @@ function OptionNumber({
   const { options, setOption } = useDiffOptions();
   return (
     <div className="space-y-1">
-      <Label className="text-[12px] whitespace-nowrap text-muted-foreground">
-        {label}
-      </Label>
+      <SettingLabel label={label} icon={icon} />
       <NumberStepperInput
         value={options[optionKey]}
         onValueChange={(value) => setOption(optionKey, value)}
@@ -125,9 +167,7 @@ export function DiffToolbar() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1 md:col-span-2">
-          <Label className="text-[12px] whitespace-nowrap text-muted-foreground">
-            Theme
-          </Label>
+          <SettingLabel label="Theme" icon={SwatchBook} />
           <Select
             value={options.theme}
             onValueChange={(v) => setOption("theme", v as DiffTheme)}
@@ -146,9 +186,7 @@ export function DiffToolbar() {
         </div>
 
         <div className="space-y-1">
-          <Label className="text-[12px] whitespace-nowrap text-muted-foreground">
-            Diff Font Family
-          </Label>
+          <SettingLabel label="Diff Font Family" icon={Type} />
           <Select
             value={options.diffFontFamily}
             onValueChange={(v) =>
@@ -174,12 +212,14 @@ export function DiffToolbar() {
 
         <OptionNumber
           label="Diff Font Size"
+          icon={TextCursorInput}
           optionKey="diffFontSize"
           min={10}
           max={20}
         />
         <OptionNumber
           label="Diff Line Height"
+          icon={Ruler}
           optionKey="diffLineHeight"
           min={1}
           max={2.2}
@@ -190,31 +230,37 @@ export function DiffToolbar() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <OptionSelect
           label="Diff Layout"
+          icon={SquareSplitVertical}
           optionKey="diffStyle"
           values={["unified", "split"]}
         />
         <OptionSelect
           label="Change Indicators"
+          icon={BetweenHorizontalStart}
           optionKey="diffIndicators"
           values={["classic", "bars", "none"]}
         />
         <OptionSelect
           label="Hunk Separators"
+          icon={Rows3}
           optionKey="hunkSeparators"
           values={["simple", "metadata", "line-info"]}
         />
         <OptionSelect
           label="Inline Diff"
+          icon={WholeWord}
           optionKey="lineDiffType"
           values={["word-alt", "word", "char", "none"]}
         />
         <OptionSelect
           label="Line Overflow"
+          icon={WrapText}
           optionKey="overflow"
           values={["scroll", "wrap"]}
         />
         <OptionNumber
           label="Expansion Lines"
+          icon={Expand}
           optionKey="expansionLineCount"
           min={1}
           max={200}
@@ -224,15 +270,22 @@ export function DiffToolbar() {
       <div className="flex flex-wrap items-center gap-5">
         <OptionSwitch
           label="Disable Background"
+          icon={ImageOff}
           optionKey="disableBackground"
         />
-        <OptionSwitch label="Expand Unchanged" optionKey="expandUnchanged" />
+        <OptionSwitch
+          label="Expand Unchanged"
+          icon={UnfoldVertical}
+          optionKey="expandUnchanged"
+        />
         <OptionSwitch
           label="Hide Line Numbers"
+          icon={Hash}
           optionKey="disableLineNumbers"
         />
         <OptionSwitch
           label="Fold Viewed Files By Default"
+          icon={FoldVertical}
           optionKey="collapseViewedFilesByDefault"
         />
       </div>

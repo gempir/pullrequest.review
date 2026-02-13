@@ -94,7 +94,7 @@ export function RepositorySelector({
                 >
                   <input
                     type="checkbox"
-                    className="size-4 border border-input bg-background checked:bg-foreground checked:border-foreground"
+                    className="size-4 shrink-0 rounded-[2px] border border-border bg-muted accent-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     checked={checked}
                     onChange={(e) => {
                       setSelected((prev) => {

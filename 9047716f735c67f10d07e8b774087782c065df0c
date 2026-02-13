@@ -1,0 +1,25 @@
+src/routes/$workspace/$repo/pull/$pullRequestId.tsx
+  ce1533b5f15fbec5 1740,1743,2013-2014
+src/routes/$workspace/$repo/pull-requests/$pullRequestId.tsx
+  ce1533b5f15fbec5 1635,1638,1902-1903
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "9047716f735c67f10d07e8b774087782c065df0c",
+  "prompts": {
+    "ce1533b5f15fbec5": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "4e274413-5715-4c2e-89ec-49315e8244c8",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "gempir <gempir.dev@gmail.com>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 8,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}

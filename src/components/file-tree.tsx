@@ -1,10 +1,4 @@
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Folder,
-  FolderOpen,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
 import { FileIcon } from "react-files-icons";
 import {
   type ChangeKind,
@@ -61,6 +55,7 @@ export function FileTree({
   const resolvedKinds = kinds ?? tree.kinds;
   const rawNodes = tree.children(path);
   const active = activeFile ?? tree.activeFile;
+  const treeIndentSize = tree.treeIndentSize;
   const normalizedQuery = filterQuery?.trim().toLowerCase() ?? "";
 
   const matchesNode = (node: FileNode): boolean => {
@@ -85,6 +80,7 @@ export function FileTree({
               key={node.path}
               node={node}
               level={level}
+              treeIndentSize={treeIndentSize}
               kinds={resolvedKinds}
               activeFile={active}
               filterQuery={filterQuery}
@@ -100,10 +96,10 @@ export function FileTree({
             key={node.path}
             node={node}
             level={level}
+            treeIndentSize={treeIndentSize}
             kinds={resolvedKinds}
             active={active}
             viewed={viewedFiles?.has(node.path)}
-            onToggleViewed={onToggleViewed}
             onFileClick={onFileClick}
           />
         );
@@ -115,6 +111,7 @@ export function FileTree({
 function DirectoryNode({
   node,
   level,
+  treeIndentSize,
   kinds,
   activeFile,
   filterQuery,
@@ -125,6 +122,7 @@ function DirectoryNode({
 }: {
   node: FileNode;
   level: number;
+  treeIndentSize: number;
   kinds: ReadonlyMap<string, ChangeKind>;
   activeFile?: string;
   filterQuery?: string;
@@ -162,7 +160,7 @@ function DirectoryNode({
           "hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer",
           "text-muted-foreground",
         )}
-        style={{ paddingLeft: `${4 + level * 12}px` }}
+        style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
         onClick={() => tree.toggle(displayNode.path)}
         aria-expanded={expanded}
       >
@@ -195,7 +193,7 @@ function DirectoryNode({
         <div className="relative">
           <div
             className="absolute top-0 bottom-0 w-px bg-border opacity-30"
-            style={{ left: `${4 + level * 12 + 8}px` }}
+            style={{ left: `${4 + level * treeIndentSize + 8}px` }}
           />
           <FileTree
             path={displayNode.path}
@@ -217,18 +215,18 @@ function DirectoryNode({
 function FileNodeRow({
   node,
   level,
+  treeIndentSize,
   kinds,
   active,
   viewed,
-  onToggleViewed,
   onFileClick,
 }: {
   node: FileNode;
   level: number;
+  treeIndentSize: number;
   kinds: ReadonlyMap<string, ChangeKind>;
   active?: string;
   viewed?: boolean;
-  onToggleViewed?: (path: string) => void;
   onFileClick?: (node: FileNode) => void;
 }) {
   const tree = useFileTree();
@@ -243,7 +241,7 @@ function FileNodeRow({
         "hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer",
         isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
       )}
-      style={{ paddingLeft: `${4 + level * 12}px` }}
+      style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
       onClick={() => {
         tree.setActiveFile(node.path);
         onFileClick?.(node);
@@ -253,30 +251,15 @@ function FileNodeRow({
         <FileIcon name={node.name} className="size-3.5" />
       </span>
       {kindMarker(kind)}
-      <span className="flex-1 min-w-0 truncate text-foreground">
+      <span className="flex-1 min-w-0 truncate pr-2 text-foreground">
         {node.name}
       </span>
-      <input
-        type="checkbox"
-        checked={Boolean(viewed)}
-        onClick={(e) => e.stopPropagation()}
-        onChange={() => onToggleViewed?.(node.path)}
-        className="peer sr-only"
-        aria-label={`Mark ${node.path} as viewed`}
-      />
-      <span
-        className={cn(
-          "mr-2 size-4 shrink-0 flex items-center justify-center transition-colors border border-border/70 bg-muted/40",
-          viewed && "bg-accent border-accent",
-        )}
-      >
-        <Check
-          className={cn(
-            "size-3 transition-colors",
-            viewed ? "text-foreground" : "text-transparent",
-          )}
+      {!viewed && (
+        <span
+          className="sticky right-2 ml-auto size-2.5 shrink-0 rounded-full bg-accent"
+          aria-hidden
         />
-      </span>
+      )}
     </button>
   );
 }

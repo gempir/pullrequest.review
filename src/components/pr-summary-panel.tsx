@@ -1,5 +1,5 @@
-import { RotateCw } from "lucide-react";
-import type { ReactNode } from "react";
+import { Check, Copy, RotateCw } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
@@ -199,14 +199,22 @@ function Avatar({
 
 export function PullRequestSummaryPanel({
   bundle,
+  headerTitle,
+  diffStats,
   onRefreshBuildStatus,
   refreshingBuildStatus,
 }: {
   bundle: PullRequestBundle;
+  headerTitle?: string;
+  diffStats?: { added: number; removed: number };
   onRefreshBuildStatus?: () => void;
   refreshingBuildStatus?: boolean;
 }) {
   const { pr, commits, history, reviewers, buildStatuses } = bundle;
+  const sourceBranchName = pr.source?.branch?.name ?? "source";
+  const targetBranchName = pr.destination?.branch?.name ?? "target";
+  const [copiedSourceBranch, setCopiedSourceBranch] = useState(false);
+  const copyResetTimeoutRef = useRef<number | null>(null);
   const resolvedHistory: PullRequestHistoryEvent[] =
     history && history.length > 0
       ? history
@@ -245,259 +253,323 @@ export function PullRequestSummaryPanel({
           approved: Boolean(participant.approved),
         }));
 
+  useEffect(() => {
+    return () => {
+      if (copyResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyResetTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const copySourceBranch = async () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(sourceBranchName);
+      setCopiedSourceBranch(true);
+      if (copyResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyResetTimeoutRef.current);
+      }
+      copyResetTimeoutRef.current = window.setTimeout(() => {
+        setCopiedSourceBranch(false);
+      }, 1400);
+    } catch {
+      setCopiedSourceBranch(false);
+    }
+  };
+
   return (
-    <div className="p-3 space-y-3 pr-diff-font">
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        <Section title="Meta">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-[12px]">
-            <div className="text-muted-foreground">Author</div>
-            <div className="text-foreground">
-              {pr.author?.display_name ?? "Unknown"}
+    <div className="pr-diff-font">
+      {headerTitle ? (
+        <div className="h-10 border-b border-border bg-card px-3 flex items-center gap-2 overflow-hidden">
+          <span className="min-w-0 flex-1 font-mono text-[12px] text-foreground truncate">
+            {headerTitle}
+          </span>
+          {diffStats ? (
+            <div className="ml-auto shrink-0 text-[11px]">
+              <span className="text-status-added">+{diffStats.added}</span>
+              <span className="ml-2 text-status-removed">
+                -{diffStats.removed}
+              </span>
             </div>
-            <div className="text-muted-foreground">Branches</div>
-            <div className="text-foreground">
-              {pr.source?.branch?.name ?? "source"} -&gt;{" "}
-              {pr.destination?.branch?.name ?? "target"}
-            </div>
-            <div className="text-muted-foreground">PR Number</div>
-            <div className="text-foreground">#{pr.id}</div>
-            <div className="text-muted-foreground">Status</div>
-            <div className="text-foreground">
-              {pr.draft ? "DRAFT " : ""}
-              {pr.state}
-            </div>
-            <div className="text-muted-foreground">Created</div>
-            <div className="text-foreground">{formatDate(pr.created_on)}</div>
-            <div className="text-muted-foreground">Updated</div>
-            <div className="text-foreground">{formatDate(pr.updated_on)}</div>
-            <div className="text-muted-foreground">Merged</div>
-            <div className="text-foreground">{formatDate(pr.merged_on)}</div>
-            <div className="text-muted-foreground">Closed</div>
-            <div className="text-foreground">{formatDate(pr.closed_on)}</div>
-          </div>
-          <div className="mt-3 space-y-1">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Reviewers
-            </div>
-            {resolvedReviewers.length > 0 ? (
-              resolvedReviewers.map((reviewer) => (
-                <div
-                  key={reviewer.id}
-                  className="border border-border/70 bg-background px-2.5 py-2 flex items-center gap-2 text-[12px]"
-                >
-                  <Avatar
-                    name={reviewer.display_name}
-                    url={reviewer.avatar_url}
-                    sizeClass="size-4"
-                  />
-                  <span className="text-foreground">
-                    {reviewer.display_name ?? "Unknown"}
-                  </span>
-                  <span className="ml-auto text-muted-foreground">
-                    {reviewerLabel(reviewer.status)}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="text-[12px] text-muted-foreground">
-                No reviewers found.
+          ) : null}
+        </div>
+      ) : null}
+      <div className="p-3 space-y-3">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <Section title="Meta">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-[12px]">
+              <div className="text-muted-foreground">Author</div>
+              <div className="text-foreground">
+                {pr.author?.display_name ?? "Unknown"}
               </div>
-            )}
-          </div>
-        </Section>
-
-        <Section
-          title="Build Status"
-          headerRight={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0"
-              onClick={onRefreshBuildStatus}
-              disabled={!onRefreshBuildStatus || Boolean(refreshingBuildStatus)}
-              aria-label="Refresh build status"
-            >
-              <RotateCw
-                className={cn(
-                  "size-3.5",
-                  refreshingBuildStatus ? "animate-spin" : "",
-                )}
-              />
-            </Button>
-          }
-        >
-          {buildStatuses && buildStatuses.length > 0 ? (
-            <div className="space-y-2">
-              {buildStatuses.map((build) => (
-                <div
-                  key={build.id}
-                  className="border border-border/70 bg-background px-2.5 py-2"
+              <div className="text-muted-foreground">Branches</div>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-foreground truncate">
+                  {sourceBranchName}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 shrink-0"
+                  onClick={() => {
+                    void copySourceBranch();
+                  }}
+                  aria-label="Copy source branch"
                 >
-                  <div className="flex items-center gap-2 text-[12px]">
-                    <span className="text-foreground truncate">
-                      {build.name}
-                    </span>
-                    <span
-                      className={cn(
-                        "ml-auto px-1.5 py-0.5 border text-[10px] uppercase tracking-wide",
-                        buildBadgeClass(build.state),
-                      )}
-                    >
-                      {buildLabel(build.state)}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-[11px] text-muted-foreground flex items-center gap-2">
-                    <span>{build.provider ?? "provider"}</span>
-                    <span className="ml-auto">
-                      {formatDate(build.completed_on)}
-                    </span>
-                  </div>
-                  {build.url ? (
-                    <a
-                      href={build.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 block text-[11px] underline text-foreground"
-                    >
-                      Open build
-                    </a>
-                  ) : null}
-                </div>
-              ))}
+                  {copiedSourceBranch ? (
+                    <Check className="size-3.5" />
+                  ) : (
+                    <Copy className="size-3.5" />
+                  )}
+                </Button>
+                <span className="text-muted-foreground shrink-0">-&gt;</span>
+                <span className="text-foreground truncate">
+                  {targetBranchName}
+                </span>
+              </div>
+              <div className="text-muted-foreground">PR Number</div>
+              <div className="text-foreground">#{pr.id}</div>
+              <div className="text-muted-foreground">Status</div>
+              <div className="text-foreground">
+                {pr.draft ? "DRAFT " : ""}
+                {pr.state}
+              </div>
+              <div className="text-muted-foreground">Created</div>
+              <div className="text-foreground">{formatDate(pr.created_on)}</div>
+              <div className="text-muted-foreground">Updated</div>
+              <div className="text-foreground">{formatDate(pr.updated_on)}</div>
+              <div className="text-muted-foreground">Merged</div>
+              <div className="text-foreground">{formatDate(pr.merged_on)}</div>
+              <div className="text-muted-foreground">Closed</div>
+              <div className="text-foreground">{formatDate(pr.closed_on)}</div>
             </div>
-          ) : (
-            <div className="text-[12px] text-muted-foreground">
-              No build status found for latest commit.
-            </div>
-          )}
-        </Section>
-      </div>
-
-      <Section title="PR Description">
-        {pr.description?.trim() ? (
-          <MarkdownBlock text={pr.description} />
-        ) : (
-          <div className="text-[12px] text-muted-foreground">
-            No description.
-          </div>
-        )}
-      </Section>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        <Section title="History">
-          {orderedHistory.length > 0 ? (
-            <div className="space-y-2">
-              {orderedHistory.map((event) => (
-                <div
-                  key={event.id}
-                  className="border border-border/70 bg-background px-2.5 py-2"
-                >
-                  <div className="flex items-center gap-2 text-[11px]">
+            <div className="mt-3 space-y-1">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Reviewers
+              </div>
+              {resolvedReviewers.length > 0 ? (
+                resolvedReviewers.map((reviewer) => (
+                  <div
+                    key={reviewer.id}
+                    className="border border-border/70 bg-background px-2.5 py-2 flex items-center gap-2 text-[12px]"
+                  >
                     <Avatar
-                      name={event.actor?.display_name}
-                      url={event.actor?.avatar_url}
+                      name={reviewer.display_name}
+                      url={reviewer.avatar_url}
                       sizeClass="size-4"
                     />
                     <span className="text-foreground">
-                      {eventLabel(event.type)}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {event.actor?.display_name ?? "Unknown"}
+                      {reviewer.display_name ?? "Unknown"}
                     </span>
                     <span className="ml-auto text-muted-foreground">
-                      {formatDate(event.created_on)}
+                      {reviewerLabel(reviewer.status)}
                     </span>
                   </div>
-                  {event.details ? (
-                    <div className="mt-1 text-[12px] text-muted-foreground break-words">
-                      {event.details}
-                    </div>
-                  ) : null}
-                  {event.content ? (
-                    <div className="mt-1">
-                      <MarkdownBlock text={event.content} />
-                    </div>
-                  ) : null}
+                ))
+              ) : (
+                <div className="text-[12px] text-muted-foreground">
+                  No reviewers found.
                 </div>
-              ))}
+              )}
             </div>
+          </Section>
+
+          <Section
+            title="Build Status"
+            headerRight={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={onRefreshBuildStatus}
+                disabled={
+                  !onRefreshBuildStatus || Boolean(refreshingBuildStatus)
+                }
+                aria-label="Refresh build status"
+              >
+                <RotateCw
+                  className={cn(
+                    "size-3.5",
+                    refreshingBuildStatus ? "animate-spin" : "",
+                  )}
+                />
+              </Button>
+            }
+          >
+            {buildStatuses && buildStatuses.length > 0 ? (
+              <div className="space-y-2">
+                {buildStatuses.map((build) => (
+                  <div
+                    key={build.id}
+                    className="border border-border/70 bg-background px-2.5 py-2"
+                  >
+                    <div className="flex items-center gap-2 text-[12px]">
+                      <span className="text-foreground truncate">
+                        {build.name}
+                      </span>
+                      <span
+                        className={cn(
+                          "ml-auto px-1.5 py-0.5 border text-[10px] uppercase tracking-wide",
+                          buildBadgeClass(build.state),
+                        )}
+                      >
+                        {buildLabel(build.state)}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-[11px] text-muted-foreground flex items-center gap-2">
+                      <span>{build.provider ?? "provider"}</span>
+                      <span className="ml-auto">
+                        {formatDate(build.completed_on)}
+                      </span>
+                    </div>
+                    {build.url ? (
+                      <a
+                        href={build.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 block text-[11px] underline text-foreground"
+                      >
+                        Open build
+                      </a>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[12px] text-muted-foreground">
+                No build status found for latest commit.
+              </div>
+            )}
+          </Section>
+        </div>
+
+        <Section title="PR Description">
+          {pr.description?.trim() ? (
+            <MarkdownBlock text={pr.description} />
           ) : (
             <div className="text-[12px] text-muted-foreground">
-              No history yet.
+              No description.
             </div>
           )}
         </Section>
 
-        <Section title="Commits">
-          {commits.length > 0 ? (
-            <div className="border border-border/70 bg-background">
-              <div className="grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/70">
-                <span>Author</span>
-                <span>Commit</span>
-                <span>Message</span>
-                <span className="text-right">Date</span>
-              </div>
-              {commits.map((commit) => {
-                const message = commit.summary?.raw ?? commit.message;
-                const mergedDevelop = isMergedDevelopCommit(message);
-                return (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <Section title="History">
+            {orderedHistory.length > 0 ? (
+              <div className="space-y-2">
+                {orderedHistory.map((event) => (
                   <div
-                    key={commit.hash}
-                    className={cn(
-                      "grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-1.5 text-[11px] border-b border-border/50 last:border-b-0",
-                      mergedDevelop
-                        ? "bg-status-added/5 text-muted-foreground opacity-70"
-                        : "",
-                    )}
+                    key={event.id}
+                    className="border border-border/70 bg-background px-2.5 py-2"
                   >
-                    <div className="min-w-0 flex items-center gap-2">
+                    <div className="flex items-center gap-2 text-[11px]">
                       <Avatar
-                        name={
-                          commit.author?.user?.display_name ??
-                          commit.author?.raw
-                        }
-                        url={commit.author?.user?.avatar_url}
+                        name={event.actor?.display_name}
+                        url={event.actor?.avatar_url}
                         sizeClass="size-4"
                       />
-                      <span className="truncate text-foreground">
-                        {commit.author?.user?.display_name ??
-                          commit.author?.raw ??
-                          "Unknown"}
+                      <span className="text-foreground">
+                        {eventLabel(event.type)}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {event.actor?.display_name ?? "Unknown"}
+                      </span>
+                      <span className="ml-auto text-muted-foreground">
+                        {formatDate(event.created_on)}
                       </span>
                     </div>
-                    <span
-                      className={cn(
-                        mergedDevelop
-                          ? "text-status-added/80"
-                          : "text-[#93c5fd]",
-                      )}
-                    >
-                      {shortHash(commit.hash)}
-                    </span>
-                    <span
-                      className={cn(
-                        "truncate",
-                        mergedDevelop
-                          ? "text-muted-foreground"
-                          : "text-foreground",
-                      )}
-                    >
-                      {message ?? "(no message)"}
-                    </span>
-                    <span className="text-right text-muted-foreground">
-                      {formatDate(commit.date)}
-                    </span>
+                    {event.details ? (
+                      <div className="mt-1 text-[12px] text-muted-foreground break-words">
+                        {event.details}
+                      </div>
+                    ) : null}
+                    {event.content ? (
+                      <div className="mt-1">
+                        <MarkdownBlock text={event.content} />
+                      </div>
+                    ) : null}
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-[12px] text-muted-foreground">
-              No commits found.
-            </div>
-          )}
-        </Section>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[12px] text-muted-foreground">
+                No history yet.
+              </div>
+            )}
+          </Section>
+
+          <Section title="Commits">
+            {commits.length > 0 ? (
+              <div className="border border-border/70 bg-background">
+                <div className="grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/70">
+                  <span>Author</span>
+                  <span>Commit</span>
+                  <span>Message</span>
+                  <span className="text-right">Date</span>
+                </div>
+                {commits.map((commit) => {
+                  const message = commit.summary?.raw ?? commit.message;
+                  const mergedDevelop = isMergedDevelopCommit(message);
+                  return (
+                    <div
+                      key={commit.hash}
+                      className={cn(
+                        "grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-1.5 text-[11px] border-b border-border/50 last:border-b-0",
+                        mergedDevelop
+                          ? "bg-status-added/5 text-muted-foreground opacity-70"
+                          : "",
+                      )}
+                    >
+                      <div className="min-w-0 flex items-center gap-2">
+                        <Avatar
+                          name={
+                            commit.author?.user?.display_name ??
+                            commit.author?.raw
+                          }
+                          url={commit.author?.user?.avatar_url}
+                          sizeClass="size-4"
+                        />
+                        <span className="truncate text-foreground">
+                          {commit.author?.user?.display_name ??
+                            commit.author?.raw ??
+                            "Unknown"}
+                        </span>
+                      </div>
+                      <span
+                        className={cn(
+                          mergedDevelop
+                            ? "text-status-added/80"
+                            : "text-[#93c5fd]",
+                        )}
+                      >
+                        {shortHash(commit.hash)}
+                      </span>
+                      <span
+                        className={cn(
+                          "truncate",
+                          mergedDevelop
+                            ? "text-muted-foreground"
+                            : "text-foreground",
+                        )}
+                      >
+                        {message ?? "(no message)"}
+                      </span>
+                      <span className="text-right text-muted-foreground">
+                        {formatDate(commit.date)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-[12px] text-muted-foreground">
+                No commits found.
+              </div>
+            )}
+          </Section>
+        </div>
       </div>
     </div>
   );

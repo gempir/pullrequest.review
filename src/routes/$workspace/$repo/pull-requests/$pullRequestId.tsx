@@ -21,6 +21,7 @@ import {
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
+  ScrollText,
 } from "lucide-react";
 import {
   type CSSProperties,
@@ -324,6 +325,8 @@ function PullRequestReviewPage() {
   const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<
     Record<string, boolean>
   >({});
+  const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] =
+    useState(false);
   const [inlineComment, setInlineComment] = useState<InlineCommentDraft | null>(
     null,
   );
@@ -735,8 +738,11 @@ function PullRequestReviewPage() {
     (path: string) => {
       setActiveFile(path);
       if (viewMode === "all") {
-        if (path === PR_SUMMARY_PATH) return;
-        setCollapsedAllModeFiles((prev) => ({ ...prev, [path]: false }));
+        if (path === PR_SUMMARY_PATH) {
+          setIsSummaryCollapsedInAllMode(false);
+        } else {
+          setCollapsedAllModeFiles((prev) => ({ ...prev, [path]: false }));
+        }
         requestAnimationFrame(() => {
           const anchor = document.getElementById(fileAnchorId(path));
           anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1589,8 +1595,6 @@ function PullRequestReviewPage() {
             <span className="text-muted-foreground">
               unresolved {unresolvedThreads.length}
             </span>
-            <span className="text-status-added">+{lineStats.added}</span>
-            <span className="text-status-removed">-{lineStats.removed}</span>
           </div>
 
           <div className="flex items-center gap-1">
@@ -1657,16 +1661,23 @@ function PullRequestReviewPage() {
           ref={diffScrollRef}
           className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
         >
-          {isSummarySelected && prData ? (
-            <PullRequestSummaryPanel
-              bundle={prData}
-              onRefreshBuildStatus={() => {
-                void refetchPrQuery();
-              }}
-              refreshingBuildStatus={isPrQueryFetching}
-            />
-          ) : viewMode === "single" ? (
-            selectedFileDiff && selectedFilePath ? (
+          {viewMode === "single" ? (
+            isSummarySelected && prData ? (
+              <div
+                id={fileAnchorId(PR_SUMMARY_PATH)}
+                className="h-full w-full min-w-0 max-w-full flex flex-col overflow-x-hidden"
+              >
+                <PullRequestSummaryPanel
+                  bundle={prData}
+                  headerTitle={prData.pr.title?.trim() || PR_SUMMARY_NAME}
+                  diffStats={lineStats}
+                  onRefreshBuildStatus={() => {
+                    void refetchPrQuery();
+                  }}
+                  refreshingBuildStatus={isPrQueryFetching}
+                />
+              </div>
+            ) : selectedFileDiff && selectedFilePath ? (
               <div
                 id={fileAnchorId(selectedFilePath)}
                 className="h-full min-w-0 max-w-full flex flex-col overflow-x-hidden"
@@ -1916,6 +1927,65 @@ function PullRequestReviewPage() {
             )
           ) : (
             <div className="w-full max-w-full">
+              {prData ? (
+                <div
+                  id={fileAnchorId(PR_SUMMARY_PATH)}
+                  className={cn(
+                    "w-full max-w-full border border-l-0 border-t-0 border-border bg-card",
+                    isSummaryCollapsedInAllMode && "border-b-0",
+                  )}
+                  style={{ borderTopWidth: 0 }}
+                >
+                  <div
+                    className={cn(
+                      "group sticky top-0 z-20 h-10 min-w-0 border-b border-border bg-card px-2 flex items-center gap-2 overflow-hidden text-[12px]",
+                    )}
+                  >
+                    <button
+                      type="button"
+                      className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden text-left"
+                      onClick={() =>
+                        setIsSummaryCollapsedInAllMode((prev) => !prev)
+                      }
+                    >
+                      <span className="size-4 flex items-center justify-center shrink-0">
+                        <ScrollText className="size-3.5" />
+                      </span>
+                      <span className="min-w-0 max-w-full truncate font-mono">
+                        {prData.pr.title?.trim() || PR_SUMMARY_NAME}
+                      </span>
+                    </button>
+                    <div className="ml-auto shrink-0 pr-2 text-[11px]">
+                      <span className="text-status-added">
+                        +{lineStats.added}
+                      </span>
+                      <span className="ml-2 text-status-removed">
+                        -{lineStats.removed}
+                      </span>
+                    </div>
+                    <span
+                      className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
+                      aria-hidden
+                    >
+                      {isSummaryCollapsedInAllMode ? (
+                        <ChevronRight className="size-3.5" />
+                      ) : (
+                        <ChevronDown className="size-3.5" />
+                      )}
+                    </span>
+                  </div>
+                  {!isSummaryCollapsedInAllMode && (
+                    <PullRequestSummaryPanel
+                      bundle={prData}
+                      diffStats={lineStats}
+                      onRefreshBuildStatus={() => {
+                        void refetchPrQuery();
+                      }}
+                      refreshingBuildStatus={isPrQueryFetching}
+                    />
+                  )}
+                </div>
+              ) : null}
               {allModeDiffEntries.map(({ fileDiff, filePath }, index) => {
                 const fileUnresolvedCount = (
                   threadsByPath.get(filePath) ?? []
@@ -1940,7 +2010,9 @@ function PullRequestReviewPage() {
                       "w-full max-w-full border border-l-0 border-t-0 border-border bg-card",
                       isCollapsed && "border-b-0",
                     )}
-                    style={index === 0 ? { borderTopWidth: 0 } : undefined}
+                    style={
+                      index === 0 && !prData ? { borderTopWidth: 0 } : undefined
+                    }
                   >
                     <div
                       className={cn(

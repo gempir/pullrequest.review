@@ -17,11 +17,13 @@ export type AppThemeMode = "auto" | "light" | "dark";
 
 type AppearanceSettings = {
   appThemeMode: AppThemeMode;
-  syncAppColorsWithDiffTheme: boolean;
-  pageFontFamily: FontFamilyValue;
-  pageFontSize: number;
-  pageLineHeight: number;
-  commentFontFamily: FontFamilyValue;
+  sansFontFamily: FontFamilyValue;
+  monospaceFontFamily: FontFamilyValue;
+  sansFontSize: number;
+  sansLineHeight: number;
+  monospaceFontSize: number;
+  monospaceLineHeight: number;
+  treeUseCustomTypography: boolean;
   treeFontFamily: FontFamilyValue;
   treeFontSize: number;
   treeLineHeight: number;
@@ -29,11 +31,13 @@ type AppearanceSettings = {
 
 type AppearanceContextValue = AppearanceSettings & {
   setAppThemeMode: (mode: AppThemeMode) => void;
-  setSyncAppColorsWithDiffTheme: (enabled: boolean) => void;
-  setPageFontFamily: (font: FontFamilyValue) => void;
-  setPageFontSize: (size: number) => void;
-  setPageLineHeight: (lineHeight: number) => void;
-  setCommentFontFamily: (font: FontFamilyValue) => void;
+  setSansFontFamily: (font: FontFamilyValue) => void;
+  setMonospaceFontFamily: (font: FontFamilyValue) => void;
+  setSansFontSize: (size: number) => void;
+  setSansLineHeight: (lineHeight: number) => void;
+  setMonospaceFontSize: (size: number) => void;
+  setMonospaceLineHeight: (lineHeight: number) => void;
+  setTreeUseCustomTypography: (enabled: boolean) => void;
   setTreeFontFamily: (font: FontFamilyValue) => void;
   setTreeFontSize: (size: number) => void;
   setTreeLineHeight: (lineHeight: number) => void;
@@ -43,11 +47,13 @@ const STORAGE_KEY = "pr_review_appearance";
 
 const defaultAppearance: AppearanceSettings = {
   appThemeMode: "auto",
-  syncAppColorsWithDiffTheme: true,
-  pageFontFamily: DEFAULT_FONT_FAMILY,
-  pageFontSize: 13,
-  pageLineHeight: 1.5,
-  commentFontFamily: "geist-sans",
+  sansFontFamily: "geist-sans",
+  monospaceFontFamily: DEFAULT_FONT_FAMILY,
+  sansFontSize: 13,
+  sansLineHeight: 1.25,
+  monospaceFontSize: 12,
+  monospaceLineHeight: 1.25,
+  treeUseCustomTypography: false,
   treeFontFamily: "geist-sans",
   treeFontSize: 12,
   treeLineHeight: 1.45,
@@ -69,35 +75,58 @@ function normalizeLineHeight(value: number, min: number, max: number) {
 function parseStoredSettings(raw: string | null): AppearanceSettings | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as Partial<AppearanceSettings>;
+    const parsed = JSON.parse(raw) as Partial<AppearanceSettings> & {
+      commentFontFamily?: FontFamilyValue;
+      pageFontFamily?: FontFamilyValue;
+      pageFontSize?: number;
+      pageLineHeight?: number;
+    };
     const appThemeMode =
       parsed.appThemeMode === "light" ||
       parsed.appThemeMode === "dark" ||
       parsed.appThemeMode === "auto"
         ? parsed.appThemeMode
         : defaultAppearance.appThemeMode;
+    const legacyPageFontSize = Number(
+      parsed.pageFontSize ?? defaultAppearance.sansFontSize,
+    );
+    const legacyPageLineHeight = Number(
+      parsed.pageLineHeight ?? defaultAppearance.sansLineHeight,
+    );
     return {
       appThemeMode,
-      syncAppColorsWithDiffTheme:
-        typeof parsed.syncAppColorsWithDiffTheme === "boolean"
-          ? parsed.syncAppColorsWithDiffTheme
-          : defaultAppearance.syncAppColorsWithDiffTheme,
-      pageFontFamily:
+      sansFontFamily:
+        (parsed.sansFontFamily as FontFamilyValue) ??
+        (parsed.commentFontFamily as FontFamilyValue) ??
         (parsed.pageFontFamily as FontFamilyValue) ??
-        defaultAppearance.pageFontFamily,
-      pageFontSize: normalizeFontSize(
-        Number(parsed.pageFontSize ?? defaultAppearance.pageFontSize),
+        defaultAppearance.sansFontFamily,
+      monospaceFontFamily:
+        (parsed.monospaceFontFamily as FontFamilyValue) ??
+        defaultAppearance.monospaceFontFamily,
+      sansFontSize: normalizeFontSize(
+        Number(parsed.sansFontSize ?? legacyPageFontSize),
         11,
         20,
       ),
-      pageLineHeight: normalizeLineHeight(
-        Number(parsed.pageLineHeight ?? defaultAppearance.pageLineHeight),
+      sansLineHeight: normalizeLineHeight(
+        Number(parsed.sansLineHeight ?? legacyPageLineHeight),
         1,
         2.2,
       ),
-      commentFontFamily:
-        (parsed.commentFontFamily as FontFamilyValue) ??
-        defaultAppearance.commentFontFamily,
+      monospaceFontSize: normalizeFontSize(
+        Number(parsed.monospaceFontSize ?? legacyPageFontSize),
+        11,
+        20,
+      ),
+      monospaceLineHeight: normalizeLineHeight(
+        Number(parsed.monospaceLineHeight ?? legacyPageLineHeight),
+        1,
+        2.2,
+      ),
+      treeUseCustomTypography:
+        typeof parsed.treeUseCustomTypography === "boolean"
+          ? parsed.treeUseCustomTypography
+          : defaultAppearance.treeUseCustomTypography,
       treeFontFamily:
         (parsed.treeFontFamily as FontFamilyValue) ??
         defaultAppearance.treeFontFamily,
@@ -143,31 +172,67 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     const root = window.document.documentElement;
     root.style.setProperty(
       "--app-font-family",
-      fontFamilyToCss(settings.pageFontFamily),
+      fontFamilyToCss(settings.sansFontFamily),
     );
-    root.style.setProperty("--app-font-size", `${settings.pageFontSize}px`);
+    root.style.setProperty(
+      "--mono-font-family",
+      fontFamilyToCss(settings.monospaceFontFamily),
+    );
+    root.style.setProperty("--sans-font-size", `${settings.sansFontSize}px`);
+    root.style.setProperty(
+      "--sans-line-height",
+      String(settings.sansLineHeight),
+    );
+    root.style.setProperty(
+      "--mono-font-size",
+      `${settings.monospaceFontSize}px`,
+    );
+    root.style.setProperty(
+      "--mono-line-height",
+      String(settings.monospaceLineHeight),
+    );
+    // Legacy aliases retained to avoid stale references.
+    root.style.setProperty("--app-font-size", `${settings.sansFontSize}px`);
     root.style.setProperty(
       "--app-line-height",
-      String(settings.pageLineHeight),
+      String(settings.sansLineHeight),
     );
     root.style.setProperty(
       "--tree-font-family",
-      fontFamilyToCss(settings.treeFontFamily),
+      fontFamilyToCss(
+        settings.treeUseCustomTypography
+          ? settings.treeFontFamily
+          : settings.sansFontFamily,
+      ),
     );
     root.style.setProperty(
       "--comment-font-family",
-      fontFamilyToCss(settings.commentFontFamily),
+      fontFamilyToCss(settings.sansFontFamily),
     );
-    root.style.setProperty("--tree-font-size", `${settings.treeFontSize}px`);
+    root.style.setProperty(
+      "--tree-font-size",
+      `${
+        settings.treeUseCustomTypography
+          ? settings.treeFontSize
+          : settings.sansFontSize
+      }px`,
+    );
     root.style.setProperty(
       "--tree-line-height",
-      String(settings.treeLineHeight),
+      String(
+        settings.treeUseCustomTypography
+          ? settings.treeLineHeight
+          : settings.sansLineHeight,
+      ),
     );
   }, [
-    settings.pageFontFamily,
-    settings.pageFontSize,
-    settings.pageLineHeight,
-    settings.commentFontFamily,
+    settings.sansFontFamily,
+    settings.monospaceFontFamily,
+    settings.sansFontSize,
+    settings.sansLineHeight,
+    settings.monospaceFontSize,
+    settings.monospaceLineHeight,
+    settings.treeUseCustomTypography,
     settings.treeFontFamily,
     settings.treeFontSize,
     settings.treeLineHeight,
@@ -203,26 +268,38 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   const setAppThemeMode = useCallback((mode: AppThemeMode) => {
     setSettings((prev) => ({ ...prev, appThemeMode: mode }));
   }, []);
-  const setSyncAppColorsWithDiffTheme = useCallback((enabled: boolean) => {
-    setSettings((prev) => ({ ...prev, syncAppColorsWithDiffTheme: enabled }));
+  const setSansFontFamily = useCallback((font: FontFamilyValue) => {
+    setSettings((prev) => ({ ...prev, sansFontFamily: font }));
   }, []);
-  const setPageFontFamily = useCallback((font: FontFamilyValue) => {
-    setSettings((prev) => ({ ...prev, pageFontFamily: font }));
+  const setMonospaceFontFamily = useCallback((font: FontFamilyValue) => {
+    setSettings((prev) => ({ ...prev, monospaceFontFamily: font }));
   }, []);
-  const setPageFontSize = useCallback((size: number) => {
+  const setSansFontSize = useCallback((size: number) => {
     setSettings((prev) => ({
       ...prev,
-      pageFontSize: normalizeFontSize(size, 11, 20),
+      sansFontSize: normalizeFontSize(size, 11, 20),
     }));
   }, []);
-  const setPageLineHeight = useCallback((lineHeight: number) => {
+  const setSansLineHeight = useCallback((lineHeight: number) => {
     setSettings((prev) => ({
       ...prev,
-      pageLineHeight: normalizeLineHeight(lineHeight, 1, 2.2),
+      sansLineHeight: normalizeLineHeight(lineHeight, 1, 2.2),
     }));
   }, []);
-  const setCommentFontFamily = useCallback((font: FontFamilyValue) => {
-    setSettings((prev) => ({ ...prev, commentFontFamily: font }));
+  const setMonospaceFontSize = useCallback((size: number) => {
+    setSettings((prev) => ({
+      ...prev,
+      monospaceFontSize: normalizeFontSize(size, 11, 20),
+    }));
+  }, []);
+  const setMonospaceLineHeight = useCallback((lineHeight: number) => {
+    setSettings((prev) => ({
+      ...prev,
+      monospaceLineHeight: normalizeLineHeight(lineHeight, 1, 2.2),
+    }));
+  }, []);
+  const setTreeUseCustomTypography = useCallback((enabled: boolean) => {
+    setSettings((prev) => ({ ...prev, treeUseCustomTypography: enabled }));
   }, []);
   const setTreeFontFamily = useCallback((font: FontFamilyValue) => {
     setSettings((prev) => ({ ...prev, treeFontFamily: font }));
@@ -244,11 +321,13 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     () => ({
       ...settings,
       setAppThemeMode,
-      setSyncAppColorsWithDiffTheme,
-      setPageFontFamily,
-      setPageFontSize,
-      setPageLineHeight,
-      setCommentFontFamily,
+      setSansFontFamily,
+      setMonospaceFontFamily,
+      setSansFontSize,
+      setSansLineHeight,
+      setMonospaceFontSize,
+      setMonospaceLineHeight,
+      setTreeUseCustomTypography,
       setTreeFontFamily,
       setTreeFontSize,
       setTreeLineHeight,
@@ -256,11 +335,13 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     [
       settings,
       setAppThemeMode,
-      setSyncAppColorsWithDiffTheme,
-      setPageFontFamily,
-      setPageFontSize,
-      setPageLineHeight,
-      setCommentFontFamily,
+      setSansFontFamily,
+      setMonospaceFontFamily,
+      setSansFontSize,
+      setSansLineHeight,
+      setMonospaceFontSize,
+      setMonospaceLineHeight,
+      setTreeUseCustomTypography,
       setTreeFontFamily,
       setTreeFontSize,
       setTreeLineHeight,

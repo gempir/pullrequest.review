@@ -103,9 +103,14 @@
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
     Cantarell, "Helvetica Neue", Arial, sans-serif;
 
-  --app-font-family: var(--font-jetbrains-mono);
-  --app-font-size: 13px;
-  --app-line-height: 1.5;
+  --app-font-family: var(--font-geist-sans);
+  --mono-font-family: var(--font-jetbrains-mono);
+  --sans-font-size: 13px;
+  --sans-line-height: 1.25;
+  --mono-font-size: 12px;
+  --mono-line-height: 1.25;
+  --app-font-size: var(--sans-font-size);
+  --app-line-height: var(--sans-line-height);
   --comment-font-family: var(--font-geist-sans);
   --tree-font-family: var(--font-geist-sans);
   --tree-font-size: 12px;
@@ -211,8 +216,8 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--app-font-family);
-    font-size: var(--app-font-size);
-    line-height: var(--app-line-height);
+    font-size: var(--sans-font-size);
+    line-height: var(--sans-line-height);
     overflow-x: hidden;
     overflow-y: hidden;
     max-width: 100vw;
@@ -375,6 +380,55 @@
   .commentable-diff [data-line],
   .commentable-diff [data-column-number] {
     cursor: copy;
+  }
+
+  .sans-font-scope {
+    font-family: var(--app-font-family);
+    font-size: var(--sans-font-size);
+    line-height: var(--sans-line-height);
+  }
+
+  .mono-font-scope,
+  .font-mono {
+    font-family: var(--mono-font-family);
+    font-size: var(--mono-font-size);
+    line-height: var(--mono-line-height);
+  }
+
+  body [class*="text-[10px]"] {
+    font-size: calc(var(--sans-font-size) * 10 / 13);
+  }
+
+  body [class*="text-[11px]"] {
+    font-size: calc(var(--sans-font-size) * 11 / 13);
+  }
+
+  body [class*="text-[12px]"] {
+    font-size: calc(var(--sans-font-size) * 12 / 13);
+  }
+
+  body [class*="text-[13px]"] {
+    font-size: var(--sans-font-size);
+  }
+
+  body .mono-font-scope[class*="text-[10px]"],
+  body .font-mono[class*="text-[10px]"] {
+    font-size: calc(var(--mono-font-size) * 10 / 13);
+  }
+
+  body .mono-font-scope[class*="text-[11px]"],
+  body .font-mono[class*="text-[11px]"] {
+    font-size: calc(var(--mono-font-size) * 11 / 13);
+  }
+
+  body .mono-font-scope[class*="text-[12px]"],
+  body .font-mono[class*="text-[12px]"] {
+    font-size: calc(var(--mono-font-size) * 12 / 13);
+  }
+
+  body .mono-font-scope[class*="text-[13px]"],
+  body .font-mono[class*="text-[13px]"] {
+    font-size: var(--mono-font-size);
   }
 
   .tree-font-scope {

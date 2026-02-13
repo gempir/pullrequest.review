@@ -125,6 +125,20 @@ export const SANS_FONT_FAMILY_OPTIONS: ReadonlyArray<{
   { value: "system-sans", label: "System Sans" },
 ];
 
+export const MONO_FONT_FAMILY_OPTIONS: ReadonlyArray<{
+  value: FontFamilyValue;
+  label: string;
+}> = [
+  { value: "jetbrains-mono", label: "JetBrains Mono" },
+  { value: "fira-code", label: "Fira Code" },
+  { value: "cascadia-code", label: "Cascadia Code" },
+  { value: "source-code-pro", label: "Source Code Pro" },
+  { value: "ibm-plex-mono", label: "IBM Plex Mono" },
+  { value: "geist-mono", label: "Geist Mono" },
+  { value: "ui-monospace", label: "UI Monospace" },
+  { value: "geist-pixel", label: "Geist Pixel" },
+];
+
 export const DEFAULT_FONT_FAMILY: FontFamilyValue = "jetbrains-mono";
 
 export function fontFamilyToCss(value: FontFamilyValue): string {

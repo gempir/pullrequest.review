@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { bundledThemes } from "shiki";
-import { useAppearance } from "@/lib/appearance-context";
 import { useDiffOptions } from "@/lib/diff-options-context";
 
 type ShikiThemeLike = {
@@ -223,17 +222,11 @@ function clearPalette(root: HTMLElement) {
 
 export function ShikiAppThemeSync() {
   const { options } = useDiffOptions();
-  const { syncAppColorsWithDiffTheme } = useAppearance();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const root = window.document.documentElement;
     let cancelled = false;
-
-    if (!syncAppColorsWithDiffTheme) {
-      clearPalette(root);
-      return;
-    }
 
     const loader = bundledThemes[options.theme as keyof typeof bundledThemes];
     if (!loader) {
@@ -257,7 +250,7 @@ export function ShikiAppThemeSync() {
     return () => {
       cancelled = true;
     };
-  }, [options.theme, syncAppColorsWithDiffTheme]);
+  }, [options.theme]);
 
   return null;
 }

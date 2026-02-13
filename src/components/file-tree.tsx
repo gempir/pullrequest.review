@@ -1,9 +1,14 @@
 import {
   ChevronDown,
   ChevronRight,
+  Command,
   Folder,
   FolderOpen,
+  FolderTree,
+  MonitorCog,
   ScrollText,
+  SlidersHorizontal,
+  SwatchBook,
 } from "lucide-react";
 import { FileIcon } from "react-files-icons";
 import {
@@ -25,6 +30,8 @@ interface FileTreeProps {
   onFileClick?: (node: FileNode) => void;
 }
 
+const SETTINGS_PATH_PREFIX = "__settings__/";
+
 function kindColor(kind: ChangeKind) {
   switch (kind) {
     case "add":
@@ -44,6 +51,21 @@ function kindMarker(kind?: ChangeKind) {
       aria-hidden
     />
   );
+}
+
+function isSettingsPath(path: string) {
+  return path.startsWith(SETTINGS_PATH_PREFIX);
+}
+
+function settingsIcon(path: string) {
+  if (!isSettingsPath(path)) return null;
+  const tab = path.slice(SETTINGS_PATH_PREFIX.length);
+  if (tab === "appearance") return <SwatchBook className="size-3.5" />;
+  if (tab === "diff") return <SlidersHorizontal className="size-3.5" />;
+  if (tab === "tree") return <FolderTree className="size-3.5" />;
+  if (tab === "shortcuts") return <Command className="size-3.5" />;
+  if (tab === "workspace") return <MonitorCog className="size-3.5" />;
+  return null;
 }
 
 export function FileTree({
@@ -242,6 +264,9 @@ function FileNodeRow({
 }) {
   const tree = useFileTree();
   const kind = node.type === "summary" ? undefined : kinds.get(node.path);
+  const nodeSettingsIcon =
+    node.type === "file" ? settingsIcon(node.path) : null;
+  const isSettingsNode = node.type === "file" && isSettingsPath(node.path);
   const isActive = node.path === active;
 
   return (
@@ -261,6 +286,8 @@ function FileNodeRow({
       <span className={cn("size-4 flex items-center justify-center shrink-0")}>
         {node.type === "summary" ? (
           <ScrollText className="size-3.5" />
+        ) : nodeSettingsIcon ? (
+          nodeSettingsIcon
         ) : (
           <FileIcon name={node.name} className="size-3.5" />
         )}
@@ -269,7 +296,7 @@ function FileNodeRow({
       <span className="flex-1 min-w-0 truncate pr-2 text-foreground">
         {node.name}
       </span>
-      {node.type !== "summary" && !viewed && (
+      {node.type !== "summary" && !isSettingsNode && !viewed && (
         <span
           className="sticky right-2 ml-auto size-2.5 shrink-0 rounded-full bg-accent"
           aria-hidden

@@ -10,6 +10,7 @@ interface NumberStepperInputProps {
   max?: number;
   step?: number;
   className?: string;
+  disabled?: boolean;
 }
 
 function clampValue(value: number, min?: number, max?: number) {
@@ -33,6 +34,7 @@ export function NumberStepperInput({
   max,
   step = 1,
   className,
+  disabled = false,
 }: NumberStepperInputProps) {
   const precision = stepPrecision(step);
   const applyValue = (next: number) => {
@@ -41,11 +43,13 @@ export function NumberStepperInput({
   };
 
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("relative", disabled ? "opacity-60" : "", className)}>
       <Input
         type="number"
         value={value}
+        disabled={disabled}
         onChange={(event) => {
+          if (disabled) return;
           const parsed = Number(event.target.value);
           if (!Number.isFinite(parsed)) return;
           applyValue(parsed);
@@ -61,6 +65,7 @@ export function NumberStepperInput({
           variant="ghost"
           size="sm"
           className="h-1/2 w-full rounded-none p-0"
+          disabled={disabled}
           onClick={() => applyValue(value + step)}
           aria-label="Increase value"
         >
@@ -71,6 +76,7 @@ export function NumberStepperInput({
           variant="ghost"
           size="sm"
           className="h-1/2 w-full rounded-none p-0"
+          disabled={disabled}
           onClick={() => applyValue(value - step)}
           aria-label="Decrease value"
         >

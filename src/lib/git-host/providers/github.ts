@@ -629,6 +629,7 @@ function mergeIssueAndReviewComments(
 export const githubClient: GitHostClient = {
   host: "github",
   capabilities: {
+    publicReadSupported: true,
     supportsThreadResolution: false,
     requestChangesAvailable: true,
     mergeStrategies: ["merge", "squash", "rebase"],

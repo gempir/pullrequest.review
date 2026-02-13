@@ -166,6 +166,7 @@ export interface CommentPayload {
 }
 
 export interface HostCapabilities {
+  publicReadSupported: boolean;
   supportsThreadResolution: boolean;
   mergeStrategies?: string[];
   requestChangesAvailable: boolean;

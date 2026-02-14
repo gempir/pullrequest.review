@@ -39,7 +39,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { FileIcon } from "react-files-icons";
 import { CommentEditor } from "@/components/comment-editor";
 import { FileTree } from "@/components/file-tree";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
@@ -73,6 +72,7 @@ import {
   useViewedStorageKey,
   writeViewedFiles,
 } from "@/components/pull-request-review/use-review-storage";
+import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { SettingsPanelContentOnly } from "@/components/settings-menu";
 import {
   getSettingsTreeItems,
@@ -2211,8 +2211,8 @@ export function PullRequestReviewPage({
               >
                 <div className="h-10 min-w-0 border-b border-border px-3 flex items-center gap-2 overflow-hidden">
                   <span className="size-4 flex items-center justify-center shrink-0">
-                    <FileIcon
-                      name={
+                    <RepositoryFileIcon
+                      fileName={
                         selectedFilePath.split("/").pop() || selectedFilePath
                       }
                       className="size-3.5"
@@ -2556,7 +2556,10 @@ export function PullRequestReviewPage({
                         }
                       >
                         <span className="size-4 flex items-center justify-center shrink-0">
-                          <FileIcon name={fileName} className="size-3.5" />
+                          <RepositoryFileIcon
+                            fileName={fileName}
+                            className="size-3.5"
+                          />
                         </span>
                         <span className="min-w-0 max-w-full truncate font-mono">
                           {filePath}

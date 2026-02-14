@@ -5,17 +5,21 @@ import {
   Folder,
   FolderOpen,
   FolderTree,
+  GitPullRequest,
+  House,
   MonitorCog,
   ScrollText,
   SlidersHorizontal,
   SwatchBook,
 } from "lucide-react";
 import { FileIcon } from "react-files-icons";
+import { GitHostIcon } from "@/components/git-host-icon";
 import {
   type ChangeKind,
   type FileNode,
   useFileTree,
 } from "@/lib/file-tree-context";
+import type { GitHost } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
 
 interface FileTreeProps {
@@ -28,9 +32,14 @@ interface FileTreeProps {
   viewedFiles?: ReadonlySet<string>;
   onToggleViewed?: (path: string) => void;
   onFileClick?: (node: FileNode) => void;
+  onDirectoryClick?: (node: FileNode) => boolean | undefined;
+  showUnviewedIndicator?: boolean;
 }
 
 const SETTINGS_PATH_PREFIX = "__settings__/";
+const HOME_PATH = "__home__";
+const PR_PATH_PREFIX = "pr:";
+const REPO_PATH_PREFIX = "repo:";
 
 function kindColor(kind: ChangeKind) {
   switch (kind) {
@@ -57,6 +66,24 @@ function isSettingsPath(path: string) {
   return path.startsWith(SETTINGS_PATH_PREFIX);
 }
 
+function isHomePath(path: string) {
+  return path === HOME_PATH;
+}
+
+function isPullRequestPath(path: string) {
+  return path.startsWith(PR_PATH_PREFIX);
+}
+
+function isRepositoryPath(path: string) {
+  return path.startsWith(REPO_PATH_PREFIX);
+}
+
+function hostFromTreePath(path: string): GitHost | null {
+  const [, host] = path.split(":");
+  if (host === "github" || host === "bitbucket") return host;
+  return null;
+}
+
 function settingsIcon(path: string) {
   if (!isSettingsPath(path)) return null;
   const tab = path.slice(SETTINGS_PATH_PREFIX.length);
@@ -78,6 +105,8 @@ export function FileTree({
   viewedFiles,
   onToggleViewed,
   onFileClick,
+  onDirectoryClick,
+  showUnviewedIndicator = true,
 }: FileTreeProps) {
   const tree = useFileTree();
   const resolvedKinds = kinds ?? tree.kinds;
@@ -99,6 +128,12 @@ export function FileTree({
       return queryMatch && allowedMatch;
     }
     const children = tree.children(node.path);
+    const host = hostFromTreePath(node.path);
+    if (host && children.length === 0) {
+      if (!normalizedQuery) return true;
+      const hostSearch = `${node.name} ${node.path}`.toLowerCase();
+      return hostSearch.includes(normalizedQuery);
+    }
     return children.some(matchesNode);
   };
 
@@ -121,6 +156,8 @@ export function FileTree({
               viewedFiles={viewedFiles}
               onToggleViewed={onToggleViewed}
               onFileClick={onFileClick}
+              onDirectoryClick={onDirectoryClick}
+              showUnviewedIndicator={showUnviewedIndicator}
             />
           );
         }
@@ -134,6 +171,7 @@ export function FileTree({
             active={active}
             viewed={viewedFiles?.has(node.path)}
             onFileClick={onFileClick}
+            showUnviewedIndicator={showUnviewedIndicator}
           />
         );
       })}
@@ -152,6 +190,8 @@ function DirectoryNode({
   viewedFiles,
   onToggleViewed,
   onFileClick,
+  onDirectoryClick,
+  showUnviewedIndicator,
 }: {
   node: FileNode;
   level: number;
@@ -163,6 +203,8 @@ function DirectoryNode({
   viewedFiles?: ReadonlySet<string>;
   onToggleViewed?: (path: string) => void;
   onFileClick?: (node: FileNode) => void;
+  onDirectoryClick?: (node: FileNode) => boolean | undefined;
+  showUnviewedIndicator: boolean;
 }) {
   const tree = useFileTree();
   const compactEnabled = tree.compactSingleChildDirectories;
@@ -183,6 +225,16 @@ function DirectoryNode({
   const expanded = tree.isExpanded(displayNode.path);
   const kind = kinds.get(displayNode.path);
   const displayName = nameParts.join("/");
+  const host = hostFromTreePath(displayNode.path);
+  const isActive = activeFile === displayNode.path;
+  const isRepositoryNode = isRepositoryPath(displayNode.path);
+  const pullRequestCount = isRepositoryNode
+    ? tree
+        .children(displayNode.path)
+        .filter(
+          (child) => child.type === "file" && isPullRequestPath(child.path),
+        ).length
+    : 0;
 
   return (
     <div>
@@ -191,10 +243,17 @@ function DirectoryNode({
         className={cn(
           "group w-full min-w-0 flex items-center gap-3 py-1 text-left",
           "hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer",
-          "text-muted-foreground",
+          isActive
+            ? "bg-accent text-accent-foreground"
+            : "text-muted-foreground",
         )}
         style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
-        onClick={() => tree.toggle(displayNode.path)}
+        onClick={() => {
+          tree.setActiveFile(displayNode.path);
+          const handled = onDirectoryClick?.(displayNode);
+          if (handled) return;
+          tree.toggle(displayNode.path);
+        }}
         aria-expanded={expanded}
       >
         <span
@@ -203,7 +262,13 @@ function DirectoryNode({
           )}
         >
           <span className="group-hover:hidden">
-            {expanded ? (
+            {isRepositoryNode ? (
+              <span className="inline-flex h-4 min-w-[14px] items-center justify-center rounded border border-border bg-secondary px-0.5 text-[9px] leading-none text-muted-foreground">
+                {pullRequestCount}
+              </span>
+            ) : host ? (
+              <GitHostIcon host={host} className="size-3.5" />
+            ) : expanded ? (
               <FolderOpen className="size-3.5" />
             ) : (
               <Folder className="size-3.5" />
@@ -238,6 +303,8 @@ function DirectoryNode({
             viewedFiles={viewedFiles}
             onToggleViewed={onToggleViewed}
             onFileClick={onFileClick}
+            onDirectoryClick={onDirectoryClick}
+            showUnviewedIndicator={showUnviewedIndicator}
           />
         </div>
       )}
@@ -253,6 +320,7 @@ function FileNodeRow({
   active,
   viewed,
   onFileClick,
+  showUnviewedIndicator,
 }: {
   node: FileNode;
   level: number;
@@ -261,11 +329,14 @@ function FileNodeRow({
   active?: string;
   viewed?: boolean;
   onFileClick?: (node: FileNode) => void;
+  showUnviewedIndicator: boolean;
 }) {
   const tree = useFileTree();
   const kind = node.type === "summary" ? undefined : kinds.get(node.path);
   const nodeSettingsIcon =
     node.type === "file" ? settingsIcon(node.path) : null;
+  const isHomeNode = isHomePath(node.path);
+  const isPullRequestNode = isPullRequestPath(node.path);
   const isSettingsNode = node.type === "file" && isSettingsPath(node.path);
   const isActive = node.path === active;
 
@@ -285,9 +356,17 @@ function FileNodeRow({
     >
       <span className={cn("size-4 flex items-center justify-center shrink-0")}>
         {node.type === "summary" ? (
-          <ScrollText className="size-3.5" />
+          isHomeNode ? (
+            <House className="size-3.5" />
+          ) : (
+            <ScrollText className="size-3.5" />
+          )
         ) : nodeSettingsIcon ? (
           nodeSettingsIcon
+        ) : isHomeNode ? (
+          <House className="size-3.5" />
+        ) : isPullRequestNode ? (
+          <GitPullRequest className="size-3.5" />
         ) : (
           <FileIcon name={node.name} className="size-3.5" />
         )}
@@ -296,12 +375,16 @@ function FileNodeRow({
       <span className="flex-1 min-w-0 truncate pr-2 text-foreground">
         {node.name}
       </span>
-      {node.type !== "summary" && !isSettingsNode && !viewed && (
-        <span
-          className="sticky right-2 ml-auto size-2.5 shrink-0 rounded-full bg-accent"
-          aria-hidden
-        />
-      )}
+      {showUnviewedIndicator &&
+        node.type !== "summary" &&
+        !isSettingsNode &&
+        !isHomeNode &&
+        !viewed && (
+          <span
+            className="sticky right-2 ml-auto size-2.5 shrink-0 rounded-full bg-accent"
+            aria-hidden
+          />
+        )}
     </button>
   );
 }

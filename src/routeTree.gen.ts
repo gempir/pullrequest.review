@@ -9,14 +9,26 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as HostIndexRouteImport } from './routes/$host/index'
 import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 import { Route as WorkspaceRepoPullPullRequestIdRouteImport } from './routes/$workspace/$repo/pull/$pullRequestId'
 import { Route as WorkspaceRepoPullRequestsPullRequestIdRouteImport } from './routes/$workspace/$repo/pull-requests/$pullRequestId'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HostIndexRoute = HostIndexRouteImport.update({
+  id: '/$host/',
+  path: '/$host/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OauthCallbackRoute = OauthCallbackRouteImport.update({
@@ -39,20 +51,26 @@ const WorkspaceRepoPullRequestsPullRequestIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/oauth/callback': typeof OauthCallbackRoute
+  '/$host': typeof HostIndexRoute
   '/$workspace/$repo/pull-requests/$pullRequestId': typeof WorkspaceRepoPullRequestsPullRequestIdRoute
   '/$workspace/$repo/pull/$pullRequestId': typeof WorkspaceRepoPullPullRequestIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/oauth/callback': typeof OauthCallbackRoute
+  '/$host': typeof HostIndexRoute
   '/$workspace/$repo/pull-requests/$pullRequestId': typeof WorkspaceRepoPullRequestsPullRequestIdRoute
   '/$workspace/$repo/pull/$pullRequestId': typeof WorkspaceRepoPullPullRequestIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/oauth/callback': typeof OauthCallbackRoute
+  '/$host/': typeof HostIndexRoute
   '/$workspace/$repo/pull-requests/$pullRequestId': typeof WorkspaceRepoPullRequestsPullRequestIdRoute
   '/$workspace/$repo/pull/$pullRequestId': typeof WorkspaceRepoPullPullRequestIdRoute
 }
@@ -60,37 +78,59 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/settings'
     | '/oauth/callback'
+    | '/$host'
     | '/$workspace/$repo/pull-requests/$pullRequestId'
     | '/$workspace/$repo/pull/$pullRequestId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/settings'
     | '/oauth/callback'
+    | '/$host'
     | '/$workspace/$repo/pull-requests/$pullRequestId'
     | '/$workspace/$repo/pull/$pullRequestId'
   id:
     | '__root__'
     | '/'
+    | '/settings'
     | '/oauth/callback'
+    | '/$host/'
     | '/$workspace/$repo/pull-requests/$pullRequestId'
     | '/$workspace/$repo/pull/$pullRequestId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SettingsRoute: typeof SettingsRoute
   OauthCallbackRoute: typeof OauthCallbackRoute
+  HostIndexRoute: typeof HostIndexRoute
   WorkspaceRepoPullRequestsPullRequestIdRoute: typeof WorkspaceRepoPullRequestsPullRequestIdRoute
   WorkspaceRepoPullPullRequestIdRoute: typeof WorkspaceRepoPullPullRequestIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$host/': {
+      id: '/$host/'
+      path: '/$host'
+      fullPath: '/$host'
+      preLoaderRoute: typeof HostIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth/callback': {
@@ -119,7 +159,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SettingsRoute: SettingsRoute,
   OauthCallbackRoute: OauthCallbackRoute,
+  HostIndexRoute: HostIndexRoute,
   WorkspaceRepoPullRequestsPullRequestIdRoute:
     WorkspaceRepoPullRequestsPullRequestIdRoute,
   WorkspaceRepoPullPullRequestIdRoute: WorkspaceRepoPullPullRequestIdRoute,

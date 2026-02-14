@@ -3,8 +3,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   ExternalLink,
-  FolderGit,
   GitPullRequest,
+  House,
   Loader2,
   RefreshCw,
   Settings2,
@@ -12,6 +12,12 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { FileTree } from "@/components/file-tree";
 import { RepositorySelector } from "@/components/repository-selector";
+import {
+  getSettingsTreeItems,
+  SettingsPanel,
+  settingsPathForTab,
+  settingsTabFromPath,
+} from "@/components/settings-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type FileNode, useFileTree } from "@/lib/file-tree-context";
@@ -28,9 +34,10 @@ import { usePrContext } from "@/lib/pr-context";
 import { cn } from "@/lib/utils";
 
 const HOSTS: GitHost[] = ["bitbucket", "github"];
+const HOST_PATH_PREFIX = "host:";
+const WORKSPACE_PATH_PREFIX = "workspace:";
 
-type LandingMode = "pull-requests" | "repositories" | "hosts";
-type LandingSearch = { mode?: LandingMode };
+type DiffPanel = "pull-requests" | "repositories";
 type PullRequestTreeMeta = {
   host: GitHost;
   workspace: string;
@@ -38,49 +45,42 @@ type PullRequestTreeMeta = {
   pullRequestId: string;
 };
 
+function normalizeWorkspaceLabel(workspace: string, hostDomain: string) {
+  const normalized = workspace
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
+  const hostVariants = new Set([
+    hostDomain.toLowerCase(),
+    `www.${hostDomain.toLowerCase()}`,
+  ]);
+  const segments = normalized
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  while (segments.length > 0 && hostVariants.has(segments[0].toLowerCase())) {
+    segments.shift();
+  }
+  return segments.join("/");
+}
+
+function hostFromLandingTreePath(path: string): GitHost | null {
+  if (
+    !path.startsWith(HOST_PATH_PREFIX) &&
+    !path.startsWith(WORKSPACE_PATH_PREFIX)
+  ) {
+    return null;
+  }
+  const [, host] = path.split(":");
+  return host === "bitbucket" || host === "github" ? host : null;
+}
+
 export const Route = createFileRoute("/")({
-  validateSearch: (search: Record<string, unknown>): LandingSearch => ({
-    mode:
-      search.mode === "pull-requests" ||
-      search.mode === "repositories" ||
-      search.mode === "hosts"
-        ? search.mode
-        : undefined,
-  }),
   component: LandingPage,
 });
 
-function HostTree({
-  activeHost,
-  onSelect,
-}: {
-  activeHost: GitHost;
-  onSelect: (host: GitHost) => void;
-}) {
-  return (
-    <div className="flex flex-col py-1" data-component="tree">
-      {HOSTS.map((host) => (
-        <button
-          key={host}
-          type="button"
-          className={cn(
-            "w-full flex items-center gap-2 px-2 py-1 text-left text-[12px] hover:bg-accent",
-            activeHost === host
-              ? "bg-accent text-foreground"
-              : "text-muted-foreground",
-          )}
-          onClick={() => onSelect(host)}
-        >
-          <FolderGit className="size-3.5" />
-          <span className="truncate">{getHostLabel(host)}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function HostAuthPanel({ host }: { host: GitHost }) {
-  const { authByHost, login } = usePrContext();
+  const { authByHost, login, logout } = usePrContext();
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [githubToken, setGithubToken] = useState("");
@@ -95,6 +95,15 @@ function HostAuthPanel({ host }: { host: GitHost }) {
         <div className="text-[13px] text-muted-foreground">
           {getHostLabel(host)} is connected.
         </div>
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (!window.confirm(`Disconnect ${getHostLabel(host)}?`)) return;
+            void logout(host);
+          }}
+        >
+          Disconnect {getHostLabel(host)}
+        </Button>
       </div>
     );
   }
@@ -222,12 +231,14 @@ function buildPullRequestTree(
   const root: FileNode[] = [];
 
   for (const host of HOSTS) {
+    const hostDomain = host === "github" ? "github.com" : "bitbucket.org";
     const hostNode: FileNode = {
-      name: getHostLabel(host),
+      name: hostDomain,
       path: `host:${host}`,
       type: "directory",
       children: [],
     };
+    const workspaceNodes = new Map<string, FileNode>();
 
     for (const repo of reposByHost[host]) {
       const key = `${host}:${repo.fullName}`;
@@ -249,9 +260,27 @@ function buildPullRequestTree(
 
       if (!repoMatches && filteredPrs.length === 0) continue;
 
+      const workspaceLabel = normalizeWorkspaceLabel(
+        repo.workspace,
+        hostDomain,
+      );
+
+      const workspacePath = `workspace:${host}:${repo.workspace}`;
+      let workspaceNode = workspaceNodes.get(workspacePath);
+      if (!workspaceNode) {
+        workspaceNode = {
+          name: workspaceLabel || repo.workspace,
+          path: workspacePath,
+          type: "directory",
+          children: [],
+        };
+        workspaceNodes.set(workspacePath, workspaceNode);
+        hostNode.children?.push(workspaceNode);
+      }
+
       const repoPath = `repo:${host}:${repo.workspace}:${repo.repo}`;
       const repoNode: FileNode = {
-        name: repo.fullName,
+        name: repo.repo,
         path: repoPath,
         type: "directory",
         children: filteredPrs.map((pr) => {
@@ -270,22 +299,25 @@ function buildPullRequestTree(
         }),
       };
 
-      hostNode.children?.push(repoNode);
+      workspaceNode.children?.push(repoNode);
     }
 
-    if (hostNode.children && hostNode.children.length > 0) {
-      root.push(hostNode);
-    }
+    root.push(hostNode);
   }
 
   return { root, pullRequestMeta };
 }
 
-function LandingPage() {
-  const search = Route.useSearch();
+export function LandingPage({
+  initialHost,
+  initialDiffPanel = "pull-requests",
+}: {
+  initialHost?: GitHost;
+  initialDiffPanel?: DiffPanel;
+} = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const tree = useFileTree();
+  const { setTree, setKinds, activeFile, setActiveFile } = useFileTree();
   const {
     authByHost,
     activeHost,
@@ -297,8 +329,25 @@ function LandingPage() {
     logout,
   } = usePrContext();
 
-  const mode = search.mode ?? "pull-requests";
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [diffPanel, setDiffPanel] = useState<DiffPanel>(initialDiffPanel);
+  const showRepositoryPanel = diffPanel === "repositories";
   const [searchQuery, setSearchQuery] = useState("");
+  const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
+  const settingsPathSet = useMemo(
+    () => new Set(settingsTreeItems.map((item) => item.path)),
+    [settingsTreeItems],
+  );
+
+  useEffect(() => {
+    setDiffPanel(initialDiffPanel);
+  }, [initialDiffPanel]);
+
+  useEffect(() => {
+    if (!initialHost) return;
+    setActiveHost(initialHost);
+    setDiffPanel("repositories");
+  }, [initialHost, setActiveHost]);
 
   const authenticatedHosts = useMemo(
     () => HOSTS.filter((host) => authByHost[host]),
@@ -343,16 +392,57 @@ function LandingPage() {
   );
 
   useEffect(() => {
-    if (mode !== "pull-requests") return;
-    tree.setTree(pullRequestTree.root);
-    tree.setKinds(new Map());
-    if (
-      !tree.activeFile ||
-      !pullRequestTree.pullRequestMeta.has(tree.activeFile)
-    ) {
-      tree.setActiveFile(undefined);
+    if (showSettingsPanel) {
+      const settingsNodes: FileNode[] = settingsTreeItems.map((item) => ({
+        name: item.name,
+        path: item.path,
+        type: "file",
+      }));
+      setTree(settingsNodes);
+      setKinds(new Map());
+      return;
     }
-  }, [mode, pullRequestTree, tree]);
+    setTree(pullRequestTree.root);
+    setKinds(new Map());
+    if (
+      !activeFile ||
+      (!activeFile.startsWith(HOST_PATH_PREFIX) &&
+        !pullRequestTree.pullRequestMeta.has(activeFile))
+    ) {
+      setActiveFile(undefined);
+    }
+  }, [
+    activeFile,
+    pullRequestTree,
+    setKinds,
+    setTree,
+    setActiveFile,
+    settingsTreeItems,
+    showSettingsPanel,
+  ]);
+
+  useEffect(() => {
+    if (!showSettingsPanel) return;
+    const firstSettingsPath = settingsTreeItems[0]?.path;
+    if (!firstSettingsPath) return;
+    if (!activeFile || !settingsPathSet.has(activeFile)) {
+      setActiveFile(firstSettingsPath);
+    }
+  }, [
+    activeFile,
+    setActiveFile,
+    settingsPathSet,
+    settingsTreeItems,
+    showSettingsPanel,
+  ]);
+
+  useEffect(() => {
+    if (showSettingsPanel) return;
+    if (diffPanel !== "repositories") return;
+    const hostPath = `${HOST_PATH_PREFIX}${activeHost}`;
+    if (activeFile === hostPath) return;
+    setActiveFile(hostPath);
+  }, [activeFile, activeHost, diffPanel, setActiveFile, showSettingsPanel]);
 
   const selectedRepoCount =
     reposByHost.bitbucket.length + reposByHost.github.length;
@@ -369,42 +459,31 @@ function LandingPage() {
         >
           <Button
             type="button"
-            variant={mode === "hosts" ? "default" : "ghost"}
+            variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
             onClick={() => {
+              setShowSettingsPanel(false);
               setSearchQuery("");
-              navigate({ to: "/", search: { mode: "hosts" } });
+              setDiffPanel("pull-requests");
+              setActiveFile(undefined);
+              navigate({ to: "/" });
             }}
-            aria-label="Host settings"
+            aria-label="Home"
+          >
+            <House className="size-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant={showSettingsPanel ? "default" : "ghost"}
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => {
+              setShowSettingsPanel((prev) => !prev);
+            }}
+            aria-label="Settings"
           >
             <Settings2 className="size-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant={mode === "repositories" ? "default" : "ghost"}
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={() => {
-              setSearchQuery("");
-              navigate({ to: "/", search: { mode: "repositories" } });
-            }}
-            aria-label="Repository selection"
-          >
-            <FolderGit className="size-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant={mode === "pull-requests" ? "default" : "ghost"}
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={() => {
-              setSearchQuery("");
-              navigate({ to: "/", search: { mode: "pull-requests" } });
-            }}
-            aria-label="Pull requests"
-          >
-            <GitPullRequest className="size-3.5" />
           </Button>
         </div>
 
@@ -412,61 +491,82 @@ function LandingPage() {
           data-component="search-sidebar"
           className="h-10 pl-2 pr-2 border-b border-border flex items-center gap-2"
         >
-          {mode === "pull-requests" ? (
-            <Input
-              className="h-7 text-[12px] border-0 focus-visible:ring-0"
-              placeholder="search repos or pull requests"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-            />
-          ) : (
-            <span className="text-[11px] text-muted-foreground px-1">
-              Select host
-            </span>
-          )}
+          <Input
+            className="h-7 text-[12px] border-0 focus-visible:ring-0"
+            placeholder={
+              showSettingsPanel
+                ? "search settings"
+                : "search repos or pull requests"
+            }
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
         </div>
 
-        <div
-          className="flex-1 min-h-0 overflow-y-auto px-1 py-1"
-          data-component="tree"
-        >
-          {mode === "pull-requests" ? (
-            pullRequestTree.root.length === 0 ? (
-              <div className="px-2 py-3 text-[12px] text-muted-foreground">
-                No repositories or pull requests match.
-              </div>
-            ) : (
-              <FileTree
-                path=""
-                filterQuery={searchQuery}
-                onFileClick={(node) => {
-                  const meta = pullRequestTree.pullRequestMeta.get(node.path);
-                  if (!meta) return;
-                  setActiveHost(meta.host);
-                  if (meta.host === "github") {
+        <div className="flex-1 min-h-0 overflow-y-auto" data-component="tree">
+          {!showSettingsPanel && pullRequestTree.root.length === 0 ? (
+            <div className="px-2 py-3 text-[12px] text-muted-foreground">
+              No repositories or pull requests match.
+            </div>
+          ) : (
+            <FileTree
+              path=""
+              filterQuery={searchQuery}
+              showUnviewedIndicator={false}
+              onFileClick={(node) => {
+                if (showSettingsPanel && settingsPathSet.has(node.path)) {
+                  setActiveFile(node.path);
+                  return;
+                }
+                if (node.path.startsWith(HOST_PATH_PREFIX)) {
+                  const host = node.path.slice(HOST_PATH_PREFIX.length);
+                  if (host === "bitbucket" || host === "github") {
+                    setShowSettingsPanel(false);
+                    setActiveHost(host);
+                    setDiffPanel("repositories");
                     navigate({
-                      to: "/$workspace/$repo/pull/$pullRequestId",
-                      params: {
-                        workspace: meta.workspace,
-                        repo: meta.repo,
-                        pullRequestId: meta.pullRequestId,
-                      },
+                      to: "/$host",
+                      params: { host },
                     });
-                    return;
                   }
+                  return;
+                }
+                const meta = pullRequestTree.pullRequestMeta.get(node.path);
+                if (!meta) return;
+                setActiveHost(meta.host);
+                if (meta.host === "github") {
                   navigate({
-                    to: "/$workspace/$repo/pull-requests/$pullRequestId",
+                    to: "/$workspace/$repo/pull/$pullRequestId",
                     params: {
                       workspace: meta.workspace,
                       repo: meta.repo,
                       pullRequestId: meta.pullRequestId,
                     },
                   });
-                }}
-              />
-            )
-          ) : (
-            <HostTree activeHost={activeHost} onSelect={setActiveHost} />
+                  return;
+                }
+                navigate({
+                  to: "/$workspace/$repo/pull-requests/$pullRequestId",
+                  params: {
+                    workspace: meta.workspace,
+                    repo: meta.repo,
+                    pullRequestId: meta.pullRequestId,
+                  },
+                });
+              }}
+              onDirectoryClick={(node) => {
+                const host = hostFromLandingTreePath(node.path);
+                if (!host) return;
+                setShowSettingsPanel(false);
+                setActiveHost(host);
+                setDiffPanel("repositories");
+                navigate({
+                  to: "/$host",
+                  params: { host },
+                });
+                return true;
+              }}
+            />
           )}
         </div>
       </aside>
@@ -477,11 +577,11 @@ function LandingPage() {
           className="h-11 border-b border-border bg-card px-3 flex items-center gap-2 text-[12px]"
         >
           <span className="text-muted-foreground">
-            {mode === "pull-requests"
-              ? "Open Pull Requests"
-              : mode === "repositories"
+            {showSettingsPanel
+              ? "Settings"
+              : showRepositoryPanel
                 ? "Repository Selection"
-                : "Host Settings"}
+                : "Open Pull Requests"}
           </span>
           <span className="ml-auto text-muted-foreground">
             {selectedRepoCount} selected repos
@@ -497,7 +597,7 @@ function LandingPage() {
             <RefreshCw className="size-3.5" />
             Refresh
           </Button>
-          {mode !== "hosts" ? (
+          {!showSettingsPanel ? (
             <Button
               variant="outline"
               size="sm"
@@ -527,16 +627,27 @@ function LandingPage() {
 
         <main
           data-component="diff-view"
-          className="flex-1 min-h-0 overflow-y-auto p-4"
+          className={cn(
+            "flex-1 min-h-0 overflow-y-auto",
+            showSettingsPanel ? "p-0" : "p-4",
+          )}
         >
-          {mode === "hosts" ? (
-            <div className="max-w-2xl space-y-3">
-              <div className="text-[13px] text-muted-foreground">
-                Connect hosts for pull request read and write actions.
-              </div>
-              <HostAuthPanel host={activeHost} />
+          {showSettingsPanel ? (
+            <div className="h-full min-h-0">
+              <SettingsPanel
+                showSidebar={false}
+                activeTab={settingsTabFromPath(activeFile) ?? "appearance"}
+                onActiveTabChange={(tab) => {
+                  setActiveFile(settingsPathForTab(tab));
+                }}
+                onClose={() => {
+                  setShowSettingsPanel(false);
+                  setDiffPanel("pull-requests");
+                  setActiveFile(undefined);
+                }}
+              />
             </div>
-          ) : mode === "repositories" ? (
+          ) : showRepositoryPanel ? (
             <div className="max-w-3xl space-y-4">
               {authByHost[activeHost] ? (
                 <>
@@ -549,7 +660,7 @@ function LandingPage() {
                       void queryClient.invalidateQueries({
                         queryKey: ["repo-prs"],
                       });
-                      navigate({ to: "/", search: { mode: "pull-requests" } });
+                      navigate({ to: "/" });
                     }}
                   />
                   <div className="flex justify-end">
@@ -593,30 +704,21 @@ function LandingPage() {
                   </div>
                 </>
               ) : (
-                <div className="border border-border bg-card p-4 space-y-3 text-[13px]">
-                  <div className="text-muted-foreground">
-                    {getHostLabel(activeHost)} is not connected.
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      navigate({ to: "/", search: { mode: "hosts" } })
-                    }
-                  >
-                    Open Host Settings
-                  </Button>
-                </div>
+                <HostAuthPanel host={activeHost} />
               )}
             </div>
           ) : selectedRepoCount === 0 ? (
             <div className="border border-border bg-card p-8 text-center space-y-3 max-w-2xl">
               <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                <FolderGit className="size-4" />
+                <GitPullRequest className="size-4" />
                 <span className="text-[13px]">No repositories selected.</span>
               </div>
               <Button
                 onClick={() =>
-                  navigate({ to: "/", search: { mode: "repositories" } })
+                  navigate({
+                    to: "/$host",
+                    params: { host: activeHost },
+                  })
                 }
               >
                 Select Repositories
@@ -649,7 +751,10 @@ function LandingPage() {
               <Button
                 variant="outline"
                 onClick={() =>
-                  navigate({ to: "/", search: { mode: "repositories" } })
+                  navigate({
+                    to: "/$host",
+                    params: { host: activeHost },
+                  })
                 }
               >
                 Manage Repositories

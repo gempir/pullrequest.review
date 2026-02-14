@@ -7,10 +7,12 @@ import {
   Link,
   Outlet,
   Scripts,
+  useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
-import { ExternalLink, FolderGit, GitPullRequest } from "lucide-react";
+import { ExternalLink, GitPullRequest, House, Settings2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { GitHostIcon } from "@/components/git-host-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppearanceProvider } from "@/lib/appearance-context";
@@ -82,6 +84,7 @@ function RootComponent() {
 
 function OnboardingScreen() {
   const { login, setActiveHost, activeHost } = usePrContext();
+  const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
@@ -107,9 +110,32 @@ function OnboardingScreen() {
       >
         <div
           data-component="top-sidebar"
-          className="h-11 px-2 border-b border-border flex items-center text-[11px] text-muted-foreground"
+          className="h-11 px-2 border-b border-border flex items-center gap-1"
         >
-          <span className="px-2">Onboarding</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            aria-label="Home"
+            onClick={() => {
+              navigate({ to: "/" });
+            }}
+          >
+            <House className="size-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            aria-label="Settings"
+            onClick={() => {
+              navigate({ to: "/settings" });
+            }}
+          >
+            <Settings2 className="size-3.5" />
+          </Button>
         </div>
         <div
           data-component="search-sidebar"
@@ -119,10 +145,7 @@ function OnboardingScreen() {
             Select host
           </span>
         </div>
-        <div
-          className="flex-1 min-h-0 overflow-y-auto px-1 py-1"
-          data-component="tree"
-        >
+        <div className="flex-1 min-h-0 overflow-y-auto" data-component="tree">
           {(["bitbucket", "github"] as GitHost[]).map((host) => (
             <button
               key={host}
@@ -137,7 +160,7 @@ function OnboardingScreen() {
                 setError(null);
               }}
             >
-              <FolderGit className="size-3.5" />
+              <GitHostIcon host={host} className="size-3.5" />
               <span className="truncate">{getHostLabel(host)}</span>
             </button>
           ))}
@@ -313,6 +336,7 @@ function AppLayout() {
     select: (state) => state.location.pathname,
   });
   const isGithubPullPath = /^\/[^/]+\/[^/]+\/pull\/[^/]+/.test(pathname);
+  const isSettingsPath = pathname === "/settings" || pathname === "/settings/";
 
   if (pathname.startsWith("/oauth/callback")) {
     return <Outlet />;
@@ -322,7 +346,7 @@ function AppLayout() {
     return null;
   }
 
-  if (!isAuthenticated && !isGithubPullPath) {
+  if (!isAuthenticated && !isGithubPullPath && !isSettingsPath) {
     return <OnboardingScreen />;
   }
 

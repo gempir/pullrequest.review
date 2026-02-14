@@ -5,7 +5,7 @@ export async function fetchRepoPullRequestsByHost(data: {
   hosts: GitHost[];
   reposByHost: Record<GitHost, RepoRef[]>;
 }) {
-  const results = await Promise.all(
+  const settled = await Promise.allSettled(
     data.hosts.map(async (host) => {
       const repos = data.reposByHost[host] ?? [];
       if (!repos.length)
@@ -24,7 +24,21 @@ export async function fetchRepoPullRequestsByHost(data: {
     }),
   );
 
-  return results.flat();
+  const successful = settled.flatMap((result) =>
+    result.status === "fulfilled" ? result.value : [],
+  );
+  if (successful.length > 0) {
+    return successful;
+  }
+
+  const firstFailure = settled.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (firstFailure) {
+    throw firstFailure.reason;
+  }
+
+  return [];
 }
 
 export async function listRepositoriesForHost(data: { host: GitHost }) {

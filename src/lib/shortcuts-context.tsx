@@ -10,7 +10,8 @@ import {
 } from "react";
 import {
   makeVersionedStorageKey,
-  readMigratedLocalStorage,
+  readLocalStorageValue,
+  removeLocalStorageKeys,
   writeLocalStorageValue,
 } from "@/lib/storage/versioned-local-storage";
 
@@ -99,13 +100,13 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const stored = readMigratedLocalStorage(STORAGE_KEY, [STORAGE_KEY_BASE]);
+    const stored = readLocalStorageValue(STORAGE_KEY);
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as Shortcuts;
         setShortcuts({ ...DEFAULT_SHORTCUTS, ...parsed });
       } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
+        removeLocalStorageKeys([STORAGE_KEY]);
       }
     }
     setHydrated(true);

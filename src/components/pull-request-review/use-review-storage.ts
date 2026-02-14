@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import type { GitHost } from "@/lib/git-host/types";
 import {
   makeVersionedStorageKey,
-  readMigratedLocalStorage,
+  readStorageValue,
+  removeStorageValue,
   writeLocalStorageValue,
 } from "@/lib/storage/versioned-local-storage";
 
@@ -29,27 +30,16 @@ export function useViewedStorageKey(data?: {
   }, [host, pullRequestId, repo, workspace]);
 }
 
-export function readViewedFiles(storageKey: string, legacyKeys: string[] = []) {
-  if (!storageKey || typeof window === "undefined") return new Set<string>();
+export function readViewedFiles(storageKey: string) {
+  if (!storageKey) return new Set<string>();
   try {
-    const legacyV1Key = storageKey.replace(
-      `${VIEWED_STORAGE_PREFIX}:`,
-      `${VIEWED_STORAGE_PREFIX_BASE}:`,
-    );
-    const raw =
-      window.localStorage.getItem(storageKey) ??
-      window.localStorage.getItem(legacyV1Key) ??
-      legacyKeys.map((key) => window.localStorage.getItem(key)).find(Boolean) ??
-      null;
-
+    const raw = readStorageValue(storageKey);
     if (!raw) return new Set<string>();
 
     const parsed = JSON.parse(raw) as string[];
-    if (!window.localStorage.getItem(storageKey)) {
-      writeLocalStorageValue(storageKey, raw);
-    }
     return new Set(parsed);
   } catch {
+    removeStorageValue(storageKey);
     return new Set<string>();
   }
 }
@@ -57,11 +47,4 @@ export function readViewedFiles(storageKey: string, legacyKeys: string[] = []) {
 export function writeViewedFiles(storageKey: string, viewedFiles: Set<string>) {
   if (!storageKey) return;
   writeLocalStorageValue(storageKey, JSON.stringify(Array.from(viewedFiles)));
-}
-
-export function readMigratedValue(
-  currentKey: string,
-  legacyKeys: string[] = [],
-) {
-  return readMigratedLocalStorage(currentKey, legacyKeys);
 }

@@ -15,7 +15,7 @@ import {
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 import {
   makeVersionedStorageKey,
-  readMigratedLocalStorage,
+  readLocalStorageValue,
   writeLocalStorageValue,
 } from "@/lib/storage/versioned-local-storage";
 
@@ -32,7 +32,6 @@ const REPO_STORAGE_KEYS: Record<GitHost, string> = {
 
 const ACTIVE_HOST_KEY_BASE = "pr_review_active_host";
 const ACTIVE_HOST_KEY = makeVersionedStorageKey(ACTIVE_HOST_KEY_BASE, 2);
-const LEGACY_BITBUCKET_REPOS_KEY = "bitbucket_repos";
 
 type AuthByHost = Record<GitHost, boolean>;
 type ReposByHost = Record<GitHost, RepoRef[]>;
@@ -73,49 +72,56 @@ function emptyAuthByHost(): AuthByHost {
 }
 
 function parseRepos(host: GitHost): RepoRef[] {
-  if (typeof window === "undefined") return [];
-
   const parse = (value: string | null) => {
     if (!value) return [];
     try {
       const parsed = JSON.parse(value) as RepoRef[];
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter(
-        (repo) =>
-          repo &&
-          repo.host === host &&
-          typeof repo.workspace === "string" &&
-          typeof repo.repo === "string",
-      );
+      return parsed.flatMap((repo) => {
+        if (
+          !repo ||
+          repo.host !== host ||
+          typeof repo.workspace !== "string" ||
+          typeof repo.repo !== "string"
+        ) {
+          return [];
+        }
+
+        const workspace = repo.workspace.trim();
+        const repositorySlug = repo.repo.trim();
+        if (!workspace || !repositorySlug) return [];
+
+        const fullName =
+          typeof repo.fullName === "string" && repo.fullName.trim().length > 0
+            ? repo.fullName.trim()
+            : `${workspace}/${repositorySlug}`;
+        const displayName =
+          typeof repo.displayName === "string" &&
+          repo.displayName.trim().length > 0
+            ? repo.displayName.trim()
+            : repositorySlug;
+
+        return [
+          {
+            host,
+            workspace,
+            repo: repositorySlug,
+            fullName,
+            displayName,
+          } satisfies RepoRef,
+        ];
+      });
     } catch {
       return [];
     }
   };
 
-  const current = parse(
-    readMigratedLocalStorage(REPO_STORAGE_KEYS[host], [
-      REPO_STORAGE_KEYS_BASE[host],
-      ...(host === "bitbucket" ? [LEGACY_BITBUCKET_REPOS_KEY] : []),
-    ]),
-  );
-  if (current.length > 0 || host !== "bitbucket") return current;
-
-  const legacy = parse(window.localStorage.getItem(LEGACY_BITBUCKET_REPOS_KEY));
-  if (legacy.length > 0) {
-    window.localStorage.setItem(
-      REPO_STORAGE_KEYS.bitbucket,
-      JSON.stringify(legacy),
-    );
-    window.localStorage.removeItem(LEGACY_BITBUCKET_REPOS_KEY);
-  }
-  return legacy;
+  const current = parse(readLocalStorageValue(REPO_STORAGE_KEYS[host]));
+  return current;
 }
 
 function parseActiveHost(): GitHost {
-  if (typeof window === "undefined") return "bitbucket";
-  const value = readMigratedLocalStorage(ACTIVE_HOST_KEY, [
-    ACTIVE_HOST_KEY_BASE,
-  ]);
+  const value = readLocalStorageValue(ACTIVE_HOST_KEY);
   return value === "github" ? "github" : "bitbucket";
 }
 
@@ -145,7 +151,6 @@ export function PrProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     setReposByHost({
       bitbucket: parseRepos("bitbucket"),
       github: parseRepos("github"),
@@ -177,7 +182,26 @@ export function PrProvider({ children }: { children: ReactNode }) {
   const setReposForHost = useCallback((host: GitHost, repos: RepoRef[]) => {
     setReposByHost((prev) => ({
       ...prev,
-      [host]: repos.filter((repo) => repo.host === host),
+      [host]: repos
+        .filter((repo) => repo.host === host)
+        .map((repo) => {
+          const workspace = repo.workspace.trim();
+          const repositorySlug = repo.repo.trim();
+          return {
+            host,
+            workspace,
+            repo: repositorySlug,
+            fullName:
+              typeof repo.fullName === "string" && repo.fullName.trim().length
+                ? repo.fullName.trim()
+                : `${workspace}/${repositorySlug}`,
+            displayName:
+              typeof repo.displayName === "string" &&
+              repo.displayName.trim().length
+                ? repo.displayName.trim()
+                : repositorySlug,
+          } satisfies RepoRef;
+        }),
     }));
   }, []);
 

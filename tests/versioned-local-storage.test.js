@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { __resetStorageForTests } from "../src/lib/storage/client-storage-db";
 import {
+  ensureStorageReady,
   makeVersionedStorageKey,
-  readMigratedLocalStorage,
+  readLocalStorageValue,
+  readStorageValue,
   removeLocalStorageKeys,
   writeLocalStorageValue,
 } from "../src/lib/storage/versioned-local-storage";
@@ -33,16 +36,19 @@ function createMemoryStorage() {
 const globalWithWindow = globalThis;
 let previousWindow;
 
-beforeEach(() => {
+beforeEach(async () => {
+  await __resetStorageForTests();
   previousWindow = globalWithWindow.window;
   Object.defineProperty(globalWithWindow, "window", {
     configurable: true,
     writable: true,
     value: { localStorage: createMemoryStorage() },
   });
+  await ensureStorageReady();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await __resetStorageForTests();
   if (previousWindow === undefined) {
     delete globalWithWindow.window;
     return;
@@ -61,36 +67,26 @@ describe("versioned localStorage", () => {
     );
   });
 
-  test("reads current key value before checking legacy keys", () => {
-    globalWithWindow.window.localStorage.setItem("settings:v2", "current");
-    globalWithWindow.window.localStorage.setItem("settings", "legacy");
+  test("reads current key value", () => {
+    writeLocalStorageValue("settings:v2", "current");
 
-    expect(readMigratedLocalStorage("settings:v2", ["settings"])).toBe(
-      "current",
-    );
+    expect(readLocalStorageValue("settings:v2")).toBe("current");
   });
 
-  test("migrates legacy value to current key on first read", () => {
-    globalWithWindow.window.localStorage.setItem("settings", '{"tab":"diff"}');
-
-    const value = readMigratedLocalStorage("settings:v2", ["settings"]);
-
-    expect(value).toBe('{"tab":"diff"}');
-    expect(globalWithWindow.window.localStorage.getItem("settings:v2")).toBe(
-      '{"tab":"diff"}',
-    );
+  test("returns null for missing keys", () => {
+    expect(readLocalStorageValue("missing:key")).toBeNull();
   });
 
   test("writes and removes values defensively", () => {
     writeLocalStorageValue("one", "1");
     writeLocalStorageValue("two", "2");
 
-    expect(globalWithWindow.window.localStorage.getItem("one")).toBe("1");
-    expect(globalWithWindow.window.localStorage.getItem("two")).toBe("2");
+    expect(readStorageValue("one")).toBe("1");
+    expect(readStorageValue("two")).toBe("2");
 
     removeLocalStorageKeys(["one", "two"]);
 
-    expect(globalWithWindow.window.localStorage.getItem("one")).toBeNull();
-    expect(globalWithWindow.window.localStorage.getItem("two")).toBeNull();
+    expect(readStorageValue("one")).toBeNull();
+    expect(readStorageValue("two")).toBeNull();
   });
 });

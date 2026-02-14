@@ -13,14 +13,12 @@ const INLINE_DRAFT_PREFIX = makeVersionedStorageKey(
   INLINE_DRAFT_PREFIX_BASE,
   2,
 );
-const INLINE_DRAFT_PREFIX_LEGACY = "bitbucket_inline_comment_draft";
 
 const INLINE_ACTIVE_PREFIX_BASE = "pr_review_inline_comment_active";
 const INLINE_ACTIVE_PREFIX = makeVersionedStorageKey(
   INLINE_ACTIVE_PREFIX_BASE,
   2,
 );
-const INLINE_ACTIVE_PREFIX_LEGACY = "bitbucket_inline_comment_active";
 
 export function inlineDraftStorageKey(
   workspace: string,
@@ -31,24 +29,6 @@ export function inlineDraftStorageKey(
   return `${INLINE_DRAFT_PREFIX}:${workspace}/${repo}/${pullRequestId}:${draft.side}:${draft.line}:${encodeURIComponent(draft.path)}`;
 }
 
-export function inlineDraftStorageKeyV1(
-  workspace: string,
-  repo: string,
-  pullRequestId: string,
-  draft: InlineDraftLocation,
-) {
-  return `${INLINE_DRAFT_PREFIX_BASE}:${workspace}/${repo}/${pullRequestId}:${draft.side}:${draft.line}:${encodeURIComponent(draft.path)}`;
-}
-
-export function inlineDraftStorageKeyLegacy(
-  workspace: string,
-  repo: string,
-  pullRequestId: string,
-  draft: InlineDraftLocation,
-) {
-  return `${INLINE_DRAFT_PREFIX_LEGACY}:${workspace}/${repo}/${pullRequestId}:${draft.side}:${draft.line}:${encodeURIComponent(draft.path)}`;
-}
-
 export function inlineActiveDraftStorageKey(
   workspace: string,
   repo: string,
@@ -57,35 +37,14 @@ export function inlineActiveDraftStorageKey(
   return `${INLINE_ACTIVE_PREFIX}:${workspace}/${repo}/${pullRequestId}`;
 }
 
-export function inlineActiveDraftStorageKeyV1(
-  workspace: string,
-  repo: string,
-  pullRequestId: string,
-) {
-  return `${INLINE_ACTIVE_PREFIX_BASE}:${workspace}/${repo}/${pullRequestId}`;
-}
-
-export function inlineActiveDraftStorageKeyLegacy(
-  workspace: string,
-  repo: string,
-  pullRequestId: string,
-) {
-  return `${INLINE_ACTIVE_PREFIX_LEGACY}:${workspace}/${repo}/${pullRequestId}`;
-}
-
 export function parseInlineDraftStorageKey(
   key: string,
   workspace: string,
   repo: string,
   pullRequestId: string,
 ): InlineDraftLocation | null {
-  const prefixes = [
-    `${INLINE_DRAFT_PREFIX}:${workspace}/${repo}/${pullRequestId}:`,
-    `${INLINE_DRAFT_PREFIX_BASE}:${workspace}/${repo}/${pullRequestId}:`,
-    `${INLINE_DRAFT_PREFIX_LEGACY}:${workspace}/${repo}/${pullRequestId}:`,
-  ];
-  const prefix = prefixes.find((item) => key.startsWith(item));
-  if (!prefix) return null;
+  const prefix = `${INLINE_DRAFT_PREFIX}:${workspace}/${repo}/${pullRequestId}:`;
+  if (!key.startsWith(prefix)) return null;
 
   const rest = key.slice(prefix.length);
   const firstColon = rest.indexOf(":");

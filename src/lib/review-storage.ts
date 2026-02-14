@@ -13,11 +13,3 @@ export function makeDirectoryStateStorageKey(
 ) {
   return `${DIRECTORY_STATE_KEY_PREFIX}:${workspace}/${repo}/${pullRequestId}`;
 }
-
-export function makeLegacyDirectoryStateStorageKey(
-  workspace: string,
-  repo: string,
-  pullRequestId: string,
-) {
-  return `${DIRECTORY_STATE_KEY_PREFIX_BASE}:${workspace}/${repo}/${pullRequestId}`;
-}

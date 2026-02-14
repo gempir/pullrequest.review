@@ -40,6 +40,7 @@ const SETTINGS_PATH_PREFIX = "__settings__/";
 const HOME_PATH = "__home__";
 const PR_PATH_PREFIX = "pr:";
 const REPO_PATH_PREFIX = "repo:";
+const HOST_PATH_PREFIX = "host:";
 
 function kindColor(kind: ChangeKind) {
   switch (kind) {
@@ -76,6 +77,10 @@ function isPullRequestPath(path: string) {
 
 function isRepositoryPath(path: string) {
   return path.startsWith(REPO_PATH_PREFIX);
+}
+
+function isHostPath(path: string) {
+  return path.startsWith(HOST_PATH_PREFIX);
 }
 
 function hostFromTreePath(path: string): GitHost | null {
@@ -211,7 +216,8 @@ function DirectoryNode({
   let displayNode = node;
   const nameParts = [node.name];
 
-  if (compactEnabled) {
+  // Keep host roots stable and visible in landing trees.
+  if (compactEnabled && !isHostPath(node.path)) {
     while (true) {
       const children = tree.getChildrenForPath(displayNode.path);
       if (children.length !== 1) break;

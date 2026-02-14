@@ -14,7 +14,7 @@ import {
 } from "@/lib/font-options";
 import {
   makeVersionedStorageKey,
-  readMigratedLocalStorage,
+  readLocalStorageValue,
   writeLocalStorageValue,
 } from "@/lib/storage/versioned-local-storage";
 
@@ -81,51 +81,41 @@ function normalizeLineHeight(value: number, min: number, max: number) {
 function parseStoredSettings(raw: string | null): AppearanceSettings | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as Partial<AppearanceSettings> & {
-      commentFontFamily?: FontFamilyValue;
-      pageFontFamily?: FontFamilyValue;
-      pageFontSize?: number;
-      pageLineHeight?: number;
-    };
+    const parsed = JSON.parse(raw) as Partial<AppearanceSettings>;
     const appThemeMode =
       parsed.appThemeMode === "light" ||
       parsed.appThemeMode === "dark" ||
       parsed.appThemeMode === "auto"
         ? parsed.appThemeMode
         : defaultAppearance.appThemeMode;
-    const legacyPageFontSize = Number(
-      parsed.pageFontSize ?? defaultAppearance.sansFontSize,
-    );
-    const legacyPageLineHeight = Number(
-      parsed.pageLineHeight ?? defaultAppearance.sansLineHeight,
-    );
+
     return {
       appThemeMode,
       sansFontFamily:
         (parsed.sansFontFamily as FontFamilyValue) ??
-        (parsed.commentFontFamily as FontFamilyValue) ??
-        (parsed.pageFontFamily as FontFamilyValue) ??
         defaultAppearance.sansFontFamily,
       monospaceFontFamily:
         (parsed.monospaceFontFamily as FontFamilyValue) ??
         defaultAppearance.monospaceFontFamily,
       sansFontSize: normalizeFontSize(
-        Number(parsed.sansFontSize ?? legacyPageFontSize),
+        Number(parsed.sansFontSize ?? defaultAppearance.sansFontSize),
         11,
         20,
       ),
       sansLineHeight: normalizeLineHeight(
-        Number(parsed.sansLineHeight ?? legacyPageLineHeight),
+        Number(parsed.sansLineHeight ?? defaultAppearance.sansLineHeight),
         1,
         2.2,
       ),
       monospaceFontSize: normalizeFontSize(
-        Number(parsed.monospaceFontSize ?? legacyPageFontSize),
+        Number(parsed.monospaceFontSize ?? defaultAppearance.monospaceFontSize),
         11,
         20,
       ),
       monospaceLineHeight: normalizeLineHeight(
-        Number(parsed.monospaceLineHeight ?? legacyPageLineHeight),
+        Number(
+          parsed.monospaceLineHeight ?? defaultAppearance.monospaceLineHeight,
+        ),
         1,
         2.2,
       ),
@@ -158,9 +148,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const parsed = parseStoredSettings(
-      readMigratedLocalStorage(STORAGE_KEY, [STORAGE_KEY_BASE]),
-    );
+    const parsed = parseStoredSettings(readLocalStorageValue(STORAGE_KEY));
     if (parsed) {
       setSettings(parsed);
     }

@@ -17,10 +17,9 @@ import {
   Copy,
   Eye,
   EyeOff,
-  FolderGit,
   FolderMinus,
   FolderPlus,
-  GitPullRequest,
+  House,
   Loader2,
   MessageSquare,
   Minus,
@@ -1010,6 +1009,21 @@ export function PullRequestReviewPage({
   }, [diffByPath, selectedFilePath]);
   const isSummarySelected = activeFile === PR_SUMMARY_PATH;
 
+  useEffect(() => {
+    if (showSettingsPanel || viewMode !== "single") return;
+    if (!prData) return;
+    if (isSummarySelected) return;
+    if (selectedFileDiff) return;
+    setActiveFile(PR_SUMMARY_PATH);
+  }, [
+    isSummarySelected,
+    prData,
+    selectedFileDiff,
+    setActiveFile,
+    showSettingsPanel,
+    viewMode,
+  ]);
+
   const comments = prData?.comments ?? [];
   const threads = useMemo(() => buildThreads(comments), [comments]);
   const unresolvedThreads = threads.filter(
@@ -1715,10 +1729,125 @@ export function PullRequestReviewPage({
 
   if (prQuery.isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <Loader2 className="size-5 animate-spin" />
-          <span className="text-[13px]">Loading pull request...</span>
+      <div ref={workspaceRef} className="h-full min-h-0 flex bg-background">
+        <aside
+          className={cn(
+            "relative shrink-0 bg-sidebar flex flex-col overflow-hidden",
+            treeCollapsed ? "border-r-0" : "border-r border-border",
+          )}
+          style={{ width: treeCollapsed ? 0 : treeWidth }}
+        >
+          {!treeCollapsed ? (
+            <>
+              <div
+                className="h-11 px-2 border-b border-border flex items-center gap-2 text-[11px] text-muted-foreground"
+                data-component="top-sidebar"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => navigate({ to: "/" })}
+                  aria-label="Home"
+                >
+                  <House className="size-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-8 w-8 p-0",
+                    showSettingsPanel
+                      ? "text-status-renamed bg-status-renamed/20 border border-status-renamed/40 hover:bg-status-renamed/30"
+                      : "",
+                  )}
+                  onClick={() => {
+                    if (showSettingsPanel) {
+                      setShowSettingsPanel(false);
+                      setActiveFile(PR_SUMMARY_PATH);
+                      return;
+                    }
+                    setShowSettingsPanel(true);
+                    if (!activeFile || !settingsPathSet.has(activeFile)) {
+                      setActiveFile(settingsPathForTab("appearance"));
+                    }
+                  }}
+                  aria-label={
+                    showSettingsPanel ? "Close settings" : "Open settings"
+                  }
+                  data-component="settings"
+                >
+                  <Settings2 className="size-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 shrink-0 ml-auto"
+                  onClick={() => setTreeCollapsed(true)}
+                  aria-label="Collapse file tree"
+                >
+                  <PanelLeftClose className="size-3.5" />
+                </Button>
+              </div>
+              <div
+                className="h-10 pl-1 pr-2 border-b border-border flex items-center gap-1"
+                data-component="search-sidebar"
+              >
+                <Input
+                  className="h-7 text-[12px] flex-1 min-w-0 border-0 focus-visible:border-0 focus-visible:ring-0"
+                  placeholder="search files"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  disabled
+                />
+              </div>
+              <div className="flex-1 min-h-0 px-2 py-3 text-[12px] text-muted-foreground">
+                Loading file tree...
+              </div>
+              <button
+                type="button"
+                className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-border/30"
+                onMouseDown={startTreeResize}
+                aria-label="Resize file tree"
+              />
+            </>
+          ) : null}
+        </aside>
+
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+          <div
+            className="h-11 border-b border-border bg-card px-3 flex items-center gap-3"
+            style={{ fontFamily: "var(--comment-font-family)" }}
+            data-component="navbar"
+          >
+            {treeCollapsed ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 shrink-0"
+                onClick={() => setTreeCollapsed(false)}
+                aria-label="Expand file tree"
+              >
+                <PanelLeftOpen className="size-3.5" />
+              </Button>
+            ) : null}
+            <span className="text-[11px] text-muted-foreground">
+              Loading pull request...
+            </span>
+          </div>
+          <div
+            data-component="diff-view"
+            className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+          >
+            <div className="h-full flex items-center justify-center p-8">
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <Loader2 className="size-5 animate-spin" />
+                <span className="text-[13px]">Loading pull request...</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1791,6 +1920,16 @@ export function PullRequestReviewPage({
                 type="button"
                 variant="ghost"
                 size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => navigate({ to: "/" })}
+                aria-label="Home"
+              >
+                <House className="size-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
                 className={cn(
                   "h-8 w-8 p-0",
                   showSettingsPanel
@@ -1814,36 +1953,6 @@ export function PullRequestReviewPage({
                 data-component="settings"
               >
                 <Settings2 className="size-3.5" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() =>
-                  navigate({
-                    to: "/",
-                    search: { mode: "repositories" },
-                  })
-                }
-                aria-label="Repository selection"
-              >
-                <FolderGit className="size-3.5" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() =>
-                  navigate({
-                    to: "/",
-                    search: { mode: "pull-requests" },
-                  })
-                }
-                aria-label="Pull requests"
-              >
-                <GitPullRequest className="size-3.5" />
               </Button>
               <Button
                 variant="ghost"

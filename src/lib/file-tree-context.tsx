@@ -9,7 +9,8 @@ import {
 } from "react";
 import {
   makeVersionedStorageKey,
-  readMigratedLocalStorage,
+  readLocalStorageValue,
+  removeLocalStorageKeys,
   writeLocalStorageValue,
 } from "@/lib/storage/versioned-local-storage";
 
@@ -190,9 +191,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const raw = readMigratedLocalStorage(TREE_SETTINGS_KEY, [
-        TREE_SETTINGS_KEY_BASE,
-      ]);
+      const raw = readLocalStorageValue(TREE_SETTINGS_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as {
         compactSingleChildDirectories?: unknown;
@@ -210,7 +209,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
         setTreeIndentSizeState(parsedIndentSize);
       }
     } catch {
-      window.localStorage.removeItem(TREE_SETTINGS_KEY);
+      removeLocalStorageKeys([TREE_SETTINGS_KEY]);
     }
   }, []);
 

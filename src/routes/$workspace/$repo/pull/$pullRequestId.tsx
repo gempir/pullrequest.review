@@ -93,7 +93,7 @@ function GithubPullRequestRoute() {
               </p>
             ) : null}
             <p className="text-[12px] text-muted-foreground">
-              Credentials are stored in browser local storage.
+              Credentials are stored in the local app database.
             </p>
           </form>
         ) : null

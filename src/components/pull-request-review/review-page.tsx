@@ -7,7 +7,7 @@ import {
   preloadHighlighter,
 } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
@@ -19,14 +19,12 @@ import {
   EyeOff,
   FolderMinus,
   FolderPlus,
-  House,
   Loader2,
   MessageSquare,
   Minus,
   PanelLeftClose,
   PanelLeftOpen,
   ScrollText,
-  Settings2,
   X,
 } from "lucide-react";
 import {
@@ -60,13 +58,13 @@ import {
 } from "@/components/pull-request-review/review-threads";
 import {
   inlineActiveDraftStorageKey,
-  inlineActiveDraftStorageKeyLegacy,
-  inlineActiveDraftStorageKeyV1,
   inlineDraftStorageKey,
-  inlineDraftStorageKeyLegacy,
-  inlineDraftStorageKeyV1,
   parseInlineDraftStorageKey,
 } from "@/components/pull-request-review/use-inline-drafts";
+import {
+  isRateLimitedError as isRateLimitedQueryError,
+  useReviewQuery,
+} from "@/components/pull-request-review/use-review-query";
 import {
   readViewedFiles,
   useViewedStorageKey,
@@ -79,6 +77,7 @@ import {
   settingsPathForTab,
   settingsTabFromPath,
 } from "@/components/settings-navigation";
+import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -110,26 +109,22 @@ import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import {
   approvePullRequest,
   createPullRequestComment,
-  fetchPullRequestBundleByRef,
-  getCapabilitiesForHost,
   mergePullRequest,
   requestChangesOnPullRequest,
   resolvePullRequestComment,
 } from "@/lib/git-host/service";
-import {
-  type GitHost,
-  HostApiError,
-  type Comment as PullRequestComment,
+import type {
+  GitHost,
+  Comment as PullRequestComment,
 } from "@/lib/git-host/types";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
-import {
-  makeDirectoryStateStorageKey,
-  makeLegacyDirectoryStateStorageKey,
-} from "@/lib/review-storage";
+import { makeDirectoryStateStorageKey } from "@/lib/review-storage";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
 import {
+  listStorageKeys,
   makeVersionedStorageKey,
-  readMigratedLocalStorage,
+  readStorageValue,
+  removeStorageValue,
   writeLocalStorageValue,
 } from "@/lib/storage/versioned-local-storage";
 import { cn } from "@/lib/utils";
@@ -310,59 +305,45 @@ export function PullRequestReviewPage({
   const autoMarkedViewedFilesRef = useRef<Set<string>>(new Set());
   const copyResetTimeoutRef = useRef<number | null>(null);
   const copySourceBranchResetTimeoutRef = useRef<number | null>(null);
-  const hostCapabilities = useMemo(() => getCapabilitiesForHost(host), [host]);
-  const prQueryKey = useMemo(
-    () => ["pr-bundle", host, workspace, repo, pullRequestId] as const,
-    [host, pullRequestId, repo, workspace],
-  );
-
-  const prQuery = useQuery({
+  const {
+    hostCapabilities,
     queryKey: prQueryKey,
-    queryFn: () =>
-      fetchPullRequestBundleByRef({
-        prRef: {
-          host,
-          workspace,
-          repo,
-          pullRequestId,
-        },
-      }),
-    enabled: auth.canRead || hostCapabilities.publicReadSupported,
+    query: prQuery,
+    hasPendingBuildStatuses,
+  } = useReviewQuery({
+    host,
+    workspace,
+    repo,
+    pullRequestId,
+    canRead: auth.canRead,
+    canWrite: auth.canWrite,
+    onRequireAuth: (reason) => {
+      requestAuth(reason);
+    },
   });
 
   const prData = prQuery.data;
+  const pullRequest = prData?.pr;
+  const pullRequestTitle = pullRequest?.title?.trim();
   const isPrQueryFetching = prQuery.isFetching;
   const refetchPrQuery = prQuery.refetch;
-  const isRateLimitedError = useMemo(() => {
-    const error = prQuery.error;
-    if (!error) return false;
-    if (error instanceof HostApiError) {
-      return error.status === 429 || error.status === 403;
-    }
-    if (error instanceof Error) {
-      return error.message.includes("429") || error.message.includes("403");
-    }
-    return false;
-  }, [prQuery.error]);
+  const isRateLimitedError = useMemo(
+    () => isRateLimitedQueryError(prQuery.error),
+    [prQuery.error],
+  );
   useEffect(() => {
     if (typeof document === "undefined") return;
     if (prQuery.isLoading) {
       document.title = DEFAULT_DOCUMENT_TITLE;
       return;
     }
-    const nextTitle = prData?.pr.title?.trim();
+    const nextTitle = pullRequestTitle;
     document.title =
       nextTitle && nextTitle.length > 0 ? nextTitle : DEFAULT_DOCUMENT_TITLE;
     return () => {
       document.title = DEFAULT_DOCUMENT_TITLE;
     };
-  }, [prData?.pr.title, prQuery.isLoading]);
-  const hasPendingBuildStatuses = useMemo(
-    () =>
-      prData?.buildStatuses?.some((status) => status.state === "pending") ??
-      false,
-    [prData?.buildStatuses],
-  );
+  }, [prQuery.isLoading, pullRequestTitle]);
 
   useEffect(() => {
     if (!hasPendingBuildStatuses) return;
@@ -375,11 +356,6 @@ export function PullRequestReviewPage({
     };
   }, [hasPendingBuildStatuses, isPrQueryFetching, refetchPrQuery]);
 
-  useEffect(() => {
-    if (!prQuery.error || !isRateLimitedError || auth.canWrite) return;
-    requestAuth("rate_limit");
-  }, [auth.canWrite, isRateLimitedError, prQuery.error, requestAuth]);
-
   // Build viewed-file storage key from stable primitives to avoid object identity churn.
   const viewedStorageKey = useViewedStorageKey(prData?.prRef);
 
@@ -387,17 +363,11 @@ export function PullRequestReviewPage({
     () => makeDirectoryStateStorageKey(workspace, repo, pullRequestId),
     [pullRequestId, repo, workspace],
   );
-  const legacyDirectoryStateStorageKey = useMemo(
-    () => makeLegacyDirectoryStateStorageKey(workspace, repo, pullRequestId),
-    [pullRequestId, repo, workspace],
-  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const storedWidth = Number(
-      readMigratedLocalStorage(TREE_WIDTH_KEY, [TREE_WIDTH_KEY_BASE]),
-    );
+    const storedWidth = Number(readStorageValue(TREE_WIDTH_KEY));
     if (
       Number.isFinite(storedWidth) &&
       storedWidth >= MIN_TREE_WIDTH &&
@@ -406,14 +376,10 @@ export function PullRequestReviewPage({
       setTreeWidth(storedWidth);
     }
 
-    const storedCollapsed = readMigratedLocalStorage(TREE_COLLAPSED_KEY, [
-      TREE_COLLAPSED_KEY_BASE,
-    ]);
+    const storedCollapsed = readStorageValue(TREE_COLLAPSED_KEY);
     if (storedCollapsed === "true") setTreeCollapsed(true);
 
-    const storedMode = readMigratedLocalStorage(VIEW_MODE_KEY, [
-      VIEW_MODE_KEY_BASE,
-    ]);
+    const storedMode = readStorageValue(VIEW_MODE_KEY);
     if (storedMode === "single" || storedMode === "all") {
       setViewMode(storedMode);
     }
@@ -447,9 +413,8 @@ export function PullRequestReviewPage({
   useEffect(() => {
     if (!viewedStorageKey || typeof window === "undefined") return;
     autoMarkedViewedFilesRef.current = new Set();
-    const legacyKey = `bitbucket_viewed:${workspace}/${repo}/${pullRequestId}`;
-    setViewedFiles(readViewedFiles(viewedStorageKey, [legacyKey]));
-  }, [pullRequestId, repo, viewedStorageKey, workspace]);
+    setViewedFiles(readViewedFiles(viewedStorageKey));
+  }, [viewedStorageKey]);
 
   useEffect(() => {
     if (!viewedStorageKey || typeof window === "undefined") return;
@@ -460,9 +425,7 @@ export function PullRequestReviewPage({
     if (typeof window === "undefined") return;
     setDirStateHydrated(false);
     try {
-      const raw = readMigratedLocalStorage(directoryStateStorageKey, [
-        legacyDirectoryStateStorageKey,
-      ]);
+      const raw = readStorageValue(directoryStateStorageKey);
       if (!raw) {
         setDirectoryExpandedMap({});
         setDirStateHydrated(true);
@@ -480,11 +443,7 @@ export function PullRequestReviewPage({
     } finally {
       setDirStateHydrated(true);
     }
-  }, [
-    directoryStateStorageKey,
-    legacyDirectoryStateStorageKey,
-    setDirectoryExpandedMap,
-  ]);
+  }, [directoryStateStorageKey, setDirectoryExpandedMap]);
 
   useEffect(() => {
     if (!dirStateHydrated || typeof window === "undefined") return;
@@ -853,14 +812,14 @@ export function PullRequestReviewPage({
     [prData?.diffstat],
   );
   const navbarStatusDate = useMemo(() => {
-    if (!prData) return "Unknown";
+    if (!pullRequest) return "Unknown";
     return formatNavbarDate(
-      prData.pr.mergedAt ?? prData.pr.closedAt ?? prData.pr.updatedAt,
+      pullRequest.mergedAt ?? pullRequest.closedAt ?? pullRequest.updatedAt,
     );
-  }, [prData]);
+  }, [pullRequest]);
   const navbarState = useMemo(
-    () => normalizeNavbarState(prData?.pr),
-    [prData?.pr],
+    () => normalizeNavbarState(pullRequest),
+    [pullRequest],
   );
   const fileLineStats = useMemo(() => {
     const map = new Map<string, { added: number; removed: number }>();
@@ -884,7 +843,7 @@ export function PullRequestReviewPage({
   }, [hostCapabilities.mergeStrategies, mergeStrategy, prData]);
 
   const isApproved = Boolean(
-    prData?.pr.participants?.some((participant) => participant.approved),
+    pullRequest?.participants?.some((participant) => participant.approved),
   );
   const actionPolicy = useMemo(
     () =>
@@ -893,17 +852,17 @@ export function PullRequestReviewPage({
         capabilities: hostCapabilities,
         isAuthenticatedForWrite: auth.canWrite,
         isApprovedByCurrentUser: isApproved,
-        prState: prData?.pr.state,
+        prState: pullRequest?.state,
       }),
-    [auth.canWrite, host, hostCapabilities, isApproved, prData?.pr.state],
+    [auth.canWrite, host, hostCapabilities, isApproved, pullRequest?.state],
   );
 
   const ensurePrRef = useCallback(() => {
-    if (!prData) {
-      throw new Error("Pull request data is not loaded");
+    if (!prData?.prRef || !pullRequest) {
+      throw new Error("Pull request data is incomplete");
     }
     return prData.prRef;
-  }, [prData]);
+  }, [prData?.prRef, pullRequest]);
 
   const approveMutation = useMutation({
     mutationFn: () => {
@@ -1087,31 +1046,8 @@ export function PullRequestReviewPage({
 
   const getInlineDraftContent = useCallback(
     (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => {
-      if (typeof window === "undefined") return "";
-      const nextKey = inlineDraftStorageKey(
-        workspace,
-        repo,
-        pullRequestId,
-        draft,
-      );
-      const legacyKey = inlineDraftStorageKeyLegacy(
-        workspace,
-        repo,
-        pullRequestId,
-        draft,
-      );
-      const v1Key = inlineDraftStorageKeyV1(
-        workspace,
-        repo,
-        pullRequestId,
-        draft,
-      );
-      return (
-        window.localStorage.getItem(nextKey) ??
-        window.localStorage.getItem(v1Key) ??
-        window.localStorage.getItem(legacyKey) ??
-        ""
-      );
+      const key = inlineDraftStorageKey(workspace, repo, pullRequestId, draft);
+      return readStorageValue(key) ?? "";
     },
     [pullRequestId, repo, workspace],
   );
@@ -1121,7 +1057,6 @@ export function PullRequestReviewPage({
       draft: Pick<InlineCommentDraft, "path" | "line" | "side">,
       content: string,
     ) => {
-      if (typeof window === "undefined") return;
       const key = inlineDraftStorageKey(workspace, repo, pullRequestId, draft);
       const activeKey = inlineActiveDraftStorageKey(
         workspace,
@@ -1130,22 +1065,10 @@ export function PullRequestReviewPage({
       );
       if (content.length > 0) {
         writeLocalStorageValue(key, content);
-        window.localStorage.removeItem(
-          inlineDraftStorageKeyV1(workspace, repo, pullRequestId, draft),
-        );
-        window.localStorage.removeItem(
-          inlineDraftStorageKeyLegacy(workspace, repo, pullRequestId, draft),
-        );
         writeLocalStorageValue(activeKey, JSON.stringify(draft));
-        window.localStorage.removeItem(
-          inlineActiveDraftStorageKeyV1(workspace, repo, pullRequestId),
-        );
-        window.localStorage.removeItem(
-          inlineActiveDraftStorageKeyLegacy(workspace, repo, pullRequestId),
-        );
       } else {
-        window.localStorage.removeItem(key);
-        const activeRaw = window.localStorage.getItem(activeKey);
+        removeStorageValue(key);
+        const activeRaw = readStorageValue(activeKey);
         if (!activeRaw) return;
         try {
           const activeDraft = JSON.parse(activeRaw) as InlineCommentDraft;
@@ -1154,10 +1077,10 @@ export function PullRequestReviewPage({
             activeDraft.line === draft.line &&
             activeDraft.side === draft.side
           ) {
-            window.localStorage.removeItem(activeKey);
+            removeStorageValue(activeKey);
           }
         } catch {
-          window.localStorage.removeItem(activeKey);
+          removeStorageValue(activeKey);
         }
       }
     },
@@ -1166,26 +1089,12 @@ export function PullRequestReviewPage({
 
   const clearInlineDraftContent = useCallback(
     (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => {
-      if (typeof window === "undefined") return;
       const activeKey = inlineActiveDraftStorageKey(
         workspace,
         repo,
         pullRequestId,
       );
-      const v1ActiveKey = inlineActiveDraftStorageKeyV1(
-        workspace,
-        repo,
-        pullRequestId,
-      );
-      const legacyActiveKey = inlineActiveDraftStorageKeyLegacy(
-        workspace,
-        repo,
-        pullRequestId,
-      );
-      const activeRaw =
-        window.localStorage.getItem(activeKey) ??
-        window.localStorage.getItem(v1ActiveKey) ??
-        window.localStorage.getItem(legacyActiveKey);
+      const activeRaw = readStorageValue(activeKey);
       if (activeRaw) {
         try {
           const activeDraft = JSON.parse(activeRaw) as InlineCommentDraft;
@@ -1194,50 +1103,26 @@ export function PullRequestReviewPage({
             activeDraft.line === draft.line &&
             activeDraft.side === draft.side
           ) {
-            window.localStorage.removeItem(activeKey);
-            window.localStorage.removeItem(v1ActiveKey);
-            window.localStorage.removeItem(legacyActiveKey);
+            removeStorageValue(activeKey);
           }
         } catch {
-          window.localStorage.removeItem(activeKey);
-          window.localStorage.removeItem(v1ActiveKey);
-          window.localStorage.removeItem(legacyActiveKey);
+          removeStorageValue(activeKey);
         }
       }
-      window.localStorage.removeItem(
+      removeStorageValue(
         inlineDraftStorageKey(workspace, repo, pullRequestId, draft),
-      );
-      window.localStorage.removeItem(
-        inlineDraftStorageKeyV1(workspace, repo, pullRequestId, draft),
-      );
-      window.localStorage.removeItem(
-        inlineDraftStorageKeyLegacy(workspace, repo, pullRequestId, draft),
       );
     },
     [pullRequestId, repo, workspace],
   );
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     const activeKey = inlineActiveDraftStorageKey(
       workspace,
       repo,
       pullRequestId,
     );
-    const v1ActiveKey = inlineActiveDraftStorageKeyV1(
-      workspace,
-      repo,
-      pullRequestId,
-    );
-    const legacyActiveKey = inlineActiveDraftStorageKeyLegacy(
-      workspace,
-      repo,
-      pullRequestId,
-    );
-    const raw =
-      window.localStorage.getItem(activeKey) ??
-      window.localStorage.getItem(v1ActiveKey) ??
-      window.localStorage.getItem(legacyActiveKey);
+    const raw = readStorageValue(activeKey);
     const restoreDraft = (draft: InlineCommentDraft) => {
       const content = getInlineDraftContent(draft);
       if (!content.trim()) return false;
@@ -1254,14 +1139,13 @@ export function PullRequestReviewPage({
           return;
         }
       } catch {
-        window.localStorage.removeItem(activeKey);
-        window.localStorage.removeItem(v1ActiveKey);
-        window.localStorage.removeItem(legacyActiveKey);
+        removeStorageValue(activeKey);
       }
     }
 
-    for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
-      const key = window.localStorage.key(i);
+    const storageKeys = listStorageKeys();
+    for (let i = storageKeys.length - 1; i >= 0; i -= 1) {
+      const key = storageKeys[i];
       if (!key) continue;
       const parsed = parseInlineDraftStorageKey(
         key,
@@ -1553,58 +1437,39 @@ export function PullRequestReviewPage({
         >
           {!treeCollapsed ? (
             <>
-              <div
-                className="h-11 px-2 border-b border-border flex items-center gap-2 text-[11px] text-muted-foreground"
-                data-component="top-sidebar"
-              >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => navigate({ to: "/" })}
-                  aria-label="Home"
-                >
-                  <House className="size-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-8 w-8 p-0",
-                    showSettingsPanel
-                      ? "text-status-renamed bg-status-renamed/20 border border-status-renamed/40 hover:bg-status-renamed/30"
-                      : "",
-                  )}
-                  onClick={() => {
-                    if (showSettingsPanel) {
-                      setShowSettingsPanel(false);
-                      setActiveFile(PR_SUMMARY_PATH);
-                      return;
-                    }
-                    setShowSettingsPanel(true);
-                    if (!activeFile || !settingsPathSet.has(activeFile)) {
-                      setActiveFile(settingsPathForTab("appearance"));
-                    }
-                  }}
-                  aria-label={
-                    showSettingsPanel ? "Close settings" : "Open settings"
+              <SidebarTopControls
+                onHome={() => navigate({ to: "/" })}
+                onSettings={() => {
+                  if (showSettingsPanel) {
+                    setShowSettingsPanel(false);
+                    setActiveFile(PR_SUMMARY_PATH);
+                    return;
                   }
-                  data-component="settings"
-                >
-                  <Settings2 className="size-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 shrink-0 ml-auto"
-                  onClick={() => setTreeCollapsed(true)}
-                  aria-label="Collapse file tree"
-                >
-                  <PanelLeftClose className="size-3.5" />
-                </Button>
-              </div>
+                  setShowSettingsPanel(true);
+                  if (!activeFile || !settingsPathSet.has(activeFile)) {
+                    setActiveFile(settingsPathForTab("appearance"));
+                  }
+                }}
+                settingsAriaLabel={
+                  showSettingsPanel ? "Close settings" : "Open settings"
+                }
+                settingsButtonClassName={
+                  showSettingsPanel
+                    ? "text-status-renamed bg-status-renamed/20 border border-status-renamed/40 hover:bg-status-renamed/30"
+                    : undefined
+                }
+                rightContent={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 shrink-0"
+                    onClick={() => setTreeCollapsed(true)}
+                    aria-label="Collapse file tree"
+                  >
+                    <PanelLeftClose className="size-3.5" />
+                  </Button>
+                }
+              />
               <div
                 className="h-10 pl-1 pr-2 border-b border-border flex items-center gap-1"
                 data-component="search-sidebar"
@@ -1695,6 +1560,22 @@ export function PullRequestReviewPage({
     );
   }
 
+  if (prData && !pullRequest) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="border border-destructive bg-destructive/10 p-6 max-w-lg">
+          <div className="flex items-center gap-2 text-destructive mb-2">
+            <AlertCircle className="size-5" />
+            <span className="text-[13px] font-medium">[ERROR]</span>
+          </div>
+          <p className="text-destructive text-[13px]">
+            Pull request payload is incomplete. Retry loading this pull request.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!prData) {
     if (!auth.canRead && !hostCapabilities.publicReadSupported) {
       return (
@@ -1726,58 +1607,39 @@ export function PullRequestReviewPage({
       >
         {!treeCollapsed ? (
           <>
-            <div
-              className="h-11 px-2 border-b border-border flex items-center gap-2 text-[11px] text-muted-foreground"
-              data-component="top-sidebar"
-            >
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => navigate({ to: "/" })}
-                aria-label="Home"
-              >
-                <House className="size-3.5" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-8 w-8 p-0",
-                  showSettingsPanel
-                    ? "text-status-renamed bg-status-renamed/20 border border-status-renamed/40 hover:bg-status-renamed/30"
-                    : "",
-                )}
-                onClick={() => {
-                  if (showSettingsPanel) {
-                    setShowSettingsPanel(false);
-                    setActiveFile(PR_SUMMARY_PATH);
-                    return;
-                  }
-                  setShowSettingsPanel(true);
-                  if (!activeFile || !settingsPathSet.has(activeFile)) {
-                    setActiveFile(settingsPathForTab("appearance"));
-                  }
-                }}
-                aria-label={
-                  showSettingsPanel ? "Close settings" : "Open settings"
+            <SidebarTopControls
+              onHome={() => navigate({ to: "/" })}
+              onSettings={() => {
+                if (showSettingsPanel) {
+                  setShowSettingsPanel(false);
+                  setActiveFile(PR_SUMMARY_PATH);
+                  return;
                 }
-                data-component="settings"
-              >
-                <Settings2 className="size-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 shrink-0 ml-auto"
-                onClick={() => setTreeCollapsed(true)}
-                aria-label="Collapse file tree"
-              >
-                <PanelLeftClose className="size-3.5" />
-              </Button>
-            </div>
+                setShowSettingsPanel(true);
+                if (!activeFile || !settingsPathSet.has(activeFile)) {
+                  setActiveFile(settingsPathForTab("appearance"));
+                }
+              }}
+              settingsAriaLabel={
+                showSettingsPanel ? "Close settings" : "Open settings"
+              }
+              settingsButtonClassName={
+                showSettingsPanel
+                  ? "text-status-renamed bg-status-renamed/20 border border-status-renamed/40 hover:bg-status-renamed/30"
+                  : undefined
+              }
+              rightContent={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 shrink-0"
+                  onClick={() => setTreeCollapsed(true)}
+                  aria-label="Collapse file tree"
+                >
+                  <PanelLeftClose className="size-3.5" />
+                </Button>
+              }
+            />
             <div
               className="h-10 pl-1 pr-2 border-b border-border flex items-center gap-1"
               data-component="search-sidebar"
@@ -1893,7 +1755,7 @@ export function PullRequestReviewPage({
             ) : null}
             <div className="group/source relative max-w-[180px] min-w-0">
               <span className="block truncate text-foreground">
-                {prData.pr.source?.branch?.name ?? "source"}
+                {pullRequest?.source?.branch?.name ?? "source"}
               </span>
               <Button
                 type="button"
@@ -1907,7 +1769,7 @@ export function PullRequestReviewPage({
                 )}
                 onClick={() =>
                   void handleCopySourceBranch(
-                    prData.pr.source?.branch?.name ?? "source",
+                    pullRequest?.source?.branch?.name ?? "source",
                   )
                 }
                 aria-label="Copy source branch"
@@ -1921,7 +1783,7 @@ export function PullRequestReviewPage({
             </div>
             <span>-&gt;</span>
             <span className="max-w-[180px] truncate text-foreground">
-              {prData.pr.destination?.branch?.name ?? "target"}
+              {pullRequest?.destination?.branch?.name ?? "target"}
             </span>
             <span
               className={cn(
@@ -2199,7 +2061,7 @@ export function PullRequestReviewPage({
               >
                 <PullRequestSummaryPanel
                   bundle={prData}
-                  headerTitle={prData.pr.title?.trim() || PR_SUMMARY_NAME}
+                  headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
                   diffStats={lineStats}
                 />
               </div>
@@ -2482,7 +2344,7 @@ export function PullRequestReviewPage({
                         <ScrollText className="size-3.5" />
                       </span>
                       <span className="min-w-0 max-w-full truncate font-mono">
-                        {prData.pr.title?.trim() || PR_SUMMARY_NAME}
+                        {pullRequestTitle || PR_SUMMARY_NAME}
                       </span>
                     </button>
                     <div className="ml-auto shrink-0 pr-2 text-[11px]">

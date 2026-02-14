@@ -82,7 +82,6 @@ This skill includes package-specific reference docs under `references/`. Load on
 - `references/tanstack-form.md`
 - `references/tanstack-ai.md`
 - `references/tanstack-devtools.md`
-- `references/versioning-and-packages.md`
 
 ## Operating principles
 

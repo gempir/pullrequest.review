@@ -16,6 +16,11 @@ import {
   type PullRequestSummary,
   type RepoRef,
 } from "@/lib/git-host/types";
+import {
+  readStorageValue,
+  removeStorageValue,
+  writeStorageValue,
+} from "@/lib/storage/versioned-local-storage";
 
 const AUTH_KEY = "pr_review_auth_github";
 const API_BASE = "https://api.github.com";
@@ -162,18 +167,15 @@ function parseAuth(rawValue: string | null): GithubAuth | null {
 }
 
 function readAuth() {
-  if (typeof window === "undefined") return null;
-  return parseAuth(window.localStorage.getItem(AUTH_KEY));
+  return parseAuth(readStorageValue(AUTH_KEY));
 }
 
 function writeAuth(auth: GithubAuth) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+  writeStorageValue(AUTH_KEY, JSON.stringify(auth));
 }
 
 function clearAuth() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(AUTH_KEY);
+  removeStorageValue(AUTH_KEY);
 }
 
 function authHeader() {

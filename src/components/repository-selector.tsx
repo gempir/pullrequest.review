@@ -1,9 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useLiveQuery } from "@tanstack/react-db";
 import { AlertCircle, FolderGit, Loader2, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { listRepositoriesForHost } from "@/lib/git-host/service";
+import { getRepositoryCollection } from "@/lib/git-host/query-collections";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 
 export function RepositorySelector({
@@ -35,12 +35,30 @@ export function RepositorySelector({
     );
   }, [initialSelectionKey]);
 
-  const reposQuery = useQuery({
-    queryKey: ["repos", host],
-    queryFn: () => listRepositoriesForHost({ host }),
-  });
+  const repositoryCollection = useMemo(
+    () => getRepositoryCollection(host),
+    [host],
+  );
+  const repositoriesQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ repository: repositoryCollection.collection })
+        .select(({ repository }) => ({ ...repository })),
+    [repositoryCollection],
+  );
 
-  const entries = reposQuery.data ?? [];
+  useEffect(() => {
+    void repositoryCollection.utils.refetch({ throwOnError: false });
+  }, [repositoryCollection]);
+
+  const entries = useMemo(
+    () => (repositoriesQuery.data ?? []).filter((repo) => repo.host === host),
+    [host, repositoriesQuery.data],
+  );
+  const repositoryError = repositoryCollection.utils.lastError;
+  const isRepositoryLoading =
+    repositoriesQuery.isLoading ||
+    (repositoryCollection.utils.isFetching && entries.length === 0);
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return entries;
@@ -68,20 +86,20 @@ export function RepositorySelector({
         />
       </div>
 
-      {reposQuery.isLoading ? (
+      {isRepositoryLoading ? (
         <div className="border border-border bg-background p-8 text-center text-muted-foreground text-[13px]">
           <div className="flex items-center justify-center gap-2">
             <Loader2 className="size-4 animate-spin" />
             <span>Loading repositories...</span>
           </div>
         </div>
-      ) : reposQuery.error ? (
+      ) : repositoryError ? (
         <div className="border border-destructive bg-destructive/10 p-4 text-destructive text-[13px]">
           <div className="flex items-center gap-2">
             <AlertCircle className="size-4" />
             <span>
-              {reposQuery.error instanceof Error
-                ? reposQuery.error.message
+              {repositoryError instanceof Error
+                ? repositoryError.message
                 : "Failed to load repositories"}
             </span>
           </div>
@@ -137,7 +155,7 @@ export function RepositorySelector({
             );
             onSave(selectedRepos);
           }}
-          disabled={reposQuery.isLoading}
+          disabled={isRepositoryLoading}
         >
           {saveLabel} ({selected.size})
         </Button>

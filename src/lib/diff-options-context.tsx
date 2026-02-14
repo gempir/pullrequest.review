@@ -13,7 +13,7 @@ import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue } from "@/lib/font-options";
 import {
   makeVersionedStorageKey,
-  readMigratedLocalStorage,
+  readLocalStorageValue,
   writeLocalStorageValue,
 } from "@/lib/storage/versioned-local-storage";
 
@@ -116,9 +116,7 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const parsed = parseStoredOptions(
-      readMigratedLocalStorage(STORAGE_KEY, [STORAGE_KEY_BASE]),
-    );
+    const parsed = parseStoredOptions(readLocalStorageValue(STORAGE_KEY));
     if (parsed) {
       setOptions(parsed);
     }

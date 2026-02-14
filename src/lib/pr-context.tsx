@@ -12,9 +12,10 @@ import {
   loginToHost,
   logoutHost,
 } from "@/lib/git-host/service";
+import { GIT_HOSTS } from "@/lib/git-host/host";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 
-const HOSTS: GitHost[] = ["bitbucket", "github"];
+const HOSTS: readonly GitHost[] = GIT_HOSTS;
 
 const REPO_STORAGE_KEYS: Record<GitHost, string> = {
   bitbucket: "pr_review_repos_bitbucket",

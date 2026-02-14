@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type FileNode, useFileTree } from "@/lib/file-tree-context";
+import { GIT_HOSTS, getGitHostDomain, isGitHost } from "@/lib/git-host/host";
 import {
   fetchRepoPullRequestsByHost,
   getHostLabel,
@@ -33,7 +34,7 @@ import type {
 import { usePrContext } from "@/lib/pr-context";
 import { cn } from "@/lib/utils";
 
-const HOSTS: GitHost[] = ["bitbucket", "github"];
+const HOSTS: readonly GitHost[] = GIT_HOSTS;
 const HOST_PATH_PREFIX = "host:";
 const WORKSPACE_PATH_PREFIX = "workspace:";
 
@@ -72,7 +73,7 @@ function hostFromLandingTreePath(path: string): GitHost | null {
     return null;
   }
   const [, host] = path.split(":");
-  return host === "bitbucket" || host === "github" ? host : null;
+  return isGitHost(host) ? host : null;
 }
 
 export const Route = createFileRoute("/")({
@@ -231,7 +232,7 @@ function buildPullRequestTree(
   const root: FileNode[] = [];
 
   for (const host of HOSTS) {
-    const hostDomain = host === "github" ? "github.com" : "bitbucket.org";
+    const hostDomain = getGitHostDomain(host);
     const hostNode: FileNode = {
       name: hostDomain,
       path: `host:${host}`,
@@ -520,7 +521,7 @@ export function LandingPage({
                 }
                 if (node.path.startsWith(HOST_PATH_PREFIX)) {
                   const host = node.path.slice(HOST_PATH_PREFIX.length);
-                  if (host === "bitbucket" || host === "github") {
+                  if (isGitHost(host)) {
                     setShowSettingsPanel(false);
                     setActiveHost(host);
                     setDiffPanel("repositories");

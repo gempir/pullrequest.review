@@ -5,19 +5,19 @@ import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig(() => ({
-  server: {
-    host: "127.0.0.1",
-    port: 3000,
-  },
-  plugins: [
-    tsConfigPaths(),
-    tanstackStart({
-      spa: {
-        enabled: true,
-      },
-    }),
-    // react's vite plugin must come after start's vite plugin
-    viteReact(),
-    tailwindcss(),
-  ],
+    server: {
+        host: "127.0.0.1",
+        port: 3000,
+    },
+    plugins: [
+        tsConfigPaths(),
+        tanstackStart({
+            spa: {
+                enabled: true,
+            },
+        }),
+        // react's vite plugin must come after start's vite plugin
+        viteReact(),
+        tailwindcss(),
+    ],
 }));

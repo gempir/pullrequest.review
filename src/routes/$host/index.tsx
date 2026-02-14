@@ -2,15 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LandingPage } from "@/routes/index";
 
 export const Route = createFileRoute("/$host/")({
-  component: HostLandingPage,
+    component: HostLandingPage,
 });
 
 function HostLandingPage() {
-  const { host } = Route.useParams();
+    const { host } = Route.useParams();
 
-  if (host !== "bitbucket" && host !== "github") {
-    return <LandingPage />;
-  }
+    if (host !== "bitbucket" && host !== "github") {
+        return <LandingPage />;
+    }
 
-  return <LandingPage initialHost={host} initialDiffPanel="repositories" />;
+    return <LandingPage initialHost={host} initialDiffPanel="repositories" />;
 }

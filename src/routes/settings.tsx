@@ -2,12 +2,12 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { House, Settings2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { FileTree } from "@/components/file-tree";
+import { SettingsPanelContentOnly } from "@/components/settings-menu";
 import {
   getSettingsTreeItems,
-  SettingsPanel,
   settingsPathForTab,
   settingsTabFromPath,
-} from "@/components/settings-menu";
+} from "@/components/settings-navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type FileNode, useFileTree } from "@/lib/file-tree-context";
@@ -116,8 +116,7 @@ function SettingsRoute() {
           className="flex-1 min-h-0 overflow-y-auto"
         >
           <div className="h-full min-h-0">
-            <SettingsPanel
-              showSidebar={false}
+            <SettingsPanelContentOnly
               activeTab={settingsTabFromPath(activeFile) ?? "appearance"}
               onActiveTabChange={(tab) => {
                 setActiveFile(settingsPathForTab(tab));

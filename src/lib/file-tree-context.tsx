@@ -7,6 +7,11 @@ import {
   useMemo,
   useState,
 } from "react";
+import {
+  makeVersionedStorageKey,
+  readMigratedLocalStorage,
+  writeLocalStorageValue,
+} from "@/lib/storage/versioned-local-storage";
 
 export type FileNodeType = "summary" | "file" | "directory";
 export type ChangeKind = "add" | "del" | "mix";
@@ -42,14 +47,15 @@ interface FileTreeContextType {
   setTreeIndentSize: (size: number) => void;
   firstFile: () => string | undefined;
   ensureActiveFile: (allowedPaths?: ReadonlySet<string>) => string | undefined;
-  children: (path: string) => FileNode[];
+  getChildrenForPath: (path: string) => FileNode[];
   navigateToNextFile: () => string | undefined;
   navigateToPreviousFile: () => string | undefined;
   allFiles: () => FileNode[];
 }
 
 const FileTreeContext = createContext<FileTreeContextType | null>(null);
-const TREE_SETTINGS_KEY = "pr_review_tree_settings";
+const TREE_SETTINGS_KEY_BASE = "pr_review_tree_settings";
+const TREE_SETTINGS_KEY = makeVersionedStorageKey(TREE_SETTINGS_KEY_BASE, 2);
 const DEFAULT_TREE_INDENT_SIZE = 8;
 const MIN_TREE_INDENT_SIZE = 8;
 const MAX_TREE_INDENT_SIZE = 24;
@@ -183,9 +189,10 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     try {
-      const raw = window.localStorage.getItem(TREE_SETTINGS_KEY);
+      const raw = readMigratedLocalStorage(TREE_SETTINGS_KEY, [
+        TREE_SETTINGS_KEY_BASE,
+      ]);
       if (!raw) return;
       const parsed = JSON.parse(raw) as {
         compactSingleChildDirectories?: unknown;
@@ -208,8 +215,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(
+    writeLocalStorageValue(
       TREE_SETTINGS_KEY,
       JSON.stringify({ compactSingleChildDirectories, treeIndentSize }),
     );
@@ -372,7 +378,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
       setTreeIndentSize,
       firstFile,
       ensureActiveFile,
-      children: getChildren,
+      getChildrenForPath: getChildren,
       navigateToNextFile,
       navigateToPreviousFile,
       allFiles,

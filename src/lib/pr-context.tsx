@@ -13,15 +13,25 @@ import {
   logoutHost,
 } from "@/lib/git-host/service";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
+import {
+  makeVersionedStorageKey,
+  readMigratedLocalStorage,
+  writeLocalStorageValue,
+} from "@/lib/storage/versioned-local-storage";
 
 const HOSTS: GitHost[] = ["bitbucket", "github"];
 
-const REPO_STORAGE_KEYS: Record<GitHost, string> = {
+const REPO_STORAGE_KEYS_BASE: Record<GitHost, string> = {
   bitbucket: "pr_review_repos_bitbucket",
   github: "pr_review_repos_github",
 };
+const REPO_STORAGE_KEYS: Record<GitHost, string> = {
+  bitbucket: makeVersionedStorageKey(REPO_STORAGE_KEYS_BASE.bitbucket, 2),
+  github: makeVersionedStorageKey(REPO_STORAGE_KEYS_BASE.github, 2),
+};
 
-const ACTIVE_HOST_KEY = "pr_review_active_host";
+const ACTIVE_HOST_KEY_BASE = "pr_review_active_host";
+const ACTIVE_HOST_KEY = makeVersionedStorageKey(ACTIVE_HOST_KEY_BASE, 2);
 const LEGACY_BITBUCKET_REPOS_KEY = "bitbucket_repos";
 
 type AuthByHost = Record<GitHost, boolean>;
@@ -82,7 +92,12 @@ function parseRepos(host: GitHost): RepoRef[] {
     }
   };
 
-  const current = parse(window.localStorage.getItem(REPO_STORAGE_KEYS[host]));
+  const current = parse(
+    readMigratedLocalStorage(REPO_STORAGE_KEYS[host], [
+      REPO_STORAGE_KEYS_BASE[host],
+      ...(host === "bitbucket" ? [LEGACY_BITBUCKET_REPOS_KEY] : []),
+    ]),
+  );
   if (current.length > 0 || host !== "bitbucket") return current;
 
   const legacy = parse(window.localStorage.getItem(LEGACY_BITBUCKET_REPOS_KEY));
@@ -98,7 +113,9 @@ function parseRepos(host: GitHost): RepoRef[] {
 
 function parseActiveHost(): GitHost {
   if (typeof window === "undefined") return "bitbucket";
-  const value = window.localStorage.getItem(ACTIVE_HOST_KEY);
+  const value = readMigratedLocalStorage(ACTIVE_HOST_KEY, [
+    ACTIVE_HOST_KEY_BASE,
+  ]);
   return value === "github" ? "github" : "bitbucket";
 }
 
@@ -139,20 +156,18 @@ export function PrProvider({ children }: { children: ReactNode }) {
   }, [refreshAuth]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(
+    writeLocalStorageValue(
       REPO_STORAGE_KEYS.bitbucket,
       JSON.stringify(reposByHost.bitbucket),
     );
-    window.localStorage.setItem(
+    writeLocalStorageValue(
       REPO_STORAGE_KEYS.github,
       JSON.stringify(reposByHost.github),
     );
   }, [reposByHost]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(ACTIVE_HOST_KEY, activeHost);
+    writeLocalStorageValue(ACTIVE_HOST_KEY, activeHost);
   }, [activeHost]);
 
   const setActiveHost = useCallback((host: GitHost) => {

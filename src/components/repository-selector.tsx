@@ -22,14 +22,18 @@ export function RepositorySelector({
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const selectedKeys = useMemo(
-    () => initialSelected.map((repo) => repo.fullName),
+  const initialSelection = useMemo(
+    () => [...initialSelected.map((repo) => repo.fullName)].sort(),
     [initialSelected],
   );
+  const initialSelectionKey = initialSelection.join("|");
 
   useEffect(() => {
-    setSelected(new Set(selectedKeys));
-  }, [selectedKeys]);
+    // Sync from parent only when the semantic selection actually changes.
+    setSelected(
+      new Set(initialSelectionKey ? initialSelectionKey.split("|") : []),
+    );
+  }, [initialSelectionKey]);
 
   const reposQuery = useQuery({
     queryKey: ["repos", host],

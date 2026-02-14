@@ -12,12 +12,12 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { FileTree } from "@/components/file-tree";
 import { RepositorySelector } from "@/components/repository-selector";
+import { SettingsPanelContentOnly } from "@/components/settings-menu";
 import {
   getSettingsTreeItems,
-  SettingsPanel,
   settingsPathForTab,
   settingsTabFromPath,
-} from "@/components/settings-menu";
+} from "@/components/settings-navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type FileNode, useFileTree } from "@/lib/file-tree-context";
@@ -250,7 +250,7 @@ function buildPullRequestTree(
       const filteredPrs = repoMatches
         ? prs
         : prs.filter((pr) => {
-            const author = pr.author?.display_name ?? "";
+            const author = pr.author?.displayName ?? "";
             return (
               pr.title.toLowerCase().includes(term) ||
               String(pr.id).includes(term) ||
@@ -634,8 +634,7 @@ export function LandingPage({
         >
           {showSettingsPanel ? (
             <div className="h-full min-h-0">
-              <SettingsPanel
-                showSidebar={false}
+              <SettingsPanelContentOnly
                 activeTab={settingsTabFromPath(activeFile) ?? "appearance"}
                 onActiveTabChange={(tab) => {
                   setActiveFile(settingsPathForTab(tab));
@@ -806,7 +805,7 @@ export function LandingPage({
                             </div>
                             <div className="text-[11px] text-muted-foreground mt-0.5">
                               #{pr.id} -{" "}
-                              {pr.author?.display_name ?? "Unknown author"}
+                              {pr.author?.displayName ?? "Unknown author"}
                             </div>
                           </button>
                         ))}

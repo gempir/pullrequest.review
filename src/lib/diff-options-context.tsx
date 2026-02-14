@@ -11,6 +11,11 @@ import {
 import { registerExtendedDiffThemes } from "@/lib/diff-theme-registration";
 import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue } from "@/lib/font-options";
+import {
+  makeVersionedStorageKey,
+  readMigratedLocalStorage,
+  writeLocalStorageValue,
+} from "@/lib/storage/versioned-local-storage";
 
 export interface DiffOptions {
   followSystemTheme: boolean;
@@ -32,7 +37,8 @@ export interface DiffOptions {
   collapseViewedFilesByDefault: boolean;
 }
 
-const STORAGE_KEY = "pr_review_diff_options";
+const STORAGE_KEY_BASE = "pr_review_diff_options";
+const STORAGE_KEY = makeVersionedStorageKey(STORAGE_KEY_BASE, 2);
 
 const defaultOptions: DiffOptions = {
   followSystemTheme: true,
@@ -110,8 +116,9 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const parsed = parseStoredOptions(window.localStorage.getItem(STORAGE_KEY));
+    const parsed = parseStoredOptions(
+      readMigratedLocalStorage(STORAGE_KEY, [STORAGE_KEY_BASE]),
+    );
     if (parsed) {
       setOptions(parsed);
     }
@@ -119,8 +126,8 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(options));
+    if (!hydrated) return;
+    writeLocalStorageValue(STORAGE_KEY, JSON.stringify(options));
   }, [hydrated, options]);
 
   useEffect(() => {

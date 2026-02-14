@@ -110,7 +110,7 @@ export function FileTree({
 }: FileTreeProps) {
   const tree = useFileTree();
   const resolvedKinds = kinds ?? tree.kinds;
-  const rawNodes = tree.children(path);
+  const rawNodes = tree.getChildrenForPath(path);
   const active = activeFile ?? tree.activeFile;
   const treeIndentSize = tree.treeIndentSize;
   const normalizedQuery = filterQuery?.trim().toLowerCase() ?? "";
@@ -127,7 +127,7 @@ export function FileTree({
       const allowedMatch = !allowedFiles || allowedFiles.has(node.path);
       return queryMatch && allowedMatch;
     }
-    const children = tree.children(node.path);
+    const children = tree.getChildrenForPath(node.path);
     const host = hostFromTreePath(node.path);
     if (host && children.length === 0) {
       if (!normalizedQuery) return true;
@@ -213,7 +213,7 @@ function DirectoryNode({
 
   if (compactEnabled) {
     while (true) {
-      const children = tree.children(displayNode.path);
+      const children = tree.getChildrenForPath(displayNode.path);
       if (children.length !== 1) break;
       const nextNode = children[0];
       if (nextNode.type !== "directory") break;
@@ -230,7 +230,7 @@ function DirectoryNode({
   const isRepositoryNode = isRepositoryPath(displayNode.path);
   const pullRequestCount = isRepositoryNode
     ? tree
-        .children(displayNode.path)
+        .getChildrenForPath(displayNode.path)
         .filter(
           (child) => child.type === "file" && isPullRequestPath(child.path),
         ).length

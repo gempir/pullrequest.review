@@ -7,470 +7,451 @@
 @custom-variant dark (&:is(.dark *));
 
 @font-face {
-  font-family: "Geist Sans";
-  src: url("/fonts/geist/Geist-Variable.woff2") format("woff2-variations");
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
+    font-family: "Geist Sans";
+    src: url("/fonts/geist/Geist-Variable.woff2") format("woff2-variations");
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
 }
 
 @font-face {
-  font-family: "Geist Mono";
-  src: url("/fonts/geist/GeistMono-Variable.woff2") format("woff2-variations");
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
+    font-family: "Geist Mono";
+    src: url("/fonts/geist/GeistMono-Variable.woff2") format("woff2-variations");
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
 }
 
 @font-face {
-  font-family: "Geist Pixel";
-  src: url("/fonts/geist/GeistPixel-Square.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
+    font-family: "Geist Pixel";
+    src: url("/fonts/geist/GeistPixel-Square.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
 }
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #e0e0e0;
-  --card: #111111;
-  --card-foreground: #e0e0e0;
-  --popover: #111111;
-  --popover-foreground: #e0e0e0;
+    --background: #0a0a0a;
+    --foreground: #e0e0e0;
+    --card: #111111;
+    --card-foreground: #e0e0e0;
+    --popover: #111111;
+    --popover-foreground: #e0e0e0;
 
-  --primary: #e0e0e0;
-  --primary-foreground: #0a0a0a;
+    --primary: #e0e0e0;
+    --primary-foreground: #0a0a0a;
 
-  --secondary: #1a1a1a;
-  --secondary-foreground: #e0e0e0;
+    --secondary: #1a1a1a;
+    --secondary-foreground: #e0e0e0;
 
-  --muted: #141414;
-  --muted-foreground: #707070;
+    --muted: #141414;
+    --muted-foreground: #707070;
 
-  --accent: #1f1f1f;
-  --accent-foreground: #e0e0e0;
+    --accent: #1f1f1f;
+    --accent-foreground: #e0e0e0;
 
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
 
-  --border: #2a2a2a;
-  --input: #2a2a2a;
-  --ring: #404040;
+    --border: #2a2a2a;
+    --input: #2a2a2a;
+    --ring: #404040;
 
-  --status-added: #22c55e;
-  --status-removed: #ef4444;
-  --status-modified: #eab308;
-  --status-renamed: #3b82f6;
+    --status-added: #22c55e;
+    --status-removed: #ef4444;
+    --status-modified: #eab308;
+    --status-renamed: #3b82f6;
 
-  --radius: 2px;
+    --radius: 2px;
 
-  --sidebar: #0f0f0f;
-  --sidebar-foreground: #e0e0e0;
-  --sidebar-primary: #e0e0e0;
-  --sidebar-primary-foreground: #0a0a0a;
-  --sidebar-accent: #1a1a1a;
-  --sidebar-accent-foreground: #e0e0e0;
-  --sidebar-border: #2a2a2a;
-  --sidebar-ring: #404040;
+    --sidebar: #0f0f0f;
+    --sidebar-foreground: #e0e0e0;
+    --sidebar-primary: #e0e0e0;
+    --sidebar-primary-foreground: #0a0a0a;
+    --sidebar-accent: #1a1a1a;
+    --sidebar-accent-foreground: #e0e0e0;
+    --sidebar-border: #2a2a2a;
+    --sidebar-ring: #404040;
 
-  --font-jetbrains-mono:
-    "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code",
-    "Roboto Mono", Consolas, "Courier New", monospace;
-  --font-fira-code:
-    "Fira Code", "JetBrains Mono", "SF Mono", Monaco, "Cascadia Code",
-    "Roboto Mono", Consolas, "Courier New", monospace;
-  --font-cascadia-code:
-    "Cascadia Code", "JetBrains Mono", "Fira Code", "SF Mono", Monaco,
-    "Roboto Mono", Consolas, "Courier New", monospace;
-  --font-source-code-pro:
-    "Source Code Pro", "JetBrains Mono", "Fira Code", "SF Mono", Monaco,
-    "Roboto Mono", Consolas, "Courier New", monospace;
-  --font-ibm-plex-mono:
-    "IBM Plex Mono", "JetBrains Mono", "Fira Code", "SF Mono", Monaco,
-    "Roboto Mono", Consolas, "Courier New", monospace;
-  --font-geist-mono:
-    "Geist Mono", "JetBrains Mono", "Fira Code", "SF Mono", Monaco,
-    "Roboto Mono", Consolas, "Courier New", monospace;
-  --font-geist-sans:
-    "Geist Sans", Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-geist-pixel:
-    "Geist Pixel", "Geist Mono", "JetBrains Mono", "Fira Code", "SF Mono",
-    Monaco, "Roboto Mono", Consolas, "Courier New", monospace;
-  --font-ui-monospace:
-    ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
-  --font-system-sans:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-    Cantarell, "Helvetica Neue", Arial, sans-serif;
+    --font-jetbrains-mono: "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+    --font-fira-code: "Fira Code", "JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+    --font-cascadia-code: "Cascadia Code", "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Roboto Mono", Consolas, "Courier New", monospace;
+    --font-source-code-pro: "Source Code Pro", "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Roboto Mono", Consolas, "Courier New", monospace;
+    --font-ibm-plex-mono: "IBM Plex Mono", "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Roboto Mono", Consolas, "Courier New", monospace;
+    --font-geist-mono: "Geist Mono", "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Roboto Mono", Consolas, "Courier New", monospace;
+    --font-geist-sans: "Geist Sans", Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-geist-pixel: "Geist Pixel", "Geist Mono", "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Roboto Mono", Consolas, "Courier New", monospace;
+    --font-ui-monospace: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --font-system-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
 
-  --app-font-family: var(--font-geist-sans);
-  --mono-font-family: var(--font-jetbrains-mono);
-  --sans-font-size: 13px;
-  --sans-line-height: 1.25;
-  --mono-font-size: 12px;
-  --mono-line-height: 1.25;
-  --app-font-size: var(--sans-font-size);
-  --app-line-height: var(--sans-line-height);
-  --comment-font-family: var(--font-geist-sans);
-  --tree-font-family: var(--font-geist-sans);
-  --tree-font-size: 12px;
-  --tree-line-height: 1.45;
-  --diff-font-family: var(--app-font-family);
-  --diff-font-size: 13px;
-  --diff-line-height: 1.45;
+    --app-font-family: var(--font-geist-sans);
+    --mono-font-family: var(--font-jetbrains-mono);
+    --sans-font-size: 13px;
+    --sans-line-height: 1.25;
+    --mono-font-size: 12px;
+    --mono-line-height: 1.25;
+    --app-font-size: var(--sans-font-size);
+    --app-line-height: var(--sans-line-height);
+    --comment-font-family: var(--font-geist-sans);
+    --tree-font-family: var(--font-geist-sans);
+    --tree-font-size: 12px;
+    --tree-line-height: 1.45;
+    --diff-font-family: var(--app-font-family);
+    --diff-font-size: 13px;
+    --diff-line-height: 1.45;
 }
 
 :root.light {
-  --background: #f7f7f8;
-  --foreground: #141414;
-  --card: #ffffff;
-  --card-foreground: #141414;
-  --popover: #ffffff;
-  --popover-foreground: #141414;
-  --primary: #111111;
-  --primary-foreground: #fafafa;
-  --secondary: #ededee;
-  --secondary-foreground: #141414;
-  --muted: #f1f1f3;
-  --muted-foreground: #56565f;
-  --accent: #e5e7eb;
-  --accent-foreground: #111111;
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
-  --border: #d4d4d8;
-  --input: #d4d4d8;
-  --ring: #8b8b96;
-  --sidebar: #f3f4f6;
-  --sidebar-foreground: #111111;
-  --sidebar-primary: #111111;
-  --sidebar-primary-foreground: #fafafa;
-  --sidebar-accent: #e5e7eb;
-  --sidebar-accent-foreground: #111111;
-  --sidebar-border: #d4d4d8;
-  --sidebar-ring: #8b8b96;
+    --background: #f7f7f8;
+    --foreground: #141414;
+    --card: #ffffff;
+    --card-foreground: #141414;
+    --popover: #ffffff;
+    --popover-foreground: #141414;
+    --primary: #111111;
+    --primary-foreground: #fafafa;
+    --secondary: #ededee;
+    --secondary-foreground: #141414;
+    --muted: #f1f1f3;
+    --muted-foreground: #56565f;
+    --accent: #e5e7eb;
+    --accent-foreground: #111111;
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
+    --border: #d4d4d8;
+    --input: #d4d4d8;
+    --ring: #8b8b96;
+    --sidebar: #f3f4f6;
+    --sidebar-foreground: #111111;
+    --sidebar-primary: #111111;
+    --sidebar-primary-foreground: #fafafa;
+    --sidebar-accent: #e5e7eb;
+    --sidebar-accent-foreground: #111111;
+    --sidebar-border: #d4d4d8;
+    --sidebar-ring: #8b8b96;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-border: var(--border);
-  --color-ring: var(--ring);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-input: var(--input);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-border: var(--border);
+    --color-ring: var(--ring);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-input: var(--input);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
 
-  /* Status colors in theme */
-  --color-status-added: var(--status-added);
-  --color-status-removed: var(--status-removed);
-  --color-status-modified: var(--status-modified);
-  --color-status-renamed: var(--status-renamed);
+    /* Status colors in theme */
+    --color-status-added: var(--status-added);
+    --color-status-removed: var(--status-removed);
+    --color-status-modified: var(--status-modified);
+    --color-status-renamed: var(--status-renamed);
 
-  /* Minimal radius */
-  --radius-sm: 1px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-xl: 2px;
-  --radius-2xl: 2px;
-  --radius-3xl: 2px;
-  --radius-4xl: 2px;
+    /* Minimal radius */
+    --radius-sm: 1px;
+    --radius-md: 2px;
+    --radius-lg: 2px;
+    --radius-xl: 2px;
+    --radius-2xl: 2px;
+    --radius-3xl: 2px;
+    --radius-4xl: 2px;
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+    * {
+        @apply border-border;
+    }
 
-  html {
-    overflow-x: hidden;
-    overflow-y: hidden;
-    max-width: 100vw;
-    width: 100%;
-    height: 100%;
-    font-feature-settings:
-      "liga" 1,
-      "calt" 1;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
+    html {
+        overflow-x: hidden;
+        overflow-y: hidden;
+        max-width: 100vw;
+        width: 100%;
+        height: 100%;
+        font-feature-settings:
+            "liga" 1,
+            "calt" 1;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
 
-  body {
-    @apply bg-background text-foreground;
-    font-family: var(--app-font-family);
-    font-size: var(--sans-font-size);
-    line-height: var(--sans-line-height);
-    overflow-x: hidden;
-    overflow-y: hidden;
-    max-width: 100vw;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    padding: 0;
-  }
+    body {
+        @apply bg-background text-foreground;
+        font-family: var(--app-font-family);
+        font-size: var(--sans-font-size);
+        line-height: var(--sans-line-height);
+        overflow-x: hidden;
+        overflow-y: hidden;
+        max-width: 100vw;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
 
-  button:not(:disabled) {
-    cursor: pointer;
-  }
+    button:not(:disabled) {
+        cursor: pointer;
+    }
 
-  button:disabled {
-    cursor: not-allowed;
-  }
+    button:disabled {
+        cursor: not-allowed;
+    }
 
-  input[type="number"] {
-    -moz-appearance: textfield;
-    appearance: textfield;
-  }
+    input[type="number"] {
+        -moz-appearance: textfield;
+        appearance: textfield;
+    }
 
-  input[type="number"]::-webkit-outer-spin-button,
-  input[type="number"]::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
 
-  /* Selection style */
-  ::selection {
-    background-color: rgba(255, 255, 255, 0.15);
-    color: #ffffff;
-  }
+    /* Selection style */
+    ::selection {
+        background-color: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+    }
 
-  /* Scrollbar styling */
-  ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
 
-  ::-webkit-scrollbar-track {
-    background: var(--background);
-  }
+    ::-webkit-scrollbar-track {
+        background: var(--background);
+    }
 
-  ::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border: 2px solid var(--background);
-  }
+    ::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border: 2px solid var(--background);
+    }
 
-  ::-webkit-scrollbar-thumb:hover {
-    background: var(--ring);
-  }
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--ring);
+    }
 
-  ::-webkit-scrollbar-corner {
-    background: var(--background);
-  }
+    ::-webkit-scrollbar-corner {
+        background: var(--background);
+    }
 }
 
 /* Utility classes for the terminal aesthetic */
 @layer utilities {
-  .terminal-border {
-    border: 1px solid var(--border);
-  }
+    .terminal-border {
+        border: 1px solid var(--border);
+    }
 
-  .terminal-border-l {
-    border-left: 1px solid var(--border);
-  }
+    .terminal-border-l {
+        border-left: 1px solid var(--border);
+    }
 
-  .terminal-border-r {
-    border-right: 1px solid var(--border);
-  }
+    .terminal-border-r {
+        border-right: 1px solid var(--border);
+    }
 
-  .terminal-border-t {
-    border-top: 1px solid var(--border);
-  }
+    .terminal-border-t {
+        border-top: 1px solid var(--border);
+    }
 
-  .terminal-border-b {
-    border-bottom: 1px solid var(--border);
-  }
+    .terminal-border-b {
+        border-bottom: 1px solid var(--border);
+    }
 
-  .terminal-panel {
-    background-color: var(--card);
-    border: 1px solid var(--border);
-  }
+    .terminal-panel {
+        background-color: var(--card);
+        border: 1px solid var(--border);
+    }
 
-  .terminal-input {
-    background-color: var(--background);
-    border: 1px solid var(--input);
-    color: var(--foreground);
-    font-family: inherit;
-  }
+    .terminal-input {
+        background-color: var(--background);
+        border: 1px solid var(--input);
+        color: var(--foreground);
+        font-family: inherit;
+    }
 
-  .terminal-input:focus {
-    outline: none;
-    border-color: var(--ring);
-  }
+    .terminal-input:focus {
+        outline: none;
+        border-color: var(--ring);
+    }
 
-  .terminal-button {
-    background-color: var(--secondary);
-    border: 1px solid var(--border);
-    color: var(--secondary-foreground);
-    font-family: inherit;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
+    .terminal-button {
+        background-color: var(--secondary);
+        border: 1px solid var(--border);
+        color: var(--secondary-foreground);
+        font-family: inherit;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
 
-  .terminal-button:hover {
-    background-color: var(--accent);
-    border-color: var(--ring);
-  }
+    .terminal-button:hover {
+        background-color: var(--accent);
+        border-color: var(--ring);
+    }
 
-  .terminal-button:active {
-    background-color: var(--muted);
-  }
+    .terminal-button:active {
+        background-color: var(--muted);
+    }
 
-  .terminal-button-primary {
-    background-color: var(--primary);
-    border-color: var(--primary);
-    color: var(--primary-foreground);
-  }
+    .terminal-button-primary {
+        background-color: var(--primary);
+        border-color: var(--primary);
+        color: var(--primary-foreground);
+    }
 
-  .terminal-button-primary:hover {
-    background-color: var(--foreground);
-    border-color: var(--foreground);
-  }
+    .terminal-button-primary:hover {
+        background-color: var(--foreground);
+        border-color: var(--foreground);
+    }
 
-  .text-muted-dim {
-    color: var(--muted-foreground);
-  }
+    .text-muted-dim {
+        color: var(--muted-foreground);
+    }
 
-  .status-add {
-    color: var(--status-added);
-  }
+    .status-add {
+        color: var(--status-added);
+    }
 
-  .status-del {
-    color: var(--status-removed);
-  }
+    .status-del {
+        color: var(--status-removed);
+    }
 
-  .status-mod {
-    color: var(--status-modified);
-  }
+    .status-mod {
+        color: var(--status-modified);
+    }
 
-  .bg-status-add {
-    background-color: var(--status-added);
-  }
+    .bg-status-add {
+        background-color: var(--status-added);
+    }
 
-  .bg-status-del {
-    background-color: var(--status-removed);
-  }
+    .bg-status-del {
+        background-color: var(--status-removed);
+    }
 
-  .bg-status-mod {
-    background-color: var(--status-modified);
-  }
+    .bg-status-mod {
+        background-color: var(--status-modified);
+    }
 
-  .compact-diff {
-    --diffs-gap-inline: 0px;
-    --diffs-gap-block: 0px;
-  }
+    .compact-diff {
+        --diffs-gap-inline: 0px;
+        --diffs-gap-block: 0px;
+    }
 
-  .commentable-diff [data-line],
-  .commentable-diff [data-column-number] {
-    cursor: copy;
-  }
+    .commentable-diff [data-line],
+    .commentable-diff [data-column-number] {
+        cursor: copy;
+    }
 
-  .sans-font-scope {
-    font-family: var(--app-font-family);
-    font-size: var(--sans-font-size);
-    line-height: var(--sans-line-height);
-  }
+    .sans-font-scope {
+        font-family: var(--app-font-family);
+        font-size: var(--sans-font-size);
+        line-height: var(--sans-line-height);
+    }
 
-  .mono-font-scope,
-  .font-mono {
-    font-family: var(--mono-font-family);
-    font-size: var(--mono-font-size);
-    line-height: var(--mono-line-height);
-  }
+    .mono-font-scope,
+    .font-mono {
+        font-family: var(--mono-font-family);
+        font-size: var(--mono-font-size);
+        line-height: var(--mono-line-height);
+    }
 
-  body [class*="text-[10px]"] {
-    font-size: calc(var(--sans-font-size) * 10 / 13);
-  }
+    body [class*="text-[10px]"] {
+        font-size: calc(var(--sans-font-size) * 10 / 13);
+    }
 
-  body [class*="text-[11px]"] {
-    font-size: calc(var(--sans-font-size) * 11 / 13);
-  }
+    body [class*="text-[11px]"] {
+        font-size: calc(var(--sans-font-size) * 11 / 13);
+    }
 
-  body [class*="text-[12px]"] {
-    font-size: calc(var(--sans-font-size) * 12 / 13);
-  }
+    body [class*="text-[12px]"] {
+        font-size: calc(var(--sans-font-size) * 12 / 13);
+    }
 
-  body [class*="text-[13px]"] {
-    font-size: var(--sans-font-size);
-  }
+    body [class*="text-[13px]"] {
+        font-size: var(--sans-font-size);
+    }
 
-  body .mono-font-scope[class*="text-[10px]"],
-  body .font-mono[class*="text-[10px]"] {
-    font-size: calc(var(--mono-font-size) * 10 / 13);
-  }
+    body .mono-font-scope[class*="text-[10px]"],
+    body .font-mono[class*="text-[10px]"] {
+        font-size: calc(var(--mono-font-size) * 10 / 13);
+    }
 
-  body .mono-font-scope[class*="text-[11px]"],
-  body .font-mono[class*="text-[11px]"] {
-    font-size: calc(var(--mono-font-size) * 11 / 13);
-  }
+    body .mono-font-scope[class*="text-[11px]"],
+    body .font-mono[class*="text-[11px]"] {
+        font-size: calc(var(--mono-font-size) * 11 / 13);
+    }
 
-  body .mono-font-scope[class*="text-[12px]"],
-  body .font-mono[class*="text-[12px]"] {
-    font-size: calc(var(--mono-font-size) * 12 / 13);
-  }
+    body .mono-font-scope[class*="text-[12px]"],
+    body .font-mono[class*="text-[12px]"] {
+        font-size: calc(var(--mono-font-size) * 12 / 13);
+    }
 
-  body .mono-font-scope[class*="text-[13px]"],
-  body .font-mono[class*="text-[13px]"] {
-    font-size: var(--mono-font-size);
-  }
+    body .mono-font-scope[class*="text-[13px]"],
+    body .font-mono[class*="text-[13px]"] {
+        font-size: var(--mono-font-size);
+    }
 
-  .tree-font-scope {
-    font-family: var(--tree-font-family);
-    font-size: var(--tree-font-size);
-    line-height: var(--tree-line-height);
-  }
+    .tree-font-scope {
+        font-family: var(--tree-font-family);
+        font-size: var(--tree-font-size);
+        line-height: var(--tree-line-height);
+    }
 
-  .pr-diff-font {
-    font-family: var(--diff-font-family);
-    font-size: var(--diff-font-size);
-    line-height: var(--diff-line-height);
-  }
+    .pr-diff-font {
+        font-family: var(--diff-font-family);
+        font-size: var(--diff-font-size);
+        line-height: var(--diff-line-height);
+    }
 
-  .pr-diff-font pre,
-  .pr-diff-font code,
-  .pr-diff-font [data-line],
-  .pr-diff-font [data-column-number] {
-    font-family: var(--diff-font-family);
-    font-size: var(--diff-font-size);
-    line-height: var(--diff-line-height);
-  }
+    .pr-diff-font pre,
+    .pr-diff-font code,
+    .pr-diff-font [data-line],
+    .pr-diff-font [data-column-number] {
+        font-family: var(--diff-font-family);
+        font-size: var(--diff-font-size);
+        line-height: var(--diff-line-height);
+    }
 
-  .diff-content-scroll {
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) var(--card);
-  }
+    .diff-content-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) var(--card);
+    }
 
-  .diff-content-scroll::-webkit-scrollbar-track {
-    background: var(--card);
-  }
+    .diff-content-scroll::-webkit-scrollbar-track {
+        background: var(--card);
+    }
 
-  .diff-content-scroll::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border: 2px solid var(--card);
-  }
+    .diff-content-scroll::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border: 2px solid var(--card);
+    }
 
-  .diff-content-scroll::-webkit-scrollbar-thumb:hover {
-    background: var(--ring);
-  }
+    .diff-content-scroll::-webkit-scrollbar-thumb:hover {
+        background: var(--ring);
+    }
 
-  .diff-content-scroll::-webkit-scrollbar-corner {
-    background: var(--card);
-  }
+    .diff-content-scroll::-webkit-scrollbar-corner {
+        background: var(--card);
+    }
 }

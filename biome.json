@@ -1,25 +1,20 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
-  "files": {
-    "includes": [
-      "**",
-      "!**/dist",
-      "!**/node_modules",
-      "!.agents",
-      "!src/routeTree.gen.ts",
-      "!worker-configuration.d.ts"
-    ]
-  },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space"
-  },
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
+    "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
+    "files": {
+        "includes": ["**", "!**/dist", "!**/node_modules", "!.agents", "!src/routeTree.gen.ts", "!worker-configuration.d.ts"]
+    },
+    "formatter": {
+        "enabled": true,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 160
+    },
+    "css": {
+        "parser": {
+            "tailwindDirectives": true
+        }
+    },
+    "linter": {
+        "enabled": true
     }
-  },
-  "linter": {
-    "enabled": true
-  }
 }

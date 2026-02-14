@@ -1,30 +1,28 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLiveQuery } from "@tanstack/react-db";
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   ExternalLink,
   GitPullRequest,
-  House,
   Loader2,
   RefreshCw,
-  Settings2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { FileTree } from "@/components/file-tree";
 import { RepositorySelector } from "@/components/repository-selector";
+import { SettingsPanelContentOnly } from "@/components/settings-menu";
 import {
   getSettingsTreeItems,
-  SettingsPanel,
   settingsPathForTab,
   settingsTabFromPath,
-} from "@/components/settings-menu";
+} from "@/components/settings-navigation";
+import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type FileNode, useFileTree } from "@/lib/file-tree-context";
-import {
-  fetchRepoPullRequestsByHost,
-  getHostLabel,
-} from "@/lib/git-host/service";
+import { getRepoPullRequestCollection } from "@/lib/git-host/query-collections";
+import { getHostLabel } from "@/lib/git-host/service";
 import type {
   GitHost,
   PullRequestSummary,
@@ -44,6 +42,110 @@ type PullRequestTreeMeta = {
   repo: string;
   pullRequestId: string;
 };
+
+function parseJsonObject<T extends object>(value: unknown): T | undefined {
+  if (typeof value !== "string") return undefined;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object") return undefined;
+    return parsed as T;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizePullRequestRecord(record: unknown): {
+  repoKey: string;
+  host: GitHost;
+  repo: RepoRef;
+  pullRequest: PullRequestSummary;
+} | null {
+  if (!record || typeof record !== "object") return null;
+  const maybeWrapped = record as {
+    repoPullRequest?: unknown;
+    repoPullRequestRecord?: unknown;
+  };
+  const rawRecord =
+    maybeWrapped.repoPullRequest &&
+    typeof maybeWrapped.repoPullRequest === "object"
+      ? maybeWrapped.repoPullRequest
+      : maybeWrapped.repoPullRequestRecord &&
+          typeof maybeWrapped.repoPullRequestRecord === "object"
+        ? maybeWrapped.repoPullRequestRecord
+        : record;
+  const value = rawRecord as {
+    repoKey?: unknown;
+    host?: unknown;
+    repo?: Partial<RepoRef>;
+    repository?: Partial<RepoRef>;
+    repoJson?: unknown;
+    pullRequest?: Partial<PullRequestSummary>;
+    pr?: Partial<PullRequestSummary>;
+    pullRequestJson?: unknown;
+  };
+  if (value.host !== "bitbucket" && value.host !== "github") return null;
+  const parsedRepoSource = parseJsonObject<Partial<RepoRef>>(value.repoJson);
+  const parsedPullRequestSource = parseJsonObject<Partial<PullRequestSummary>>(
+    value.pullRequestJson,
+  );
+  const pullRequestSource =
+    value.pullRequest ?? value.pr ?? parsedPullRequestSource;
+  const repoSource = value.repo ?? value.repository ?? parsedRepoSource;
+  if (!repoSource || !pullRequestSource) return null;
+
+  const workspace = repoSource.workspace?.trim();
+  const repositorySlug = repoSource.repo?.trim();
+  if (!workspace || !repositorySlug) return null;
+
+  const pullRequestId = Number(pullRequestSource.id);
+  if (!Number.isFinite(pullRequestId)) return null;
+
+  const fullName =
+    typeof repoSource.fullName === "string" && repoSource.fullName.trim().length
+      ? repoSource.fullName.trim()
+      : `${workspace}/${repositorySlug}`;
+  const displayName =
+    typeof repoSource.displayName === "string" &&
+    repoSource.displayName.trim().length
+      ? repoSource.displayName.trim()
+      : repositorySlug;
+  const title =
+    typeof pullRequestSource.title === "string" &&
+    pullRequestSource.title.trim().length
+      ? pullRequestSource.title.trim()
+      : `#${pullRequestId}`;
+
+  return {
+    repoKey:
+      typeof value.repoKey === "string" && value.repoKey.trim().length
+        ? value.repoKey
+        : `${value.host}:${fullName}`,
+    host: value.host,
+    repo: {
+      host: value.host,
+      workspace,
+      repo: repositorySlug,
+      fullName,
+      displayName,
+    },
+    pullRequest: {
+      id: pullRequestId,
+      title,
+      state:
+        typeof pullRequestSource.state === "string"
+          ? pullRequestSource.state
+          : "OPEN",
+      links:
+        typeof pullRequestSource.links === "object"
+          ? pullRequestSource.links
+          : undefined,
+      author:
+        typeof pullRequestSource.author === "object"
+          ? pullRequestSource.author
+          : undefined,
+    },
+  };
+}
 
 function normalizeWorkspaceLabel(workspace: string, hostDomain: string) {
   const normalized = workspace
@@ -250,7 +352,7 @@ function buildPullRequestTree(
       const filteredPrs = repoMatches
         ? prs
         : prs.filter((pr) => {
-            const author = pr.author?.display_name ?? "";
+            const author = pr.author?.displayName ?? "";
             return (
               pr.title.toLowerCase().includes(term) ||
               String(pr.id).includes(term) ||
@@ -349,39 +451,83 @@ export function LandingPage({
     setDiffPanel("repositories");
   }, [initialHost, setActiveHost]);
 
-  const authenticatedHosts = useMemo(
-    () => HOSTS.filter((host) => authByHost[host]),
-    [authByHost],
+  const hostsWithSelectedRepos = useMemo(
+    () => HOSTS.filter((host) => reposByHost[host].length > 0),
+    [reposByHost],
   );
 
-  const repoPrsQuery = useQuery({
-    queryKey: ["repo-prs", reposByHost, authByHost],
-    queryFn: () =>
-      fetchRepoPullRequestsByHost({
-        hosts: authenticatedHosts,
+  const repoPullRequestCollection = useMemo(
+    () =>
+      getRepoPullRequestCollection({
+        hosts: hostsWithSelectedRepos,
         reposByHost,
       }),
-    enabled: authenticatedHosts.length > 0,
-  });
+    [hostsWithSelectedRepos, reposByHost],
+  );
+
+  const repoPullRequestsQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ repoPullRequest: repoPullRequestCollection.collection })
+        .select(({ repoPullRequest }) => ({ ...repoPullRequest })),
+    [repoPullRequestCollection],
+  );
+
+  useEffect(() => {
+    if (hostsWithSelectedRepos.length === 0) return;
+    // Keep landing PR data hot when selected repositories/auth state changes.
+    void repoPullRequestCollection.utils.refetch({ throwOnError: false });
+  }, [hostsWithSelectedRepos.length, repoPullRequestCollection]);
 
   const groupedPullRequests = useMemo(() => {
-    const data = repoPrsQuery.data ?? [];
-    return data
-      .map(({ repo, pullRequests }) => ({
-        host: repo.host,
-        repo,
-        pullRequests: [...pullRequests].sort((a, b) => b.id - a.id),
+    const selectedRepoKeys = new Set<string>();
+    for (const host of HOSTS) {
+      for (const repo of reposByHost[host]) {
+        selectedRepoKeys.add(`${host}:${repo.fullName}`);
+      }
+    }
+
+    const groupedByRepo = new Map<
+      string,
+      { host: GitHost; repo: RepoRef; pullRequests: PullRequestSummary[] }
+    >();
+
+    for (const record of repoPullRequestsQuery.data ?? []) {
+      const normalizedRecord = normalizePullRequestRecord(record);
+      if (!normalizedRecord) continue;
+      if (!selectedRepoKeys.has(normalizedRecord.repoKey)) continue;
+      const existing = groupedByRepo.get(normalizedRecord.repoKey);
+      if (existing) {
+        existing.pullRequests.push(normalizedRecord.pullRequest);
+        continue;
+      }
+
+      groupedByRepo.set(normalizedRecord.repoKey, {
+        host: normalizedRecord.host,
+        repo: normalizedRecord.repo,
+        pullRequests: [normalizedRecord.pullRequest],
+      });
+    }
+
+    return Array.from(groupedByRepo.values())
+      .map((entry) => ({
+        ...entry,
+        pullRequests: [...entry.pullRequests].sort((a, b) => b.id - a.id),
       }))
       .sort((a, b) => {
         if (a.host !== b.host) return a.host.localeCompare(b.host);
         return a.repo.fullName.localeCompare(b.repo.fullName);
       });
-  }, [repoPrsQuery.data]);
+  }, [repoPullRequestsQuery.data, reposByHost]);
 
   const pullRequestsByRepo = useMemo(() => {
     const map = new Map<string, PullRequestSummary[]>();
     for (const item of groupedPullRequests) {
-      map.set(`${item.host}:${item.repo.fullName}`, item.pullRequests);
+      const fullName =
+        item.repo.fullName?.trim() ||
+        `${item.repo.workspace.trim()}/${item.repo.repo.trim()}`;
+      if (!fullName) continue;
+      map.set(`${item.host}:${fullName}`, item.pullRequests);
     }
     return map;
   }, [groupedPullRequests]);
@@ -446,6 +592,12 @@ export function LandingPage({
 
   const selectedRepoCount =
     reposByHost.bitbucket.length + reposByHost.github.length;
+  const repoPullRequestError = repoPullRequestCollection.utils.lastError;
+  const isRepoPullRequestLoading =
+    hostsWithSelectedRepos.length > 0 &&
+    (repoPullRequestsQuery.isLoading ||
+      (repoPullRequestCollection.utils.isFetching &&
+        (repoPullRequestsQuery.data?.length ?? 0) === 0));
 
   return (
     <div className="h-full min-h-0 flex bg-background">
@@ -453,39 +605,19 @@ export function LandingPage({
         data-component="sidebar"
         className="w-[300px] shrink-0 border-r border-border bg-sidebar flex flex-col"
       >
-        <div
-          data-component="top-sidebar"
-          className="h-11 px-2 border-b border-border flex items-center gap-1"
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={() => {
-              setShowSettingsPanel(false);
-              setSearchQuery("");
-              setDiffPanel("pull-requests");
-              setActiveFile(undefined);
-              navigate({ to: "/" });
-            }}
-            aria-label="Home"
-          >
-            <House className="size-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant={showSettingsPanel ? "default" : "ghost"}
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={() => {
-              setShowSettingsPanel((prev) => !prev);
-            }}
-            aria-label="Settings"
-          >
-            <Settings2 className="size-3.5" />
-          </Button>
-        </div>
+        <SidebarTopControls
+          onHome={() => {
+            setShowSettingsPanel(false);
+            setSearchQuery("");
+            setDiffPanel("pull-requests");
+            setActiveFile(undefined);
+            navigate({ to: "/" });
+          }}
+          onSettings={() => {
+            setShowSettingsPanel((prev) => !prev);
+          }}
+          settingsActive={showSettingsPanel}
+        />
 
         <div
           data-component="search-sidebar"
@@ -634,8 +766,7 @@ export function LandingPage({
         >
           {showSettingsPanel ? (
             <div className="h-full min-h-0">
-              <SettingsPanel
-                showSidebar={false}
+              <SettingsPanelContentOnly
                 activeTab={settingsTabFromPath(activeFile) ?? "appearance"}
                 onActiveTabChange={(tab) => {
                   setActiveFile(settingsPathForTab(tab));
@@ -724,19 +855,19 @@ export function LandingPage({
                 Select Repositories
               </Button>
             </div>
-          ) : repoPrsQuery.isLoading ? (
+          ) : isRepoPullRequestLoading ? (
             <div className="flex items-center gap-2 text-muted-foreground text-[13px]">
               <Loader2 className="size-4 animate-spin" />
               <span>Loading pull requests...</span>
             </div>
-          ) : repoPrsQuery.error ? (
+          ) : repoPullRequestError ? (
             <div className="border border-destructive bg-destructive/10 p-4 text-destructive text-[13px] max-w-2xl">
               <div className="flex items-center gap-2">
                 <AlertCircle className="size-4" />
                 <span>
                   [ERROR]{" "}
-                  {repoPrsQuery.error instanceof Error
-                    ? repoPrsQuery.error.message
+                  {repoPullRequestError instanceof Error
+                    ? repoPullRequestError.message
                     : "Failed to load pull requests"}
                 </span>
               </div>
@@ -806,7 +937,7 @@ export function LandingPage({
                             </div>
                             <div className="text-[11px] text-muted-foreground mt-0.5">
                               #{pr.id} -{" "}
-                              {pr.author?.display_name ?? "Unknown author"}
+                              {pr.author?.displayName ?? "Unknown author"}
                             </div>
                           </button>
                         ))}

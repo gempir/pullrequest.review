@@ -19,8 +19,8 @@ export interface DiffStatEntry {
   status: "added" | "modified" | "removed" | "renamed";
   new?: { path?: string };
   old?: { path?: string };
-  lines_added?: number;
-  lines_removed?: number;
+  linesAdded?: number;
+  linesRemoved?: number;
 }
 
 export interface PullRequestSummary {
@@ -28,7 +28,7 @@ export interface PullRequestSummary {
   title: string;
   state: string;
   links?: { html?: { href?: string } };
-  author?: { display_name?: string; avatar_url?: string };
+  author?: { displayName?: string; avatarUrl?: string };
 }
 
 export interface Commit {
@@ -37,22 +37,22 @@ export interface Commit {
   message?: string;
   summary?: { raw?: string };
   author?: {
-    user?: { display_name?: string; avatar_url?: string };
+    user?: { displayName?: string; avatarUrl?: string };
     raw?: string;
   };
 }
 
 export interface Comment {
   id: number;
-  created_on?: string;
-  updated_on?: string;
+  createdAt?: string;
+  updatedAt?: string;
   deleted?: boolean;
   pending?: boolean;
   content?: { raw?: string; html?: string };
-  user?: { display_name?: string; avatar_url?: string };
+  user?: { displayName?: string; avatarUrl?: string };
   inline?: { path?: string; to?: number; from?: number };
   parent?: { id?: number };
-  resolution?: { user?: { display_name?: string; avatar_url?: string } } | null;
+  resolution?: { user?: { displayName?: string; avatarUrl?: string } } | null;
   hostThreadId?: string;
 }
 
@@ -62,24 +62,24 @@ export interface PullRequestDetails {
   description?: string;
   state: string;
   draft?: boolean;
-  comment_count?: number;
-  task_count?: number;
-  created_on?: string;
-  updated_on?: string;
-  closed_on?: string;
-  merged_on?: string;
-  author?: { display_name?: string; avatar_url?: string };
+  commentCount?: number;
+  taskCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  closedAt?: string;
+  mergedAt?: string;
+  author?: { displayName?: string; avatarUrl?: string };
   source?: {
     branch?: { name?: string };
-    repository?: { full_name?: string };
+    repository?: { fullName?: string };
   };
   destination?: {
     branch?: { name?: string };
-    repository?: { full_name?: string };
+    repository?: { fullName?: string };
   };
   participants?: Array<{
     approved?: boolean;
-    user?: { display_name?: string; avatar_url?: string };
+    user?: { displayName?: string; avatarUrl?: string };
   }>;
   links?: { html?: { href?: string } };
 }
@@ -87,11 +87,11 @@ export interface PullRequestDetails {
 export type PullRequestHistoryEventType =
   | "comment"
   | "approved"
-  | "changes_requested"
-  | "review_requested"
-  | "review_dismissed"
-  | "reviewer_added"
-  | "reviewer_removed"
+  | "changesRequested"
+  | "reviewRequested"
+  | "reviewDismissed"
+  | "reviewerAdded"
+  | "reviewerRemoved"
   | "opened"
   | "updated"
   | "closed"
@@ -101,26 +101,26 @@ export type PullRequestHistoryEventType =
 export interface PullRequestHistoryEvent {
   id: string;
   type: PullRequestHistoryEventType;
-  created_on?: string;
-  actor?: { display_name?: string; avatar_url?: string };
+  createdAt?: string;
+  actor?: { displayName?: string; avatarUrl?: string };
   content?: string;
   details?: string;
 }
 
 export type PullRequestReviewerStatus =
   | "approved"
-  | "changes_requested"
+  | "changesRequested"
   | "commented"
   | "pending";
 
 export interface PullRequestReviewer {
   id: string;
-  display_name?: string;
-  avatar_url?: string;
+  displayName?: string;
+  avatarUrl?: string;
   status: PullRequestReviewerStatus;
   approved: boolean;
   requested?: boolean;
-  updated_on?: string;
+  updatedAt?: string;
 }
 
 export type PullRequestBuildState =
@@ -137,8 +137,8 @@ export interface PullRequestBuildStatus {
   state: PullRequestBuildState;
   url?: string;
   provider?: string;
-  started_on?: string;
-  completed_on?: string;
+  startedAt?: string;
+  completedAt?: string;
 }
 
 export interface PullRequestBundle {

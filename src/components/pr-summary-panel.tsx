@@ -44,15 +44,15 @@ function eventLabel(type: PullRequestHistoryEvent["type"]) {
       return "Comment";
     case "approved":
       return "Approved";
-    case "changes_requested":
+    case "changesRequested":
       return "Changes Requested";
-    case "review_requested":
+    case "reviewRequested":
       return "Review Requested";
-    case "review_dismissed":
+    case "reviewDismissed":
       return "Review Dismissed";
-    case "reviewer_added":
+    case "reviewerAdded":
       return "Reviewer Added";
-    case "reviewer_removed":
+    case "reviewerRemoved":
       return "Reviewer Removed";
     case "opened":
       return "Opened";
@@ -186,10 +186,10 @@ export function PullRequestSummaryPanel({
             (comment): PullRequestHistoryEvent => ({
               id: `fallback-comment-${comment.id}`,
               type: "comment",
-              created_on: comment.created_on,
+              createdAt: comment.createdAt,
               actor: {
-                display_name: comment.user?.display_name,
-                avatar_url: comment.user?.avatar_url,
+                displayName: comment.user?.displayName,
+                avatarUrl: comment.user?.avatarUrl,
               },
               content: comment.content?.raw,
             }),
@@ -199,8 +199,8 @@ export function PullRequestSummaryPanel({
   );
   const orderedHistory = [...visibleHistory].sort(
     (a, b) =>
-      new Date(b.created_on ?? 0).getTime() -
-      new Date(a.created_on ?? 0).getTime(),
+      new Date(b.createdAt ?? 0).getTime() -
+      new Date(a.createdAt ?? 0).getTime(),
   );
 
   return (
@@ -250,18 +250,18 @@ export function PullRequestSummaryPanel({
                   <div key={event.id} className="px-2.5 py-2">
                     <div className="flex items-center gap-2 text-[11px]">
                       <Avatar
-                        name={event.actor?.display_name}
-                        url={event.actor?.avatar_url}
+                        name={event.actor?.displayName}
+                        url={event.actor?.avatarUrl}
                         sizeClass="size-4"
                       />
                       <span className="text-foreground">
                         {eventLabel(event.type)}
                       </span>
                       <span className="text-muted-foreground">
-                        {event.actor?.display_name ?? "Unknown"}
+                        {event.actor?.displayName ?? "Unknown"}
                       </span>
                       <span className="ml-auto text-muted-foreground">
-                        {formatDate(event.created_on)}
+                        {formatDate(event.createdAt)}
                       </span>
                     </div>
                     {event.details ? (
@@ -309,14 +309,14 @@ export function PullRequestSummaryPanel({
                       <div className="min-w-0 flex items-center gap-2">
                         <Avatar
                           name={
-                            commit.author?.user?.display_name ??
+                            commit.author?.user?.displayName ??
                             commit.author?.raw
                           }
-                          url={commit.author?.user?.avatar_url}
+                          url={commit.author?.user?.avatarUrl}
                           sizeClass="size-4"
                         />
                         <span className="truncate text-foreground">
-                          {commit.author?.user?.display_name ??
+                          {commit.author?.user?.displayName ??
                             commit.author?.raw ??
                             "Unknown"}
                         </span>

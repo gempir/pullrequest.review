@@ -12,8 +12,8 @@ import {
   SlidersHorizontal,
   SwatchBook,
 } from "lucide-react";
-import { FileIcon } from "react-files-icons";
 import { GitHostIcon } from "@/components/git-host-icon";
+import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import {
   type ChangeKind,
   type FileNode,
@@ -40,6 +40,7 @@ const SETTINGS_PATH_PREFIX = "__settings__/";
 const HOME_PATH = "__home__";
 const PR_PATH_PREFIX = "pr:";
 const REPO_PATH_PREFIX = "repo:";
+const HOST_PATH_PREFIX = "host:";
 
 function kindColor(kind: ChangeKind) {
   switch (kind) {
@@ -78,6 +79,10 @@ function isRepositoryPath(path: string) {
   return path.startsWith(REPO_PATH_PREFIX);
 }
 
+function isHostPath(path: string) {
+  return path.startsWith(HOST_PATH_PREFIX);
+}
+
 function hostFromTreePath(path: string): GitHost | null {
   const [, host] = path.split(":");
   if (host === "github" || host === "bitbucket") return host;
@@ -110,7 +115,7 @@ export function FileTree({
 }: FileTreeProps) {
   const tree = useFileTree();
   const resolvedKinds = kinds ?? tree.kinds;
-  const rawNodes = tree.children(path);
+  const rawNodes = tree.getChildrenForPath(path);
   const active = activeFile ?? tree.activeFile;
   const treeIndentSize = tree.treeIndentSize;
   const normalizedQuery = filterQuery?.trim().toLowerCase() ?? "";
@@ -127,7 +132,7 @@ export function FileTree({
       const allowedMatch = !allowedFiles || allowedFiles.has(node.path);
       return queryMatch && allowedMatch;
     }
-    const children = tree.children(node.path);
+    const children = tree.getChildrenForPath(node.path);
     const host = hostFromTreePath(node.path);
     if (host && children.length === 0) {
       if (!normalizedQuery) return true;
@@ -211,9 +216,10 @@ function DirectoryNode({
   let displayNode = node;
   const nameParts = [node.name];
 
-  if (compactEnabled) {
+  // Keep host roots stable and visible in landing trees.
+  if (compactEnabled && !isHostPath(node.path)) {
     while (true) {
-      const children = tree.children(displayNode.path);
+      const children = tree.getChildrenForPath(displayNode.path);
       if (children.length !== 1) break;
       const nextNode = children[0];
       if (nextNode.type !== "directory") break;
@@ -230,7 +236,7 @@ function DirectoryNode({
   const isRepositoryNode = isRepositoryPath(displayNode.path);
   const pullRequestCount = isRepositoryNode
     ? tree
-        .children(displayNode.path)
+        .getChildrenForPath(displayNode.path)
         .filter(
           (child) => child.type === "file" && isPullRequestPath(child.path),
         ).length
@@ -368,7 +374,7 @@ function FileNodeRow({
         ) : isPullRequestNode ? (
           <GitPullRequest className="size-3.5" />
         ) : (
-          <FileIcon name={node.name} className="size-3.5" />
+          <RepositoryFileIcon fileName={node.name} className="size-3.5" />
         )}
       </span>
       {kindMarker(kind)}

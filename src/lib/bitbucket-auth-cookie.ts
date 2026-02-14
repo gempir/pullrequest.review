@@ -1,3 +1,9 @@
+import {
+  readStorageValue,
+  removeStorageValue,
+  writeStorageValue,
+} from "@/lib/storage/versioned-local-storage";
+
 const BITBUCKET_AUTH_KEY = "bitbucket_auth";
 
 interface BitbucketSessionCookie {
@@ -21,10 +27,7 @@ function parseStoredCredentials(
 }
 
 function readStoredCredentials() {
-  if (typeof window === "undefined") return null;
-  return parseStoredCredentials(
-    window.localStorage.getItem(BITBUCKET_AUTH_KEY),
-  );
+  return parseStoredCredentials(readStorageValue(BITBUCKET_AUTH_KEY));
 }
 
 function encodeBasicAuth(email: string, apiToken: string) {
@@ -46,8 +49,7 @@ export function requireBitbucketBasicAuthHeader() {
 }
 
 export function setBitbucketCredentials(email: string, apiToken: string) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(
+  writeStorageValue(
     BITBUCKET_AUTH_KEY,
     JSON.stringify({ email, apiToken } satisfies BitbucketSessionCookie),
   );
@@ -59,6 +61,5 @@ export function hasBitbucketSession() {
 }
 
 export function clearBitbucketSession() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(BITBUCKET_AUTH_KEY);
+  removeStorageValue(BITBUCKET_AUTH_KEY);
 }

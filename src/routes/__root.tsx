@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import {
   createRootRoute,
   HeadContent,
@@ -10,23 +10,25 @@ import {
   useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
-import { ExternalLink, GitPullRequest, House, Settings2 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { ExternalLink, GitPullRequest } from "lucide-react";
+import { type ReactNode, useEffect, useState } from "react";
 import { GitHostIcon } from "@/components/git-host-icon";
+import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppearanceProvider } from "@/lib/appearance-context";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
+import { ensureGitHostDataReady } from "@/lib/git-host/query-collections";
 import { getHostLabel } from "@/lib/git-host/service";
 import type { GitHost } from "@/lib/git-host/types";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
+import { appQueryClient } from "@/lib/query-client";
 import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
+import { ensureStorageReady } from "@/lib/storage/versioned-local-storage";
 
 import "../../styles.css";
-
-const queryClient = new QueryClient();
 
 export const Route = createRootRoute({
   head: () => ({
@@ -62,21 +64,40 @@ function NotFoundComponent() {
 }
 
 function RootComponent() {
+  const [storageReady, setStorageReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([ensureStorageReady(), ensureGitHostDataReady()]).finally(
+      () => {
+        if (cancelled) return;
+        setStorageReady(true);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <RootDocument>
-      <QueryClientProvider client={queryClient}>
-        <AppearanceProvider>
-          <PrProvider>
-            <DiffOptionsProvider>
-              <ShikiAppThemeSync />
-              <FileTreeProvider>
-                <ShortcutsProvider>
-                  <AppLayout />
-                </ShortcutsProvider>
-              </FileTreeProvider>
-            </DiffOptionsProvider>
-          </PrProvider>
-        </AppearanceProvider>
+      <QueryClientProvider client={appQueryClient}>
+        {storageReady ? (
+          <AppearanceProvider>
+            <PrProvider>
+              <DiffOptionsProvider>
+                <ShikiAppThemeSync />
+                <FileTreeProvider>
+                  <ShortcutsProvider>
+                    <AppLayout />
+                  </ShortcutsProvider>
+                </FileTreeProvider>
+              </DiffOptionsProvider>
+            </PrProvider>
+          </AppearanceProvider>
+        ) : (
+          <div className="h-full bg-background" />
+        )}
       </QueryClientProvider>
     </RootDocument>
   );
@@ -108,35 +129,14 @@ function OnboardingScreen() {
         data-component="sidebar"
         className="w-[300px] shrink-0 border-r border-border bg-sidebar flex flex-col"
       >
-        <div
-          data-component="top-sidebar"
-          className="h-11 px-2 border-b border-border flex items-center gap-1"
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            aria-label="Home"
-            onClick={() => {
-              navigate({ to: "/" });
-            }}
-          >
-            <House className="size-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            aria-label="Settings"
-            onClick={() => {
-              navigate({ to: "/settings" });
-            }}
-          >
-            <Settings2 className="size-3.5" />
-          </Button>
-        </div>
+        <SidebarTopControls
+          onHome={() => {
+            navigate({ to: "/" });
+          }}
+          onSettings={() => {
+            navigate({ to: "/settings" });
+          }}
+        />
         <div
           data-component="search-sidebar"
           className="h-10 pl-2 pr-2 border-b border-border flex items-center"

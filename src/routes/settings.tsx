@@ -1,14 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { House, Settings2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { FileTree } from "@/components/file-tree";
+import { SettingsPanelContentOnly } from "@/components/settings-menu";
 import {
   getSettingsTreeItems,
-  SettingsPanel,
   settingsPathForTab,
   settingsTabFromPath,
-} from "@/components/settings-menu";
-import { Button } from "@/components/ui/button";
+} from "@/components/settings-navigation";
+import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Input } from "@/components/ui/input";
 import { type FileNode, useFileTree } from "@/lib/file-tree-context";
 
@@ -50,32 +49,12 @@ function SettingsRoute() {
         data-component="sidebar"
         className="w-[300px] shrink-0 border-r border-border bg-sidebar flex flex-col"
       >
-        <div
-          data-component="top-sidebar"
-          className="h-11 px-2 border-b border-border flex items-center gap-1"
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={() => {
-              navigate({ to: "/" });
-            }}
-            aria-label="Home"
-          >
-            <House className="size-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            className="h-8 w-8 p-0"
-            aria-label="Settings"
-          >
-            <Settings2 className="size-3.5" />
-          </Button>
-        </div>
+        <SidebarTopControls
+          onHome={() => {
+            navigate({ to: "/" });
+          }}
+          settingsActive
+        />
 
         <div
           data-component="search-sidebar"
@@ -116,8 +95,7 @@ function SettingsRoute() {
           className="flex-1 min-h-0 overflow-y-auto"
         >
           <div className="h-full min-h-0">
-            <SettingsPanel
-              showSidebar={false}
+            <SettingsPanelContentOnly
               activeTab={settingsTabFromPath(activeFile) ?? "appearance"}
               onActiveTabChange={(tab) => {
                 setActiveFile(settingsPathForTab(tab));

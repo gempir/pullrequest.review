@@ -5,6 +5,7 @@
       "**",
       "!**/dist",
       "!**/node_modules",
+      "!.agents",
       "!src/routeTree.gen.ts",
       "!worker-configuration.d.ts"
     ]

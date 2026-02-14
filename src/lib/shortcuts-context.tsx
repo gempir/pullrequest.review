@@ -5,8 +5,15 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import {
+  makeVersionedStorageKey,
+  readLocalStorageValue,
+  removeLocalStorageKeys,
+  writeLocalStorageValue,
+} from "@/lib/storage/versioned-local-storage";
 
 export interface ShortcutConfig {
   key: string;
@@ -73,7 +80,8 @@ const DEFAULT_SHORTCUTS: Shortcuts = {
   },
 };
 
-const STORAGE_KEY = "pr_review_shortcuts";
+const STORAGE_KEY_BASE = "pr_review_shortcuts";
+const STORAGE_KEY = makeVersionedStorageKey(STORAGE_KEY_BASE, 2);
 
 interface ShortcutsContextType {
   shortcuts: Shortcuts;
@@ -92,22 +100,21 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    const stored = readLocalStorageValue(STORAGE_KEY);
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as Shortcuts;
         setShortcuts({ ...DEFAULT_SHORTCUTS, ...parsed });
       } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
+        removeLocalStorageKeys([STORAGE_KEY]);
       }
     }
     setHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (!hydrated || typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(shortcuts));
+    if (!hydrated) return;
+    writeLocalStorageValue(STORAGE_KEY, JSON.stringify(shortcuts));
   }, [shortcuts, hydrated]);
 
   const updateShortcut = useCallback(
@@ -158,6 +165,25 @@ export function useShortcuts() {
   return ctx;
 }
 
+export function isEditableShortcutTarget(target: EventTarget | null): boolean {
+  if (!target || typeof target !== "object") return false;
+
+  const maybeElement = target as {
+    tagName?: string;
+    isContentEditable?: boolean;
+    closest?: (selector: string) => unknown;
+  };
+  const tagName = maybeElement.tagName?.toLowerCase();
+  if (tagName === "input" || tagName === "textarea" || tagName === "select") {
+    return true;
+  }
+  if (maybeElement.isContentEditable) return true;
+  if (typeof maybeElement.closest === "function") {
+    return maybeElement.closest('[contenteditable="true"]') !== null;
+  }
+  return false;
+}
+
 export function useKeyboardNavigation({
   onNextUnviewedFile,
   onPreviousUnviewedFile,
@@ -178,58 +204,34 @@ export function useKeyboardNavigation({
   onRequestChangesPullRequest?: () => void;
 }) {
   const { shortcuts } = useShortcuts();
+  const shortcutsRef = useRef(shortcuts);
+  const handlersRef = useRef({
+    onNextUnviewedFile,
+    onPreviousUnviewedFile,
+    onScrollDown,
+    onScrollUp,
+    onNextFile,
+    onPreviousFile,
+    onApprovePullRequest,
+    onRequestChangesPullRequest,
+  });
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts when typing in inputs
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      ) {
-        return;
-      }
+    shortcutsRef.current = shortcuts;
+  }, [shortcuts]);
 
-      const matchesShortcut = (shortcut: ShortcutConfig): boolean => {
-        if (e.key.toLowerCase() !== shortcut.key.toLowerCase()) return false;
-        if (e.ctrlKey !== !!shortcut.modifiers.ctrl) return false;
-        if (e.altKey !== !!shortcut.modifiers.alt) return false;
-        if (e.shiftKey !== !!shortcut.modifiers.shift) return false;
-        if (e.metaKey !== !!shortcut.modifiers.meta) return false;
-        return true;
-      };
-
-      if (matchesShortcut(shortcuts.nextUnviewedFile)) {
-        e.preventDefault();
-        onNextUnviewedFile?.();
-      } else if (matchesShortcut(shortcuts.previousUnviewedFile)) {
-        e.preventDefault();
-        onPreviousUnviewedFile?.();
-      } else if (matchesShortcut(shortcuts.scrollDown)) {
-        e.preventDefault();
-        onScrollDown?.();
-      } else if (matchesShortcut(shortcuts.scrollUp)) {
-        e.preventDefault();
-        onScrollUp?.();
-      } else if (matchesShortcut(shortcuts.nextFile)) {
-        e.preventDefault();
-        onNextFile?.();
-      } else if (matchesShortcut(shortcuts.previousFile)) {
-        e.preventDefault();
-        onPreviousFile?.();
-      } else if (matchesShortcut(shortcuts.approvePullRequest)) {
-        e.preventDefault();
-        onApprovePullRequest?.();
-      } else if (matchesShortcut(shortcuts.requestChangesPullRequest)) {
-        e.preventDefault();
-        onRequestChangesPullRequest?.();
-      }
+  useEffect(() => {
+    handlersRef.current = {
+      onNextUnviewedFile,
+      onPreviousUnviewedFile,
+      onScrollDown,
+      onScrollUp,
+      onNextFile,
+      onPreviousFile,
+      onApprovePullRequest,
+      onRequestChangesPullRequest,
     };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
-    shortcuts,
     onNextUnviewedFile,
     onPreviousUnviewedFile,
     onScrollDown,
@@ -239,4 +241,56 @@ export function useKeyboardNavigation({
     onApprovePullRequest,
     onRequestChangesPullRequest,
   ]);
+
+  useEffect(() => {
+    const matchesShortcut = (
+      event: KeyboardEvent,
+      shortcut: ShortcutConfig,
+    ) => {
+      if (event.key.toLowerCase() !== shortcut.key.toLowerCase()) return false;
+      if (event.ctrlKey !== !!shortcut.modifiers.ctrl) return false;
+      if (event.altKey !== !!shortcut.modifiers.alt) return false;
+      if (event.shiftKey !== !!shortcut.modifiers.shift) return false;
+      if (event.metaKey !== !!shortcut.modifiers.meta) return false;
+      return true;
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isEditableShortcutTarget(event.target)) return;
+
+      const activeShortcuts = shortcutsRef.current;
+      const handlers = handlersRef.current;
+
+      if (matchesShortcut(event, activeShortcuts.nextUnviewedFile)) {
+        event.preventDefault();
+        handlers.onNextUnviewedFile?.();
+      } else if (matchesShortcut(event, activeShortcuts.previousUnviewedFile)) {
+        event.preventDefault();
+        handlers.onPreviousUnviewedFile?.();
+      } else if (matchesShortcut(event, activeShortcuts.scrollDown)) {
+        event.preventDefault();
+        handlers.onScrollDown?.();
+      } else if (matchesShortcut(event, activeShortcuts.scrollUp)) {
+        event.preventDefault();
+        handlers.onScrollUp?.();
+      } else if (matchesShortcut(event, activeShortcuts.nextFile)) {
+        event.preventDefault();
+        handlers.onNextFile?.();
+      } else if (matchesShortcut(event, activeShortcuts.previousFile)) {
+        event.preventDefault();
+        handlers.onPreviousFile?.();
+      } else if (matchesShortcut(event, activeShortcuts.approvePullRequest)) {
+        event.preventDefault();
+        handlers.onApprovePullRequest?.();
+      } else if (
+        matchesShortcut(event, activeShortcuts.requestChangesPullRequest)
+      ) {
+        event.preventDefault();
+        handlers.onRequestChangesPullRequest?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 }

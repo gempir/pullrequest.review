@@ -19,7 +19,7 @@ import {
   type FileNode,
   useFileTree,
 } from "@/lib/file-tree-context";
-import type { GitHost } from "@/lib/git-host/types";
+import { isGitHost } from "@/lib/git-host/host";
 import { cn } from "@/lib/utils";
 
 interface FileTreeProps {
@@ -78,10 +78,9 @@ function isRepositoryPath(path: string) {
   return path.startsWith(REPO_PATH_PREFIX);
 }
 
-function hostFromTreePath(path: string): GitHost | null {
+function hostFromTreePath(path: string) {
   const [, host] = path.split(":");
-  if (host === "github" || host === "bitbucket") return host;
-  return null;
+  return host && isGitHost(host) ? host : null;
 }
 
 function settingsIcon(path: string) {

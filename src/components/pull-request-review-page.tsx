@@ -93,7 +93,14 @@ import {
   type Comment as PullRequestComment,
 } from "@/lib/git-host/types";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
-import { makeDirectoryStateStorageKey } from "@/lib/review-storage";
+import {
+  makeDirectoryStateStorageKey,
+  makeInlineActiveDraftLegacyStorageKey,
+  makeInlineActiveDraftStorageKey,
+  makeInlineDraftLegacyStorageKey,
+  makeInlineDraftStorageKey,
+  parseInlineDraftStorageKey,
+} from "@/lib/review-storage";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
@@ -130,12 +137,6 @@ interface CommentThread {
 const TREE_WIDTH_KEY = "pr_review_tree_width";
 const TREE_COLLAPSED_KEY = "pr_review_tree_collapsed";
 const VIEW_MODE_KEY = "pr_review_diff_view_mode";
-const INLINE_DRAFT_STORAGE_KEY_PREFIX = "pr_review_inline_comment_draft";
-const INLINE_DRAFT_STORAGE_KEY_PREFIX_LEGACY = "bitbucket_inline_comment_draft";
-const INLINE_ACTIVE_DRAFT_STORAGE_KEY_PREFIX =
-  "pr_review_inline_comment_active";
-const INLINE_ACTIVE_DRAFT_STORAGE_KEY_PREFIX_LEGACY =
-  "bitbucket_inline_comment_active";
 const DEFAULT_TREE_WIDTH = 280;
 const MIN_TREE_WIDTH = 180;
 const MAX_TREE_WIDTH = 520;
@@ -325,69 +326,6 @@ function getCommentInlinePosition(comment: PullRequestComment) {
   if (!lineNumber) return null;
   const side: CommentLineSide = to ? "additions" : "deletions";
   return { side, lineNumber };
-}
-
-function inlineDraftStorageKey(
-  workspace: string,
-  repo: string,
-  pullRequestId: string,
-  draft: Pick<InlineCommentDraft, "path" | "line" | "side">,
-) {
-  return `${INLINE_DRAFT_STORAGE_KEY_PREFIX}:${workspace}/${repo}/${pullRequestId}:${draft.side}:${draft.line}:${encodeURIComponent(draft.path)}`;
-}
-
-function inlineDraftStorageKeyLegacy(
-  workspace: string,
-  repo: string,
-  pullRequestId: string,
-  draft: Pick<InlineCommentDraft, "path" | "line" | "side">,
-) {
-  return `${INLINE_DRAFT_STORAGE_KEY_PREFIX_LEGACY}:${workspace}/${repo}/${pullRequestId}:${draft.side}:${draft.line}:${encodeURIComponent(draft.path)}`;
-}
-
-function inlineActiveDraftStorageKey(
-  workspace: string,
-  repo: string,
-  pullRequestId: string,
-) {
-  return `${INLINE_ACTIVE_DRAFT_STORAGE_KEY_PREFIX}:${workspace}/${repo}/${pullRequestId}`;
-}
-
-function inlineActiveDraftStorageKeyLegacy(
-  workspace: string,
-  repo: string,
-  pullRequestId: string,
-) {
-  return `${INLINE_ACTIVE_DRAFT_STORAGE_KEY_PREFIX_LEGACY}:${workspace}/${repo}/${pullRequestId}`;
-}
-
-function parseInlineDraftStorageKey(
-  key: string,
-  workspace: string,
-  repo: string,
-  pullRequestId: string,
-): InlineCommentDraft | null {
-  const prefixes = [
-    `${INLINE_DRAFT_STORAGE_KEY_PREFIX}:${workspace}/${repo}/${pullRequestId}:`,
-    `${INLINE_DRAFT_STORAGE_KEY_PREFIX_LEGACY}:${workspace}/${repo}/${pullRequestId}:`,
-  ];
-  const prefix = prefixes.find((item) => key.startsWith(item));
-  if (!prefix) return null;
-  const rest = key.slice(prefix.length);
-  const firstColon = rest.indexOf(":");
-  const secondColon = rest.indexOf(":", firstColon + 1);
-  if (firstColon < 0 || secondColon < 0) return null;
-  const side = rest.slice(0, firstColon);
-  const lineRaw = rest.slice(firstColon + 1, secondColon);
-  const encodedPath = rest.slice(secondColon + 1);
-  if (side !== "additions" && side !== "deletions") return null;
-  const line = Number(lineRaw);
-  if (!Number.isFinite(line) || line <= 0) return null;
-  return {
-    side,
-    line,
-    path: decodeURIComponent(encodedPath),
-  };
 }
 
 function getFilePath(fileDiff: FileDiffMetadata, index: number) {
@@ -1314,13 +1252,13 @@ export function PullRequestReviewPage({
   const getInlineDraftContent = useCallback(
     (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => {
       if (typeof window === "undefined") return "";
-      const nextKey = inlineDraftStorageKey(
+      const nextKey = makeInlineDraftStorageKey(
         workspace,
         repo,
         pullRequestId,
         draft,
       );
-      const legacyKey = inlineDraftStorageKeyLegacy(
+      const legacyKey = makeInlineDraftLegacyStorageKey(
         workspace,
         repo,
         pullRequestId,
@@ -1341,8 +1279,13 @@ export function PullRequestReviewPage({
       content: string,
     ) => {
       if (typeof window === "undefined") return;
-      const key = inlineDraftStorageKey(workspace, repo, pullRequestId, draft);
-      const activeKey = inlineActiveDraftStorageKey(
+      const key = makeInlineDraftStorageKey(
+        workspace,
+        repo,
+        pullRequestId,
+        draft,
+      );
+      const activeKey = makeInlineActiveDraftStorageKey(
         workspace,
         repo,
         pullRequestId,
@@ -1350,11 +1293,16 @@ export function PullRequestReviewPage({
       if (content.length > 0) {
         window.localStorage.setItem(key, content);
         window.localStorage.removeItem(
-          inlineDraftStorageKeyLegacy(workspace, repo, pullRequestId, draft),
+          makeInlineDraftLegacyStorageKey(
+            workspace,
+            repo,
+            pullRequestId,
+            draft,
+          ),
         );
         window.localStorage.setItem(activeKey, JSON.stringify(draft));
         window.localStorage.removeItem(
-          inlineActiveDraftStorageKeyLegacy(workspace, repo, pullRequestId),
+          makeInlineActiveDraftLegacyStorageKey(workspace, repo, pullRequestId),
         );
       } else {
         window.localStorage.removeItem(key);
@@ -1380,7 +1328,7 @@ export function PullRequestReviewPage({
   const clearInlineDraftContent = useCallback(
     (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => {
       if (typeof window === "undefined") return;
-      const activeKey = inlineActiveDraftStorageKey(
+      const activeKey = makeInlineActiveDraftStorageKey(
         workspace,
         repo,
         pullRequestId,
@@ -1401,10 +1349,10 @@ export function PullRequestReviewPage({
         }
       }
       window.localStorage.removeItem(
-        inlineDraftStorageKey(workspace, repo, pullRequestId, draft),
+        makeInlineDraftStorageKey(workspace, repo, pullRequestId, draft),
       );
       window.localStorage.removeItem(
-        inlineDraftStorageKeyLegacy(workspace, repo, pullRequestId, draft),
+        makeInlineDraftLegacyStorageKey(workspace, repo, pullRequestId, draft),
       );
     },
     [pullRequestId, repo, workspace],
@@ -1412,12 +1360,12 @@ export function PullRequestReviewPage({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const activeKey = inlineActiveDraftStorageKey(
+    const activeKey = makeInlineActiveDraftStorageKey(
       workspace,
       repo,
       pullRequestId,
     );
-    const legacyActiveKey = inlineActiveDraftStorageKeyLegacy(
+    const legacyActiveKey = makeInlineActiveDraftLegacyStorageKey(
       workspace,
       repo,
       pullRequestId,
@@ -2462,7 +2410,7 @@ export function PullRequestReviewPage({
                             {metadata.kind === "draft" ? (
                               <div className="space-y-2">
                                 <CommentEditor
-                                  key={inlineDraftStorageKey(
+                                  key={makeInlineDraftStorageKey(
                                     workspace,
                                     repo,
                                     pullRequestId,

@@ -1,4 +1,5 @@
 import { getHostCapabilities, getHostClient } from "@/lib/git-host/registry";
+import { getGitHostLabel } from "@/lib/git-host/host";
 import type { GitHost, PullRequestRef, RepoRef } from "@/lib/git-host/types";
 
 export async function fetchRepoPullRequestsByHost(data: {
@@ -95,5 +96,5 @@ export async function logoutHost(data: { host: GitHost }) {
 }
 
 export function getHostLabel(host: GitHost) {
-  return host === "bitbucket" ? "Bitbucket" : "GitHub";
+  return getGitHostLabel(host);
 }

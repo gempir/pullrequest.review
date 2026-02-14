@@ -1,3 +1,4 @@
+import { parseFailureBody } from "@/lib/git-host/shared/http";
 import {
   type AuthState,
   type Comment,
@@ -23,7 +24,15 @@ interface BitbucketCredentials {
 }
 
 interface BitbucketPullRequestPage {
-  values: PullRequestSummary[];
+  values: BitbucketPullRequestSummaryRaw[];
+}
+
+interface BitbucketPullRequestSummaryRaw {
+  id: number;
+  title: string;
+  state: string;
+  links?: PullRequestSummary["links"];
+  author?: BitbucketUser;
 }
 
 interface BitbucketUser {
@@ -52,8 +61,16 @@ interface BitbucketPullRequestRaw {
 }
 
 interface BitbucketDiffStatPage {
-  values: DiffStatEntry[];
+  values: BitbucketDiffStatEntryRaw[];
   next?: string;
+}
+
+interface BitbucketDiffStatEntryRaw {
+  status: DiffStatEntry["status"];
+  new?: { path?: string };
+  old?: { path?: string };
+  lines_added?: number;
+  lines_removed?: number;
 }
 
 interface BitbucketCommitRaw {
@@ -179,15 +196,7 @@ function authHeaderOrThrow() {
 }
 
 async function parseFailure(response: Response) {
-  const contentType = response.headers.get("content-type") ?? "";
-  try {
-    if (contentType.includes("application/json")) {
-      return JSON.stringify(await response.json());
-    }
-    return await response.text();
-  } catch {
-    return "";
-  }
+  return parseFailureBody(response);
 }
 
 async function request(url: string, init: RequestInit = {}) {
@@ -215,7 +224,15 @@ async function fetchAllDiffStat(startUrl: string): Promise<DiffStatEntry[]> {
       headers: { Accept: "application/json" },
     });
     const page = (await res.json()) as BitbucketDiffStatPage;
-    values.push(...(page.values ?? []));
+    values.push(
+      ...(page.values ?? []).map((entry) => ({
+        status: entry.status,
+        new: entry.new,
+        old: entry.old,
+        linesAdded: entry.lines_added,
+        linesRemoved: entry.lines_removed,
+      })),
+    );
     nextUrl = page.next;
   }
 
@@ -258,6 +275,21 @@ function getAvatarUrl(user?: BitbucketUser): string | undefined {
   return user?.links?.avatar?.href;
 }
 
+function mapPullRequestSummary(
+  pullRequest: BitbucketPullRequestSummaryRaw,
+): PullRequestSummary {
+  return {
+    id: pullRequest.id,
+    title: pullRequest.title,
+    state: pullRequest.state,
+    links: pullRequest.links,
+    author: {
+      displayName: pullRequest.author?.display_name,
+      avatarUrl: getAvatarUrl(pullRequest.author),
+    },
+  };
+}
+
 function mapCommit(commit: BitbucketCommitRaw): Commit {
   return {
     hash: commit.hash,
@@ -266,8 +298,8 @@ function mapCommit(commit: BitbucketCommitRaw): Commit {
     summary: commit.summary,
     author: {
       user: {
-        display_name: commit.author?.user?.display_name,
-        avatar_url: getAvatarUrl(commit.author?.user),
+        displayName: commit.author?.user?.display_name,
+        avatarUrl: getAvatarUrl(commit.author?.user),
       },
       raw: commit.author?.raw,
     },
@@ -277,22 +309,22 @@ function mapCommit(commit: BitbucketCommitRaw): Commit {
 function mapComment(comment: BitbucketCommentRaw): Comment {
   return {
     id: comment.id,
-    created_on: comment.created_on,
-    updated_on: comment.updated_on,
+    createdAt: comment.created_on,
+    updatedAt: comment.updated_on,
     deleted: comment.deleted,
     pending: comment.pending,
     content: comment.content,
     user: {
-      display_name: comment.user?.display_name,
-      avatar_url: getAvatarUrl(comment.user),
+      displayName: comment.user?.display_name,
+      avatarUrl: getAvatarUrl(comment.user),
     },
     inline: comment.inline,
     parent: comment.parent,
     resolution: comment.resolution
       ? {
           user: {
-            display_name: comment.resolution.user?.display_name,
-            avatar_url: getAvatarUrl(comment.resolution.user),
+            displayName: comment.resolution.user?.display_name,
+            avatarUrl: getAvatarUrl(comment.resolution.user),
           },
         }
       : comment.resolution,
@@ -306,14 +338,14 @@ function mapPullRequest(pr: BitbucketPullRequestRaw): PullRequestDetails {
     title: pr.title,
     description: pr.description,
     state: pr.state,
-    comment_count: pr.comment_count,
-    task_count: pr.task_count,
-    created_on: pr.created_on,
-    updated_on: pr.updated_on,
-    closed_on: pr.closed_on,
+    commentCount: pr.comment_count,
+    taskCount: pr.task_count,
+    createdAt: pr.created_on,
+    updatedAt: pr.updated_on,
+    closedAt: pr.closed_on,
     author: {
-      display_name: pr.author?.display_name,
-      avatar_url: getAvatarUrl(pr.author),
+      displayName: pr.author?.display_name,
+      avatarUrl: getAvatarUrl(pr.author),
     },
     source: pr.source,
     destination: pr.destination,
@@ -321,8 +353,8 @@ function mapPullRequest(pr: BitbucketPullRequestRaw): PullRequestDetails {
       pr.participants?.map((participant) => ({
         approved: participant.approved,
         user: {
-          display_name: participant.user?.display_name,
-          avatar_url: getAvatarUrl(participant.user),
+          displayName: participant.user?.display_name,
+          avatarUrl: getAvatarUrl(participant.user),
         },
       })) ?? [],
     links: pr.links,
@@ -399,24 +431,24 @@ function mapBuildStatuses(
     state: mapBuildState(status.state),
     url: status.url,
     provider: "Bitbucket Pipelines",
-    started_on: status.created_on,
-    completed_on: status.updated_on,
+    startedAt: status.created_on,
+    completedAt: status.updated_on,
   }));
 }
 
 function mapReviewers(pr: PullRequestDetails): PullRequestReviewer[] {
   return (pr.participants ?? [])
     .map((participant, index) => {
-      const displayName = participant.user?.display_name;
+      const displayName = participant.user?.displayName;
       return {
         id: `bitbucket-reviewer-${displayName ?? index}`,
-        display_name: displayName,
-        avatar_url: participant.user?.avatar_url,
+        displayName,
+        avatarUrl: participant.user?.avatarUrl,
         status: participant.approved ? "approved" : "pending",
         approved: Boolean(participant.approved),
       } satisfies PullRequestReviewer;
     })
-    .sort((a, b) => (a.display_name ?? "").localeCompare(b.display_name ?? ""));
+    .sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""));
 }
 
 function mapCommentToHistory(comment: Comment): PullRequestHistoryEvent | null {
@@ -424,10 +456,10 @@ function mapCommentToHistory(comment: Comment): PullRequestHistoryEvent | null {
   return {
     id: `bitbucket-comment-${comment.id}`,
     type: "comment",
-    created_on: comment.created_on,
+    createdAt: comment.createdAt,
     actor: {
-      display_name: comment.user?.display_name,
-      avatar_url: comment.user?.avatar_url,
+      displayName: comment.user?.displayName,
+      avatarUrl: comment.user?.avatarUrl,
     },
     content: comment.content?.raw,
   };
@@ -441,10 +473,10 @@ function mapActivityToHistory(
     return {
       id: `bitbucket-activity-approval-${index}`,
       type: "approved",
-      created_on: activity.approval.date,
+      createdAt: activity.approval.date,
       actor: {
-        display_name: activity.approval.user?.display_name,
-        avatar_url: getAvatarUrl(activity.approval.user),
+        displayName: activity.approval.user?.display_name,
+        avatarUrl: getAvatarUrl(activity.approval.user),
       },
     };
   }
@@ -457,10 +489,10 @@ function mapActivityToHistory(
     return {
       id: `bitbucket-activity-update-${index}`,
       type,
-      created_on: activity.update.date,
+      createdAt: activity.update.date,
       actor: {
-        display_name: activity.update.author?.display_name,
-        avatar_url: getAvatarUrl(activity.update.author),
+        displayName: activity.update.author?.display_name,
+        avatarUrl: getAvatarUrl(activity.update.author),
       },
       details: activity.update.state,
     };
@@ -474,14 +506,14 @@ function mapHistory(
   activity: BitbucketActivityEntry[],
 ): PullRequestHistoryEvent[] {
   const events: PullRequestHistoryEvent[] = [];
-  if (pr.created_on) {
+  if (pr.createdAt) {
     events.push({
       id: `bitbucket-pr-opened-${pr.id}`,
       type: "opened",
-      created_on: pr.created_on,
+      createdAt: pr.createdAt,
       actor: {
-        display_name: pr.author?.display_name,
-        avatar_url: pr.author?.avatar_url,
+        displayName: pr.author?.displayName,
+        avatarUrl: pr.author?.avatarUrl,
       },
     });
   }
@@ -497,11 +529,19 @@ function mapHistory(
 
   events.sort(
     (a, b) =>
-      new Date(a.created_on ?? 0).getTime() -
-      new Date(b.created_on ?? 0).getTime(),
+      new Date(a.createdAt ?? 0).getTime() -
+      new Date(b.createdAt ?? 0).getTime(),
   );
   return events;
 }
+
+// Export pure normalizers for focused mapping tests without network requests.
+export const bitbucketNormalization = {
+  mapPullRequestSummary,
+  mapPullRequest,
+  mapComment,
+  mapActivityToHistory,
+};
 
 export const bitbucketClient: GitHostClient = {
   host: "bitbucket",
@@ -580,7 +620,10 @@ export const bitbucketClient: GitHostClient = {
         headers: { Accept: "application/json" },
       });
       const page = (await res.json()) as BitbucketPullRequestPage;
-      results.push({ repo, pullRequests: page.values ?? [] });
+      results.push({
+        repo,
+        pullRequests: (page.values ?? []).map(mapPullRequestSummary),
+      });
     }
 
     return results;

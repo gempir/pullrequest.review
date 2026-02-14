@@ -1,3 +1,5 @@
+import { parseFailureBody } from "@/lib/git-host/shared/http";
+import { collectPaginated } from "@/lib/git-host/shared/pagination";
 import {
   type AuthState,
   type Comment,
@@ -181,16 +183,7 @@ function authHeader() {
 }
 
 async function parseFailure(response: Response) {
-  const contentType = response.headers.get("content-type") ?? "";
-  try {
-    if (contentType.includes("application/json")) {
-      const json = (await response.json()) as { message?: string };
-      return json.message ?? JSON.stringify(json);
-    }
-    return await response.text();
-  } catch {
-    return "";
-  }
+  return parseFailureBody(response);
 }
 
 async function request(
@@ -232,17 +225,11 @@ async function request(
 }
 
 async function listPaginated<T>(path: string) {
-  const values: T[] = [];
-  let page = 1;
-  while (true) {
+  return collectPaginated(async (page) => {
     const connector = path.includes("?") ? "&" : "?";
     const res = await request(`${path}${connector}per_page=100&page=${page}`);
-    const current = (await res.json()) as T[];
-    values.push(...current);
-    if (current.length < 100) break;
-    page += 1;
-  }
-  return values;
+    return (await res.json()) as T[];
+  });
 }
 
 function mapFileStatus(status: string): DiffStatEntry["status"] {
@@ -258,7 +245,7 @@ function mapPullRequestSummary(pr: GithubPull): PullRequestSummary {
     title: pr.title,
     state: (pr.state ?? "OPEN").toUpperCase(),
     links: { html: { href: pr.html_url } },
-    author: { display_name: pr.user?.login, avatar_url: pr.user?.avatar_url },
+    author: { displayName: pr.user?.login, avatarUrl: pr.user?.avatar_url },
   };
 }
 
@@ -274,24 +261,24 @@ function mapPullRequestDetails(
     description: pr.body,
     state: (pr.state ?? "OPEN").toUpperCase(),
     draft: Boolean(pr.draft),
-    comment_count: Number(pr.comments ?? 0) + Number(pr.review_comments ?? 0),
-    created_on: pr.created_at,
-    updated_on: pr.updated_at,
-    closed_on: pr.closed_at,
-    merged_on: pr.merged_at,
-    author: { display_name: pr.user?.login, avatar_url: pr.user?.avatar_url },
+    commentCount: Number(pr.comments ?? 0) + Number(pr.review_comments ?? 0),
+    createdAt: pr.created_at,
+    updatedAt: pr.updated_at,
+    closedAt: pr.closed_at,
+    mergedAt: pr.merged_at,
+    author: { displayName: pr.user?.login, avatarUrl: pr.user?.avatar_url },
     source: {
       branch: { name: pr.head?.ref },
-      repository: { full_name: pr.head?.repo?.full_name },
+      repository: { fullName: pr.head?.repo?.full_name },
     },
     destination: {
       branch: { name: pr.base?.ref },
-      repository: { full_name: pr.base?.repo?.full_name },
+      repository: { fullName: pr.base?.repo?.full_name },
     },
     participants: [
       {
         approved: approvedByCurrentUser,
-        user: { display_name: currentLogin, avatar_url: currentAvatarUrl },
+        user: { displayName: currentLogin, avatarUrl: currentAvatarUrl },
       },
     ],
     links: { html: { href: pr.html_url } },
@@ -303,7 +290,7 @@ function mapReviewStateToStatus(
 ): PullRequestReviewer["status"] {
   const normalized = (state ?? "").toUpperCase();
   if (normalized === "APPROVED") return "approved";
-  if (normalized === "CHANGES_REQUESTED") return "changes_requested";
+  if (normalized === "CHANGES_REQUESTED") return "changesRequested";
   if (normalized === "COMMENTED") return "commented";
   return "pending";
 }
@@ -319,8 +306,8 @@ function mapReviewers(
     if (!login) continue;
     byUser.set(login, {
       id: `github-reviewer-${login}`,
-      display_name: login,
-      avatar_url: requested.avatar_url,
+      displayName: login,
+      avatarUrl: requested.avatar_url,
       status: "pending",
       approved: false,
       requested: true,
@@ -333,17 +320,17 @@ function mapReviewers(
     const status = mapReviewStateToStatus(review.state);
     byUser.set(login, {
       id: `github-reviewer-${login}`,
-      display_name: login,
-      avatar_url: review.user?.avatar_url,
+      displayName: login,
+      avatarUrl: review.user?.avatar_url,
       status,
       approved: status === "approved",
       requested: byUser.get(login)?.requested ?? false,
-      updated_on: review.submitted_at,
+      updatedAt: review.submitted_at,
     });
   }
 
   return Array.from(byUser.values()).sort((a, b) =>
-    (a.display_name ?? "").localeCompare(b.display_name ?? ""),
+    (a.displayName ?? "").localeCompare(b.displayName ?? ""),
   );
 }
 
@@ -353,10 +340,10 @@ function mapIssueCommentToHistory(
   return {
     id: `github-issue-comment-${comment.id}`,
     type: "comment",
-    created_on: comment.created_at,
+    createdAt: comment.created_at,
     actor: {
-      display_name: comment.user?.login,
-      avatar_url: comment.user?.avatar_url,
+      displayName: comment.user?.login,
+      avatarUrl: comment.user?.avatar_url,
     },
     content: comment.body,
   };
@@ -368,17 +355,17 @@ function mapReviewToHistory(
   const state = (review.state ?? "").toUpperCase();
   let type: PullRequestHistoryEvent["type"] | null = null;
   if (state === "APPROVED") type = "approved";
-  if (state === "CHANGES_REQUESTED") type = "changes_requested";
-  if (state === "DISMISSED") type = "review_dismissed";
+  if (state === "CHANGES_REQUESTED") type = "changesRequested";
+  if (state === "DISMISSED") type = "reviewDismissed";
   if (state === "COMMENTED") type = "comment";
   if (!type) return null;
   return {
     id: `github-review-${review.id}`,
     type,
-    created_on: review.submitted_at,
+    createdAt: review.submitted_at,
     actor: {
-      display_name: review.user?.login,
-      avatar_url: review.user?.avatar_url,
+      displayName: review.user?.login,
+      avatarUrl: review.user?.avatar_url,
     },
     content: review.body,
   };
@@ -392,10 +379,10 @@ function mapIssueEventToHistory(
     return {
       id: `github-issue-event-${event.id}`,
       type: "closed",
-      created_on: event.created_at,
+      createdAt: event.created_at,
       actor: {
-        display_name: event.actor?.login,
-        avatar_url: event.actor?.avatar_url,
+        displayName: event.actor?.login,
+        avatarUrl: event.actor?.avatar_url,
       },
     };
   }
@@ -403,10 +390,10 @@ function mapIssueEventToHistory(
     return {
       id: `github-issue-event-${event.id}`,
       type: "merged",
-      created_on: event.created_at,
+      createdAt: event.created_at,
       actor: {
-        display_name: event.actor?.login,
-        avatar_url: event.actor?.avatar_url,
+        displayName: event.actor?.login,
+        avatarUrl: event.actor?.avatar_url,
       },
     };
   }
@@ -414,21 +401,21 @@ function mapIssueEventToHistory(
     return {
       id: `github-issue-event-${event.id}`,
       type: "reopened",
-      created_on: event.created_at,
+      createdAt: event.created_at,
       actor: {
-        display_name: event.actor?.login,
-        avatar_url: event.actor?.avatar_url,
+        displayName: event.actor?.login,
+        avatarUrl: event.actor?.avatar_url,
       },
     };
   }
   if (kind === "review_requested") {
     return {
       id: `github-issue-event-${event.id}`,
-      type: "review_requested",
-      created_on: event.created_at,
+      type: "reviewRequested",
+      createdAt: event.created_at,
       actor: {
-        display_name: event.actor?.login,
-        avatar_url: event.actor?.avatar_url,
+        displayName: event.actor?.login,
+        avatarUrl: event.actor?.avatar_url,
       },
       details: event.requested_reviewer?.login,
     };
@@ -436,11 +423,11 @@ function mapIssueEventToHistory(
   if (kind === "review_request_removed") {
     return {
       id: `github-issue-event-${event.id}`,
-      type: "reviewer_removed",
-      created_on: event.created_at,
+      type: "reviewerRemoved",
+      createdAt: event.created_at,
       actor: {
-        display_name: event.actor?.login,
-        avatar_url: event.actor?.avatar_url,
+        displayName: event.actor?.login,
+        avatarUrl: event.actor?.avatar_url,
       },
       details: event.requested_reviewer?.login,
     };
@@ -453,10 +440,10 @@ function mapIssueEventToHistory(
     return {
       id: `github-issue-event-${event.id}`,
       type: "updated",
-      created_on: event.created_at,
+      createdAt: event.created_at,
       actor: {
-        display_name: event.actor?.login,
-        avatar_url: event.actor?.avatar_url,
+        displayName: event.actor?.login,
+        avatarUrl: event.actor?.avatar_url,
       },
     };
   }
@@ -474,8 +461,8 @@ function mapHistory(
     events.push({
       id: `github-pr-opened-${pr.number}`,
       type: "opened",
-      created_on: pr.created_at,
-      actor: { display_name: pr.user?.login, avatar_url: pr.user?.avatar_url },
+      createdAt: pr.created_at,
+      actor: { displayName: pr.user?.login, avatarUrl: pr.user?.avatar_url },
     });
   }
 
@@ -493,8 +480,8 @@ function mapHistory(
 
   events.sort(
     (a, b) =>
-      new Date(a.created_on ?? 0).getTime() -
-      new Date(b.created_on ?? 0).getTime(),
+      new Date(a.createdAt ?? 0).getTime() -
+      new Date(b.createdAt ?? 0).getTime(),
   );
   return events;
 }
@@ -540,8 +527,8 @@ function mapBuildStatuses(
       state: mapCheckRunState(checkRun),
       url: checkRun.html_url,
       provider: checkRun.app?.name,
-      started_on: checkRun.started_at,
-      completed_on: checkRun.completed_at,
+      startedAt: checkRun.started_at,
+      completedAt: checkRun.completed_at,
     })) ?? [];
 
   const mappedStatuses =
@@ -551,8 +538,8 @@ function mapBuildStatuses(
       state: mapStatusState(status.state),
       url: status.target_url,
       provider: "GitHub Status",
-      started_on: status.created_at,
-      completed_on: status.updated_at,
+      startedAt: status.created_at,
+      completedAt: status.updated_at,
     })) ?? [];
 
   return [...mappedChecks, ...mappedStatuses];
@@ -566,8 +553,8 @@ function mapCommit(commit: GithubCommit): Commit {
     summary: { raw: commit.commit?.message },
     author: {
       user: {
-        display_name: commit.author?.login,
-        avatar_url: commit.author?.avatar_url,
+        displayName: commit.author?.login,
+        avatarUrl: commit.author?.avatar_url,
       },
       raw: commit.commit?.author?.name,
     },
@@ -577,12 +564,12 @@ function mapCommit(commit: GithubCommit): Commit {
 function mapIssueComment(comment: GithubIssueComment): Comment {
   return {
     id: comment.id,
-    created_on: comment.created_at,
-    updated_on: comment.updated_at,
+    createdAt: comment.created_at,
+    updatedAt: comment.updated_at,
     content: { raw: comment.body },
     user: {
-      display_name: comment.user?.login,
-      avatar_url: comment.user?.avatar_url,
+      displayName: comment.user?.login,
+      avatarUrl: comment.user?.avatar_url,
     },
   };
 }
@@ -592,12 +579,12 @@ function mapReviewComment(comment: GithubReviewComment): Comment {
   const isLeft = comment.side === "LEFT";
   return {
     id: comment.id,
-    created_on: comment.created_at,
-    updated_on: comment.updated_at,
+    createdAt: comment.created_at,
+    updatedAt: comment.updated_at,
     content: { raw: comment.body },
     user: {
-      display_name: comment.user?.login,
-      avatar_url: comment.user?.avatar_url,
+      displayName: comment.user?.login,
+      avatarUrl: comment.user?.avatar_url,
     },
     inline: {
       path: comment.path,
@@ -619,12 +606,20 @@ function mergeIssueAndReviewComments(
 
   all.sort(
     (a, b) =>
-      new Date(a.created_on ?? 0).getTime() -
-      new Date(b.created_on ?? 0).getTime(),
+      new Date(a.createdAt ?? 0).getTime() -
+      new Date(b.createdAt ?? 0).getTime(),
   );
 
   return all;
 }
+
+// Export pure normalizers for focused mapping tests without network requests.
+export const githubNormalization = {
+  mapPullRequestSummary,
+  mapPullRequestDetails,
+  mapIssueEventToHistory,
+  mapReviewStateToStatus,
+};
 
 export const githubClient: GitHostClient = {
   host: "github",
@@ -796,8 +791,8 @@ export const githubClient: GitHostClient = {
       status: mapFileStatus(file.status),
       new: { path: file.filename },
       old: { path: file.previous_filename ?? file.filename },
-      lines_added: file.additions,
-      lines_removed: file.deletions,
+      linesAdded: file.additions,
+      linesRemoved: file.deletions,
     }));
 
     return {

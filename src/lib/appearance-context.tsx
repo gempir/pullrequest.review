@@ -12,6 +12,11 @@ import {
   type FontFamilyValue,
   fontFamilyToCss,
 } from "@/lib/font-options";
+import {
+  makeVersionedStorageKey,
+  readMigratedLocalStorage,
+  writeLocalStorageValue,
+} from "@/lib/storage/versioned-local-storage";
 
 export type AppThemeMode = "auto" | "light" | "dark";
 
@@ -43,7 +48,8 @@ type AppearanceContextValue = AppearanceSettings & {
   setTreeLineHeight: (lineHeight: number) => void;
 };
 
-const STORAGE_KEY = "pr_review_appearance";
+const STORAGE_KEY_BASE = "pr_review_appearance";
+const STORAGE_KEY = makeVersionedStorageKey(STORAGE_KEY_BASE, 2);
 
 const defaultAppearance: AppearanceSettings = {
   appThemeMode: "auto",
@@ -152,9 +158,8 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     const parsed = parseStoredSettings(
-      window.localStorage.getItem(STORAGE_KEY),
+      readMigratedLocalStorage(STORAGE_KEY, [STORAGE_KEY_BASE]),
     );
     if (parsed) {
       setSettings(parsed);
@@ -163,8 +168,8 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    if (!hydrated) return;
+    writeLocalStorageValue(STORAGE_KEY, JSON.stringify(settings));
   }, [settings, hydrated]);
 
   useEffect(() => {

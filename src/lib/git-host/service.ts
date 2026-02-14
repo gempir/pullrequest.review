@@ -16,7 +16,7 @@ export async function fetchRepoPullRequestsByHost(data: {
             title: string;
             state: string;
             links?: { html?: { href?: string } };
-            author?: { display_name?: string };
+            author?: { displayName?: string };
           }[];
         }>;
       const client = getHostClient(host);

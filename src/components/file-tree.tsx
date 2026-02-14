@@ -12,8 +12,8 @@ import {
   SlidersHorizontal,
   SwatchBook,
 } from "lucide-react";
-import { FileIcon } from "react-files-icons";
 import { GitHostIcon } from "@/components/git-host-icon";
+import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import {
   type ChangeKind,
   type FileNode,
@@ -368,7 +368,7 @@ function FileNodeRow({
         ) : isPullRequestNode ? (
           <GitPullRequest className="size-3.5" />
         ) : (
-          <FileIcon name={node.name} className="size-3.5" />
+          <RepositoryFileIcon fileName={node.name} className="size-3.5" />
         )}
       </span>
       {kindMarker(kind)}

@@ -145,6 +145,7 @@ export function PullRequestSummaryPanel({
                   );
     const visibleHistory = resolvedHistory.filter((event) => event.type !== "reopened");
     const orderedHistory = [...visibleHistory].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+    const orderedCommits = [...commits].sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
 
     return (
         <div className="pr-diff-font" style={{ fontFamily: "var(--comment-font-family)" }}>
@@ -176,7 +177,7 @@ export function PullRequestSummaryPanel({
                         {orderedHistory.length > 0 ? (
                             <div className="space-y-2">
                                 {orderedHistory.map((event) => (
-                                    <div key={event.id} className="px-2.5 py-2">
+                                    <div key={event.id} className="rounded-md bg-secondary/40 px-2.5 py-2">
                                         <div className="flex items-center gap-2 text-[11px]">
                                             <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} sizeClass="size-4" />
                                             <span className="text-foreground">{eventLabel(event.type)}</span>
@@ -198,23 +199,23 @@ export function PullRequestSummaryPanel({
                     </Section>
 
                     <Section title="Commits">
-                        {commits.length > 0 ? (
-                            <div>
-                                <div className="grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/70">
+                        {orderedCommits.length > 0 ? (
+                            <div className="space-y-1.5">
+                                <div className="grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                                     <span>Author</span>
                                     <span>Commit</span>
                                     <span>Message</span>
                                     <span className="text-right">Date</span>
                                 </div>
-                                {commits.map((commit) => {
+                                {orderedCommits.map((commit) => {
                                     const message = commit.summary?.raw ?? commit.message;
                                     const mergedDevelop = isMergedDevelopCommit(message);
                                     return (
                                         <div
                                             key={commit.hash}
                                             className={cn(
-                                                "grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-1.5 text-[11px] border-b border-border/50 last:border-b-0",
-                                                mergedDevelop ? "bg-status-added/5 text-muted-foreground opacity-70" : "",
+                                                "grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 rounded-md bg-secondary/40 px-2 py-1.5 text-[11px]",
+                                                mergedDevelop ? "bg-status-added/10 text-muted-foreground opacity-70" : "",
                                             )}
                                         >
                                             <div className="min-w-0 flex items-center gap-2">

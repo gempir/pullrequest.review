@@ -127,10 +127,12 @@ export function PullRequestSummaryPanel({
     bundle,
     headerTitle,
     diffStats,
+    headerRight,
 }: {
     bundle: PullRequestBundle;
     headerTitle?: string;
     diffStats?: { added: number; removed: number };
+    headerRight?: ReactNode;
 }) {
     const { pr, commits, history } = bundle;
     const resolvedHistory: PullRequestHistoryEvent[] =
@@ -167,6 +169,7 @@ export function PullRequestSummaryPanel({
                             <span className="ml-2 text-status-removed">-{diffStats.removed}</span>
                         </div>
                     ) : null}
+                    {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
                 </div>
             ) : null}
             <div className="p-2.5 space-y-2.5">

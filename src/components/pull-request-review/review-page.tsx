@@ -12,6 +12,7 @@ import { useReviewLayoutPreferences } from "@/components/pull-request-review/use
 import { useReviewPageActions } from "@/components/pull-request-review/use-review-page-actions";
 import { useReviewPageDerived } from "@/components/pull-request-review/use-review-page-derived";
 import {
+    useAllModeScrollSelection,
     useAutoMarkActiveFileViewed,
     useCopyTimeoutCleanup,
     useDirectoryStateStorage,
@@ -20,6 +21,8 @@ import {
     usePendingBuildStatusesRefresh,
     useReviewActiveFileSync,
     useReviewDocumentTitle,
+    useReviewFileHashSelection,
+    useReviewFileHashSync,
     useReviewTreeModelSync,
     useReviewTreeReset,
     useSyncMergeStrategy,
@@ -36,6 +39,7 @@ import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import type { GitHost } from "@/lib/git-host/types";
+import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { makeDirectoryStateStorageKey } from "@/lib/review-storage";
 
 export interface PullRequestReviewPageProps {
@@ -46,6 +50,19 @@ export interface PullRequestReviewPageProps {
     auth: { canWrite: boolean; canRead: boolean };
     onRequireAuth?: (reason: "write" | "rate_limit") => void;
     authPromptSlot?: ReactNode;
+}
+
+function parentDirectories(path: string): string[] {
+    const parts = path.split("/").filter(Boolean);
+    if (parts.length <= 1) return [];
+    parts.pop();
+    const directories: string[] = [];
+    let current = "";
+    for (const part of parts) {
+        current = current ? `${current}/${part}` : part;
+        directories.push(current);
+    }
+    return directories;
 }
 
 export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, auth, onRequireAuth, authPromptSlot }: PullRequestReviewPageProps) {
@@ -75,7 +92,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             options.diffUseCustomTypography,
         ],
     );
-    const { root, dirState, setTree, setKinds, allFiles, activeFile, setActiveFile, setDirectoryExpandedMap } = useFileTree();
+    const { root, dirState, setTree, setKinds, allFiles, activeFile, setActiveFile, setDirectoryExpandedMap, expand } = useFileTree();
     const queryClient = useQueryClient();
     const { treeWidth, treeCollapsed, setTreeCollapsed, viewMode, setViewMode, startTreeResize } = useReviewLayoutPreferences();
 
@@ -99,6 +116,10 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const autoMarkedViewedFilesRef = useRef<Set<string>>(new Set());
     const copyResetTimeoutRef = useRef<number | null>(null);
     const copySourceBranchResetTimeoutRef = useRef<number | null>(null);
+    const allModeProgrammaticTargetRef = useRef<string | null>(null);
+    const allModeSuppressObserverUntilRef = useRef<number>(0);
+    const allModeLastStickyPathRef = useRef<string | null>(null);
+    const suppressHashSyncRef = useRef(false);
     const { inlineComment, setInlineComment, getInlineDraftContent, setInlineDraftContent, clearInlineDraftContent, openInlineCommentDraft } =
         useInlineCommentDrafts({
             workspace,
@@ -185,6 +206,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         diffHighlighterReady,
         toRenderableFileDiff,
         settingsPathSet,
+        selectableDiffPathSet,
         visiblePathSet,
         allowedPathSet,
         directoryPaths,
@@ -220,6 +242,30 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         compactDiffOptions,
         onOpenInlineCommentDraft: openInlineCommentDraftForPath,
     });
+    const allModeSectionPaths = useMemo(
+        () => (prData ? [PR_SUMMARY_PATH, ...allModeDiffEntries.map((entry) => entry.filePath)] : allModeDiffEntries.map((entry) => entry.filePath)),
+        [allModeDiffEntries, prData],
+    );
+    const allDiffFilePaths = useMemo(() => Array.from(selectableDiffPathSet), [selectableDiffPathSet]);
+    const areAllFilesViewed = useMemo(
+        () => allDiffFilePaths.length > 0 && allDiffFilePaths.every((path) => viewedFiles.has(path)),
+        [allDiffFilePaths, viewedFiles],
+    );
+    const toggleAllFilesViewed = useCallback(() => {
+        setViewedFiles((prev) => {
+            const next = new Set(prev);
+            if (areAllFilesViewed) {
+                for (const path of allDiffFilePaths) {
+                    next.delete(path);
+                }
+                return next;
+            }
+            for (const path of allDiffFilePaths) {
+                next.add(path);
+            }
+            return next;
+        });
+    }, [allDiffFilePaths, areAllFilesViewed]);
 
     useReviewTreeModelSync({
         showSettingsPanel,
@@ -245,6 +291,8 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         setActiveFile,
     });
     useAutoMarkActiveFileViewed({
+        viewMode,
+        autoMarkViewedFiles: options.autoMarkViewedFiles,
         showSettingsPanel,
         showUnviewedOnly,
         activeFile,
@@ -323,6 +371,11 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         setCopiedPath,
         setCopiedSourceBranch,
     });
+    const handleProgrammaticAllModeRevealStart = useCallback((path: string) => {
+        allModeProgrammaticTargetRef.current = path;
+        allModeSuppressObserverUntilRef.current = Date.now() + 1200;
+    }, []);
+
     const { handleToggleSettingsPanel, selectAndRevealFile, toggleViewed, collapseAllDirectories, expandAllDirectories } = useReviewPageNavigation({
         activeFile,
         settingsPathSet,
@@ -338,8 +391,75 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         setIsSummaryCollapsedInAllMode,
         setViewedFiles,
         setDirectoryExpandedMap,
+        onProgrammaticAllModeRevealStart: handleProgrammaticAllModeRevealStart,
         onApprovePullRequest: handleApprovePullRequest,
         onRequestChangesPullRequest: handleRequestChangesPullRequest,
+    });
+    const handleHashPathResolved = useCallback(
+        (path: string) => {
+            setShowSettingsPanel(false);
+            if (viewMode === "all") {
+                selectAndRevealFile(path);
+                return;
+            }
+            setActiveFile(path);
+        },
+        [selectAndRevealFile, setActiveFile, viewMode],
+    );
+
+    const revealTreePath = useCallback((path: string) => {
+        const escapedPath = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(path) : path.replace(/["\\]/g, "\\$&");
+        const pathElement = document.querySelector<HTMLElement>(`[data-tree-path="${escapedPath}"]`);
+        pathElement?.scrollIntoView({ block: "nearest" });
+    }, []);
+
+    const handleObservedAllModePath = useCallback(
+        (path: string, metadata: { isSticky: boolean }) => {
+            const isSameActiveFile = activeFile === path;
+            if (path !== PR_SUMMARY_PATH) {
+                for (const directory of parentDirectories(path)) {
+                    expand(directory);
+                }
+                if (options.autoMarkViewedFiles && metadata.isSticky && allModeLastStickyPathRef.current !== path) {
+                    setViewedFiles((prev) => {
+                        if (prev.has(path)) return prev;
+                        const next = new Set(prev);
+                        next.add(path);
+                        return next;
+                    });
+                }
+            }
+            if (metadata.isSticky) {
+                allModeLastStickyPathRef.current = path === PR_SUMMARY_PATH ? null : path;
+            } else if (allModeLastStickyPathRef.current === path) {
+                allModeLastStickyPathRef.current = null;
+            }
+            if (isSameActiveFile) return;
+            revealTreePath(path);
+            suppressHashSyncRef.current = true;
+            setActiveFile(path);
+        },
+        [activeFile, expand, options.autoMarkViewedFiles, revealTreePath, setActiveFile],
+    );
+
+    useReviewFileHashSelection({
+        selectableFilePaths: selectableDiffPathSet,
+        onHashPathResolved: handleHashPathResolved,
+    });
+    useAllModeScrollSelection({
+        enabled: viewMode === "all" && !showSettingsPanel,
+        diffScrollRef,
+        sectionPaths: allModeSectionPaths,
+        stickyTopOffset: 0,
+        programmaticTargetRef: allModeProgrammaticTargetRef,
+        suppressObserverUntilRef: allModeSuppressObserverUntilRef,
+        onObservedActivePath: handleObservedAllModePath,
+    });
+    useReviewFileHashSync({
+        activeFile,
+        showSettingsPanel,
+        settingsPathSet,
+        suppressHashSyncRef,
     });
 
     const { sidebarProps, navbarProps, mergeDialogProps } = useReviewPageViewProps({
@@ -447,6 +567,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                     copiedPath={copiedPath}
                     fileLineStats={fileLineStats}
                     viewedFiles={viewedFiles}
+                    areAllFilesViewed={areAllFilesViewed}
                     diffHighlighterReady={diffHighlighterReady}
                     diffTypographyStyle={diffTypographyStyle}
                     singleFileDiffOptions={singleFileDiffOptions}
@@ -472,6 +593,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                     onCopyPath={(path) => {
                         void handleCopyPath(path);
                     }}
+                    onToggleAllFilesViewed={toggleAllFilesViewed}
                     onToggleViewed={toggleViewed}
                     getInlineDraftContent={getInlineDraftContent}
                     setInlineDraftContent={setInlineDraftContent}

@@ -19,6 +19,8 @@ export interface Shortcuts {
     scrollUp: ShortcutConfig;
     nextFile: ShortcutConfig;
     previousFile: ShortcutConfig;
+    markFileViewed: ShortcutConfig;
+    markFileViewedAndFold: ShortcutConfig;
     approvePullRequest: ShortcutConfig;
     requestChangesPullRequest: ShortcutConfig;
 }
@@ -53,6 +55,16 @@ const DEFAULT_SHORTCUTS: Shortcuts = {
         key: "h",
         modifiers: {},
         description: "Navigate to previous file",
+    },
+    markFileViewed: {
+        key: "v",
+        modifiers: {},
+        description: "Mark current file as viewed",
+    },
+    markFileViewedAndFold: {
+        key: "v",
+        modifiers: { shift: true },
+        description: "Mark current file as viewed and fold",
     },
     approvePullRequest: {
         key: "a",
@@ -166,6 +178,8 @@ export function useKeyboardNavigation({
     onScrollUp,
     onNextFile,
     onPreviousFile,
+    onMarkFileViewed,
+    onMarkFileViewedAndFold,
     onApprovePullRequest,
     onRequestChangesPullRequest,
 }: {
@@ -175,6 +189,8 @@ export function useKeyboardNavigation({
     onScrollUp?: () => void;
     onNextFile?: () => void;
     onPreviousFile?: () => void;
+    onMarkFileViewed?: () => void;
+    onMarkFileViewedAndFold?: () => void;
     onApprovePullRequest?: () => void;
     onRequestChangesPullRequest?: () => void;
 }) {
@@ -187,6 +203,8 @@ export function useKeyboardNavigation({
         onScrollUp,
         onNextFile,
         onPreviousFile,
+        onMarkFileViewed,
+        onMarkFileViewedAndFold,
         onApprovePullRequest,
         onRequestChangesPullRequest,
     });
@@ -203,10 +221,23 @@ export function useKeyboardNavigation({
             onScrollUp,
             onNextFile,
             onPreviousFile,
+            onMarkFileViewed,
+            onMarkFileViewedAndFold,
             onApprovePullRequest,
             onRequestChangesPullRequest,
         };
-    }, [onNextUnviewedFile, onPreviousUnviewedFile, onScrollDown, onScrollUp, onNextFile, onPreviousFile, onApprovePullRequest, onRequestChangesPullRequest]);
+    }, [
+        onNextUnviewedFile,
+        onPreviousUnviewedFile,
+        onScrollDown,
+        onScrollUp,
+        onNextFile,
+        onPreviousFile,
+        onMarkFileViewed,
+        onMarkFileViewedAndFold,
+        onApprovePullRequest,
+        onRequestChangesPullRequest,
+    ]);
 
     useEffect(() => {
         const matchesShortcut = (event: KeyboardEvent, shortcut: ShortcutConfig) => {
@@ -242,6 +273,12 @@ export function useKeyboardNavigation({
             } else if (matchesShortcut(event, activeShortcuts.previousFile)) {
                 event.preventDefault();
                 handlers.onPreviousFile?.();
+            } else if (matchesShortcut(event, activeShortcuts.markFileViewedAndFold)) {
+                event.preventDefault();
+                handlers.onMarkFileViewedAndFold?.();
+            } else if (matchesShortcut(event, activeShortcuts.markFileViewed)) {
+                event.preventDefault();
+                handlers.onMarkFileViewed?.();
             } else if (matchesShortcut(event, activeShortcuts.approvePullRequest)) {
                 event.preventDefault();
                 handlers.onApprovePullRequest?.();

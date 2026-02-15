@@ -1,6 +1,6 @@
 import type { FileDiffOptions, OnDiffLineClickProps, OnDiffLineEnterLeaveProps } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
-import { Check, ChevronDown, ChevronRight, Copy, ScrollText } from "lucide-react";
+import { Check, CheckCheck, ChevronDown, ChevronRight, Copy, ScrollText } from "lucide-react";
 import type { CSSProperties } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
@@ -26,7 +26,9 @@ type ReviewAllModeViewProps = {
     collapseViewedFilesByDefault: boolean;
     viewedFiles: Set<string>;
     copiedPath: string | null;
+    areAllFilesViewed: boolean;
     onToggleCollapsedFile: (path: string, next: boolean) => void;
+    onToggleAllFilesViewed: () => void;
     onCopyPath: (path: string) => void;
     onToggleViewed: (path: string) => void;
     diffHighlighterReady: boolean;
@@ -52,7 +54,9 @@ export function ReviewAllModeView({
     collapseViewedFilesByDefault,
     viewedFiles,
     copiedPath,
+    areAllFilesViewed,
     onToggleCollapsedFile,
+    onToggleAllFilesViewed,
     onCopyPath,
     onToggleViewed,
     diffHighlighterReady,
@@ -65,7 +69,7 @@ export function ReviewAllModeView({
     buildFileAnnotations,
 }: ReviewAllModeViewProps) {
     return (
-        <div className="w-full max-w-full" data-component="diff-list-view">
+        <div className="w-full max-w-full pb-[70vh]" data-component="diff-list-view">
             {prData ? (
                 <div
                     id={fileAnchorId(PR_SUMMARY_PATH)}
@@ -83,10 +87,29 @@ export function ReviewAllModeView({
                             </span>
                             <span className="min-w-0 max-w-full truncate font-mono">{pullRequestTitle || PR_SUMMARY_NAME}</span>
                         </button>
-                        <div className="ml-auto shrink-0 pr-2 text-[11px]">
+                        <div className="shrink-0 pr-2 text-[11px]">
                             <span className="text-status-added">+{lineStats.added}</span>
                             <span className="ml-2 text-status-removed">-{lineStats.removed}</span>
                         </div>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 shrink-0"
+                            onClick={onToggleAllFilesViewed}
+                            aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                            title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                        >
+                            <span
+                                className={
+                                    areAllFilesViewed
+                                        ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                        : "size-4 bg-muted/40 border border-border/70 text-muted-foreground flex items-center justify-center"
+                                }
+                            >
+                                <CheckCheck className="size-3" />
+                            </span>
+                        </Button>
                         <span
                             className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
                             aria-hidden

@@ -136,6 +136,8 @@ export function ReviewPageDiffContent({
     if (viewMode === "single") {
         return (
             <ReviewSingleModeView
+                viewMode={viewMode}
+                onWorkspaceModeChange={onWorkspaceModeChange}
                 prData={prData}
                 pullRequestTitle={pullRequestTitle}
                 lineStats={lineStats}
@@ -174,6 +176,8 @@ export function ReviewPageDiffContent({
 
     return (
         <ReviewAllModeView
+            viewMode={viewMode}
+            onWorkspaceModeChange={onWorkspaceModeChange}
             pullRequestTitle={pullRequestTitle || PR_SUMMARY_NAME}
             prData={prData}
             lineStats={lineStats}

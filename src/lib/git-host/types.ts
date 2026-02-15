@@ -105,6 +105,7 @@ export interface PullRequestHistoryEvent {
     createdAt?: string;
     actor?: { displayName?: string; avatarUrl?: string };
     content?: string;
+    contentHtml?: string;
     details?: string;
 }
 

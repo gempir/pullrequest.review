@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 export function ReviewSidebar({ className, children }: PropsWithChildren<{ className?: string }>) {
     return (
-        <aside data-component="sidebar" className={cn("shrink-0 bg-sidebar flex flex-col", className)}>
+        <aside data-component="sidebar" className={cn("shrink-0 bg-background flex flex-col", className)}>
             {children}
         </aside>
     );

@@ -479,7 +479,7 @@ function useResolvedSettingsTab({ activeTab: controlledActiveTab, onActiveTabCha
 
 function SettingsPanelHeader({ onClose }: { onClose?: () => void }) {
     return (
-        <div className="h-10 px-2.5 border-b border-border bg-card flex items-center gap-2">
+        <div className="h-10 px-2.5 border-b border-border bg-chrome flex items-center gap-2">
             <div className="text-[12px] font-medium flex items-center gap-2 w-full">
                 <Settings2 className="size-4" />
                 Settings

@@ -51,7 +51,7 @@ export function ReviewFileTreeSidebar({
 }: ReviewFileTreeSidebarProps) {
     return (
         <aside
-            className={cn("relative shrink-0 bg-sidebar flex flex-col overflow-hidden", treeCollapsed ? "border-r-0" : "border-r border-border")}
+            className={cn("relative shrink-0 bg-background flex flex-col overflow-hidden", treeCollapsed ? "border-r-0" : "border-r border-border")}
             style={{ width: treeCollapsed ? 0 : treeWidth }}
         >
             {!treeCollapsed ? (
@@ -59,19 +59,15 @@ export function ReviewFileTreeSidebar({
                     <SidebarTopControls
                         onHome={onHome}
                         onSettings={onToggleSettings}
+                        settingsActive={showSettingsPanel}
                         settingsAriaLabel={showSettingsPanel ? "Close settings" : "Open settings"}
-                        settingsButtonClassName={
-                            showSettingsPanel
-                                ? "text-status-renamed bg-status-renamed/20 border border-status-renamed/40 hover:bg-status-renamed/30"
-                                : undefined
-                        }
                         rightContent={
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={onCollapseTree} aria-label="Collapse file tree">
                                 <PanelLeftClose className="size-3.5" />
                             </Button>
                         }
                     />
-                    <div className="h-10 pl-1 pr-2 border-b border-border flex items-center gap-1" data-component="search-sidebar">
+                    <div className="h-10 pl-1 pr-2 border-b border-border bg-chrome flex items-center gap-1" data-component="search-sidebar">
                         <Input
                             className="h-7 text-[12px] flex-1 min-w-0 border-0 focus-visible:border-0 focus-visible:ring-0"
                             placeholder="search files"

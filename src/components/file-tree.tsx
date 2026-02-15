@@ -41,11 +41,11 @@ const HOST_PATH_PREFIX = "host:";
 function kindColor(kind: ChangeKind) {
     switch (kind) {
         case "add":
-            return "text-[#22c55e]";
+            return "text-status-added";
         case "del":
-            return "text-[#ef4444]";
+            return "text-status-removed";
         case "mix":
-            return "text-[#eab308]";
+            return "text-status-modified";
     }
 }
 
@@ -234,8 +234,8 @@ function DirectoryNode({
                 type="button"
                 className={cn(
                     "group w-full min-w-0 flex items-center gap-3 py-1 text-left",
-                    "hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer",
-                    isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
+                    "hover:bg-sidebar/70 active:bg-sidebar/90 transition-colors cursor-pointer",
+                    isActive ? "bg-sidebar text-foreground" : "text-muted-foreground",
                 )}
                 style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
                 onClick={() => {
@@ -321,8 +321,8 @@ function FileNodeRow({
             type="button"
             className={cn(
                 "w-full min-w-0 flex items-center gap-3 py-1 text-left",
-                "hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer",
-                isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
+                "hover:bg-sidebar/70 active:bg-sidebar/90 transition-colors cursor-pointer",
+                isActive ? "bg-sidebar text-foreground" : "text-muted-foreground",
             )}
             style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
             onClick={() => {
@@ -350,7 +350,7 @@ function FileNodeRow({
             {kindMarker(kind)}
             <span className="flex-1 min-w-0 truncate pr-2 text-foreground">{node.name}</span>
             {showUnviewedIndicator && node.type !== "summary" && !isSettingsNode && !isHomeNode && !viewed && (
-                <span className="sticky right-2 ml-auto size-2.5 shrink-0 rounded-full bg-accent" aria-hidden />
+                <span className="sticky right-2 ml-auto size-2.5 shrink-0 rounded-full bg-status-renamed" aria-hidden />
             )}
         </button>
     );

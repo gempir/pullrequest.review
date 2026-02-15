@@ -106,7 +106,7 @@ function OnboardingScreen() {
 
     return (
         <div className="h-full min-h-0 flex bg-background">
-            <aside data-component="sidebar" className="w-[300px] shrink-0 border-r border-border bg-sidebar flex flex-col">
+            <aside data-component="sidebar" className="w-[300px] shrink-0 border-r border-border bg-background flex flex-col">
                 <SidebarTopControls
                     onHome={() => {
                         navigate({ to: "/" });
@@ -115,7 +115,7 @@ function OnboardingScreen() {
                         navigate({ to: "/settings" });
                     }}
                 />
-                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 border-b border-border flex items-center">
+                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 border-b border-border bg-chrome flex items-center">
                     <span className="text-[11px] text-muted-foreground px-1">Select host</span>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto" data-component="tree">
@@ -139,7 +139,7 @@ function OnboardingScreen() {
             </aside>
 
             <section className="flex-1 min-w-0 min-h-0 flex flex-col">
-                <header data-component="navbar" className="h-11 border-b border-border bg-card px-3 flex items-center gap-2 text-[12px]">
+                <header data-component="navbar" className="h-11 border-b border-border bg-chrome px-3 flex items-center gap-2 text-[12px]">
                     <GitPullRequest className="size-3.5 text-muted-foreground" />
                     <span className="text-muted-foreground">Connect Git Host</span>
                     <span className="ml-auto text-muted-foreground">{getHostLabel(activeHost)}</span>
@@ -157,7 +157,7 @@ function OnboardingScreen() {
                             <div className="border border-border bg-card p-3 text-[13px] space-y-2">
                                 <div className="text-muted-foreground">Required scopes</div>
                                 <div className="leading-relaxed break-words">{scopeText}</div>
-                                <div className="border border-yellow-500/50 bg-yellow-500/15 text-yellow-300 px-2 py-1.5 text-[12px]">
+                                <div className="border border-status-modified/50 bg-status-modified/15 text-status-modified px-2 py-1.5 text-[12px]">
                                     Hint: Paste these scopes into "Search by scope name" while creating the token
                                 </div>
                                 <Button
@@ -178,7 +178,7 @@ function OnboardingScreen() {
 
                         {activeHost === "bitbucket" ? (
                             <Button
-                                className="w-full text-white bg-[#0146b3] border-[#0146b3] hover:bg-[#0052cc] hover:border-[#0052cc] cursor-pointer"
+                                className="w-full"
                                 onClick={() => window.open("https://id.atlassian.com/manage-profile/security/api-tokens", "_blank", "noopener,noreferrer")}
                             >
                                 <ExternalLink className="size-3.5" />

@@ -52,7 +52,7 @@ export function navbarStateClass(state?: string) {
         return "border-status-removed/50 bg-status-removed/15 text-status-removed";
     }
     if (normalized === "open") {
-        return "border-[#93c5fd]/50 bg-[#93c5fd]/15 text-[#93c5fd]";
+        return "border-status-renamed/50 bg-status-renamed/15 text-status-renamed";
     }
     return "border-border bg-secondary text-foreground";
 }
@@ -83,7 +83,7 @@ export function buildStatusBubbleClass(state?: string) {
         return "border-status-removed/50 bg-status-removed/15 text-status-removed";
     }
     if (normalized === "pending") {
-        return "border-[#eab308]/50 bg-[#eab308]/15 text-[#eab308]";
+        return "border-status-modified/50 bg-status-modified/15 text-status-modified";
     }
     return "border-border text-muted-foreground";
 }

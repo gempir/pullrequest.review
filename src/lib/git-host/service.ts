@@ -51,8 +51,20 @@ export async function approvePullRequest(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).approvePullRequest(data);
 }
 
+export async function removePullRequestApproval(data: { prRef: PullRequestRef }) {
+    return getHostClient(data.prRef.host).removePullRequestApproval(data);
+}
+
 export async function requestChangesOnPullRequest(data: { prRef: PullRequestRef; body?: string }) {
     return getHostClient(data.prRef.host).requestChanges(data);
+}
+
+export async function declinePullRequest(data: { prRef: PullRequestRef }) {
+    return getHostClient(data.prRef.host).declinePullRequest(data);
+}
+
+export async function markPullRequestAsDraft(data: { prRef: PullRequestRef }) {
+    return getHostClient(data.prRef.host).markPullRequestAsDraft(data);
 }
 
 export async function mergePullRequest(data: { prRef: PullRequestRef; closeSourceBranch?: boolean; message?: string; mergeStrategy?: string }) {

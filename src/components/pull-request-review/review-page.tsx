@@ -344,6 +344,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         allowedPathSet,
         viewedFiles,
         pullRequest: pullRequest ?? {},
+        isRefreshing: isPrQueryFetching,
         navbarState,
         navbarStatusDate,
         buildStatuses: prData?.buildStatuses,

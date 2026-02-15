@@ -13,6 +13,7 @@ export function useReviewPageViewProps({
     allowedPathSet,
     viewedFiles,
     pullRequest,
+    isRefreshing,
     navbarState,
     navbarStatusDate,
     buildStatuses,
@@ -58,6 +59,7 @@ export function useReviewPageViewProps({
     allowedPathSet: Set<string>;
     viewedFiles: Set<string>;
     pullRequest: { source?: { branch?: { name?: string } }; destination?: { branch?: { name?: string } } };
+    isRefreshing: boolean;
     navbarState: string;
     navbarStatusDate: string;
     buildStatuses: MainViewProps["navbarProps"]["buildStatuses"];
@@ -140,6 +142,7 @@ export function useReviewPageViewProps({
     const navbarProps = useMemo<MainViewProps["navbarProps"]>(
         () => ({
             loading: false,
+            isRefreshing,
             treeCollapsed,
             sourceBranch: pullRequest?.source?.branch?.name ?? "source",
             destinationBranch: pullRequest?.destination?.branch?.name ?? "target",
@@ -168,6 +171,7 @@ export function useReviewPageViewProps({
             buildStatuses,
             copiedSourceBranch,
             isApproved,
+            isRefreshing,
             navbarState,
             navbarStatusDate,
             onApprove,

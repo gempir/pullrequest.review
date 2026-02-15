@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 type ReviewTopNavbarProps = {
     loading: boolean;
+    isRefreshing: boolean;
     treeCollapsed: boolean;
     sourceBranch: string;
     destinationBranch: string;
@@ -36,6 +37,7 @@ type ReviewTopNavbarProps = {
 
 export function ReviewTopNavbar({
     loading,
+    isRefreshing,
     treeCollapsed,
     sourceBranch,
     destinationBranch,
@@ -101,7 +103,7 @@ export function ReviewTopNavbar({
                         <span className="max-w-[180px] truncate text-foreground">{destinationBranch}</span>
                         <span className={cn("px-1.5 py-0.5 border uppercase text-[10px]", navbarStateClass(navbarState))}>{navbarState}</span>
                         <span className="truncate">{navbarStatusDate}</span>
-                        {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} /> : null}
+                        {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 
                     <div className="ml-auto flex items-center gap-2 text-[11px]">
@@ -137,7 +139,7 @@ export function ReviewTopNavbar({
     );
 }
 
-function BuildStatusSummary({ buildStatuses }: { buildStatuses: PullRequestBuildStatus[] }) {
+function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: PullRequestBuildStatus[]; isRefreshing: boolean }) {
     return (
         <div className="flex items-center gap-1">
             {buildStatuses.length > 3 ? (
@@ -162,7 +164,7 @@ function BuildStatusSummary({ buildStatuses }: { buildStatuses: PullRequestBuild
                                     ) : stateLabel === "failed" ? (
                                         <X className="size-3" />
                                     ) : stateLabel === "pending" ? (
-                                        <Loader2 className="size-3 animate-spin" />
+                                        <Loader2 className={cn("size-3", isRefreshing ? "animate-spin" : undefined)} />
                                     ) : (
                                         <Minus className="size-3" />
                                     );
@@ -220,7 +222,7 @@ function BuildStatusSummary({ buildStatuses }: { buildStatuses: PullRequestBuild
                         ) : stateLabel === "failed" ? (
                             <X className="size-3" />
                         ) : stateLabel === "pending" ? (
-                            <Loader2 className="size-3 animate-spin" />
+                            <Loader2 className={cn("size-3", isRefreshing ? "animate-spin" : undefined)} />
                         ) : (
                             <Minus className="size-3" />
                         );

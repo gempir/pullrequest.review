@@ -55,6 +55,11 @@ interface DiffOptionsContextType {
 
 const DiffOptionsContext = createContext<DiffOptionsContextType | null>(null);
 
+function getBrowserPreferredTheme(): DiffTheme {
+    if (typeof window === "undefined") return DEFAULT_DIFF_THEME;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "github-dark-default" : "github-light-default";
+}
+
 function normalizeDiffFontSize(value: number) {
     if (!Number.isFinite(value)) return 13;
     return Math.min(20, Math.max(10, Math.round(value)));
@@ -70,9 +75,11 @@ function parseStoredOptions(raw: string | null): DiffOptions | null {
     if (!raw) return null;
     try {
         const parsed = JSON.parse(raw) as Partial<DiffOptions>;
+        const parsedTheme = typeof parsed.theme === "string" ? parsed.theme : getBrowserPreferredTheme();
         return {
             ...defaultOptions,
             ...parsed,
+            theme: parsedTheme,
             followSystemTheme: typeof parsed.followSystemTheme === "boolean" ? parsed.followSystemTheme : defaultOptions.followSystemTheme,
             diffFontFamily: (parsed.diffFontFamily as FontFamilyValue) ?? defaultOptions.diffFontFamily,
             diffFontSize: normalizeDiffFontSize(Number(parsed.diffFontSize ?? defaultOptions.diffFontSize)),
@@ -95,6 +102,11 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
         const parsed = parseStoredOptions(readLocalStorageValue(STORAGE_KEY));
         if (parsed) {
             setOptions(parsed);
+        } else {
+            setOptions((prev) => ({
+                ...prev,
+                theme: getBrowserPreferredTheme(),
+            }));
         }
         setHydrated(true);
     }, []);
@@ -110,7 +122,7 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
         const apply = (isDark: boolean) => {
             setOptions((prev) => {
                 if (!prev.followSystemTheme) return prev;
-                const nextTheme = isDark ? "pierre-dark" : "pierre-light";
+                const nextTheme = isDark ? "github-dark-default" : "github-light-default";
                 if (prev.theme === nextTheme) return prev;
                 return { ...prev, theme: nextTheme };
             });

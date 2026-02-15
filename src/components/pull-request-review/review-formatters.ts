@@ -57,9 +57,10 @@ export function navbarStateClass(state?: string) {
     return "border-border bg-secondary text-foreground";
 }
 
-export function normalizeNavbarState(pr?: { state?: string; mergedAt?: string; closedAt?: string }) {
+export function normalizeNavbarState(pr?: { state?: string; draft?: boolean; mergedAt?: string; closedAt?: string }) {
     if (pr?.mergedAt) return "merged";
     if (pr?.closedAt) return "closed";
+    if (pr?.draft) return "draft";
     return (pr?.state ?? "open").toLowerCase();
 }
 

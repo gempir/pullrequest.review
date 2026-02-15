@@ -37,6 +37,10 @@ interface BitbucketPullRequestSummaryRaw {
 }
 
 interface BitbucketUser {
+    account_id?: string;
+    uuid?: string;
+    nickname?: string;
+    username?: string;
     display_name?: string;
     links?: { avatar?: { href?: string } };
 }
@@ -56,6 +60,7 @@ interface BitbucketPullRequestRaw {
     destination?: PullRequestDetails["destination"];
     participants?: Array<{
         approved?: boolean;
+        state?: string;
         user?: BitbucketUser;
     }>;
     links?: PullRequestDetails["links"];
@@ -327,7 +332,25 @@ function mapComment(comment: BitbucketCommentRaw): Comment {
     };
 }
 
-function mapPullRequest(pr: BitbucketPullRequestRaw): PullRequestDetails {
+function mapParticipantReviewStatus(participant: { approved?: boolean; state?: string }): PullRequestDetails["currentUserReviewStatus"] {
+    if (participant.approved) return "approved";
+    const normalized = (participant.state ?? "").toUpperCase();
+    if (normalized.includes("CHANGES")) return "changesRequested";
+    return "none";
+}
+
+function isCurrentBitbucketUser(participantUser: BitbucketUser | undefined, currentUser: BitbucketUser | null): boolean {
+    if (!participantUser || !currentUser) return false;
+    if (participantUser.account_id && currentUser.account_id) return participantUser.account_id === currentUser.account_id;
+    if (participantUser.uuid && currentUser.uuid) return participantUser.uuid === currentUser.uuid;
+    if (participantUser.nickname && currentUser.nickname) return participantUser.nickname === currentUser.nickname;
+    if (participantUser.username && currentUser.username) return participantUser.username === currentUser.username;
+    if (participantUser.display_name && currentUser.display_name) return participantUser.display_name === currentUser.display_name;
+    return false;
+}
+
+function mapPullRequest(pr: BitbucketPullRequestRaw, currentUser: BitbucketUser | null): PullRequestDetails {
+    const currentUserParticipant = (pr.participants ?? []).find((participant) => isCurrentBitbucketUser(participant.user, currentUser));
     return {
         id: pr.id,
         title: pr.title,
@@ -352,6 +375,7 @@ function mapPullRequest(pr: BitbucketPullRequestRaw): PullRequestDetails {
                     avatarUrl: getAvatarUrl(participant.user),
                 },
             })) ?? [],
+        currentUserReviewStatus: currentUserParticipant ? mapParticipantReviewStatus(currentUserParticipant) : "none",
         links: pr.links,
     };
 }
@@ -524,6 +548,9 @@ export const bitbucketClient: GitHostClient = {
         publicReadSupported: false,
         supportsThreadResolution: true,
         requestChangesAvailable: true,
+        removeApprovalAvailable: true,
+        declineAvailable: true,
+        markDraftAvailable: false,
     },
     async getAuthState(): Promise<AuthState> {
         const credentials = readCredentials();
@@ -600,16 +627,18 @@ export const bitbucketClient: GitHostClient = {
         const prRef = data.prRef;
         const baseApi = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/pullrequests/${prRef.pullRequestId}`;
 
-        const [prRes, diffRes, diffstat, commits, comments, activity] = await Promise.all([
+        const [prRes, diffRes, diffstat, commits, comments, activity, currentUserRes] = await Promise.all([
             request(baseApi, { headers: { Accept: "application/json" } }),
             request(`${baseApi}/diff`, { headers: { Accept: "text/plain" } }),
             fetchAllDiffStat(`${baseApi}/diffstat?pagelen=100`),
             fetchAllCommits(`${baseApi}/commits?pagelen=50`),
             fetchAllComments(`${baseApi}/comments?pagelen=100&sort=created_on`),
             fetchAllActivity(`${baseApi}/activity?pagelen=50`).catch(() => []),
+            request("https://api.bitbucket.org/2.0/user", { headers: { Accept: "application/json" } }).catch(() => null),
         ]);
 
-        const pr = mapPullRequest((await prRes.json()) as BitbucketPullRequestRaw);
+        const currentUser = currentUserRes ? ((await currentUserRes.json()) as BitbucketUser) : null;
+        const pr = mapPullRequest((await prRes.json()) as BitbucketPullRequestRaw, currentUser);
         const latestCommitHash = commits[0]?.hash;
         const latestBuildStatuses = latestCommitHash
             ? await fetchAllBuildStatuses(
@@ -637,13 +666,32 @@ export const bitbucketClient: GitHostClient = {
         });
         return { ok: true as const };
     },
-    async requestChanges(data) {
+    async removePullRequestApproval(data) {
         const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
         await request(url, {
             method: "DELETE",
             headers: { Accept: "application/json" },
         });
         return { ok: true as const };
+    },
+    async requestChanges(data) {
+        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/request-changes`;
+        await request(url, {
+            method: "POST",
+            headers: { Accept: "application/json" },
+        });
+        return { ok: true as const };
+    },
+    async declinePullRequest(data) {
+        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/decline`;
+        await request(url, {
+            method: "POST",
+            headers: { Accept: "application/json" },
+        });
+        return { ok: true as const };
+    },
+    async markPullRequestAsDraft() {
+        throw new Error("Mark as draft is not supported for Bitbucket in this app.");
     },
     async mergePullRequest(data) {
         const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/merge`;

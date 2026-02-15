@@ -13,14 +13,16 @@ export function useReviewPageViewProps({
     allowedPathSet,
     viewedFiles,
     pullRequest,
+    isRefreshing,
     navbarState,
     navbarStatusDate,
     buildStatuses,
-    unresolvedThreadCount,
     actionPolicy,
-    isApproved,
+    currentUserReviewStatus,
     approvePending,
     requestChangesPending,
+    declinePending,
+    markDraftPending,
     copiedSourceBranch,
     onHome,
     onToggleSettings,
@@ -36,6 +38,8 @@ export function useReviewPageViewProps({
     onCopySourceBranch,
     onApprove,
     onRequestChanges,
+    onDecline,
+    onMarkDraft,
     onOpenMerge,
     mergeOpen,
     onMergeDialogOpenChange,
@@ -58,14 +62,16 @@ export function useReviewPageViewProps({
     allowedPathSet: Set<string>;
     viewedFiles: Set<string>;
     pullRequest: { source?: { branch?: { name?: string } }; destination?: { branch?: { name?: string } } };
+    isRefreshing: boolean;
     navbarState: string;
     navbarStatusDate: string;
     buildStatuses: MainViewProps["navbarProps"]["buildStatuses"];
-    unresolvedThreadCount: number;
-    actionPolicy: { canApprove: boolean; canRequestChanges: boolean; canMerge: boolean };
-    isApproved: boolean;
+    actionPolicy: { canApprove: boolean; canRequestChanges: boolean; canMerge: boolean; canDecline: boolean; canMarkDraft: boolean };
+    currentUserReviewStatus: "approved" | "changesRequested" | "none";
     approvePending: boolean;
     requestChangesPending: boolean;
+    declinePending: boolean;
+    markDraftPending: boolean;
     copiedSourceBranch: boolean;
     onHome: MainViewProps["sidebarProps"]["onHome"];
     onToggleSettings: MainViewProps["sidebarProps"]["onToggleSettings"];
@@ -81,6 +87,8 @@ export function useReviewPageViewProps({
     onCopySourceBranch: MainViewProps["navbarProps"]["onCopySourceBranch"];
     onApprove: MainViewProps["navbarProps"]["onApprove"];
     onRequestChanges: MainViewProps["navbarProps"]["onRequestChanges"];
+    onDecline: MainViewProps["navbarProps"]["onDecline"];
+    onMarkDraft: MainViewProps["navbarProps"]["onMarkDraft"];
     onOpenMerge: MainViewProps["navbarProps"]["onOpenMerge"];
     mergeOpen: boolean;
     onMergeDialogOpenChange: (open: boolean) => void;
@@ -140,45 +148,57 @@ export function useReviewPageViewProps({
     const navbarProps = useMemo<MainViewProps["navbarProps"]>(
         () => ({
             loading: false,
+            isRefreshing,
             treeCollapsed,
             sourceBranch: pullRequest?.source?.branch?.name ?? "source",
             destinationBranch: pullRequest?.destination?.branch?.name ?? "target",
             navbarState,
             navbarStatusDate,
             buildStatuses,
-            unresolvedThreadCount,
             canApprove: actionPolicy.canApprove,
             canRequestChanges: actionPolicy.canRequestChanges,
             canMerge: actionPolicy.canMerge,
-            isApproved,
+            canDecline: actionPolicy.canDecline,
+            canMarkDraft: actionPolicy.canMarkDraft,
+            currentUserReviewStatus,
             isApprovePending: approvePending,
             isRequestChangesPending: requestChangesPending,
+            isDeclinePending: declinePending,
+            isMarkDraftPending: markDraftPending,
             copiedSourceBranch,
             onExpandTree,
             onCopySourceBranch,
             onApprove,
             onRequestChanges,
+            onDecline,
+            onMarkDraft,
             onOpenMerge,
         }),
         [
             actionPolicy.canApprove,
+            actionPolicy.canDecline,
+            actionPolicy.canMarkDraft,
             actionPolicy.canMerge,
             actionPolicy.canRequestChanges,
             approvePending,
             buildStatuses,
             copiedSourceBranch,
-            isApproved,
+            currentUserReviewStatus,
+            declinePending,
+            isRefreshing,
+            markDraftPending,
             navbarState,
             navbarStatusDate,
             onApprove,
+            onDecline,
             onCopySourceBranch,
             onExpandTree,
+            onMarkDraft,
             onOpenMerge,
             onRequestChanges,
             pullRequest,
             requestChangesPending,
             treeCollapsed,
-            unresolvedThreadCount,
         ],
     );
 

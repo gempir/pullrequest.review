@@ -50,6 +50,8 @@
         "react-dom": "^19.1.1",
         "react-files-icons": "^0.7.0",
         "react-markdown": "^10.1.0",
+        "rehype-raw": "^7.0.0",
+        "rehype-sanitize": "^6.0.0",
         "remark-gfm": "^4.0.1",
         "rxdb": "^16.21.1",
         "shiki": "^3.13.0",

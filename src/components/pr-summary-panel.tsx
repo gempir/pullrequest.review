@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import type { PullRequestBundle, PullRequestHistoryEvent } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
@@ -69,16 +71,21 @@ function MarkdownBlock({ text }: { text: string }) {
         <div className="space-y-2 text-[12px] leading-relaxed">
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw, rehypeSanitize]}
                 components={{
                     a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" className="underline text-foreground" />,
                     p: ({ node: _node, ...props }) => <p {...props} className="whitespace-pre-wrap break-words" />,
                     ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc pl-5 space-y-1" />,
                     ol: ({ node: _node, ...props }) => <ol {...props} className="list-decimal pl-5 space-y-1" />,
+                    table: ({ node: _node, ...props }) => <table {...props} className="w-full border-collapse" />,
+                    th: ({ node: _node, ...props }) => <th {...props} className="border border-border p-2 text-left" />,
+                    td: ({ node: _node, ...props }) => <td {...props} className="border border-border p-2" />,
                     blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l border-border pl-3 text-muted-foreground" />,
                     code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-secondary px-1 py-0.5 text-[11px]" />,
                     pre: ({ node: _node, ...props }) => (
                         <pre {...props} className="overflow-x-auto rounded border border-border bg-background p-2 text-[11px]" />
                     ),
+                    img: ({ node: _node, ...props }) => <img {...props} className="inline align-middle" alt={props.alt ?? ""} />,
                 }}
             >
                 {text}
@@ -141,6 +148,7 @@ export function PullRequestSummaryPanel({
                               avatarUrl: comment.user?.avatarUrl,
                           },
                           content: comment.content?.raw,
+                          contentHtml: comment.content?.html,
                       }),
                   );
     const visibleHistory = resolvedHistory.filter((event) => event.type !== "reopened");
@@ -185,9 +193,9 @@ export function PullRequestSummaryPanel({
                                             <span className="ml-auto text-muted-foreground">{formatDate(event.createdAt)}</span>
                                         </div>
                                         {event.details ? <div className="mt-1 text-[12px] text-muted-foreground break-words">{event.details}</div> : null}
-                                        {event.content ? (
+                                        {event.content || event.contentHtml ? (
                                             <div className="mt-1">
-                                                <MarkdownBlock text={event.content} />
+                                                <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />
                                             </div>
                                         ) : null}
                                     </div>

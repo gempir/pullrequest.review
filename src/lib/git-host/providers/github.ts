@@ -44,6 +44,8 @@ interface GithubPull {
     html_url?: string;
     user?: { login?: string; avatar_url?: string };
     body?: string;
+    body_text?: string;
+    body_html?: string;
     draft?: boolean;
     created_at?: string;
     updated_at?: string;
@@ -91,6 +93,8 @@ interface GithubIssueComment {
     created_at?: string;
     updated_at?: string;
     body?: string;
+    body_text?: string;
+    body_html?: string;
     user?: { login?: string; avatar_url?: string };
 }
 
@@ -99,6 +103,8 @@ interface GithubReviewComment {
     created_at?: string;
     updated_at?: string;
     body?: string;
+    body_text?: string;
+    body_html?: string;
     user?: { login?: string; avatar_url?: string };
     path?: string;
     line?: number;
@@ -111,6 +117,8 @@ interface GithubReview {
     id: number;
     state?: string;
     body?: string;
+    body_text?: string;
+    body_html?: string;
     user?: { login?: string; avatar_url?: string };
     submitted_at?: string;
 }
@@ -192,7 +200,7 @@ async function request(path: string, init: RequestInit = {}, options: { requireA
     }
 
     const headers: Record<string, string> = {
-        Accept: "application/vnd.github+json",
+        Accept: "application/vnd.github.full+json",
         "X-GitHub-Api-Version": "2022-11-28",
         ...(init.headers as Record<string, string>),
     };
@@ -252,7 +260,7 @@ function mapPullRequestDetails(
     return {
         id: pr.number,
         title: pr.title,
-        description: pr.body,
+        description: pickCommentBody(pr.body, pr.body_text),
         state: (pr.state ?? "OPEN").toUpperCase(),
         draft: Boolean(pr.draft),
         commentCount: Number(pr.comments ?? 0) + Number(pr.review_comments ?? 0),
@@ -278,6 +286,28 @@ function mapPullRequestDetails(
         currentUserReviewStatus: currentUserReviewStatus ?? "none",
         links: { html: { href: pr.html_url } },
     };
+}
+
+function looksLikeHtml(value: string) {
+    return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function pickCommentBody(body?: string, bodyText?: string) {
+    const raw = body?.trim();
+    const plain = bodyText?.trim();
+    if (!raw) return plain;
+    if (looksLikeHtml(raw) && plain) return plain;
+    return raw;
+}
+
+function mapCommentContent(body?: string, bodyText?: string, bodyHtml?: string) {
+    const raw = pickCommentBody(body, bodyText);
+    const html = bodyHtml?.trim();
+    const source = body?.trim() ?? "";
+    if (html && looksLikeHtml(source)) {
+        return { raw, html };
+    }
+    return { raw };
 }
 
 function mapReviewStateToStatus(state: string | undefined): PullRequestReviewer["status"] {
@@ -323,6 +353,7 @@ function mapReviewers(pr: GithubPull, reviews: GithubReview[]): PullRequestRevie
 }
 
 function mapIssueCommentToHistory(comment: GithubIssueComment): PullRequestHistoryEvent {
+    const content = mapCommentContent(comment.body, comment.body_text, comment.body_html);
     return {
         id: `github-issue-comment-${comment.id}`,
         type: "comment",
@@ -331,7 +362,8 @@ function mapIssueCommentToHistory(comment: GithubIssueComment): PullRequestHisto
             displayName: comment.user?.login,
             avatarUrl: comment.user?.avatar_url,
         },
-        content: comment.body,
+        content: content.raw,
+        contentHtml: content.html,
     };
 }
 
@@ -343,6 +375,7 @@ function mapReviewToHistory(review: GithubReview): PullRequestHistoryEvent | nul
     if (state === "DISMISSED") type = "reviewDismissed";
     if (state === "COMMENTED") type = "comment";
     if (!type) return null;
+    const content = mapCommentContent(review.body, review.body_text, review.body_html);
     return {
         id: `github-review-${review.id}`,
         type,
@@ -351,7 +384,8 @@ function mapReviewToHistory(review: GithubReview): PullRequestHistoryEvent | nul
             displayName: review.user?.login,
             avatarUrl: review.user?.avatar_url,
         },
-        content: review.body,
+        content: content.raw,
+        contentHtml: content.html,
     };
 }
 
@@ -524,11 +558,12 @@ function mapCommit(commit: GithubCommit): Commit {
 }
 
 function mapIssueComment(comment: GithubIssueComment): Comment {
+    const content = mapCommentContent(comment.body, comment.body_text, comment.body_html);
     return {
         id: comment.id,
         createdAt: comment.created_at,
         updatedAt: comment.updated_at,
-        content: { raw: comment.body },
+        content: { raw: content.raw, html: content.html },
         user: {
             displayName: comment.user?.login,
             avatarUrl: comment.user?.avatar_url,
@@ -539,11 +574,12 @@ function mapIssueComment(comment: GithubIssueComment): Comment {
 function mapReviewComment(comment: GithubReviewComment): Comment {
     const line = comment.line ?? comment.original_line;
     const isLeft = comment.side === "LEFT";
+    const content = mapCommentContent(comment.body, comment.body_text, comment.body_html);
     return {
         id: comment.id,
         createdAt: comment.created_at,
         updatedAt: comment.updated_at,
-        content: { raw: comment.body },
+        content: { raw: content.raw, html: content.html },
         user: {
             displayName: comment.user?.login,
             avatarUrl: comment.user?.avatar_url,

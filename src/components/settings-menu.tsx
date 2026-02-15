@@ -266,7 +266,7 @@ function AppearanceTab() {
                     </SelectTrigger>
                     <SelectContent className="max-h-80">
                         <SelectItem value="__system__" className="text-[12px]">
-                            Detect browser preference (pierre dark/light)
+                            Detect browser preference (github dark/light default)
                         </SelectItem>
                         {DIFF_THEMES.map((theme) => (
                             <SelectItem key={theme} value={theme} className="text-[12px]">

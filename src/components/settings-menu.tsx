@@ -1,6 +1,6 @@
 import { type FileDiffOptions, parsePatchFiles } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
-import { RotateCcw, Settings2 } from "lucide-react";
+import { FileCode2, Files, RotateCcw, Settings2 } from "lucide-react";
 import { type CSSProperties, useMemo, useState } from "react";
 import { DiffToolbar } from "@/components/diff-toolbar";
 import { getSettingsTabIcon, getSettingsTreeItems, type SettingsTab } from "@/components/settings-navigation";
@@ -200,17 +200,19 @@ function DiffSettingsTab({ workspaceMode, onWorkspaceModeChange }: { workspaceMo
                         <Button
                             variant={workspaceMode === "single" ? "default" : "outline"}
                             size="sm"
-                            className="h-8"
+                            className="h-8 gap-1.5"
                             onClick={() => onWorkspaceModeChange("single")}
                         >
+                            <FileCode2 className="size-3.5" />
                             Single file
                         </Button>
                         <Button
                             variant={workspaceMode === "all" ? "default" : "outline"}
                             size="sm"
-                            className="h-8"
+                            className="h-8 gap-1.5"
                             onClick={() => onWorkspaceModeChange("all")}
                         >
+                            <Files className="size-3.5" />
                             All files
                         </Button>
                     </div>

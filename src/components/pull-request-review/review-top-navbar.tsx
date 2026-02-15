@@ -73,7 +73,7 @@ export function ReviewTopNavbar({
 
     return (
         <div
-            className="h-11 border-b border-border bg-card px-1.5 flex items-center gap-3"
+            className="h-11 border-b border-border bg-chrome px-1.5 flex items-center gap-3"
             style={{ fontFamily: "var(--comment-font-family)" }}
             data-component="navbar"
         >
@@ -101,7 +101,7 @@ export function ReviewTopNavbar({
                                 variant="ghost"
                                 size="sm"
                                 className={cn(
-                                    "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 p-0 transition-opacity bg-card/95",
+                                    "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 p-0 transition-opacity bg-chrome/95",
                                     copiedSourceBranch
                                         ? "opacity-100"
                                         : "opacity-0 pointer-events-none group-hover/source:opacity-100 group-hover/source:pointer-events-auto group-focus-within/source:opacity-100 group-focus-within/source:pointer-events-auto",
@@ -126,7 +126,7 @@ export function ReviewTopNavbar({
                                     variant="ghost"
                                     size="sm"
                                     className={cn(
-                                        "h-full min-w-24 rounded-none border-0 border-transparent px-3 bg-card text-foreground hover:bg-secondary data-[state=open]:bg-secondary hover:border-transparent focus-visible:outline-none focus-visible:ring-0",
+                                        "h-full min-w-24 rounded-none border-0 border-transparent px-3 bg-chrome text-foreground hover:bg-secondary data-[state=open]:bg-secondary hover:border-transparent focus-visible:outline-none focus-visible:ring-0",
                                     )}
                                     disabled={actionBusy}
                                     aria-label="Pull request actions"
@@ -137,7 +137,9 @@ export function ReviewTopNavbar({
                                         <span className="inline-flex items-center gap-1.5">
                                             <Menu className="size-4" />
                                             {currentUserReviewStatus === "approved" ? <Check className="size-3.5 text-status-added" /> : null}
-                                            {currentUserReviewStatus === "changesRequested" ? <TriangleAlert className="size-3.5 text-[#eab308]" /> : null}
+                                            {currentUserReviewStatus === "changesRequested" ? (
+                                                <TriangleAlert className="size-3.5 text-status-modified" />
+                                            ) : null}
                                         </span>
                                     )}
                                 </Button>
@@ -158,8 +160,10 @@ export function ReviewTopNavbar({
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                     className={cn(
-                                        "cursor-pointer py-2 text-[13px] text-[#eab308] focus:text-[#eab308]",
-                                        currentUserReviewStatus === "changesRequested" ? "bg-[#eab308]/20 focus:bg-[#eab308]/30" : "focus:bg-[#eab308]/20",
+                                        "cursor-pointer py-2 text-[13px] text-status-modified focus:text-status-modified",
+                                        currentUserReviewStatus === "changesRequested"
+                                            ? "bg-status-modified/20 focus:bg-status-modified/30"
+                                            : "focus:bg-status-modified/20",
                                     )}
                                     disabled={!canRequestChanges || actionBusy}
                                     onSelect={onRequestChanges}
@@ -168,7 +172,7 @@ export function ReviewTopNavbar({
                                     Request Changes
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                    className="cursor-pointer py-2 text-[13px] text-[#93c5fd] focus:bg-[#93c5fd]/20 focus:text-[#93c5fd]"
+                                    className="cursor-pointer py-2 text-[13px] text-status-renamed focus:bg-status-renamed/20 focus:text-status-renamed"
                                     disabled={!canMerge || actionBusy}
                                     onSelect={onOpenMerge}
                                 >

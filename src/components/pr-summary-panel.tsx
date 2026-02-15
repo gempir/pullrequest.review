@@ -158,7 +158,7 @@ export function PullRequestSummaryPanel({
     return (
         <div className="pr-diff-font" style={{ fontFamily: "var(--comment-font-family)" }}>
             {headerTitle ? (
-                <div className="h-10 border-b border-border bg-card px-2.5 flex items-center gap-2 overflow-hidden" data-component="summary-header">
+                <div className="h-10 border-b border-border bg-chrome px-2.5 flex items-center gap-2 overflow-hidden" data-component="summary-header">
                     <span className="shrink-0 font-mono text-[11px] text-muted-foreground">#{pr.id}</span>
                     <span className="min-w-0 flex-1 text-[12px] text-foreground truncate">{headerTitle}</span>
                     {diffStats ? (
@@ -236,7 +236,7 @@ export function PullRequestSummaryPanel({
                                                     {commit.author?.user?.displayName ?? commit.author?.raw ?? "Unknown"}
                                                 </span>
                                             </div>
-                                            <span className={cn("font-mono", mergedDevelop ? "text-status-added/80" : "text-[#93c5fd]")}>
+                                            <span className={cn("font-mono", mergedDevelop ? "text-status-added/80" : "text-status-renamed")}>
                                                 {shortHash(commit.hash)}
                                             </span>
                                             <span className={cn("truncate", mergedDevelop ? "text-muted-foreground" : "text-foreground")}>

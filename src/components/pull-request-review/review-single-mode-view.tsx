@@ -126,21 +126,23 @@ export function ReviewSingleModeView({
 
     return (
         <div id={fileAnchorId(selectedFilePath)} data-component="diff-file-view" className="h-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
-            <div className="h-10 min-w-0 border-b border-border px-3 flex items-center gap-2 overflow-hidden">
+            <div className="h-10 min-w-0 border-b border-border bg-chrome px-3 flex items-center gap-2 overflow-hidden">
                 <span className="size-4 flex items-center justify-center shrink-0">
                     <RepositoryFileIcon fileName={selectedFilePath.split("/").pop() || selectedFilePath} className="size-3.5" />
                 </span>
-                <span className="min-w-0 flex-1 font-mono text-[12px] truncate">{selectedFilePath}</span>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 shrink-0"
-                    onClick={() => onCopyPath(selectedFilePath)}
-                    aria-label="Copy file path"
-                >
-                    {copiedPath === selectedFilePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                </Button>
+                <div className="min-w-0 flex-1 flex items-center gap-1">
+                    <span className="min-w-0 truncate font-mono text-[12px]">{selectedFilePath}</span>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 shrink-0"
+                        onClick={() => onCopyPath(selectedFilePath)}
+                        aria-label="Copy file path"
+                    >
+                        {copiedPath === selectedFilePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                    </Button>
+                </div>
                 <span className="select-none text-[12px] text-status-added">+{fileLineStats.get(selectedFilePath)?.added ?? 0}</span>
                 <span className="select-none text-[12px] text-status-removed">-{fileLineStats.get(selectedFilePath)?.removed ?? 0}</span>
                 <button
@@ -151,7 +153,7 @@ export function ReviewSingleModeView({
                     <span
                         className={
                             viewedFiles.has(selectedFilePath)
-                                ? "size-4 bg-accent text-foreground flex items-center justify-center"
+                                ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
                                 : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
                         }
                     >

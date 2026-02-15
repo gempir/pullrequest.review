@@ -25,6 +25,8 @@ const APP_COLOR_VARIABLES = [
     "--border",
     "--input",
     "--ring",
+    "--chrome",
+    "--overlay",
     "--sidebar",
     "--sidebar-foreground",
     "--sidebar-primary",
@@ -37,6 +39,10 @@ const APP_COLOR_VARIABLES = [
     "--status-removed",
     "--status-modified",
     "--status-renamed",
+    "--host-bitbucket",
+    "--host-bitbucket-accent",
+    "--destructive",
+    "--destructive-foreground",
 ] as const;
 
 type Rgb = { r: number; g: number; b: number };
@@ -127,11 +133,20 @@ function buildPalette(theme: ShikiThemeLike) {
     const secondary = mixColors(background, foreground, darkBackground ? 0.11 : 0.08);
     const muted = mixColors(background, foreground, darkBackground ? 0.06 : 0.05);
     const mutedForeground = mixColors(foreground, background, darkBackground ? 0.45 : 0.5);
-    const accent = mixColors(selection, background, darkBackground ? 0.45 : 0.3);
-    const border = mixColors(background, foreground, darkBackground ? 0.2 : 0.22);
-    const ring = mixColors(selection, foreground, 0.25);
     const sidebar = mixColors(background, foreground, darkBackground ? 0.05 : 0.03);
+    const chrome = mixColors(background, sidebar, 0.35);
+    const border = mixColors(background, foreground, darkBackground ? 0.2 : 0.22);
+    const accent = mixColors(background, foreground, darkBackground ? 0.14 : 0.09);
+    const ring = mixColors(selection, foreground, 0.25);
+    const overlay = mixColors(background, "#000000", darkBackground ? 0.45 : 0.7);
     const sidebarAccent = mixColors(sidebar, foreground, darkBackground ? 0.14 : 0.1);
+    const statusAdded = pickColor(colors, ["gitDecoration.addedResourceForeground", "terminal.ansiGreen"]) ?? "#22c55e";
+    const statusRemoved = pickColor(colors, ["gitDecoration.deletedResourceForeground", "terminal.ansiRed"]) ?? "#ef4444";
+    const statusModified = pickColor(colors, ["gitDecoration.modifiedResourceForeground", "terminal.ansiYellow"]) ?? "#eab308";
+    const statusRenamed = pickColor(colors, ["gitDecoration.renamedResourceForeground", "terminal.ansiBlue"]) ?? "#3b82f6";
+    const hostBitbucket = pickColor(colors, ["terminal.ansiBlue", "gitDecoration.renamedResourceForeground"]) ?? "#2684ff";
+    const hostBitbucketAccent = mixColors(hostBitbucket, background, darkBackground ? 0.2 : 0.28);
+    const destructive = mixColors(statusRemoved, background, darkBackground ? 0.12 : 0.2);
 
     return {
         "--background": background,
@@ -151,6 +166,8 @@ function buildPalette(theme: ShikiThemeLike) {
         "--border": border,
         "--input": border,
         "--ring": ring,
+        "--chrome": chrome,
+        "--overlay": overlay,
         "--sidebar": sidebar,
         "--sidebar-foreground": foreground,
         "--sidebar-primary": foreground,
@@ -159,10 +176,14 @@ function buildPalette(theme: ShikiThemeLike) {
         "--sidebar-accent-foreground": foreground,
         "--sidebar-border": border,
         "--sidebar-ring": ring,
-        "--status-added": pickColor(colors, ["gitDecoration.addedResourceForeground", "terminal.ansiGreen"]) ?? "#22c55e",
-        "--status-removed": pickColor(colors, ["gitDecoration.deletedResourceForeground", "terminal.ansiRed"]) ?? "#ef4444",
-        "--status-modified": pickColor(colors, ["gitDecoration.modifiedResourceForeground", "terminal.ansiYellow"]) ?? "#eab308",
-        "--status-renamed": pickColor(colors, ["gitDecoration.renamedResourceForeground", "terminal.ansiBlue"]) ?? "#3b82f6",
+        "--status-added": statusAdded,
+        "--status-removed": statusRemoved,
+        "--status-modified": statusModified,
+        "--status-renamed": statusRenamed,
+        "--host-bitbucket": hostBitbucket,
+        "--host-bitbucket-accent": hostBitbucketAccent,
+        "--destructive": destructive,
+        "--destructive-foreground": background,
     } as const;
 }
 

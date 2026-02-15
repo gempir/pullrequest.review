@@ -187,6 +187,7 @@ export function DiffToolbar() {
                 <OptionSwitch label="Disable Background" icon={ImageOff} optionKey="disableBackground" />
                 <OptionSwitch label="Expand Unchanged" icon={UnfoldVertical} optionKey="expandUnchanged" />
                 <OptionSwitch label="Hide Line Numbers" icon={Hash} optionKey="disableLineNumbers" />
+                <OptionSwitch label="Auto Mark Files as Viewed" icon={FoldVertical} optionKey="autoMarkViewedFiles" />
                 <OptionSwitch label="Fold Viewed Files By Default" icon={FoldVertical} optionKey="collapseViewedFilesByDefault" />
             </div>
         </div>

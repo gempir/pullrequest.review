@@ -19,6 +19,7 @@ type UseReviewPageNavigationProps = {
     setIsSummaryCollapsedInAllMode: Dispatch<SetStateAction<boolean>>;
     setViewedFiles: Dispatch<SetStateAction<Set<string>>>;
     setDirectoryExpandedMap: (next: Record<string, boolean>) => void;
+    onProgrammaticAllModeRevealStart?: (path: string) => void;
     onApprovePullRequest: () => void;
     onRequestChangesPullRequest: () => void;
 };
@@ -38,6 +39,7 @@ export function useReviewPageNavigation({
     setIsSummaryCollapsedInAllMode,
     setViewedFiles,
     setDirectoryExpandedMap,
+    onProgrammaticAllModeRevealStart,
     onApprovePullRequest,
     onRequestChangesPullRequest,
 }: UseReviewPageNavigationProps) {
@@ -71,6 +73,7 @@ export function useReviewPageNavigation({
                     setCollapsedAllModeFiles((prev) => ({ ...prev, [path]: false }));
                 }
                 requestAnimationFrame(() => {
+                    onProgrammaticAllModeRevealStart?.(path);
                     const anchor = document.getElementById(fileAnchorId(path));
                     anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
                 });
@@ -79,7 +82,16 @@ export function useReviewPageNavigation({
 
             diffScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
         },
-        [diffScrollRef, setActiveFile, setCollapsedAllModeFiles, setIsSummaryCollapsedInAllMode, setShowSettingsPanel, settingsPathSet, viewMode],
+        [
+            diffScrollRef,
+            onProgrammaticAllModeRevealStart,
+            setActiveFile,
+            setCollapsedAllModeFiles,
+            setIsSummaryCollapsedInAllMode,
+            setShowSettingsPanel,
+            settingsPathSet,
+            viewMode,
+        ],
     );
 
     const selectFromPaths = useCallback(
@@ -114,6 +126,36 @@ export function useReviewPageNavigation({
             ),
         onNextFile: () => selectFromPaths(treeOrderedVisiblePaths, "next"),
         onPreviousFile: () => selectFromPaths(treeOrderedVisiblePaths, "previous"),
+        onMarkFileViewed: () => {
+            if (!activeFile) return;
+            if (activeFile === PR_SUMMARY_PATH) return;
+            if (settingsPathSet.has(activeFile)) return;
+            setViewedFiles((prev) => {
+                const next = new Set(prev);
+                if (next.has(activeFile)) {
+                    next.delete(activeFile);
+                } else {
+                    next.add(activeFile);
+                }
+                return next;
+            });
+        },
+        onMarkFileViewedAndFold: () => {
+            if (!activeFile) return;
+            if (activeFile === PR_SUMMARY_PATH) return;
+            if (settingsPathSet.has(activeFile)) return;
+            setViewedFiles((prev) => {
+                if (prev.has(activeFile)) return prev;
+                const next = new Set(prev);
+                next.add(activeFile);
+                return next;
+            });
+            setCollapsedAllModeFiles((collapsed) => ({
+                ...collapsed,
+                [activeFile]: true,
+            }));
+            selectFromPaths(treeOrderedVisiblePaths, "next");
+        },
         onApprovePullRequest,
         onRequestChangesPullRequest,
         onScrollDown: () => diffScrollRef.current?.scrollBy({ top: 120, behavior: "smooth" }),

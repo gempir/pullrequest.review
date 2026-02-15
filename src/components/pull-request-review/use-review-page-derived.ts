@@ -90,6 +90,7 @@ export function useReviewPageDerived({
         });
         return map;
     }, [fileDiffs]);
+    const selectableDiffPathSet = useMemo(() => new Set(diffByPath.keys()), [diffByPath]);
 
     const visibleFilePaths = useMemo(() => {
         const seen = new Set<string>();
@@ -263,6 +264,7 @@ export function useReviewPageDerived({
         diffHighlighterReady,
         toRenderableFileDiff,
         settingsPathSet,
+        selectableDiffPathSet,
         visiblePathSet,
         allowedPathSet,
         directoryPaths,

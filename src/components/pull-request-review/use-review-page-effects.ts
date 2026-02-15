@@ -1,7 +1,9 @@
 import { type FileDiffMetadata, preloadHighlighter } from "@pierre/diffs";
-import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useState } from "react";
+import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useRef, useState } from "react";
+import { fileAnchorId } from "@/lib/file-anchors";
 import { buildKindMapForTree, buildTreeFromPaths, type ChangeKind, type FileNode } from "@/lib/file-tree-context";
 import type { PullRequestBundle } from "@/lib/git-host/types";
+import { clearableHashFromPath, parsePrFileHash } from "@/lib/pr-file-hash";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { readStorageValue, writeLocalStorageValue } from "@/lib/storage/versioned-local-storage";
 import { readViewedFiles, writeViewedFiles } from "./use-review-storage";
@@ -293,7 +295,197 @@ export function useReviewActiveFileSync({
     }, [activeFile, settingsPathSet, settingsTreeItems, setActiveFile, showSettingsPanel, treeOrderedVisiblePaths, viewedFiles, visiblePathSet]);
 }
 
+export function useReviewFileHashSelection({
+    selectableFilePaths,
+    onHashPathResolved,
+}: {
+    selectableFilePaths: Set<string>;
+    onHashPathResolved: (path: string) => void;
+}) {
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const applyHashSelection = () => {
+            const pathFromHash = parsePrFileHash(window.location.hash);
+            if (!pathFromHash) return;
+            if (!selectableFilePaths.has(pathFromHash)) return;
+            onHashPathResolved(pathFromHash);
+        };
+
+        applyHashSelection();
+        window.addEventListener("hashchange", applyHashSelection);
+        return () => {
+            window.removeEventListener("hashchange", applyHashSelection);
+        };
+    }, [onHashPathResolved, selectableFilePaths]);
+}
+
+export function useReviewFileHashSync({
+    activeFile,
+    showSettingsPanel,
+    settingsPathSet,
+    suppressHashSyncRef,
+}: {
+    activeFile: string | undefined;
+    showSettingsPanel: boolean;
+    settingsPathSet: Set<string>;
+    suppressHashSyncRef?: MutableRefObject<boolean>;
+}) {
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (suppressHashSyncRef?.current) {
+            suppressHashSyncRef.current = false;
+            return;
+        }
+        if (!showSettingsPanel && !activeFile) return;
+
+        const nextHash = showSettingsPanel
+            ? undefined
+            : clearableHashFromPath(activeFile, {
+                  isSettingsPath: Boolean(activeFile && settingsPathSet.has(activeFile)),
+              });
+        const currentHash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+        if (!nextHash && !currentHash) return;
+        if (nextHash && currentHash === nextHash) return;
+
+        const nextUrl = `${window.location.pathname}${window.location.search}${nextHash ? `#${nextHash}` : ""}`;
+        window.history.replaceState(window.history.state, "", nextUrl);
+    }, [activeFile, settingsPathSet, showSettingsPanel, suppressHashSyncRef]);
+}
+
+export function useAllModeScrollSelection({
+    enabled,
+    diffScrollRef,
+    sectionPaths,
+    stickyTopOffset,
+    programmaticTargetRef,
+    suppressObserverUntilRef,
+    onObservedActivePath,
+}: {
+    enabled: boolean;
+    diffScrollRef: MutableRefObject<HTMLDivElement | null>;
+    sectionPaths: string[];
+    stickyTopOffset: number;
+    programmaticTargetRef: MutableRefObject<string | null>;
+    suppressObserverUntilRef: MutableRefObject<number>;
+    onObservedActivePath: (path: string, metadata: { isSticky: boolean }) => void;
+}) {
+    const lastObservedPathRef = useRef<string | null>(null);
+    const lastObservedStickyRef = useRef<boolean | null>(null);
+    const onObservedActivePathRef = useRef(onObservedActivePath);
+
+    useEffect(() => {
+        onObservedActivePathRef.current = onObservedActivePath;
+    }, [onObservedActivePath]);
+
+    useEffect(() => {
+        if (!enabled) return;
+        if (typeof window === "undefined") return;
+        if (sectionPaths.length === 0) return;
+
+        const root = diffScrollRef.current;
+        if (!root) return;
+
+        const sectionAnchors = new Map<string, HTMLElement>();
+        for (const path of sectionPaths) {
+            const anchor = document.getElementById(fileAnchorId(path));
+            if (!anchor) continue;
+            sectionAnchors.set(path, anchor);
+        }
+        if (sectionAnchors.size === 0) return;
+
+        let animationFrameId = 0;
+
+        const resolveCandidate = () => {
+            const rootTop = root.getBoundingClientRect().top;
+            const stickyLine = rootTop + stickyTopOffset;
+            let stickyCandidatePath: string | null = null;
+            let stickyCandidateTop = Number.NEGATIVE_INFINITY;
+            let nonStickyCandidatePath: string | null = null;
+            let nonStickyCandidateTop = Number.POSITIVE_INFINITY;
+
+            for (const path of sectionPaths) {
+                const anchor = sectionAnchors.get(path);
+                if (!anchor) continue;
+                const rect = anchor.getBoundingClientRect();
+                if (rect.bottom <= stickyLine) continue;
+                if (rect.top <= stickyLine) {
+                    if (rect.top > stickyCandidateTop) {
+                        stickyCandidateTop = rect.top;
+                        stickyCandidatePath = path;
+                    }
+                    continue;
+                }
+                if (rect.top < nonStickyCandidateTop) {
+                    nonStickyCandidateTop = rect.top;
+                    nonStickyCandidatePath = path;
+                }
+            }
+
+            const bestPath = stickyCandidatePath ?? nonStickyCandidatePath;
+            if (!bestPath) return;
+
+            const now = Date.now();
+            const suppressed = now < suppressObserverUntilRef.current;
+            const programmaticTarget = programmaticTargetRef.current;
+            if (suppressed && programmaticTarget && bestPath !== programmaticTarget) return;
+            if (programmaticTarget && bestPath === programmaticTarget) {
+                programmaticTargetRef.current = null;
+                suppressObserverUntilRef.current = 0;
+            }
+
+            const isSticky = stickyCandidatePath === bestPath;
+            if (lastObservedPathRef.current === bestPath && lastObservedStickyRef.current === isSticky) return;
+            lastObservedPathRef.current = bestPath;
+            lastObservedStickyRef.current = isSticky;
+            onObservedActivePathRef.current(bestPath, { isSticky });
+        };
+
+        const queueResolveCandidate = () => {
+            if (animationFrameId !== 0) return;
+            animationFrameId = window.requestAnimationFrame(() => {
+                animationFrameId = 0;
+                resolveCandidate();
+            });
+        };
+
+        const observer = new IntersectionObserver(
+            () => {
+                queueResolveCandidate();
+            },
+            {
+                root,
+                threshold: [0, 0.01, 0.1, 0.25, 0.5, 0.75, 1],
+                rootMargin: `-${stickyTopOffset}px 0px -55% 0px`,
+            },
+        );
+
+        for (const path of sectionPaths) {
+            const anchor = sectionAnchors.get(path);
+            if (!anchor) continue;
+            observer.observe(anchor);
+        }
+
+        root.addEventListener("scroll", queueResolveCandidate, { passive: true });
+        window.addEventListener("resize", queueResolveCandidate);
+        queueResolveCandidate();
+
+        return () => {
+            root.removeEventListener("scroll", queueResolveCandidate);
+            window.removeEventListener("resize", queueResolveCandidate);
+            observer.disconnect();
+            if (animationFrameId !== 0) {
+                window.cancelAnimationFrame(animationFrameId);
+            }
+            lastObservedPathRef.current = null;
+            lastObservedStickyRef.current = null;
+        };
+    }, [diffScrollRef, enabled, programmaticTargetRef, sectionPaths, stickyTopOffset, suppressObserverUntilRef]);
+}
+
 export function useAutoMarkActiveFileViewed({
+    viewMode,
+    autoMarkViewedFiles,
     showSettingsPanel,
     showUnviewedOnly,
     activeFile,
@@ -301,6 +493,8 @@ export function useAutoMarkActiveFileViewed({
     autoMarkedViewedFilesRef,
     setViewedFiles,
 }: {
+    viewMode: "single" | "all";
+    autoMarkViewedFiles: boolean;
     showSettingsPanel: boolean;
     showUnviewedOnly: boolean;
     activeFile: string | undefined;
@@ -309,6 +503,8 @@ export function useAutoMarkActiveFileViewed({
     setViewedFiles: Dispatch<SetStateAction<Set<string>>>;
 }) {
     useEffect(() => {
+        if (!autoMarkViewedFiles) return;
+        if (viewMode !== "single") return;
         if (showSettingsPanel) return;
         if (showUnviewedOnly) return;
         if (!activeFile || !visiblePathSet.has(activeFile)) return;
@@ -322,7 +518,7 @@ export function useAutoMarkActiveFileViewed({
             next.add(activeFile);
             return next;
         });
-    }, [activeFile, autoMarkedViewedFilesRef, setViewedFiles, showSettingsPanel, showUnviewedOnly, visiblePathSet]);
+    }, [activeFile, autoMarkViewedFiles, autoMarkedViewedFilesRef, setViewedFiles, showSettingsPanel, showUnviewedOnly, viewMode, visiblePathSet]);
 }
 
 export function useEnsureSummarySelection({

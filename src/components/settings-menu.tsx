@@ -130,6 +130,12 @@ function ShortcutsTab() {
                 <ShortcutRow label="Scroll Up" shortcut={shortcuts.scrollUp} onChange={(config) => updateShortcut("scrollUp", config)} />
                 <ShortcutRow label="Next File" shortcut={shortcuts.nextFile} onChange={(config) => updateShortcut("nextFile", config)} />
                 <ShortcutRow label="Previous File" shortcut={shortcuts.previousFile} onChange={(config) => updateShortcut("previousFile", config)} />
+                <ShortcutRow label="Mark File Viewed" shortcut={shortcuts.markFileViewed} onChange={(config) => updateShortcut("markFileViewed", config)} />
+                <ShortcutRow
+                    label="Mark File Viewed + Fold"
+                    shortcut={shortcuts.markFileViewedAndFold}
+                    onChange={(config) => updateShortcut("markFileViewedAndFold", config)}
+                />
                 <ShortcutRow
                     label="Approve Pull Request"
                     shortcut={shortcuts.approvePullRequest}

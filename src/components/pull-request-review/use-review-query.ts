@@ -1,6 +1,12 @@
 import { useLiveQuery } from "@tanstack/react-db";
-import { useCallback, useEffect, useMemo } from "react";
-import { getPullRequestBundleCollection, type PullRequestBundleRecord } from "@/lib/git-host/query-collections";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
+import {
+    getGitHostFetchActivitySnapshot,
+    getPullRequestBundleCollection,
+    type PullRequestBundleRecord,
+    pullRequestDetailsFetchScopeId,
+    subscribeGitHostFetchActivity,
+} from "@/lib/git-host/query-collections";
 import { getCapabilitiesForHost } from "@/lib/git-host/service";
 import { type GitHost, HostApiError } from "@/lib/git-host/types";
 
@@ -69,6 +75,8 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
     const canLoadPullRequest = canRead || hostCapabilities.publicReadSupported;
     const bundleId = useMemo(() => `${host}:${workspace}/${repo}/${pullRequestId}`, [host, pullRequestId, repo, workspace]);
     const queryKey = useMemo(() => ["pr-bundle", host, workspace, repo, pullRequestId] as const, [host, pullRequestId, repo, workspace]);
+    const fetchScopeId = useMemo(() => pullRequestDetailsFetchScopeId({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
+    const fetchActivity = useSyncExternalStore(subscribeGitHostFetchActivity, getGitHostFetchActivitySnapshot, getGitHostFetchActivitySnapshot);
 
     const bundleStore = useMemo(() => {
         if (!canLoadPullRequest) return null;
@@ -95,7 +103,7 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
     const collectionError = bundleStore?.utils.lastError;
     const queryError = collectionError;
     const queryIsLoading = canLoadPullRequest ? bundleQuery.isLoading && !queryData : false;
-    const queryIsFetching = canLoadPullRequest ? Boolean(bundleStore?.utils.isFetching) : false;
+    const queryIsFetching = canLoadPullRequest ? fetchActivity.activeFetches.some((fetch) => fetch.scopeId === fetchScopeId) : false;
     const refetchQuery = useCallback(() => bundleStore?.utils.refetch({ throwOnError: false }) ?? Promise.resolve(), [bundleStore]);
 
     const query = useMemo(

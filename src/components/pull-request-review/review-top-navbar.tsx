@@ -60,7 +60,7 @@ export function ReviewTopNavbar({
 }: ReviewTopNavbarProps) {
     return (
         <div
-            className="h-11 border-b border-border bg-card px-3 flex items-center gap-3"
+            className="h-11 border-b border-border bg-card px-1.5 flex items-center gap-3"
             style={{ fontFamily: "var(--comment-font-family)" }}
             data-component="navbar"
         >
@@ -74,7 +74,7 @@ export function ReviewTopNavbar({
                     <span className="text-[11px] text-muted-foreground">Loading pull request...</span>
                 </>
             ) : (
-                <>
+                <div className="flex items-center justify-between w-full">
                     <div className="min-w-0 flex items-center gap-2 text-[11px] text-muted-foreground">
                         {treeCollapsed ? (
                             <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={onExpandTree} aria-label="Expand file tree">
@@ -101,20 +101,16 @@ export function ReviewTopNavbar({
                         </div>
                         <span>-&gt;</span>
                         <span className="max-w-[180px] truncate text-foreground">{destinationBranch}</span>
-                        <span className={cn("px-1.5 py-0.5 border uppercase text-[10px]", navbarStateClass(navbarState))}>{navbarState}</span>
+                        <span className={cn("px-1.5 py-0.5 border uppercase text-[10px] rounded", navbarStateClass(navbarState))}>{navbarState}</span>
                         <span className="truncate">{navbarStatusDate}</span>
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
-                    </div>
-
-                    <div className="ml-auto flex items-center gap-2 text-[11px]">
-                        <span className="text-muted-foreground">unresolved {unresolvedThreadCount}</span>
                     </div>
 
                     <div className="flex items-center gap-1">
                         <Button
                             variant="outline"
                             size="sm"
-                            className="h-8"
+                            className="h-8 rounded"
                             disabled={!canApprove || isApproved || isApprovePending || isRequestChangesPending}
                             onClick={onApprove}
                         >
@@ -123,17 +119,17 @@ export function ReviewTopNavbar({
                         <Button
                             variant="outline"
                             size="sm"
-                            className="h-8"
+                            className="h-8 rounded"
                             disabled={!canRequestChanges || isApprovePending || isRequestChangesPending}
                             onClick={onRequestChanges}
                         >
                             Request Changes
                         </Button>
-                        <Button variant="outline" size="sm" className="h-8" disabled={!canMerge} onClick={onOpenMerge}>
+                        <Button variant="outline" size="sm" className="h-8 rounded" disabled={!canMerge} onClick={onOpenMerge}>
                             Merge
                         </Button>
                     </div>
-                </>
+                </div>
             )}
         </div>
     );

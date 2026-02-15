@@ -8,6 +8,7 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
+import { ReviewViewModeToggle } from "@/components/pull-request-review/review-view-mode-toggle";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Button } from "@/components/ui/button";
 import { fileAnchorId } from "@/lib/file-anchors";
@@ -20,6 +21,8 @@ import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 import { inlineDraftStorageKey } from "./use-inline-drafts";
 
 type ReviewSingleModeViewProps = {
+    viewMode: "single" | "all";
+    onWorkspaceModeChange: (mode: "single" | "all") => void;
     prData: PullRequestBundle;
     pullRequestTitle?: string;
     lineStats: { added: number; removed: number };
@@ -83,6 +86,8 @@ function CommentMarkdown({ text }: { text: string }) {
 }
 
 export function ReviewSingleModeView({
+    viewMode,
+    onWorkspaceModeChange,
     prData,
     pullRequestTitle,
     lineStats,
@@ -124,25 +129,28 @@ export function ReviewSingleModeView({
                     headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
                     diffStats={lineStats}
                     headerRight={
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={onToggleAllFilesViewed}
-                            aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
-                            title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
-                        >
-                            <span
-                                className={
-                                    areAllFilesViewed
-                                        ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                        : "size-4 bg-muted/40 border border-border/70 text-muted-foreground flex items-center justify-center"
-                                }
+                        <div className="flex items-center gap-1">
+                            <ReviewViewModeToggle mode={viewMode} onModeChange={onWorkspaceModeChange} />
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={onToggleAllFilesViewed}
+                                aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                                title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
                             >
-                                <CheckCheck className="size-3" />
-                            </span>
-                        </Button>
+                                <span
+                                    className={
+                                        areAllFilesViewed
+                                            ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                            : "size-4 bg-muted/40 border border-border/70 text-muted-foreground flex items-center justify-center"
+                                    }
+                                >
+                                    <CheckCheck className="size-3" />
+                                </span>
+                            </Button>
+                        </div>
                     }
                 />
             </div>

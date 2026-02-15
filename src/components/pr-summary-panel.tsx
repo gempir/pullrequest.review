@@ -1,3 +1,4 @@
+import { ScrollText } from "lucide-react";
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -160,9 +161,14 @@ export function PullRequestSummaryPanel({
     return (
         <div className="pr-diff-font" style={{ fontFamily: "var(--comment-font-family)" }}>
             {headerTitle ? (
-                <div className="h-10 border-b border-border bg-chrome px-2.5 flex items-center gap-2 overflow-hidden" data-component="summary-header">
-                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground">#{pr.id}</span>
-                    <span className="min-w-0 flex-1 text-[12px] text-foreground truncate">{headerTitle}</span>
+                <div
+                    className="h-10 border-b border-border bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]"
+                    data-component="summary-header"
+                >
+                    <span className="size-4 flex items-center justify-center shrink-0">
+                        <ScrollText className="size-3.5" />
+                    </span>
+                    <span className="min-w-0 flex-1 font-mono text-foreground truncate">{headerTitle}</span>
                     {diffStats ? (
                         <div className="ml-auto shrink-0 font-mono text-[11px]">
                             <span className="text-status-added">+{diffStats.added}</span>

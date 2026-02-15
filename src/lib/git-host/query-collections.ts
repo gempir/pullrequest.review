@@ -1,6 +1,6 @@
 import { type Collection, createCollection, localOnlyCollectionOptions } from "@tanstack/db";
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
-import { fetchPullRequestBundleByRef, fetchRepoPullRequestsByHost, listRepositoriesForHost } from "@/lib/git-host/service";
+import { fetchPullRequestBundleByRef, fetchRepoPullRequestsForHost, listRepositoriesForHost } from "@/lib/git-host/service";
 import type { GitHost, PullRequestBundle, PullRequestRef, PullRequestSummary, RepoRef } from "@/lib/git-host/types";
 
 export type PullRequestBundleRecord = PullRequestBundle & {
@@ -40,6 +40,23 @@ type CollectionUtils = {
 type ScopedCollection<T extends object> = {
     collection: Collection<T, string>;
     utils: CollectionUtils;
+};
+
+type FetchActivity = {
+    scopeId: string;
+    label: string;
+    startedAt: number;
+};
+
+type RefetchRegistryEntry = {
+    label: string;
+    refetch: (opts?: { throwOnError?: boolean }) => Promise<void>;
+};
+
+export type GitHostFetchActivitySnapshot = {
+    activeFetches: FetchActivity[];
+    activeFetchCount: number;
+    trackedScopeCount: number;
 };
 
 const HOST_DATA_DATABASE_NAME = "pullrequestdotreview_host_data_v2";
@@ -155,6 +172,82 @@ let pullRequestBundleCollection: Collection<PersistedPullRequestBundleRecord, st
 const repositoryScopedCollections = new Map<GitHost, ScopedCollection<RepositoryRecord>>();
 const repoPullRequestScopedCollections = new Map<string, ScopedCollection<PersistedRepoPullRequestRecord>>();
 const pullRequestBundleScopedCollections = new Map<string, ScopedCollection<PersistedPullRequestBundleRecord>>();
+const fetchActivityListeners = new Set<() => void>();
+const activeFetchesByScope = new Map<string, FetchActivity>();
+const refetchRegistry = new Map<string, RefetchRegistryEntry>();
+let fetchActivityVersion = 0;
+let cachedFetchActivitySnapshotVersion = -1;
+let cachedFetchActivitySnapshot: GitHostFetchActivitySnapshot = {
+    activeFetches: [],
+    activeFetchCount: 0,
+    trackedScopeCount: 0,
+};
+
+function notifyFetchActivityListeners() {
+    fetchActivityVersion += 1;
+    for (const listener of fetchActivityListeners) {
+        listener();
+    }
+}
+
+function setFetchActivity(scopeId: string, label: string, fetching: boolean) {
+    if (fetching) {
+        const existing = activeFetchesByScope.get(scopeId);
+        activeFetchesByScope.set(scopeId, {
+            scopeId,
+            label,
+            startedAt: existing?.startedAt ?? Date.now(),
+        });
+    } else {
+        activeFetchesByScope.delete(scopeId);
+    }
+    notifyFetchActivityListeners();
+}
+
+function registerRefetchScope(scopeId: string, label: string, refetch: (opts?: { throwOnError?: boolean }) => Promise<void>) {
+    const existing = refetchRegistry.get(scopeId);
+    if (existing?.label === label && existing.refetch === refetch) {
+        return;
+    }
+    refetchRegistry.set(scopeId, {
+        label,
+        refetch,
+    });
+    // Do not notify during render-time scope registration; listeners update on fetch transitions.
+}
+
+export function subscribeGitHostFetchActivity(listener: () => void) {
+    fetchActivityListeners.add(listener);
+    return () => {
+        fetchActivityListeners.delete(listener);
+    };
+}
+
+export function getGitHostFetchActivitySnapshot(): GitHostFetchActivitySnapshot {
+    if (cachedFetchActivitySnapshotVersion !== fetchActivityVersion) {
+        const activeFetches = Array.from(activeFetchesByScope.values()).sort((a, b) => a.startedAt - b.startedAt);
+        cachedFetchActivitySnapshot = {
+            activeFetches,
+            activeFetchCount: activeFetches.length,
+            trackedScopeCount: refetchRegistry.size,
+        };
+        cachedFetchActivitySnapshotVersion = fetchActivityVersion;
+    }
+    return cachedFetchActivitySnapshot;
+}
+
+export async function refetchAllGitHostData(opts?: { throwOnError?: boolean }) {
+    const refetchers = Array.from(refetchRegistry.values());
+    if (refetchers.length === 0) return;
+
+    const settled = await Promise.allSettled(refetchers.map((entry) => entry.refetch({ throwOnError: opts?.throwOnError ?? false })));
+    if (!opts?.throwOnError) return;
+
+    const firstFailure = settled.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (firstFailure) {
+        throw firstFailure.reason;
+    }
+}
 
 function createCollectionUtils(refetch: (opts?: { throwOnError?: boolean }) => Promise<void>): CollectionUtils {
     let lastError: unknown;
@@ -186,6 +279,10 @@ function createCollectionUtils(refetch: (opts?: { throwOnError?: boolean }) => P
 
 function pullRequestBundleId(prRef: PullRequestRef) {
     return `${prRef.host}:${prRef.workspace}/${prRef.repo}/${prRef.pullRequestId}`;
+}
+
+export function pullRequestDetailsFetchScopeId(prRef: PullRequestRef) {
+    return `pr-bundle:${pullRequestBundleId(prRef)}`;
 }
 
 function normalizeRepoRef(repo: RepoRef): RepoRef {
@@ -437,11 +534,14 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef) {
     }
 
     const bundleId = pullRequestBundleId(prRef);
+    const scopeId = pullRequestDetailsFetchScopeId(prRef);
+    const scopeLabel = `Pull request details (${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId})`;
     const existing = pullRequestBundleScopedCollections.get(bundleId);
     if (existing) return existing;
 
     const utils = createCollectionUtils(async (opts) => {
         utils.isFetching = true;
+        setFetchActivity(scopeId, scopeLabel, true);
         try {
             const bundle = await fetchPullRequestBundleByRef({ prRef });
             await upsertRecord(collection, serializePullRequestBundle(bundle));
@@ -454,11 +554,13 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef) {
             }
         } finally {
             utils.isFetching = false;
+            setFetchActivity(scopeId, scopeLabel, false);
         }
     });
 
     const scoped = { collection, utils };
     pullRequestBundleScopedCollections.set(bundleId, scoped);
+    registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;
 }
 
@@ -473,6 +575,9 @@ export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHo
     const normalizedReposByHost = normalizeReposByHost(data.reposByHost);
     const serializedRepos = stringifyCollectionRepos(normalizedReposByHost);
     const scopeId = `repo-prs:${normalizedHosts.join(",")}:${serializedRepos}`;
+    const hostLabel = normalizedHosts.length > 0 ? normalizedHosts.join(", ") : "none";
+    const selectedRepoCount = normalizedHosts.reduce((count, host) => count + (normalizedReposByHost[host]?.length ?? 0), 0);
+    const scopeLabel = `Repository pull requests (${hostLabel}; ${selectedRepoCount} repos)`;
     const existing = repoPullRequestScopedCollections.get(scopeId);
     if (existing) return existing;
 
@@ -492,10 +597,33 @@ export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHo
 
         utils.isFetching = true;
         try {
-            const response = await fetchRepoPullRequestsByHost({
-                hosts: normalizedHosts,
-                reposByHost: normalizedReposByHost,
-            });
+            const settled = await Promise.allSettled(
+                normalizedHosts.map(async (host) => {
+                    const repos = normalizedReposByHost[host] ?? [];
+                    if (repos.length === 0) {
+                        return [] as Array<{
+                            repo: RepoRef;
+                            pullRequests: PullRequestSummary[];
+                        }>;
+                    }
+                    const hostScopeId = `${scopeId}:host:${host}`;
+                    const hostScopeLabel = `Repository pull requests (${host}; ${repos.length} repos)`;
+                    setFetchActivity(hostScopeId, hostScopeLabel, true);
+                    try {
+                        return await fetchRepoPullRequestsForHost({ host, repos });
+                    } finally {
+                        setFetchActivity(hostScopeId, hostScopeLabel, false);
+                    }
+                }),
+            );
+
+            const response = settled.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+            if (response.length === 0) {
+                const firstFailure = settled.find((result): result is PromiseRejectedResult => result.status === "rejected");
+                if (firstFailure) {
+                    throw firstFailure.reason;
+                }
+            }
 
             const nextRecords = response.flatMap(({ repo, pullRequests }) => {
                 if (!isValidRepoRef(repo)) return [] as PersistedRepoPullRequestRecord[];
@@ -530,6 +658,7 @@ export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHo
 
     const scoped = { collection, utils };
     repoPullRequestScopedCollections.set(scopeId, scoped);
+    registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;
 }
 
@@ -542,9 +671,12 @@ export function getRepositoryCollection(host: GitHost) {
 
     const existing = repositoryScopedCollections.get(host);
     if (existing) return existing;
+    const scopeId = `repos:${host}`;
+    const scopeLabel = `Repositories (${host})`;
 
     const utils = createCollectionUtils(async (opts) => {
         utils.isFetching = true;
+        setFetchActivity(scopeId, scopeLabel, true);
         try {
             const repositories = await listRepositoriesForHost({ host });
             const timestamp = Date.now();
@@ -574,11 +706,13 @@ export function getRepositoryCollection(host: GitHost) {
             }
         } finally {
             utils.isFetching = false;
+            setFetchActivity(scopeId, scopeLabel, false);
         }
     });
 
     const scoped = { collection, utils };
     repositoryScopedCollections.set(host, scoped);
+    registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;
 }
 
@@ -597,4 +731,7 @@ export async function __resetGitHostCollectionsForTests() {
     repositoryScopedCollections.clear();
     repoPullRequestScopedCollections.clear();
     pullRequestBundleScopedCollections.clear();
+    activeFetchesByScope.clear();
+    refetchRegistry.clear();
+    notifyFetchActivityListeners();
 }

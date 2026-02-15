@@ -1,7 +1,7 @@
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { AlertCircle, ExternalLink, GitPullRequest, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, ExternalLink, GitPullRequest, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { FileTree } from "@/components/file-tree";
 import { RepositorySelector } from "@/components/repository-selector";
@@ -313,7 +313,7 @@ export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }:
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { setTree, setKinds, activeFile, setActiveFile } = useFileTree();
-    const { authByHost, activeHost, setActiveHost, reposByHost, setReposForHost, clearReposForHost, clearAllRepos, logout } = usePrContext();
+    const { authByHost, activeHost, setActiveHost, reposByHost, setReposForHost, clearReposForHost, logout } = usePrContext();
 
     const [showSettingsPanel, setShowSettingsPanel] = useState(false);
     const [diffPanel, setDiffPanel] = useState<DiffPanel>(initialDiffPanel);
@@ -543,39 +543,6 @@ export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }:
                         {showSettingsPanel ? "Settings" : showRepositoryPanel ? "Repository Selection" : "Open Pull Requests"}
                     </span>
                     <span className="ml-auto text-muted-foreground">{selectedRepoCount} selected repos</span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8"
-                        onClick={() => {
-                            void queryClient.invalidateQueries({ queryKey: ["repo-prs"] });
-                        }}
-                    >
-                        <RefreshCw className="size-3.5" />
-                        Refresh
-                    </Button>
-                    {!showSettingsPanel ? (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8"
-                            onClick={() => {
-                                if (!window.confirm("Disconnect all hosts and clear stored credentials?")) {
-                                    return;
-                                }
-                                void (async () => {
-                                    clearAllRepos();
-                                    await logout();
-                                    await queryClient.invalidateQueries({
-                                        queryKey: ["repo-prs"],
-                                    });
-                                    navigate({ to: "/" });
-                                })();
-                            }}
-                        >
-                            Disconnect All
-                        </Button>
-                    ) : null}
                 </header>
 
                 <main data-component="diff-view" className={cn("flex-1 min-h-0 overflow-y-auto", showSettingsPanel ? "p-0" : "p-4")}>

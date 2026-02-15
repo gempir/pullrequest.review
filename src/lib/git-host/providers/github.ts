@@ -38,11 +38,14 @@ interface GithubRepo {
 
 interface GithubPull {
     number: number;
+    node_id?: string;
     title: string;
     state: string;
     html_url?: string;
     user?: { login?: string; avatar_url?: string };
     body?: string;
+    body_text?: string;
+    body_html?: string;
     draft?: boolean;
     created_at?: string;
     updated_at?: string;
@@ -90,6 +93,8 @@ interface GithubIssueComment {
     created_at?: string;
     updated_at?: string;
     body?: string;
+    body_text?: string;
+    body_html?: string;
     user?: { login?: string; avatar_url?: string };
 }
 
@@ -98,6 +103,8 @@ interface GithubReviewComment {
     created_at?: string;
     updated_at?: string;
     body?: string;
+    body_text?: string;
+    body_html?: string;
     user?: { login?: string; avatar_url?: string };
     path?: string;
     line?: number;
@@ -110,6 +117,8 @@ interface GithubReview {
     id: number;
     state?: string;
     body?: string;
+    body_text?: string;
+    body_html?: string;
     user?: { login?: string; avatar_url?: string };
     submitted_at?: string;
 }
@@ -191,7 +200,7 @@ async function request(path: string, init: RequestInit = {}, options: { requireA
     }
 
     const headers: Record<string, string> = {
-        Accept: "application/vnd.github+json",
+        Accept: "application/vnd.github.full+json",
         "X-GitHub-Api-Version": "2022-11-28",
         ...(init.headers as Record<string, string>),
     };
@@ -241,11 +250,17 @@ function mapPullRequestSummary(pr: GithubPull): PullRequestSummary {
     };
 }
 
-function mapPullRequestDetails(pr: GithubPull, approvedByCurrentUser: boolean, currentLogin?: string, currentAvatarUrl?: string): PullRequestDetails {
+function mapPullRequestDetails(
+    pr: GithubPull,
+    currentUserReviewStatus: PullRequestDetails["currentUserReviewStatus"],
+    currentLogin?: string,
+    currentAvatarUrl?: string,
+): PullRequestDetails {
+    const approvedByCurrentUser = currentUserReviewStatus === "approved";
     return {
         id: pr.number,
         title: pr.title,
-        description: pr.body,
+        description: pickCommentBody(pr.body, pr.body_text),
         state: (pr.state ?? "OPEN").toUpperCase(),
         draft: Boolean(pr.draft),
         commentCount: Number(pr.comments ?? 0) + Number(pr.review_comments ?? 0),
@@ -268,8 +283,31 @@ function mapPullRequestDetails(pr: GithubPull, approvedByCurrentUser: boolean, c
                 user: { displayName: currentLogin, avatarUrl: currentAvatarUrl },
             },
         ],
+        currentUserReviewStatus: currentUserReviewStatus ?? "none",
         links: { html: { href: pr.html_url } },
     };
+}
+
+function looksLikeHtml(value: string) {
+    return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function pickCommentBody(body?: string, bodyText?: string) {
+    const raw = body?.trim();
+    const plain = bodyText?.trim();
+    if (!raw) return plain;
+    if (looksLikeHtml(raw) && plain) return plain;
+    return raw;
+}
+
+function mapCommentContent(body?: string, bodyText?: string, bodyHtml?: string) {
+    const raw = pickCommentBody(body, bodyText);
+    const html = bodyHtml?.trim();
+    const source = body?.trim() ?? "";
+    if (html && looksLikeHtml(source)) {
+        return { raw, html };
+    }
+    return { raw };
 }
 
 function mapReviewStateToStatus(state: string | undefined): PullRequestReviewer["status"] {
@@ -315,6 +353,7 @@ function mapReviewers(pr: GithubPull, reviews: GithubReview[]): PullRequestRevie
 }
 
 function mapIssueCommentToHistory(comment: GithubIssueComment): PullRequestHistoryEvent {
+    const content = mapCommentContent(comment.body, comment.body_text, comment.body_html);
     return {
         id: `github-issue-comment-${comment.id}`,
         type: "comment",
@@ -323,7 +362,8 @@ function mapIssueCommentToHistory(comment: GithubIssueComment): PullRequestHisto
             displayName: comment.user?.login,
             avatarUrl: comment.user?.avatar_url,
         },
-        content: comment.body,
+        content: content.raw,
+        contentHtml: content.html,
     };
 }
 
@@ -335,6 +375,7 @@ function mapReviewToHistory(review: GithubReview): PullRequestHistoryEvent | nul
     if (state === "DISMISSED") type = "reviewDismissed";
     if (state === "COMMENTED") type = "comment";
     if (!type) return null;
+    const content = mapCommentContent(review.body, review.body_text, review.body_html);
     return {
         id: `github-review-${review.id}`,
         type,
@@ -343,7 +384,8 @@ function mapReviewToHistory(review: GithubReview): PullRequestHistoryEvent | nul
             displayName: review.user?.login,
             avatarUrl: review.user?.avatar_url,
         },
-        content: review.body,
+        content: content.raw,
+        contentHtml: content.html,
     };
 }
 
@@ -516,11 +558,12 @@ function mapCommit(commit: GithubCommit): Commit {
 }
 
 function mapIssueComment(comment: GithubIssueComment): Comment {
+    const content = mapCommentContent(comment.body, comment.body_text, comment.body_html);
     return {
         id: comment.id,
         createdAt: comment.created_at,
         updatedAt: comment.updated_at,
-        content: { raw: comment.body },
+        content: { raw: content.raw, html: content.html },
         user: {
             displayName: comment.user?.login,
             avatarUrl: comment.user?.avatar_url,
@@ -531,11 +574,12 @@ function mapIssueComment(comment: GithubIssueComment): Comment {
 function mapReviewComment(comment: GithubReviewComment): Comment {
     const line = comment.line ?? comment.original_line;
     const isLeft = comment.side === "LEFT";
+    const content = mapCommentContent(comment.body, comment.body_text, comment.body_html);
     return {
         id: comment.id,
         createdAt: comment.created_at,
         updatedAt: comment.updated_at,
-        content: { raw: comment.body },
+        content: { raw: content.raw, html: content.html },
         user: {
             displayName: comment.user?.login,
             avatarUrl: comment.user?.avatar_url,
@@ -571,7 +615,10 @@ export const githubClient: GitHostClient = {
         publicReadSupported: true,
         supportsThreadResolution: false,
         requestChangesAvailable: true,
+        removeApprovalAvailable: false,
         mergeStrategies: ["merge", "squash", "rebase"],
+        declineAvailable: true,
+        markDraftAvailable: true,
     },
     async getAuthState(): Promise<AuthState> {
         const auth = readAuth();
@@ -683,19 +730,20 @@ export const githubClient: GitHostClient = {
                 : Promise.resolve(null),
         ]);
 
-        let approvedByCurrentUser = false;
+        let currentUserReviewStatus: PullRequestDetails["currentUserReviewStatus"] = "none";
         if (currentLogin) {
             for (let i = reviews.length - 1; i >= 0; i -= 1) {
                 const review = reviews[i];
                 if (review.user?.login !== currentLogin) continue;
                 const state = (review.state ?? "").toUpperCase();
                 if (state === "APPROVED") {
-                    approvedByCurrentUser = true;
+                    currentUserReviewStatus = "approved";
                 }
                 if (state === "CHANGES_REQUESTED") {
-                    approvedByCurrentUser = false;
+                    currentUserReviewStatus = "changesRequested";
                 }
                 if (state === "APPROVED" || state === "CHANGES_REQUESTED" || state === "DISMISSED") {
+                    if (state === "DISMISSED") currentUserReviewStatus = "none";
                     break;
                 }
             }
@@ -711,7 +759,7 @@ export const githubClient: GitHostClient = {
 
         return {
             prRef,
-            pr: mapPullRequestDetails(pr, approvedByCurrentUser, currentLogin, currentAvatarUrl),
+            pr: mapPullRequestDetails(pr, currentUserReviewStatus, currentLogin, currentAvatarUrl),
             diff: await diffRes.text(),
             diffstat,
             commits: commits.map(mapCommit),
@@ -734,6 +782,9 @@ export const githubClient: GitHostClient = {
         );
         return { ok: true as const };
     },
+    async removePullRequestApproval() {
+        throw new Error("Removing approval is not supported for GitHub in this app.");
+    },
     async requestChanges(data) {
         const path = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}/reviews`;
         await request(
@@ -748,6 +799,62 @@ export const githubClient: GitHostClient = {
             },
             { requireAuth: true },
         );
+        return { ok: true as const };
+    },
+    async declinePullRequest(data) {
+        const path = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}`;
+        await request(
+            path,
+            {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ state: "closed" }),
+            },
+            { requireAuth: true },
+        );
+        return { ok: true as const };
+    },
+    async markPullRequestAsDraft(data) {
+        const pullPath = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}`;
+        const pullResponse = await request(pullPath, {}, { requireAuth: true });
+        const pull = (await pullResponse.json()) as GithubPull;
+        if (!pull.node_id) {
+            throw new Error("GitHub pull request node id is unavailable");
+        }
+
+        const mutation = `
+            mutation ConvertPullRequestToDraft($pullRequestId: ID!) {
+                convertPullRequestToDraft(input: { pullRequestId: $pullRequestId }) {
+                    pullRequest {
+                        id
+                    }
+                }
+            }
+        `;
+
+        const response = await request(
+            "/graphql",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    query: mutation,
+                    variables: { pullRequestId: pull.node_id },
+                }),
+            },
+            { requireAuth: true },
+        );
+        const payload = (await response.json()) as {
+            errors?: Array<{ message?: string }>;
+            data?: { convertPullRequestToDraft?: { pullRequest?: { id?: string } } };
+        };
+        const firstError = payload.errors?.[0]?.message;
+        if (firstError) {
+            throw new Error(firstError);
+        }
+        if (!payload.data?.convertPullRequestToDraft?.pullRequest?.id) {
+            throw new Error("GitHub did not confirm draft conversion");
+        }
         return { ok: true as const };
     },
     async mergePullRequest(data) {

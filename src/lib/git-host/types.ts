@@ -81,6 +81,7 @@ export interface PullRequestDetails {
         approved?: boolean;
         user?: { displayName?: string; avatarUrl?: string };
     }>;
+    currentUserReviewStatus?: "approved" | "changesRequested" | "none";
     links?: { html?: { href?: string } };
 }
 
@@ -160,6 +161,9 @@ export interface HostCapabilities {
     supportsThreadResolution: boolean;
     mergeStrategies?: string[];
     requestChangesAvailable: boolean;
+    removeApprovalAvailable: boolean;
+    declineAvailable: boolean;
+    markDraftAvailable: boolean;
 }
 
 export interface HostApiErrorDetails {
@@ -198,7 +202,10 @@ export interface GitHostClient {
     listPullRequestsForRepos(data: { repos: RepoRef[] }): Promise<Array<{ repo: RepoRef; pullRequests: PullRequestSummary[] }>>;
     fetchPullRequestBundleByRef(data: { prRef: PullRequestRef }): Promise<PullRequestBundle>;
     approvePullRequest(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
+    removePullRequestApproval(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     requestChanges(data: { prRef: PullRequestRef; body?: string }): Promise<{ ok: true }>;
+    declinePullRequest(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
+    markPullRequestAsDraft(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     mergePullRequest(data: { prRef: PullRequestRef } & MergeOptions): Promise<{ ok: true }>;
     createPullRequestComment(
         data: {

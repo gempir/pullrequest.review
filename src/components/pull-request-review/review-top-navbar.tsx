@@ -1,4 +1,4 @@
-import { Check, Copy, Loader2, Minus, PanelLeftOpen, X } from "lucide-react";
+import { Check, Copy, GitMerge, Loader2, Menu, Minus, PanelLeftOpen, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
 import {
     aggregateBuildState,
     buildRunningTime,
@@ -7,6 +7,7 @@ import {
     navbarStateClass,
 } from "@/components/pull-request-review/review-formatters";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { PullRequestBuildStatus } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
@@ -20,18 +21,23 @@ type ReviewTopNavbarProps = {
     navbarState: string;
     navbarStatusDate: string;
     buildStatuses?: PullRequestBuildStatus[];
-    unresolvedThreadCount: number;
     canApprove: boolean;
     canRequestChanges: boolean;
     canMerge: boolean;
-    isApproved: boolean;
+    canDecline: boolean;
+    canMarkDraft: boolean;
+    currentUserReviewStatus: "approved" | "changesRequested" | "none";
     isApprovePending: boolean;
     isRequestChangesPending: boolean;
+    isDeclinePending: boolean;
+    isMarkDraftPending: boolean;
     copiedSourceBranch: boolean;
     onExpandTree: () => void;
     onCopySourceBranch: (branchName: string) => void;
     onApprove: () => void;
     onRequestChanges: () => void;
+    onDecline: () => void;
+    onMarkDraft: () => void;
     onOpenMerge: () => void;
 };
 
@@ -44,20 +50,27 @@ export function ReviewTopNavbar({
     navbarState,
     navbarStatusDate,
     buildStatuses,
-    unresolvedThreadCount,
     canApprove,
     canRequestChanges,
     canMerge,
-    isApproved,
+    canDecline,
+    canMarkDraft,
+    currentUserReviewStatus,
     isApprovePending,
     isRequestChangesPending,
+    isDeclinePending,
+    isMarkDraftPending,
     copiedSourceBranch,
     onExpandTree,
     onCopySourceBranch,
     onApprove,
     onRequestChanges,
+    onDecline,
+    onMarkDraft,
     onOpenMerge,
 }: ReviewTopNavbarProps) {
+    const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
+
     return (
         <div
             className="h-11 border-b border-border bg-card px-1.5 flex items-center gap-3"
@@ -74,8 +87,8 @@ export function ReviewTopNavbar({
                     <span className="text-[11px] text-muted-foreground">Loading pull request...</span>
                 </>
             ) : (
-                <div className="flex items-center justify-between w-full">
-                    <div className="min-w-0 flex items-center gap-2 text-[11px] text-muted-foreground">
+                <div className="flex h-full w-full items-stretch justify-between">
+                    <div className="min-w-0 flex h-full items-center gap-2 text-[11px] text-muted-foreground">
                         {treeCollapsed ? (
                             <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={onExpandTree} aria-label="Expand file tree">
                                 <PanelLeftOpen className="size-3.5" />
@@ -106,28 +119,81 @@ export function ReviewTopNavbar({
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 
-                    <div className="flex items-center gap-1">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 rounded"
-                            disabled={!canApprove || isApproved || isApprovePending || isRequestChangesPending}
-                            onClick={onApprove}
-                        >
-                            Approve
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 rounded"
-                            disabled={!canRequestChanges || isApprovePending || isRequestChangesPending}
-                            onClick={onRequestChanges}
-                        >
-                            Request Changes
-                        </Button>
-                        <Button variant="outline" size="sm" className="h-8 rounded" disabled={!canMerge} onClick={onOpenMerge}>
-                            Merge
-                        </Button>
+                    <div className="ml-2 -mr-1.5 flex h-full shrink-0 border-l border-border">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(
+                                        "h-full min-w-24 rounded-none border-0 border-transparent px-3 bg-card text-foreground hover:bg-secondary data-[state=open]:bg-secondary hover:border-transparent focus-visible:outline-none focus-visible:ring-0",
+                                    )}
+                                    disabled={actionBusy}
+                                    aria-label="Pull request actions"
+                                >
+                                    {actionBusy ? (
+                                        <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <Menu className="size-4" />
+                                            {currentUserReviewStatus === "approved" ? <Check className="size-3.5 text-status-added" /> : null}
+                                            {currentUserReviewStatus === "changesRequested" ? <TriangleAlert className="size-3.5 text-[#eab308]" /> : null}
+                                        </span>
+                                    )}
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" side="bottom" sideOffset={0}>
+                                <DropdownMenuItem
+                                    className={cn(
+                                        "cursor-pointer py-2 text-[13px]",
+                                        currentUserReviewStatus === "approved"
+                                            ? "bg-status-added/20 text-status-added focus:bg-status-added/30 focus:text-status-added"
+                                            : "text-status-added focus:bg-status-added/20 focus:text-status-added",
+                                    )}
+                                    disabled={!canApprove || actionBusy}
+                                    onSelect={onApprove}
+                                >
+                                    <Check className="size-4" />
+                                    {currentUserReviewStatus === "approved" ? "Remove Approval" : "Approve"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    className={cn(
+                                        "cursor-pointer py-2 text-[13px] text-[#eab308] focus:text-[#eab308]",
+                                        currentUserReviewStatus === "changesRequested" ? "bg-[#eab308]/20 focus:bg-[#eab308]/30" : "focus:bg-[#eab308]/20",
+                                    )}
+                                    disabled={!canRequestChanges || actionBusy}
+                                    onSelect={onRequestChanges}
+                                >
+                                    <TriangleAlert className="size-4" />
+                                    Request Changes
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    className="cursor-pointer py-2 text-[13px] text-[#93c5fd] focus:bg-[#93c5fd]/20 focus:text-[#93c5fd]"
+                                    disabled={!canMerge || actionBusy}
+                                    onSelect={onOpenMerge}
+                                >
+                                    <GitMerge className="size-4" />
+                                    Merge
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    className="cursor-pointer py-2 text-[13px] text-status-removed focus:bg-status-removed/20 focus:text-status-removed"
+                                    disabled={!canDecline || actionBusy}
+                                    onSelect={onDecline}
+                                >
+                                    <XCircle className="size-4" />
+                                    Decline PR
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    className="cursor-pointer py-2 text-[13px] text-muted-foreground focus:bg-secondary focus:text-foreground"
+                                    disabled={!canMarkDraft || actionBusy}
+                                    onSelect={onMarkDraft}
+                                >
+                                    <PenSquare className="size-4" />
+                                    Mark as Draft
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </div>
             )}

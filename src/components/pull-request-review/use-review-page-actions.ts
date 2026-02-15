@@ -1,6 +1,15 @@
 import { type QueryClient, useMutation } from "@tanstack/react-query";
 import { type MutableRefObject, useCallback } from "react";
-import { approvePullRequest, createPullRequestComment, mergePullRequest, requestChangesOnPullRequest, resolvePullRequestComment } from "@/lib/git-host/service";
+import {
+    approvePullRequest,
+    createPullRequestComment,
+    declinePullRequest,
+    markPullRequestAsDraft,
+    mergePullRequest,
+    removePullRequestApproval,
+    requestChangesOnPullRequest,
+    resolvePullRequestComment,
+} from "@/lib/git-host/service";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
@@ -10,9 +19,11 @@ type ActionPolicy = {
     canApprove: boolean;
     canRequestChanges: boolean;
     canMerge: boolean;
+    canDecline: boolean;
+    canMarkDraft: boolean;
     canCommentInline: boolean;
     canResolveThread: boolean;
-    disabledReason: { commentInline?: string };
+    disabledReason: { commentInline?: string; decline?: string; markDraft?: string };
 };
 
 type UseReviewPageActionsProps = {
@@ -21,8 +32,10 @@ type UseReviewPageActionsProps = {
     actionPolicy: ActionPolicy;
     prData: PullRequestBundle | undefined;
     pullRequest: PullRequestDetails | undefined;
+    isApprovedByCurrentUser: boolean;
     queryClient: QueryClient;
     prQueryKey: readonly unknown[];
+    refetchPullRequest: () => Promise<unknown>;
     mergeMessage: string;
     mergeStrategy: string;
     closeSourceBranch: boolean;
@@ -44,8 +57,10 @@ export function useReviewPageActions({
     actionPolicy,
     prData,
     pullRequest,
+    isApprovedByCurrentUser,
     queryClient,
     prQueryKey,
+    refetchPullRequest,
     mergeMessage,
     mergeStrategy,
     closeSourceBranch,
@@ -60,6 +75,10 @@ export function useReviewPageActions({
     setCopiedPath,
     setCopiedSourceBranch,
 }: UseReviewPageActionsProps) {
+    const refreshPullRequest = useCallback(async () => {
+        await Promise.all([queryClient.invalidateQueries({ queryKey: prQueryKey }), refetchPullRequest()]);
+    }, [prQueryKey, queryClient, refetchPullRequest]);
+
     const ensurePrRef = useCallback(() => {
         if (!prData?.prRef || !pullRequest) {
             throw new Error("Pull request data is incomplete");
@@ -74,10 +93,24 @@ export function useReviewPageActions({
         },
         onSuccess: async () => {
             setActionError(null);
-            await queryClient.invalidateQueries({ queryKey: prQueryKey });
+            await refreshPullRequest();
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to approve pull request");
+        },
+    });
+
+    const removeApprovalMutation = useMutation({
+        mutationFn: () => {
+            const prRef = ensurePrRef();
+            return removePullRequestApproval({ prRef });
+        },
+        onSuccess: async () => {
+            setActionError(null);
+            await refreshPullRequest();
+        },
+        onError: (error) => {
+            setActionError(error instanceof Error ? error.message : "Failed to remove approval");
         },
     });
 
@@ -88,10 +121,10 @@ export function useReviewPageActions({
         },
         onSuccess: async () => {
             setActionError(null);
-            await queryClient.invalidateQueries({ queryKey: prQueryKey });
+            await refreshPullRequest();
         },
         onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to remove approval");
+            setActionError(error instanceof Error ? error.message : "Failed to request changes");
         },
     });
 
@@ -108,10 +141,38 @@ export function useReviewPageActions({
         onSuccess: async () => {
             setMergeOpen(false);
             setActionError(null);
-            await queryClient.invalidateQueries({ queryKey: prQueryKey });
+            await refreshPullRequest();
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to merge pull request");
+        },
+    });
+
+    const declineMutation = useMutation({
+        mutationFn: () => {
+            const prRef = ensurePrRef();
+            return declinePullRequest({ prRef });
+        },
+        onSuccess: async () => {
+            setActionError(null);
+            await refreshPullRequest();
+        },
+        onError: (error) => {
+            setActionError(error instanceof Error ? error.message : "Failed to decline pull request");
+        },
+    });
+
+    const markDraftMutation = useMutation({
+        mutationFn: () => {
+            const prRef = ensurePrRef();
+            return markPullRequestAsDraft({ prRef });
+        },
+        onSuccess: async () => {
+            setActionError(null);
+            await refreshPullRequest();
+        },
+        onError: (error) => {
+            setActionError(error instanceof Error ? error.message : "Failed to mark pull request as draft");
         },
     });
 
@@ -180,20 +241,42 @@ export function useReviewPageActions({
             if (!authCanWrite) requestAuth("write");
             return;
         }
-        if (approveMutation.isPending || requestChangesMutation.isPending) return;
-        if (!window.confirm("Approve this pull request?")) return;
+        if (approveMutation.isPending || removeApprovalMutation.isPending || requestChangesMutation.isPending) return;
+        if (isApprovedByCurrentUser) {
+            removeApprovalMutation.mutate();
+            return;
+        }
         approveMutation.mutate();
-    }, [actionPolicy.canApprove, approveMutation, authCanWrite, requestAuth, requestChangesMutation]);
+    }, [actionPolicy.canApprove, approveMutation, authCanWrite, isApprovedByCurrentUser, removeApprovalMutation, requestAuth, requestChangesMutation]);
 
     const handleRequestChangesPullRequest = useCallback(() => {
         if (!actionPolicy.canRequestChanges) {
             if (!authCanWrite) requestAuth("write");
             return;
         }
-        if (approveMutation.isPending || requestChangesMutation.isPending) return;
-        if (!window.confirm("Request changes on this pull request?")) return;
+        if (approveMutation.isPending || removeApprovalMutation.isPending || requestChangesMutation.isPending) return;
         requestChangesMutation.mutate();
-    }, [actionPolicy.canRequestChanges, approveMutation, authCanWrite, requestAuth, requestChangesMutation]);
+    }, [actionPolicy.canRequestChanges, approveMutation, authCanWrite, removeApprovalMutation, requestAuth, requestChangesMutation]);
+
+    const handleDeclinePullRequest = useCallback(() => {
+        if (!actionPolicy.canDecline) {
+            if (!authCanWrite) requestAuth("write");
+            else setActionError(actionPolicy.disabledReason.decline ?? "Decline is not available");
+            return;
+        }
+        if (declineMutation.isPending) return;
+        declineMutation.mutate();
+    }, [actionPolicy.canDecline, actionPolicy.disabledReason.decline, authCanWrite, declineMutation, requestAuth, setActionError]);
+
+    const handleMarkPullRequestAsDraft = useCallback(() => {
+        if (!actionPolicy.canMarkDraft) {
+            if (!authCanWrite) requestAuth("write");
+            else setActionError(actionPolicy.disabledReason.markDraft ?? "Mark as draft is not available");
+            return;
+        }
+        if (markDraftMutation.isPending) return;
+        markDraftMutation.mutate();
+    }, [actionPolicy.canMarkDraft, actionPolicy.disabledReason.markDraft, authCanWrite, markDraftMutation, requestAuth, setActionError]);
 
     const submitInlineComment = useCallback(() => {
         if (!actionPolicy.canCommentInline) {
@@ -269,12 +352,17 @@ export function useReviewPageActions({
 
     return {
         approveMutation,
+        removeApprovalMutation,
         requestChangesMutation,
+        declineMutation,
+        markDraftMutation,
         mergeMutation,
         createCommentMutation,
         resolveCommentMutation,
         handleApprovePullRequest,
         handleRequestChangesPullRequest,
+        handleDeclinePullRequest,
+        handleMarkPullRequestAsDraft,
         submitInlineComment,
         handleCopyPath,
         handleCopySourceBranch,

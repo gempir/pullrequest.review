@@ -1,6 +1,6 @@
 import type { FileDiffOptions } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
-import { Check, Copy, MessageSquare } from "lucide-react";
+import { Check, CheckCheck, Copy, MessageSquare } from "lucide-react";
 import type { CSSProperties } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -43,6 +43,8 @@ type ReviewSingleModeViewProps = {
     resolveCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     onCopyPath: (path: string) => void;
+    areAllFilesViewed: boolean;
+    onToggleAllFilesViewed: () => void;
     onToggleViewed: (path: string) => void;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
@@ -104,6 +106,8 @@ export function ReviewSingleModeView({
     resolveCommentPending,
     toRenderableFileDiff,
     onCopyPath,
+    areAllFilesViewed,
+    onToggleAllFilesViewed,
     onToggleViewed,
     getInlineDraftContent,
     setInlineDraftContent,
@@ -115,7 +119,32 @@ export function ReviewSingleModeView({
     if (isSummarySelected) {
         return (
             <div id={fileAnchorId(PR_SUMMARY_PATH)} className="h-full w-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
-                <PullRequestSummaryPanel bundle={prData} headerTitle={pullRequestTitle || PR_SUMMARY_NAME} diffStats={lineStats} />
+                <PullRequestSummaryPanel
+                    bundle={prData}
+                    headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
+                    diffStats={lineStats}
+                    headerRight={
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={onToggleAllFilesViewed}
+                            aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                            title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                        >
+                            <span
+                                className={
+                                    areAllFilesViewed
+                                        ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                        : "size-4 bg-muted/40 border border-border/70 text-muted-foreground flex items-center justify-center"
+                                }
+                            >
+                                <CheckCheck className="size-3" />
+                            </span>
+                        </Button>
+                    }
+                />
             </div>
         );
     }

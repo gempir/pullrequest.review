@@ -24,6 +24,7 @@ type ReviewPageDiffContentProps = {
     copiedPath: string | null;
     fileLineStats: Map<string, { added: number; removed: number }>;
     viewedFiles: Set<string>;
+    areAllFilesViewed: boolean;
     diffHighlighterReady: boolean;
     diffTypographyStyle: CSSProperties;
     singleFileDiffOptions: FileDiffOptions<undefined>;
@@ -47,6 +48,7 @@ type ReviewPageDiffContentProps = {
     onActiveFileChange: (path: string | undefined) => void;
     onShowSettingsPanelChange: (next: boolean) => void;
     onCopyPath: (path: string) => void;
+    onToggleAllFilesViewed: () => void;
     onToggleViewed: (path: string) => void;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
@@ -74,6 +76,7 @@ export function ReviewPageDiffContent({
     copiedPath,
     fileLineStats,
     viewedFiles,
+    areAllFilesViewed,
     diffHighlighterReady,
     diffTypographyStyle,
     singleFileDiffOptions,
@@ -97,6 +100,7 @@ export function ReviewPageDiffContent({
     onActiveFileChange,
     onShowSettingsPanelChange,
     onCopyPath,
+    onToggleAllFilesViewed,
     onToggleViewed,
     getInlineDraftContent,
     setInlineDraftContent,
@@ -155,6 +159,8 @@ export function ReviewPageDiffContent({
                 resolveCommentPending={resolveCommentPending}
                 toRenderableFileDiff={toRenderableFileDiff}
                 onCopyPath={onCopyPath}
+                areAllFilesViewed={areAllFilesViewed}
+                onToggleAllFilesViewed={onToggleAllFilesViewed}
                 onToggleViewed={onToggleViewed}
                 getInlineDraftContent={getInlineDraftContent}
                 setInlineDraftContent={setInlineDraftContent}
@@ -180,7 +186,9 @@ export function ReviewPageDiffContent({
             collapseViewedFilesByDefault={collapseViewedFilesByDefault}
             viewedFiles={viewedFiles}
             copiedPath={copiedPath}
+            areAllFilesViewed={areAllFilesViewed}
             onToggleCollapsedFile={onToggleCollapsedFile}
+            onToggleAllFilesViewed={onToggleAllFilesViewed}
             onCopyPath={onCopyPath}
             onToggleViewed={onToggleViewed}
             diffHighlighterReady={diffHighlighterReady}

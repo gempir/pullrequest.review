@@ -319,6 +319,7 @@ function FileNodeRow({
     return (
         <button
             type="button"
+            data-tree-path={node.path}
             className={cn(
                 "w-full min-w-0 flex items-center gap-3 py-1 text-left",
                 "hover:bg-sidebar/70 active:bg-sidebar/90 transition-colors cursor-pointer",

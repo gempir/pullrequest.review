@@ -23,6 +23,7 @@ export interface DiffOptions {
     disableLineNumbers: boolean;
     overflow: "scroll" | "wrap";
     collapseViewedFilesByDefault: boolean;
+    autoMarkViewedFiles: boolean;
 }
 
 const STORAGE_KEY_BASE = "pr_review_diff_options";
@@ -45,7 +46,8 @@ const defaultOptions: DiffOptions = {
     lineDiffType: "word",
     disableLineNumbers: false,
     overflow: "scroll",
-    collapseViewedFilesByDefault: true,
+    collapseViewedFilesByDefault: false,
+    autoMarkViewedFiles: true,
 };
 
 interface DiffOptionsContextType {

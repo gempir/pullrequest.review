@@ -67,9 +67,9 @@ export function ReviewFileTreeSidebar({
                             </Button>
                         }
                     />
-                    <div className="h-10 pl-1 pr-2 border-b border-border bg-chrome flex items-center gap-1" data-component="search-sidebar">
+                    <div className="h-10 border-b border-border bg-chrome flex items-center" data-component="search-sidebar">
                         <Input
-                            className="h-7 text-[12px] flex-1 min-w-0 border-0 focus-visible:border-0 focus-visible:ring-0"
+                            className="h-full text-[12px] flex-1 min-w-0 border-0 border-r border-border rounded-none focus-visible:border-0 focus-visible:border-r focus-visible:border-border focus-visible:ring-0"
                             placeholder="search files"
                             value={searchQuery}
                             onChange={(e) => onSearchQueryChange(e.target.value)}

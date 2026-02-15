@@ -96,8 +96,11 @@ function parseActiveHost(): GitHost {
 export function PrProvider({ children }: { children: ReactNode }) {
     const [authHydrated, setAuthHydrated] = useState(false);
     const [authByHost, setAuthByHost] = useState<AuthByHost>(emptyAuthByHost());
-    const [reposByHost, setReposByHost] = useState<ReposByHost>(emptyReposByHost());
-    const [activeHost, setActiveHostState] = useState<GitHost>("bitbucket");
+    const [reposByHost, setReposByHost] = useState<ReposByHost>(() => ({
+        bitbucket: parseRepos("bitbucket"),
+        github: parseRepos("github"),
+    }));
+    const [activeHost, setActiveHostState] = useState<GitHost>(() => parseActiveHost());
 
     const refreshAuth = useCallback(async () => {
         const states = await Promise.all(
@@ -117,12 +120,6 @@ export function PrProvider({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
-        setReposByHost({
-            bitbucket: parseRepos("bitbucket"),
-            github: parseRepos("github"),
-        });
-        setActiveHostState(parseActiveHost());
-
         refreshAuth().finally(() => setAuthHydrated(true));
     }, [refreshAuth]);
 

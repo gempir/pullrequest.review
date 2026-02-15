@@ -281,6 +281,10 @@ function pullRequestBundleId(prRef: PullRequestRef) {
     return `${prRef.host}:${prRef.workspace}/${prRef.repo}/${prRef.pullRequestId}`;
 }
 
+export function pullRequestDetailsFetchScopeId(prRef: PullRequestRef) {
+    return `pr-bundle:${pullRequestBundleId(prRef)}`;
+}
+
 function normalizeRepoRef(repo: RepoRef): RepoRef {
     const workspace = repo.workspace.trim();
     const repositorySlug = repo.repo.trim();
@@ -530,7 +534,7 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef) {
     }
 
     const bundleId = pullRequestBundleId(prRef);
-    const scopeId = `pr-bundle:${bundleId}`;
+    const scopeId = pullRequestDetailsFetchScopeId(prRef);
     const scopeLabel = `Pull request details (${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId})`;
     const existing = pullRequestBundleScopedCollections.get(bundleId);
     if (existing) return existing;

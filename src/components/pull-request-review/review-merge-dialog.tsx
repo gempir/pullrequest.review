@@ -1,8 +1,9 @@
-import { Loader2 } from "lucide-react";
+import { GitMerge, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
 type ReviewMergeDialogProps = {
@@ -36,31 +37,33 @@ export function ReviewMergeDialog({
 }: ReviewMergeDialogProps) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg">
-                <DialogHeader>
-                    <DialogTitle>Merge pull request</DialogTitle>
-                </DialogHeader>
+            <DialogContent className="max-w-lg p-0">
+                <div className="h-10 border-b border-border bg-card px-2.5 pr-12 flex items-center">
+                    <DialogTitle className="text-[12px] font-medium leading-none">Merge pull request</DialogTitle>
+                </div>
 
-                <div className="space-y-3">
-                    <div className="space-y-1">
-                        <Label htmlFor="merge-strategy">Merge strategy</Label>
+                <div className="space-y-3 px-2.5 py-3 text-[12px]">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="merge-strategy" className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            Merge strategy
+                        </Label>
                         {mergeStrategies?.length ? (
-                            <select
-                                id="merge-strategy"
-                                value={mergeStrategy}
-                                onChange={(e) => onMergeStrategyChange(e.target.value)}
-                                className="h-9 w-full border border-input bg-background px-3 text-[13px]"
-                            >
-                                {mergeStrategies.map((strategy) => (
-                                    <option key={strategy} value={strategy}>
-                                        {strategy}
-                                    </option>
-                                ))}
-                            </select>
+                            <Select value={mergeStrategy} onValueChange={onMergeStrategyChange}>
+                                <SelectTrigger id="merge-strategy" className="h-8 w-full text-[12px] font-mono" size="sm">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {mergeStrategies.map((strategy) => (
+                                        <SelectItem key={strategy} value={strategy} className="text-[12px] font-mono">
+                                            {strategy}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         ) : (
                             <Input
                                 id="merge-strategy"
-                                className="border-0 focus-visible:border-0 focus-visible:ring-0"
+                                className="h-8 text-[12px] font-mono"
                                 value={mergeStrategy}
                                 onChange={(e) => onMergeStrategyChange(e.target.value)}
                                 placeholder="merge_commit"
@@ -68,28 +71,33 @@ export function ReviewMergeDialog({
                         )}
                     </div>
 
-                    <div className="space-y-1">
-                        <Label htmlFor="merge-message">Merge message</Label>
+                    <div className="space-y-1.5">
+                        <Label htmlFor="merge-message" className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            Merge message
+                        </Label>
                         <Input
                             id="merge-message"
-                            className="border-0 focus-visible:border-0 focus-visible:ring-0"
+                            className="h-8 text-[12px]"
                             value={mergeMessage}
                             onChange={(e) => onMergeMessageChange(e.target.value)}
                             placeholder="Optional merge message"
                         />
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <Switch checked={closeSourceBranch} onCheckedChange={onCloseSourceBranchChange} id="close-branch" />
-                        <Label htmlFor="close-branch">Close source branch</Label>
+                    <div className="flex items-center gap-2 border border-border px-2 py-1.5">
+                        <Switch checked={closeSourceBranch} onCheckedChange={onCloseSourceBranchChange} id="close-branch" size="sm" />
+                        <Label htmlFor="close-branch" className="text-[12px]">
+                            Close source branch
+                        </Label>
                     </div>
 
-                    <div className="flex items-center justify-end gap-2 pt-2">
-                        <Button variant="outline" onClick={() => onOpenChange(false)}>
+                    <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+                        <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+                            <X className="size-4" />
                             Cancel
                         </Button>
-                        <Button disabled={isMerging || !canMerge} onClick={onMerge}>
-                            {isMerging ? <Loader2 className="size-4 animate-spin" /> : null} Merge
+                        <Button size="sm" disabled={isMerging || !canMerge} onClick={onMerge}>
+                            {isMerging ? <Loader2 className="size-4 animate-spin" /> : <GitMerge className="size-4" />} Merge
                         </Button>
                     </div>
                 </div>

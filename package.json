@@ -7,6 +7,7 @@
         "tsc": "tsc --noEmit",
         "check:fix": "biome check --write .",
         "check": "biome check .",
+        "test": "bun test",
         "build": "vite build && cp dist/client/_shell.html dist/client/index.html",
         "serve": "vite preview",
         "worker:dev": "wrangler dev --config wrangler.jsonc",

@@ -1,23 +1,28 @@
 import { getHostCapabilities, getHostClient } from "@/lib/git-host/registry";
 import type { GitHost, PullRequestRef, RepoRef } from "@/lib/git-host/types";
 
+export async function fetchRepoPullRequestsForHost(data: { host: GitHost; repos: RepoRef[] }) {
+    if (data.repos.length === 0) {
+        return [] as Array<{
+            repo: RepoRef;
+            pullRequests: {
+                id: number;
+                title: string;
+                state: string;
+                links?: { html?: { href?: string } };
+                author?: { displayName?: string };
+            }[];
+        }>;
+    }
+    const client = getHostClient(data.host);
+    return client.listPullRequestsForRepos({ repos: data.repos });
+}
+
 export async function fetchRepoPullRequestsByHost(data: { hosts: GitHost[]; reposByHost: Record<GitHost, RepoRef[]> }) {
     const settled = await Promise.allSettled(
         data.hosts.map(async (host) => {
             const repos = data.reposByHost[host] ?? [];
-            if (!repos.length)
-                return [] as Array<{
-                    repo: RepoRef;
-                    pullRequests: {
-                        id: number;
-                        title: string;
-                        state: string;
-                        links?: { html?: { href?: string } };
-                        author?: { displayName?: string };
-                    }[];
-                }>;
-            const client = getHostClient(host);
-            return client.listPullRequestsForRepos({ repos });
+            return fetchRepoPullRequestsForHost({ host, repos });
         }),
     );
 

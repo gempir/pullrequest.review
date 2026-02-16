@@ -63,6 +63,22 @@ function normalizeLineHeight(value: number, min: number, max: number) {
     return Number(clamped.toFixed(2));
 }
 
+function deriveTreeFontSize(treeUseCustomTypography: boolean, treeFontSize: number, sansFontSize: number) {
+    if (treeUseCustomTypography) {
+        return treeFontSize;
+    }
+    const reduced = sansFontSize - 1;
+    return normalizeFontSize(reduced, 10, 18);
+}
+
+function deriveTreeLineHeight(treeUseCustomTypography: boolean, treeLineHeight: number, sansLineHeight: number) {
+    if (treeUseCustomTypography) {
+        return treeLineHeight;
+    }
+    const reduced = sansLineHeight - 0.05;
+    return normalizeLineHeight(reduced, 1, 2.2);
+}
+
 function parseStoredSettings(raw: string | null): AppearanceSettings | null {
     if (!raw) return null;
     try {
@@ -120,10 +136,13 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
         // Legacy aliases retained to avoid stale references.
         root.style.setProperty("--app-font-size", `${settings.sansFontSize}px`);
         root.style.setProperty("--app-line-height", String(settings.sansLineHeight));
-        root.style.setProperty("--tree-font-family", fontFamilyToCss(settings.treeUseCustomTypography ? settings.treeFontFamily : settings.sansFontFamily));
+        const resolvedTreeFontFamily = fontFamilyToCss(settings.treeUseCustomTypography ? settings.treeFontFamily : settings.sansFontFamily);
+        const resolvedTreeFontSize = deriveTreeFontSize(settings.treeUseCustomTypography, settings.treeFontSize, settings.sansFontSize);
+        const resolvedTreeLineHeight = deriveTreeLineHeight(settings.treeUseCustomTypography, settings.treeLineHeight, settings.sansLineHeight);
+        root.style.setProperty("--tree-font-family", resolvedTreeFontFamily);
         root.style.setProperty("--comment-font-family", fontFamilyToCss(settings.sansFontFamily));
-        root.style.setProperty("--tree-font-size", `${settings.treeUseCustomTypography ? settings.treeFontSize : settings.sansFontSize}px`);
-        root.style.setProperty("--tree-line-height", String(settings.treeUseCustomTypography ? settings.treeLineHeight : settings.sansLineHeight));
+        root.style.setProperty("--tree-font-size", `${resolvedTreeFontSize}px`);
+        root.style.setProperty("--tree-line-height", String(resolvedTreeLineHeight));
     }, [
         settings.sansFontFamily,
         settings.monospaceFontFamily,

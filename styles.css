@@ -103,6 +103,9 @@
     --diff-font-family: var(--app-font-family);
     --diff-font-size: 13px;
     --diff-line-height: 1.45;
+    --diffs-font-family: var(--diff-font-family);
+    --diffs-font-size: var(--diff-font-size);
+    --diffs-line-height: var(--diff-line-height);
 }
 
 :root.light {
@@ -431,18 +434,18 @@
     }
 
     .pr-diff-font {
-        font-family: var(--diff-font-family);
-        font-size: var(--diff-font-size);
-        line-height: var(--diff-line-height);
+        font-family: var(--diff-font-family, var(--diffs-font-family));
+        font-size: var(--diff-font-size, var(--diffs-font-size));
+        line-height: var(--diff-line-height, var(--diffs-line-height));
     }
 
     .pr-diff-font pre,
     .pr-diff-font code,
     .pr-diff-font [data-line],
     .pr-diff-font [data-column-number] {
-        font-family: var(--diff-font-family);
-        font-size: var(--diff-font-size);
-        line-height: var(--diff-line-height);
+        font-family: var(--diff-font-family, var(--diffs-font-family));
+        font-size: var(--diff-font-size, var(--diffs-font-size));
+        line-height: var(--diff-line-height, var(--diffs-line-height));
     }
 
     .diff-content-scroll {

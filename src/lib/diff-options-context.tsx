@@ -41,7 +41,7 @@ const defaultOptions: DiffOptions = {
     disableBackground: false,
     hunkSeparators: "simple",
     expandUnchanged: false,
-    expansionLineCount: 20,
+    expansionLineCount: 100,
     collapsedContextThreshold: 5,
     lineDiffType: "word",
     disableLineNumbers: false,

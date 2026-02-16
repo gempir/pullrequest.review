@@ -8,13 +8,21 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { NumberStepperInput } from "@/components/ui/number-stepper-input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useAppearance } from "@/lib/appearance-context";
+import { getDetectedFontOptionFromValue, useDetectedMonospaceFontOptions } from "@/lib/detected-monospace-fonts";
 import { useDiffOptions } from "@/lib/diff-options-context";
 import { DIFF_THEMES, type DiffTheme } from "@/lib/diff-themes";
 import { useFileTree } from "@/lib/file-tree-context";
-import { FONT_FAMILY_OPTIONS, type FontFamilyValue, fontFamilyToCss, MONO_FONT_FAMILY_OPTIONS, SANS_FONT_FAMILY_OPTIONS } from "@/lib/font-options";
+import {
+    FONT_FAMILY_OPTIONS,
+    type FontFamilyValue,
+    fontFamilyToCss,
+    isDetectedFontFamilyValue,
+    MONO_FONT_FAMILY_OPTIONS,
+    SANS_FONT_FAMILY_OPTIONS,
+} from "@/lib/font-options";
 import { type ShortcutConfig, useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
@@ -172,23 +180,27 @@ function DiffSettingsTab({ workspaceMode, onWorkspaceModeChange }: { workspaceMo
         const patches = parsePatchFiles(DIFF_PREVIEW_PATCH);
         return patches[0]?.files[0];
     }, []);
-    const previewStyle = useMemo(
-        () =>
-            ({
-                "--diff-font-family": fontFamilyToCss(options.diffUseCustomTypography ? options.diffFontFamily : monospaceFontFamily),
-                "--diff-font-size": `${options.diffUseCustomTypography ? options.diffFontSize : monospaceFontSize}px`,
-                "--diff-line-height": String(options.diffUseCustomTypography ? options.diffLineHeight : monospaceLineHeight),
-            }) as CSSProperties,
-        [
-            monospaceFontFamily,
-            monospaceFontSize,
-            monospaceLineHeight,
-            options.diffFontFamily,
-            options.diffFontSize,
-            options.diffLineHeight,
-            options.diffUseCustomTypography,
-        ],
-    );
+    const previewStyle = useMemo(() => {
+        const fontFamily = fontFamilyToCss(options.diffUseCustomTypography ? options.diffFontFamily : monospaceFontFamily);
+        const fontSize = `${options.diffUseCustomTypography ? options.diffFontSize : monospaceFontSize}px`;
+        const lineHeight = String(options.diffUseCustomTypography ? options.diffLineHeight : monospaceLineHeight);
+        return {
+            "--diff-font-family": fontFamily,
+            "--diff-font-size": fontSize,
+            "--diff-line-height": lineHeight,
+            "--diffs-font-family": fontFamily,
+            "--diffs-font-size": fontSize,
+            "--diffs-line-height": lineHeight,
+        } as CSSProperties;
+    }, [
+        monospaceFontFamily,
+        monospaceFontSize,
+        monospaceLineHeight,
+        options.diffFontFamily,
+        options.diffFontSize,
+        options.diffLineHeight,
+        options.diffUseCustomTypography,
+    ]);
     const previewDiffOptions = useMemo<FileDiffOptions<undefined>>(
         () => ({
             theme: options.theme,
@@ -265,6 +277,13 @@ function AppearanceTab() {
         setMonospaceFontSize,
         setMonospaceLineHeight,
     } = useAppearance();
+    const detectedMonospaceFonts = useDetectedMonospaceFontOptions();
+    const resolvedDetectedMonospaceFonts = useMemo(() => {
+        if (!isDetectedFontFamilyValue(monospaceFontFamily)) return detectedMonospaceFonts;
+        if (detectedMonospaceFonts.some((font) => font.value === monospaceFontFamily)) return detectedMonospaceFonts;
+        const fallback = getDetectedFontOptionFromValue(monospaceFontFamily);
+        return fallback ? [...detectedMonospaceFonts, fallback] : detectedMonospaceFonts;
+    }, [detectedMonospaceFonts, monospaceFontFamily]);
     const { options, setOption } = useDiffOptions();
     const appThemeValue = options.followSystemTheme ? "__system__" : options.theme;
 
@@ -347,11 +366,27 @@ function AppearanceTab() {
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="max-h-60">
-                                {MONO_FONT_FAMILY_OPTIONS.map((font) => (
-                                    <SelectItem key={font.value} value={font.value} className="text-[12px]">
-                                        {font.label}
-                                    </SelectItem>
-                                ))}
+                                <SelectGroup>
+                                    <SelectLabel className="text-[11px] text-muted-foreground">Curated fonts</SelectLabel>
+                                    {MONO_FONT_FAMILY_OPTIONS.map((font) => (
+                                        <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                                            {font.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectGroup>
+                                {resolvedDetectedMonospaceFonts.length ? (
+                                    <>
+                                        <SelectSeparator />
+                                        <SelectGroup>
+                                            <SelectLabel className="text-[11px] text-muted-foreground">Detected on this device</SelectLabel>
+                                            {resolvedDetectedMonospaceFonts.map((font) => (
+                                                <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                                                    {font.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    </>
+                                ) : null}
                             </SelectContent>
                         </Select>
                     </div>

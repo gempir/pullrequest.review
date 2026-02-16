@@ -72,10 +72,12 @@ export interface PullRequestDetails {
     source?: {
         branch?: { name?: string };
         repository?: { fullName?: string };
+        commit?: { hash?: string };
     };
     destination?: {
         branch?: { name?: string };
         repository?: { fullName?: string };
+        commit?: { hash?: string };
     };
     participants?: Array<{
         approved?: boolean;
@@ -214,4 +216,5 @@ export interface GitHostClient {
         } & CommentPayload,
     ): Promise<{ ok: true }>;
     resolvePullRequestComment(data: { prRef: PullRequestRef; commentId: number; resolve: boolean }): Promise<{ ok: true }>;
+    fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }): Promise<string>;
 }

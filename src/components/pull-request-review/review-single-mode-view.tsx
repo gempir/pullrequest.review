@@ -8,6 +8,7 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
+import { DiffContextButton, type DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import { ReviewDiffSettingsMenu } from "@/components/pull-request-review/review-diff-settings-menu";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,8 @@ type ReviewSingleModeViewProps = {
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onOpenDiffSettings: () => void;
+    onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
+    fileContextState: Record<string, DiffContextState>;
 };
 
 function CommentMarkdown({ text }: { text: string }) {
@@ -122,7 +125,16 @@ export function ReviewSingleModeView({
     onCancelInlineDraft,
     onResolveThread,
     onOpenDiffSettings,
+    onLoadFullFileContext,
+    fileContextState,
 }: ReviewSingleModeViewProps) {
+    const hasFullContext = selectedFilePath ? fileContextState[selectedFilePath]?.status === "ready" : false;
+    const resolvedFileDiffOptions =
+        hasFullContext && typeof singleFileDiffOptions.hunkSeparators !== "function"
+            ? singleFileDiffOptions.hunkSeparators === "line-info"
+                ? singleFileDiffOptions
+                : { ...singleFileDiffOptions, hunkSeparators: "line-info" as const }
+            : singleFileDiffOptions;
     if (isSummarySelected) {
         return (
             <div id={fileAnchorId(PR_SUMMARY_PATH)} className="h-full w-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
@@ -169,7 +181,7 @@ export function ReviewSingleModeView({
                 <span className="size-4 flex items-center justify-center shrink-0">
                     <RepositoryFileIcon fileName={selectedFilePath.split("/").pop() || selectedFilePath} className="size-3.5" />
                 </span>
-                <div className="min-w-0 flex-1 flex items-center gap-1">
+                <div className="min-w-0 flex-1 flex items-center gap-2">
                     <span className="min-w-0 truncate font-mono text-[12px]">{selectedFilePath}</span>
                     <Button
                         type="button"
@@ -181,6 +193,7 @@ export function ReviewSingleModeView({
                     >
                         {copiedPath === selectedFilePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                     </Button>
+                    <DiffContextButton state={fileContextState[selectedFilePath]} onClick={() => onLoadFullFileContext(selectedFilePath, selectedFileDiff)} />
                 </div>
                 <span className="select-none text-[12px] text-status-added">+{fileLineStats.get(selectedFilePath)?.added ?? 0}</span>
                 <span className="select-none text-[12px] text-status-removed">-{fileLineStats.get(selectedFilePath)?.removed ?? 0}</span>
@@ -205,7 +218,7 @@ export function ReviewSingleModeView({
                 {diffHighlighterReady ? (
                     <FileDiff
                         fileDiff={toRenderableFileDiff(selectedFileDiff)}
-                        options={singleFileDiffOptions}
+                        options={resolvedFileDiffOptions}
                         className="compact-diff commentable-diff pr-diff-font"
                         style={diffTypographyStyle}
                         lineAnnotations={singleFileAnnotations}

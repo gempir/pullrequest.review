@@ -3,6 +3,7 @@ import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { Check, CheckCheck, ChevronDown, ChevronRight, Copy, ScrollText } from "lucide-react";
 import type { CSSProperties } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
+import { DiffContextButton, type DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import { ReviewDiffSettingsMenu } from "@/components/pull-request-review/review-diff-settings-menu";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,8 @@ type ReviewAllModeViewProps = {
     diffTypographyStyle: CSSProperties;
     buildFileAnnotations: (filePath: string) => Array<{ side: CommentLineSide; lineNumber: number }>;
     onOpenDiffSettings: () => void;
+    onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
+    fileContextState: Record<string, DiffContextState>;
 };
 
 export function ReviewAllModeView({
@@ -74,6 +77,8 @@ export function ReviewAllModeView({
     diffTypographyStyle,
     buildFileAnnotations,
     onOpenDiffSettings,
+    onLoadFullFileContext,
+    fileContextState,
 }: ReviewAllModeViewProps) {
     return (
         <div className="w-full max-w-full pb-[70vh]" data-component="diff-list-view">
@@ -136,6 +141,13 @@ export function ReviewAllModeView({
                 const fileStats = fileLineStats.get(filePath) ?? { added: 0, removed: 0 };
                 const fileName = filePath.split("/").pop() || filePath;
                 const isCollapsed = collapsedAllModeFiles[filePath] ?? (collapseViewedFilesByDefault && viewedFiles.has(filePath));
+                const hasFullContext = fileContextState[filePath]?.status === "ready";
+                const fileDiffOptions =
+                    hasFullContext && typeof compactDiffOptions.hunkSeparators !== "function"
+                        ? compactDiffOptions.hunkSeparators === "line-info"
+                            ? compactDiffOptions
+                            : { ...compactDiffOptions, hunkSeparators: "line-info" as const }
+                        : compactDiffOptions;
 
                 return (
                     <div
@@ -174,6 +186,7 @@ export function ReviewAllModeView({
                             >
                                 {copiedPath === filePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                             </Button>
+                            <DiffContextButton state={fileContextState[filePath]} onClick={() => onLoadFullFileContext(filePath, fileDiff)} />
                             <span
                                 className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
                                 aria-hidden
@@ -202,7 +215,7 @@ export function ReviewAllModeView({
                                     <FileDiff
                                         fileDiff={toRenderableFileDiff(fileDiff)}
                                         options={{
-                                            ...compactDiffOptions,
+                                            ...fileDiffOptions,
                                             onLineClick: (props) => onOpenInlineDraftForPath(filePath, props),
                                             onLineNumberClick: (props) => onOpenInlineDraftForPath(filePath, props),
                                             onLineEnter: onDiffLineEnter,

@@ -1,6 +1,7 @@
 import type { FileDiffOptions } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { CSSProperties } from "react";
+import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import { ReviewAllModeView } from "@/components/pull-request-review/review-all-mode-view";
 import type { SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
 import { ReviewSingleModeView } from "@/components/pull-request-review/review-single-mode-view";
@@ -44,6 +45,8 @@ type ReviewPageDiffContentProps = {
     collapseViewedFilesByDefault: boolean;
     isSummaryCollapsedInAllMode: boolean;
     buildFileAnnotations: (filePath: string) => SingleFileAnnotation[];
+    fileContextState: Record<string, DiffContextState>;
+    onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
     onWorkspaceModeChange: (mode: "single" | "all") => void;
     onActiveFileChange: (path: string | undefined) => void;
     onShowSettingsPanelChange: (next: boolean) => void;
@@ -96,6 +99,8 @@ export function ReviewPageDiffContent({
     collapseViewedFilesByDefault,
     isSummaryCollapsedInAllMode,
     buildFileAnnotations,
+    fileContextState,
+    onLoadFullFileContext,
     onWorkspaceModeChange,
     onActiveFileChange,
     onShowSettingsPanelChange,
@@ -176,6 +181,8 @@ export function ReviewPageDiffContent({
                 onCancelInlineDraft={onCancelInlineDraft}
                 onResolveThread={onResolveThread}
                 onOpenDiffSettings={openDiffSettings}
+                onLoadFullFileContext={onLoadFullFileContext}
+                fileContextState={fileContextState}
             />
         );
     }
@@ -210,6 +217,8 @@ export function ReviewPageDiffContent({
             diffTypographyStyle={diffTypographyStyle}
             buildFileAnnotations={buildFileAnnotations}
             onOpenDiffSettings={openDiffSettings}
+            onLoadFullFileContext={onLoadFullFileContext}
+            fileContextState={fileContextState}
         />
     );
 }

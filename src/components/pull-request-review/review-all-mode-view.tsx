@@ -4,7 +4,9 @@ import { Check, CheckCheck, ChevronDown, ChevronRight, Copy, ScrollText } from "
 import type { CSSProperties } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
 import { DiffContextButton, type DiffContextState } from "@/components/pull-request-review/diff-context-button";
+import { InlineDiffAnnotation } from "@/components/pull-request-review/inline-diff-annotation";
 import { ReviewDiffSettingsMenu } from "@/components/pull-request-review/review-diff-settings-menu";
+import type { SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Button } from "@/components/ui/button";
 import { fileAnchorId } from "@/lib/file-anchors";
@@ -12,8 +14,7 @@ import type { PullRequestBundle } from "@/lib/git-host/types";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { cn } from "@/lib/utils";
 import type { CommentThread } from "./review-threads";
-
-type CommentLineSide = "additions" | "deletions";
+import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 type ReviewAllModeViewProps = {
     viewMode: "single" | "all";
@@ -35,14 +36,27 @@ type ReviewAllModeViewProps = {
     onToggleAllFilesViewed: () => void;
     onCopyPath: (path: string) => void;
     onToggleViewed: (path: string) => void;
+    workspace: string;
+    repo: string;
+    pullRequestId: string;
     diffHighlighterReady: boolean;
+    createCommentPending: boolean;
+    canCommentInline: boolean;
+    canResolveThread: boolean;
+    resolveCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     compactDiffOptions: FileDiffOptions<undefined>;
+    getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
+    setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
+    onSubmitInlineComment: () => void;
+    onInlineDraftReady: (focus: () => void) => void;
+    onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
     onOpenInlineDraftForPath: (path: string, props: OnDiffLineClickProps) => void;
+    onResolveThread: (commentId: number, resolve: boolean) => void;
     onDiffLineEnter: (props: OnDiffLineEnterLeaveProps) => void;
     onDiffLineLeave: (props: OnDiffLineEnterLeaveProps) => void;
     diffTypographyStyle: CSSProperties;
-    buildFileAnnotations: (filePath: string) => Array<{ side: CommentLineSide; lineNumber: number }>;
+    buildFileAnnotations: (filePath: string) => SingleFileAnnotation[];
     onOpenDiffSettings: () => void;
     onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
     fileContextState: Record<string, DiffContextState>;
@@ -68,10 +82,23 @@ export function ReviewAllModeView({
     onToggleAllFilesViewed,
     onCopyPath,
     onToggleViewed,
+    workspace,
+    repo,
+    pullRequestId,
     diffHighlighterReady,
+    createCommentPending,
+    canCommentInline,
+    canResolveThread,
+    resolveCommentPending,
     toRenderableFileDiff,
     compactDiffOptions,
+    getInlineDraftContent,
+    setInlineDraftContent,
+    onSubmitInlineComment,
+    onInlineDraftReady,
+    onCancelInlineDraft,
     onOpenInlineDraftForPath,
+    onResolveThread,
     onDiffLineEnter,
     onDiffLineLeave,
     diffTypographyStyle,
@@ -104,8 +131,7 @@ export function ReviewAllModeView({
                             <span className="text-status-added">+{lineStats.added}</span>
                             <span className="ml-2 text-status-removed">-{lineStats.removed}</span>
                         </div>
-                        <div className="shrink-0 flex items-center gap-1">
-                            <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
+                        <div className="shrink-0">
                             <Button
                                 type="button"
                                 variant="ghost"
@@ -189,6 +215,7 @@ export function ReviewAllModeView({
                                 <span className="select-none text-status-added">+{fileStats.added}</span>
                                 <span className="select-none text-status-removed">-{fileStats.removed}</span>
                                 {fileUnresolvedCount > 0 ? <span className="text-muted-foreground">{fileUnresolvedCount} unresolved</span> : null}
+                                <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
                                 <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(filePath)}>
                                     <span
                                         className={
@@ -223,6 +250,24 @@ export function ReviewAllModeView({
                                         className="compact-diff commentable-diff pr-diff-font"
                                         style={diffTypographyStyle}
                                         lineAnnotations={buildFileAnnotations(filePath)}
+                                        renderAnnotation={(annotation) => (
+                                            <InlineDiffAnnotation
+                                                annotation={annotation as SingleFileAnnotation}
+                                                workspace={workspace}
+                                                repo={repo}
+                                                pullRequestId={pullRequestId}
+                                                createCommentPending={createCommentPending}
+                                                canCommentInline={canCommentInline}
+                                                canResolveThread={canResolveThread}
+                                                resolveCommentPending={resolveCommentPending}
+                                                getInlineDraftContent={getInlineDraftContent}
+                                                setInlineDraftContent={setInlineDraftContent}
+                                                onSubmitInlineComment={onSubmitInlineComment}
+                                                onInlineDraftReady={onInlineDraftReady}
+                                                onCancelInlineDraft={onCancelInlineDraft}
+                                                onResolveThread={onResolveThread}
+                                            />
+                                        )}
                                     />
                                 ) : (
                                     <div className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">

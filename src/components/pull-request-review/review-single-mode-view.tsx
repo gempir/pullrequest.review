@@ -1,25 +1,20 @@
 import type { FileDiffOptions } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
-import { Check, CheckCheck, Copy, MessageSquare } from "lucide-react";
+import { Check, CheckCheck, Copy } from "lucide-react";
 import type { CSSProperties } from "react";
-import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
-import { CommentEditor } from "@/components/comment-editor";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
 import { DiffContextButton, type DiffContextState } from "@/components/pull-request-review/diff-context-button";
+import { InlineDiffAnnotation } from "@/components/pull-request-review/inline-diff-annotation";
 import { ReviewDiffSettingsMenu } from "@/components/pull-request-review/review-diff-settings-menu";
+import { ThreadCard } from "@/components/pull-request-review/review-thread-card";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Button } from "@/components/ui/button";
 import { fileAnchorId } from "@/lib/file-anchors";
 import type { PullRequestBundle } from "@/lib/git-host/types";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
-import { formatDate } from "./review-formatters";
 import type { SingleFileAnnotation } from "./review-page-model";
 import type { CommentThread } from "./review-threads";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
-import { inlineDraftStorageKey } from "./use-inline-drafts";
 
 type ReviewSingleModeViewProps = {
     viewMode: "single" | "all";
@@ -60,34 +55,6 @@ type ReviewSingleModeViewProps = {
     onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
     fileContextState: Record<string, DiffContextState>;
 };
-
-function CommentMarkdown({ text }: { text: string }) {
-    return (
-        <div className="text-[13px] leading-relaxed">
-            <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                components={{
-                    a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" className="underline text-foreground" />,
-                    p: ({ node: _node, ...props }) => <p {...props} className="whitespace-pre-wrap break-words" />,
-                    ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc pl-5 space-y-1" />,
-                    ol: ({ node: _node, ...props }) => <ol {...props} className="list-decimal pl-5 space-y-1" />,
-                    table: ({ node: _node, ...props }) => <table {...props} className="w-full border-collapse" />,
-                    th: ({ node: _node, ...props }) => <th {...props} className="border border-border p-2 text-left" />,
-                    td: ({ node: _node, ...props }) => <td {...props} className="border border-border p-2" />,
-                    blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l border-border pl-3 text-muted-foreground" />,
-                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-secondary px-1 py-0.5 text-[11px]" />,
-                    pre: ({ node: _node, ...props }) => (
-                        <pre {...props} className="overflow-x-auto rounded border border-border bg-background p-2 text-[11px]" />
-                    ),
-                    img: ({ node: _node, ...props }) => <img {...props} className="inline align-middle" alt={props.alt ?? ""} />,
-                }}
-            >
-                {text}
-            </ReactMarkdown>
-        </div>
-    );
-}
 
 export function ReviewSingleModeView({
     viewMode,
@@ -143,28 +110,25 @@ export function ReviewSingleModeView({
                     headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
                     diffStats={lineStats}
                     headerRight={
-                        <div className="flex items-center gap-1">
-                            <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0"
-                                onClick={onToggleAllFilesViewed}
-                                aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
-                                title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={onToggleAllFilesViewed}
+                            aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                            title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                        >
+                            <span
+                                className={
+                                    areAllFilesViewed
+                                        ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                        : "size-4 bg-muted/40 border border-border/70 text-muted-foreground flex items-center justify-center"
+                                }
                             >
-                                <span
-                                    className={
-                                        areAllFilesViewed
-                                            ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                            : "size-4 bg-muted/40 border border-border/70 text-muted-foreground flex items-center justify-center"
-                                    }
-                                >
-                                    <CheckCheck className="size-3" />
-                                </span>
-                            </Button>
-                        </div>
+                                <CheckCheck className="size-3" />
+                            </span>
+                        </Button>
                     }
                 />
             </div>
@@ -195,23 +159,22 @@ export function ReviewSingleModeView({
                     </Button>
                     <DiffContextButton state={fileContextState[selectedFilePath]} onClick={() => onLoadFullFileContext(selectedFilePath, selectedFileDiff)} />
                 </div>
-                <span className="select-none text-[12px] text-status-added">+{fileLineStats.get(selectedFilePath)?.added ?? 0}</span>
-                <span className="select-none text-[12px] text-status-removed">-{fileLineStats.get(selectedFilePath)?.removed ?? 0}</span>
-                <button
-                    type="button"
-                    className="ml-auto flex items-center gap-2 text-[12px] text-muted-foreground"
-                    onClick={() => onToggleViewed(selectedFilePath)}
-                >
-                    <span
-                        className={
-                            viewedFiles.has(selectedFilePath)
-                                ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
-                        }
-                    >
-                        <Check className="size-3" />
-                    </span>
-                </button>
+                <div className="ml-auto flex items-center gap-2 text-[12px]">
+                    <span className="select-none text-status-added">+{fileLineStats.get(selectedFilePath)?.added ?? 0}</span>
+                    <span className="select-none text-status-removed">-{fileLineStats.get(selectedFilePath)?.removed ?? 0}</span>
+                    <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
+                    <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(selectedFilePath)}>
+                        <span
+                            className={
+                                viewedFiles.has(selectedFilePath)
+                                    ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                    : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                            }
+                        >
+                            <Check className="size-3" />
+                        </span>
+                    </button>
+                </div>
             </div>
 
             <div className="diff-content-scroll min-h-0 min-w-0 w-full max-w-full flex-1 overflow-x-auto">
@@ -222,48 +185,24 @@ export function ReviewSingleModeView({
                         className="compact-diff commentable-diff pr-diff-font"
                         style={diffTypographyStyle}
                         lineAnnotations={singleFileAnnotations}
-                        renderAnnotation={(annotation) => {
-                            const metadata = annotation.metadata;
-                            if (!metadata) return null;
-
-                            return (
-                                <div className="px-2 py-1.5 border-y border-border bg-background/70">
-                                    {metadata.kind === "draft" ? (
-                                        <div className="space-y-2">
-                                            <CommentEditor
-                                                key={inlineDraftStorageKey(workspace, repo, pullRequestId, metadata.draft)}
-                                                value={getInlineDraftContent(metadata.draft)}
-                                                placeholder="Add a line comment"
-                                                disabled={createCommentPending || !canCommentInline}
-                                                onReady={onInlineDraftReady}
-                                                onChange={(nextValue) => setInlineDraftContent(metadata.draft, nextValue)}
-                                                onSubmit={onSubmitInlineComment}
-                                            />
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    className="h-7"
-                                                    disabled={createCommentPending || !canCommentInline}
-                                                    onClick={onSubmitInlineComment}
-                                                >
-                                                    Comment
-                                                </Button>
-                                                <Button variant="outline" size="sm" className="h-7" onClick={() => onCancelInlineDraft(metadata.draft)}>
-                                                    Cancel
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <ThreadCard
-                                            thread={metadata.thread}
-                                            canResolveThread={canResolveThread}
-                                            resolveCommentPending={resolveCommentPending}
-                                            onResolveThread={onResolveThread}
-                                        />
-                                    )}
-                                </div>
-                            );
-                        }}
+                        renderAnnotation={(annotation) => (
+                            <InlineDiffAnnotation
+                                annotation={annotation as SingleFileAnnotation}
+                                workspace={workspace}
+                                repo={repo}
+                                pullRequestId={pullRequestId}
+                                createCommentPending={createCommentPending}
+                                canCommentInline={canCommentInline}
+                                canResolveThread={canResolveThread}
+                                resolveCommentPending={resolveCommentPending}
+                                getInlineDraftContent={getInlineDraftContent}
+                                setInlineDraftContent={setInlineDraftContent}
+                                onSubmitInlineComment={onSubmitInlineComment}
+                                onInlineDraftReady={onInlineDraftReady}
+                                onCancelInlineDraft={onCancelInlineDraft}
+                                onResolveThread={onResolveThread}
+                            />
+                        )}
                     />
                 ) : (
                     <div className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">Loading syntax highlighting...</div>
@@ -283,51 +222,6 @@ export function ReviewSingleModeView({
                     ))}
                 </div>
             ) : null}
-        </div>
-    );
-}
-
-function ThreadCard({
-    thread,
-    canResolveThread,
-    resolveCommentPending,
-    onResolveThread,
-}: {
-    thread: CommentThread;
-    canResolveThread: boolean;
-    resolveCommentPending: boolean;
-    onResolveThread: (commentId: number, resolve: boolean) => void;
-}) {
-    return (
-        <div className="border border-border bg-background p-2 text-[12px]">
-            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <MessageSquare className="size-3.5" />
-                <span>{thread.root.user?.displayName ?? "Unknown"}</span>
-                <span>{formatDate(thread.root.createdAt)}</span>
-                <span className="ml-auto">{thread.root.resolution ? "Resolved" : "Unresolved"}</span>
-            </div>
-            <CommentMarkdown text={thread.root.content?.html ?? thread.root.content?.raw ?? ""} />
-            {thread.replies.length > 0 ? (
-                <div className="mt-2 pl-3 border-l border-border space-y-1">
-                    {thread.replies.map((reply) => (
-                        <div key={reply.id} className="text-[12px]">
-                            <span className="text-muted-foreground">{reply.user?.displayName ?? "Unknown"}:</span>
-                            <CommentMarkdown text={reply.content?.html ?? reply.content?.raw ?? ""} />
-                        </div>
-                    ))}
-                </div>
-            ) : null}
-            <div className="mt-2">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7"
-                    disabled={resolveCommentPending || !canResolveThread}
-                    onClick={() => onResolveThread(thread.root.id, !thread.root.resolution)}
-                >
-                    {thread.root.resolution ? "Unresolve" : "Resolve"}
-                </Button>
-            </div>
         </div>
     );
 }

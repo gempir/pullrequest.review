@@ -80,8 +80,9 @@ export function ReviewAllModeView({
     onLoadFullFileContext,
     fileContextState,
 }: ReviewAllModeViewProps) {
+    const diffListBottomPadding = "max(420px, 90vh)";
     return (
-        <div className="w-full max-w-full pb-[70vh]" data-component="diff-list-view">
+        <div className="w-full max-w-full" data-component="diff-list-view" style={{ paddingBottom: diffListBottomPadding }}>
             {prData ? (
                 <div
                     id={fileAnchorId(PR_SUMMARY_PATH)}

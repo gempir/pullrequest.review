@@ -434,10 +434,6 @@ export function useAllModeScrollSelection({
             const suppressed = now < suppressObserverUntilRef.current;
             const programmaticTarget = programmaticTargetRef.current;
             if (suppressed && programmaticTarget && bestPath !== programmaticTarget) return;
-            if (programmaticTarget && bestPath === programmaticTarget) {
-                programmaticTargetRef.current = null;
-                suppressObserverUntilRef.current = 0;
-            }
 
             const isSticky = stickyCandidatePath === bestPath;
             if (lastObservedPathRef.current === bestPath && lastObservedStickyRef.current === isSticky) return;

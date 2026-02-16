@@ -3,7 +3,7 @@ import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { Check, CheckCheck, ChevronDown, ChevronRight, Copy, ScrollText } from "lucide-react";
 import type { CSSProperties } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
-import { ReviewViewModeToggle } from "@/components/pull-request-review/review-view-mode-toggle";
+import { ReviewDiffSettingsMenu } from "@/components/pull-request-review/review-diff-settings-menu";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Button } from "@/components/ui/button";
 import { fileAnchorId } from "@/lib/file-anchors";
@@ -42,6 +42,7 @@ type ReviewAllModeViewProps = {
     onDiffLineLeave: (props: OnDiffLineEnterLeaveProps) => void;
     diffTypographyStyle: CSSProperties;
     buildFileAnnotations: (filePath: string) => Array<{ side: CommentLineSide; lineNumber: number }>;
+    onOpenDiffSettings: () => void;
 };
 
 export function ReviewAllModeView({
@@ -72,6 +73,7 @@ export function ReviewAllModeView({
     onDiffLineLeave,
     diffTypographyStyle,
     buildFileAnnotations,
+    onOpenDiffSettings,
 }: ReviewAllModeViewProps) {
     return (
         <div className="w-full max-w-full pb-[70vh]" data-component="diff-list-view">
@@ -97,7 +99,7 @@ export function ReviewAllModeView({
                             <span className="ml-2 text-status-removed">-{lineStats.removed}</span>
                         </div>
                         <div className="shrink-0 flex items-center gap-1">
-                            <ReviewViewModeToggle mode={viewMode} onModeChange={onWorkspaceModeChange} />
+                            <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
                             <Button
                                 type="button"
                                 variant="ghost"

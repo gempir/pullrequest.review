@@ -114,6 +114,11 @@ export function ReviewPageDiffContent({
     onDiffLineEnter,
     onDiffLineLeave,
 }: ReviewPageDiffContentProps) {
+    const openDiffSettings = () => {
+        onActiveFileChange(settingsPathForTab("diff"));
+        onShowSettingsPanelChange(true);
+    };
+
     if (showSettingsPanel) {
         return (
             <div className="h-full min-h-0">
@@ -170,6 +175,7 @@ export function ReviewPageDiffContent({
                 onInlineDraftReady={onInlineDraftReady}
                 onCancelInlineDraft={onCancelInlineDraft}
                 onResolveThread={onResolveThread}
+                onOpenDiffSettings={openDiffSettings}
             />
         );
     }
@@ -203,6 +209,7 @@ export function ReviewPageDiffContent({
             onDiffLineLeave={onDiffLineLeave}
             diffTypographyStyle={diffTypographyStyle}
             buildFileAnnotations={buildFileAnnotations}
+            onOpenDiffSettings={openDiffSettings}
         />
     );
 }

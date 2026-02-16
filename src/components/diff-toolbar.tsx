@@ -13,13 +13,14 @@ import {
     WholeWord,
     WrapText,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import { type ComponentType, useMemo } from "react";
 import { Label } from "@/components/ui/label";
 import { NumberStepperInput } from "@/components/ui/number-stepper-input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { getDetectedFontOptionFromValue, useDetectedMonospaceFontOptions } from "@/lib/detected-monospace-fonts";
 import { type DiffOptions, useDiffOptions } from "@/lib/diff-options-context";
-import { FONT_FAMILY_OPTIONS, type FontFamilyValue } from "@/lib/font-options";
+import { FONT_FAMILY_OPTIONS, type FontFamilyValue, isDetectedFontFamilyValue } from "@/lib/font-options";
 
 type BooleanOptionKey = {
     [K in keyof DiffOptions]: DiffOptions[K] extends boolean ? K : never;
@@ -120,6 +121,13 @@ function OptionNumber({
 
 export function DiffToolbar() {
     const { options, setOption } = useDiffOptions();
+    const detectedMonospaceFonts = useDetectedMonospaceFontOptions();
+    const resolvedDetectedFonts = useMemo(() => {
+        if (!isDetectedFontFamilyValue(options.diffFontFamily)) return detectedMonospaceFonts;
+        if (detectedMonospaceFonts.some((font) => font.value === options.diffFontFamily)) return detectedMonospaceFonts;
+        const fallback = getDetectedFontOptionFromValue(options.diffFontFamily);
+        return fallback ? [...detectedMonospaceFonts, fallback] : detectedMonospaceFonts;
+    }, [detectedMonospaceFonts, options.diffFontFamily]);
 
     return (
         <div className="space-y-4">
@@ -146,11 +154,27 @@ export function DiffToolbar() {
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="max-h-60">
-                            {FONT_FAMILY_OPTIONS.map((font) => (
-                                <SelectItem key={font.value} value={font.value} className="text-[12px]">
-                                    {font.label}
-                                </SelectItem>
-                            ))}
+                            <SelectGroup>
+                                <SelectLabel className="text-[11px] text-muted-foreground">pullrequest.review fonts</SelectLabel>
+                                {FONT_FAMILY_OPTIONS.map((font) => (
+                                    <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                                        {font.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectGroup>
+                            {resolvedDetectedFonts.length ? (
+                                <>
+                                    <SelectSeparator />
+                                    <SelectGroup>
+                                        <SelectLabel className="text-[11px] text-muted-foreground">Detected monospace fonts</SelectLabel>
+                                        {resolvedDetectedFonts.map((font) => (
+                                            <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                                                {font.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
+                                </>
+                            ) : null}
                         </SelectContent>
                     </Select>
                 </div>

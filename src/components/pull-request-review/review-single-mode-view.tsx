@@ -8,7 +8,7 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
-import { ReviewViewModeToggle } from "@/components/pull-request-review/review-view-mode-toggle";
+import { ReviewDiffSettingsMenu } from "@/components/pull-request-review/review-diff-settings-menu";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Button } from "@/components/ui/button";
 import { fileAnchorId } from "@/lib/file-anchors";
@@ -55,6 +55,7 @@ type ReviewSingleModeViewProps = {
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
+    onOpenDiffSettings: () => void;
 };
 
 function CommentMarkdown({ text }: { text: string }) {
@@ -120,6 +121,7 @@ export function ReviewSingleModeView({
     onInlineDraftReady,
     onCancelInlineDraft,
     onResolveThread,
+    onOpenDiffSettings,
 }: ReviewSingleModeViewProps) {
     if (isSummarySelected) {
         return (
@@ -130,7 +132,7 @@ export function ReviewSingleModeView({
                     diffStats={lineStats}
                     headerRight={
                         <div className="flex items-center gap-1">
-                            <ReviewViewModeToggle mode={viewMode} onModeChange={onWorkspaceModeChange} />
+                            <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
                             <Button
                                 type="button"
                                 variant="ghost"

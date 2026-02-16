@@ -75,23 +75,27 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     );
     const { options } = useDiffOptions();
     const { monospaceFontFamily, monospaceFontSize, monospaceLineHeight } = useAppearance();
-    const diffTypographyStyle = useMemo(
-        () =>
-            ({
-                "--diff-font-family": fontFamilyToCss(options.diffUseCustomTypography ? options.diffFontFamily : monospaceFontFamily),
-                "--diff-font-size": `${options.diffUseCustomTypography ? options.diffFontSize : monospaceFontSize}px`,
-                "--diff-line-height": String(options.diffUseCustomTypography ? options.diffLineHeight : monospaceLineHeight),
-            }) as CSSProperties,
-        [
-            monospaceFontFamily,
-            monospaceFontSize,
-            monospaceLineHeight,
-            options.diffFontFamily,
-            options.diffFontSize,
-            options.diffLineHeight,
-            options.diffUseCustomTypography,
-        ],
-    );
+    const diffTypographyStyle = useMemo(() => {
+        const fontFamily = fontFamilyToCss(options.diffUseCustomTypography ? options.diffFontFamily : monospaceFontFamily);
+        const fontSize = `${options.diffUseCustomTypography ? options.diffFontSize : monospaceFontSize}px`;
+        const lineHeight = String(options.diffUseCustomTypography ? options.diffLineHeight : monospaceLineHeight);
+        return {
+            "--diff-font-family": fontFamily,
+            "--diff-font-size": fontSize,
+            "--diff-line-height": lineHeight,
+            "--diffs-font-family": fontFamily,
+            "--diffs-font-size": fontSize,
+            "--diffs-line-height": lineHeight,
+        } as CSSProperties;
+    }, [
+        monospaceFontFamily,
+        monospaceFontSize,
+        monospaceLineHeight,
+        options.diffFontFamily,
+        options.diffFontSize,
+        options.diffLineHeight,
+        options.diffUseCustomTypography,
+    ]);
     const { root, dirState, setTree, setKinds, allFiles, activeFile, setActiveFile, setDirectoryExpandedMap, expand } = useFileTree();
     const queryClient = useQueryClient();
     const { treeWidth, treeCollapsed, setTreeCollapsed, viewMode, setViewMode, startTreeResize } = useReviewLayoutPreferences();

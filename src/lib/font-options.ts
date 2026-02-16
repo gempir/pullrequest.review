@@ -1,3 +1,6 @@
+export const DETECTED_FONT_VALUE_PREFIX = "detected:" as const;
+type DetectedFontFamilyValue = `${typeof DETECTED_FONT_VALUE_PREFIX}${string}`;
+
 export type FontFamilyValue =
     | "geist-sans"
     | "jetbrains-mono"
@@ -13,13 +16,16 @@ export type FontFamilyValue =
     | "ibm-plex-mono"
     | "geist-mono"
     | "ui-monospace"
-    | "system-sans";
+    | "system-sans"
+    | DetectedFontFamilyValue;
 
-export const FONT_FAMILY_OPTIONS: ReadonlyArray<{
+export type FontOption = {
     value: FontFamilyValue;
     label: string;
     cssFamily: string;
-}> = [
+};
+
+export const FONT_FAMILY_OPTIONS: ReadonlyArray<FontOption> = [
     {
         value: "geist-sans",
         label: "Geist Sans",
@@ -127,7 +133,29 @@ export const MONO_FONT_FAMILY_OPTIONS: ReadonlyArray<{
 
 export const DEFAULT_FONT_FAMILY: FontFamilyValue = "jetbrains-mono";
 
+export function makeDetectedFontFamilyValue(name: string): FontFamilyValue {
+    return `${DETECTED_FONT_VALUE_PREFIX}${name}` as FontFamilyValue;
+}
+
+export function isDetectedFontFamilyValue(value: FontFamilyValue): value is DetectedFontFamilyValue {
+    return value.startsWith(DETECTED_FONT_VALUE_PREFIX);
+}
+
+export function getDetectedFontName(value: FontFamilyValue): string | null {
+    if (!isDetectedFontFamilyValue(value)) return null;
+    return value.slice(DETECTED_FONT_VALUE_PREFIX.length);
+}
+
+function quoteFontName(name: string) {
+    return `"${name.replace(/"/g, '\\"')}"`;
+}
+
 export function fontFamilyToCss(value: FontFamilyValue): string {
     const option = FONT_FAMILY_OPTIONS.find((item) => item.value === value);
-    return option?.cssFamily ?? FONT_FAMILY_OPTIONS[0].cssFamily;
+    if (option) return option.cssFamily;
+    const detectedName = getDetectedFontName(value);
+    if (detectedName) {
+        return `${quoteFontName(detectedName)}, monospace`;
+    }
+    return FONT_FAMILY_OPTIONS[0].cssFamily;
 }

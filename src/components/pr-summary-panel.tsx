@@ -69,7 +69,7 @@ function eventLabel(type: PullRequestHistoryEvent["type"]) {
 
 function MarkdownBlock({ text }: { text: string }) {
     return (
-        <div className="space-y-2 text-[12px] leading-relaxed">
+        <div className="space-y-2 text-[13px] leading-relaxed">
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize]}
@@ -184,7 +184,7 @@ export function PullRequestSummaryPanel({
                         {pr.description?.trim() ? (
                             <MarkdownBlock text={pr.description} />
                         ) : (
-                            <div className="text-[12px] text-muted-foreground">No description.</div>
+                            <div className="text-[13px] text-muted-foreground">No description.</div>
                         )}
                     </div>
                 </section>
@@ -201,7 +201,7 @@ export function PullRequestSummaryPanel({
                                             <span className="text-muted-foreground">{event.actor?.displayName ?? "Unknown"}</span>
                                             <span className="ml-auto text-muted-foreground">{formatDate(event.createdAt)}</span>
                                         </div>
-                                        {event.details ? <div className="mt-1 text-[12px] text-muted-foreground break-words">{event.details}</div> : null}
+                                        {event.details ? <div className="mt-1 text-[13px] text-muted-foreground break-words">{event.details}</div> : null}
                                         {event.content || event.contentHtml ? (
                                             <div className="mt-1">
                                                 <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />
@@ -211,7 +211,7 @@ export function PullRequestSummaryPanel({
                                 ))}
                             </div>
                         ) : (
-                            <div className="text-[12px] text-muted-foreground">No history yet.</div>
+                            <div className="text-[13px] text-muted-foreground">No history yet.</div>
                         )}
                     </Section>
 
@@ -257,7 +257,7 @@ export function PullRequestSummaryPanel({
                                 })}
                             </div>
                         ) : (
-                            <div className="text-[12px] text-muted-foreground">No commits found.</div>
+                            <div className="text-[13px] text-muted-foreground">No commits found.</div>
                         )}
                     </Section>
                 </div>

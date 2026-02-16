@@ -30,6 +30,7 @@ type AppearanceContextValue = AppearanceSettings & {
     setTreeFontFamily: (font: FontFamilyValue) => void;
     setTreeFontSize: (size: number) => void;
     setTreeLineHeight: (lineHeight: number) => void;
+    resetAppearance: () => void;
 };
 
 const STORAGE_KEY_BASE = "pr_review_appearance";
@@ -39,9 +40,9 @@ const defaultAppearance: AppearanceSettings = {
     appThemeMode: "auto",
     sansFontFamily: "geist-sans",
     monospaceFontFamily: DEFAULT_FONT_FAMILY,
-    sansFontSize: 13,
+    sansFontSize: 14,
     sansLineHeight: 1.25,
-    monospaceFontSize: 12,
+    monospaceFontSize: 13,
     monospaceLineHeight: 1.25,
     treeUseCustomTypography: false,
     treeFontFamily: "geist-sans",
@@ -214,6 +215,9 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
             treeLineHeight: normalizeLineHeight(lineHeight, 1, 2.2),
         }));
     }, []);
+    const resetAppearance = useCallback(() => {
+        setSettings(() => ({ ...defaultAppearance }));
+    }, []);
 
     const value = useMemo<AppearanceContextValue>(
         () => ({
@@ -229,6 +233,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
             setTreeFontFamily,
             setTreeFontSize,
             setTreeLineHeight,
+            resetAppearance,
         }),
         [
             settings,
@@ -243,6 +248,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
             setTreeFontFamily,
             setTreeFontSize,
             setTreeLineHeight,
+            resetAppearance,
         ],
     );
 

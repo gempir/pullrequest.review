@@ -53,6 +53,7 @@ const defaultOptions: DiffOptions = {
 interface DiffOptionsContextType {
     options: DiffOptions;
     setOption: <K extends keyof DiffOptions>(key: K, value: DiffOptions[K]) => void;
+    resetOptions: () => void;
 }
 
 const DiffOptionsContext = createContext<DiffOptionsContextType | null>(null);
@@ -155,7 +156,14 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
         });
     }, []);
 
-    const value = useMemo(() => ({ options, setOption }), [options, setOption]);
+    const resetOptions = useCallback(() => {
+        setOptions(() => ({
+            ...defaultOptions,
+            theme: getBrowserPreferredTheme(),
+        }));
+    }, []);
+
+    const value = useMemo(() => ({ options, setOption, resetOptions }), [options, setOption, resetOptions]);
 
     return <DiffOptionsContext.Provider value={value}>{children}</DiffOptionsContext.Provider>;
 }

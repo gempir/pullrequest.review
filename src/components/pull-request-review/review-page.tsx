@@ -38,6 +38,7 @@ import { useViewedStorageKey } from "@/components/pull-request-review/use-review
 import { getSettingsTreeItems } from "@/components/settings-navigation";
 import { useAppearance } from "@/lib/appearance-context";
 import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
+import { fileAnchorId } from "@/lib/file-anchors";
 import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
 import { getPullRequestFileContextCollection, savePullRequestFileContextRecord } from "@/lib/git-host/query-collections";
@@ -79,6 +80,9 @@ type FullFileContextEntry =
     | { status: "loading" }
     | { status: "error"; error: string }
     | { status: "ready"; oldLines: string[]; newLines: string[]; fetchedAt: number };
+
+const ALL_MODE_SCROLL_RETRY_DELAYS = [0, 80, 180, 320, 500, 700, 950, 1200, 1500, 1850, 2200, 2600, 3000, 3400, 3800] as const;
+const ALL_MODE_STICKY_OFFSET = 0;
 
 function parentDirectories(path: string): string[] {
     const parts = path.split("/").filter(Boolean);
@@ -150,6 +154,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const copyResetTimeoutRef = useRef<number | null>(null);
     const copySourceBranchResetTimeoutRef = useRef<number | null>(null);
     const allModeProgrammaticTargetRef = useRef<string | null>(null);
+    const [allModePendingScrollPath, setAllModePendingScrollPath] = useState<string | null>(null);
     const allModeSuppressObserverUntilRef = useRef<number>(0);
     const allModeLastStickyPathRef = useRef<string | null>(null);
     const suppressHashSyncRef = useRef(false);
@@ -422,6 +427,10 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         () => (prData ? [PR_SUMMARY_PATH, ...allModeDiffEntries.map((entry) => entry.filePath)] : allModeDiffEntries.map((entry) => entry.filePath)),
         [allModeDiffEntries, prData],
     );
+    const lastAllModeSectionPath = useMemo(
+        () => (allModeSectionPaths.length > 0 ? allModeSectionPaths[allModeSectionPaths.length - 1] : null),
+        [allModeSectionPaths],
+    );
     const allDiffFilePaths = useMemo(() => Array.from(selectableDiffPathSet), [selectableDiffPathSet]);
     const areAllFilesViewed = useMemo(
         () => allDiffFilePaths.length > 0 && allDiffFilePaths.every((path) => viewedFiles.has(path)),
@@ -549,6 +558,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     });
     const handleProgrammaticAllModeRevealStart = useCallback((path: string) => {
         allModeProgrammaticTargetRef.current = path;
+        setAllModePendingScrollPath(path);
         allModeSuppressObserverUntilRef.current = Date.now() + 1200;
     }, []);
 
@@ -591,12 +601,18 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
 
     const handleObservedAllModePath = useCallback(
         (path: string, metadata: { isSticky: boolean }) => {
+            if (allModePendingScrollPath) {
+                if (path !== allModePendingScrollPath) return;
+                setAllModePendingScrollPath(null);
+            }
             const isSameActiveFile = activeFile === path;
             if (path !== PR_SUMMARY_PATH) {
                 for (const directory of parentDirectories(path)) {
                     expand(directory);
                 }
-                if (options.autoMarkViewedFiles && metadata.isSticky && allModeLastStickyPathRef.current !== path) {
+                const shouldMarkViewed =
+                    options.autoMarkViewedFiles && (metadata.isSticky || (allModePendingScrollPath === null && path === lastAllModeSectionPath));
+                if (shouldMarkViewed && allModeLastStickyPathRef.current !== path) {
                     setViewedFiles((prev) => {
                         if (prev.has(path)) return prev;
                         const next = new Set(prev);
@@ -615,7 +631,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             suppressHashSyncRef.current = true;
             setActiveFile(path);
         },
-        [activeFile, expand, options.autoMarkViewedFiles, revealTreePath, setActiveFile],
+        [activeFile, allModePendingScrollPath, expand, lastAllModeSectionPath, options.autoMarkViewedFiles, revealTreePath, setActiveFile],
     );
 
     useReviewFileHashSelection({
@@ -626,11 +642,90 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         enabled: viewMode === "all" && !showSettingsPanel,
         diffScrollRef,
         sectionPaths: allModeSectionPaths,
-        stickyTopOffset: 0,
+        stickyTopOffset: ALL_MODE_STICKY_OFFSET,
         programmaticTargetRef: allModeProgrammaticTargetRef,
         suppressObserverUntilRef: allModeSuppressObserverUntilRef,
         onObservedActivePath: handleObservedAllModePath,
     });
+    useEffect(() => {
+        if (!allModePendingScrollPath) {
+            allModeProgrammaticTargetRef.current = null;
+            allModeSuppressObserverUntilRef.current = 0;
+        }
+    }, [allModePendingScrollPath]);
+    useEffect(() => {
+        if (viewMode !== "all" || showSettingsPanel) {
+            if (allModePendingScrollPath) {
+                setAllModePendingScrollPath(null);
+            } else {
+                allModeProgrammaticTargetRef.current = null;
+                allModeSuppressObserverUntilRef.current = 0;
+            }
+        }
+    }, [allModePendingScrollPath, showSettingsPanel, viewMode]);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (viewMode !== "all") return;
+        if (showSettingsPanel) return;
+        const pendingPath = allModePendingScrollPath;
+        if (!pendingPath) return;
+        if (allModeProgrammaticTargetRef.current !== pendingPath) {
+            setAllModePendingScrollPath(null);
+            return;
+        }
+        if (!allModeSectionPaths.includes(pendingPath)) return;
+
+        let cancelled = false;
+        const timeoutIds: number[] = [];
+        const settleIfAnchorVisible = () => {
+            if (cancelled) return false;
+            const rootElement = diffScrollRef.current;
+            const anchor = document.getElementById(fileAnchorId(pendingPath));
+            if (!rootElement || !anchor) return false;
+            const anchorRect = anchor.getBoundingClientRect();
+            const rootRect = rootElement.getBoundingClientRect();
+            const stickyLine = rootRect.top + ALL_MODE_STICKY_OFFSET + 1;
+            const bottomLine = rootRect.bottom - 4;
+            if (anchorRect.top <= stickyLine || anchorRect.bottom <= bottomLine) {
+                setAllModePendingScrollPath(null);
+                return true;
+            }
+            return false;
+        };
+
+        const runAttempt = (attemptIndex: number) => {
+            if (cancelled) return;
+            if (viewMode !== "all" || showSettingsPanel) return;
+            if (allModeProgrammaticTargetRef.current !== pendingPath) {
+                setAllModePendingScrollPath(null);
+                return;
+            }
+            if (settleIfAnchorVisible()) return;
+            const anchor = document.getElementById(fileAnchorId(pendingPath));
+            if (!anchor) return;
+            anchor.scrollIntoView({ behavior: attemptIndex === 0 ? "smooth" : "auto", block: "start" });
+            window.requestAnimationFrame(() => {
+                void settleIfAnchorVisible();
+            });
+            if (attemptIndex === ALL_MODE_SCROLL_RETRY_DELAYS.length - 1) {
+                setAllModePendingScrollPath(null);
+            }
+        };
+
+        if (settleIfAnchorVisible()) return;
+
+        ALL_MODE_SCROLL_RETRY_DELAYS.forEach((delay, index) => {
+            const timeoutId = window.setTimeout(() => runAttempt(index), delay);
+            timeoutIds.push(timeoutId);
+        });
+
+        return () => {
+            cancelled = true;
+            for (const id of timeoutIds) {
+                window.clearTimeout(id);
+            }
+        };
+    }, [allModePendingScrollPath, allModeSectionPaths, showSettingsPanel, viewMode]);
     useReviewFileHashSync({
         activeFile,
         showSettingsPanel,

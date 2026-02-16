@@ -33,6 +33,7 @@ interface FileTreeContextType {
     setActiveFile: (path: string | undefined) => void;
     setCompactSingleChildDirectories: (enabled: boolean) => void;
     setTreeIndentSize: (size: number) => void;
+    resetTreePreferences: () => void;
     firstFile: () => string | undefined;
     ensureActiveFile: (allowedPaths?: ReadonlySet<string>) => string | undefined;
     getChildrenForPath: (path: string) => FileNode[];
@@ -234,6 +235,11 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
         setActiveFile(undefined);
     }, []);
 
+    const resetTreePreferences = useCallback(() => {
+        setCompactSingleChildDirectories(true);
+        setTreeIndentSizeState(DEFAULT_TREE_INDENT_SIZE);
+    }, []);
+
     const allFiles = useCallback(() => getAllFiles(tree), [tree]);
     const firstFile = useCallback(() => getAllFiles(tree)[0]?.path, [tree]);
 
@@ -331,6 +337,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
             setActiveFile,
             setCompactSingleChildDirectories,
             setTreeIndentSize,
+            resetTreePreferences,
             firstFile,
             ensureActiveFile,
             getChildrenForPath: getChildren,
@@ -351,6 +358,7 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
             toggle,
             setDirectoryExpandedMap,
             isExpanded,
+            resetTreePreferences,
             firstFile,
             setTreeIndentSize,
             ensureActiveFile,

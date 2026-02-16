@@ -90,9 +90,9 @@
 
     --app-font-family: var(--font-geist-sans);
     --mono-font-family: var(--font-jetbrains-mono);
-    --sans-font-size: 13px;
+    --sans-font-size: 14px;
     --sans-line-height: 1.25;
-    --mono-font-size: 12px;
+    --mono-font-size: 13px;
     --mono-line-height: 1.25;
     --app-font-size: var(--sans-font-size);
     --app-line-height: var(--sans-line-height);

@@ -1,7 +1,7 @@
 import { type FileDiffOptions, parsePatchFiles } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { FileCode2, Files, RotateCcw, Settings2 } from "lucide-react";
-import { type CSSProperties, useMemo, useState } from "react";
+import { type CSSProperties, useCallback, useMemo, useState } from "react";
 import { DiffToolbar } from "@/components/diff-toolbar";
 import { getSettingsTabIcon, getSettingsTreeItems, type SettingsTab } from "@/components/settings-navigation";
 import { Button } from "@/components/ui/button";
@@ -39,8 +39,22 @@ index 1111111..2222222 100644
  export function run() {
 -  return title;
 +  return [title, summary, notes].join(" ");
- }
+}
 `;
+
+function useResetAllSettingsAction() {
+    const { resetAppearance } = useAppearance();
+    const { resetOptions } = useDiffOptions();
+    const { resetTreePreferences } = useFileTree();
+    const { resetToDefaults: resetShortcuts } = useShortcuts();
+
+    return useCallback(() => {
+        resetAppearance();
+        resetOptions();
+        resetTreePreferences();
+        resetShortcuts();
+    }, [resetAppearance, resetOptions, resetTreePreferences, resetShortcuts]);
+}
 
 function ShortcutRow({ label, shortcut, onChange }: { label: string; shortcut: ShortcutConfig; onChange: (config: Partial<ShortcutConfig>) => void }) {
     const [isRecording, setIsRecording] = useState(false);
@@ -485,16 +499,28 @@ function useResolvedSettingsTab({ activeTab: controlledActiveTab, onActiveTabCha
     return { resolvedActiveTab, setActiveTab };
 }
 
-function SettingsPanelHeader({ onClose }: { onClose?: () => void }) {
+function SettingsPanelHeader({ onClose, onResetAllSettings }: { onClose?: () => void; onResetAllSettings?: () => void }) {
+    const hasActions = Boolean(onClose || onResetAllSettings);
+
     return (
         <div className="h-10 px-2.5 border-b border-border bg-chrome flex items-center gap-2">
             <div className="text-[12px] font-medium flex items-center gap-2 w-full">
                 <Settings2 className="size-4" />
                 Settings
-                {onClose ? (
-                    <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 px-2 text-[11px]" onClick={onClose}>
-                        Back to review
-                    </Button>
+                {hasActions ? (
+                    <div className="ml-auto flex items-center gap-2">
+                        {onResetAllSettings ? (
+                            <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px] gap-1.5" onClick={onResetAllSettings}>
+                                <RotateCcw className="size-3.5" />
+                                Reset all settings
+                            </Button>
+                        ) : null}
+                        {onClose ? (
+                            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={onClose}>
+                                Back to review
+                            </Button>
+                        ) : null}
+                    </div>
                 ) : null}
             </div>
         </div>
@@ -549,10 +575,11 @@ export function SettingsPanelWithSidebar({ workspaceMode, onWorkspaceModeChange,
         activeTab,
         onActiveTabChange,
     });
+    const resetAllSettings = useResetAllSettingsAction();
 
     return (
         <div className="h-full min-h-0 flex flex-col">
-            <SettingsPanelHeader onClose={onClose} />
+            <SettingsPanelHeader onClose={onClose} onResetAllSettings={resetAllSettings} />
             <div className="flex flex-1 min-h-0">
                 <SettingsPanelSidebar activeTab={resolvedActiveTab} onSelectTab={setActiveTab} />
                 <div className="flex-1 px-3 py-2.5 overflow-auto">
@@ -568,10 +595,11 @@ export function SettingsPanelContentOnly({ workspaceMode, onWorkspaceModeChange,
         activeTab,
         onActiveTabChange,
     });
+    const resetAllSettings = useResetAllSettingsAction();
 
     return (
         <div className="h-full min-h-0 flex flex-col">
-            <SettingsPanelHeader onClose={onClose} />
+            <SettingsPanelHeader onClose={onClose} onResetAllSettings={resetAllSettings} />
             <div className="flex-1 px-3 py-2.5 overflow-auto">
                 <SettingsPanelContent workspaceMode={workspaceMode} onWorkspaceModeChange={onWorkspaceModeChange} activeTab={resolvedActiveTab} />
             </div>

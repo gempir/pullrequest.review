@@ -287,6 +287,12 @@ function mapPullRequestDetails(
             },
         ],
         currentUserReviewStatus: currentUserReviewStatus ?? "none",
+        currentUser: currentLogin
+            ? {
+                  displayName: currentLogin,
+                  avatarUrl: currentAvatarUrl,
+              }
+            : undefined,
         links: { html: { href: pr.html_url } },
     };
 }
@@ -367,6 +373,10 @@ function mapIssueCommentToHistory(comment: GithubIssueComment): PullRequestHisto
         },
         content: content.raw,
         contentHtml: content.html,
+        comment: {
+            id: comment.id,
+            isInline: false,
+        },
     };
 }
 
@@ -934,6 +944,21 @@ export const githubClient: GitHostClient = {
     },
     async resolvePullRequestComment() {
         throw new Error("GitHub thread resolution is not yet supported in this app.");
+    },
+    async deletePullRequestComment(data) {
+        const prBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}`;
+        const path = data.hasInlineContext ? `${prBase}/pulls/comments/${data.commentId}` : `${prBase}/issues/comments/${data.commentId}`;
+        await request(
+            path,
+            {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            },
+            { requireAuth: true },
+        );
+        return { ok: true as const };
     },
     async fetchPullRequestFileContents({ prRef, commit, path }) {
         const encodedPath = encodeGitHubPath(path);

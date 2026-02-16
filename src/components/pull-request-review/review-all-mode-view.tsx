@@ -22,6 +22,7 @@ type ReviewAllModeViewProps = {
     pullRequestTitle: string;
     prData: PullRequestBundle | null;
     lineStats: { added: number; removed: number };
+    currentUserDisplayName?: string;
     isSummaryCollapsedInAllMode: boolean;
     onToggleSummaryCollapsed: () => void;
     allModeDiffEntries: Array<{ filePath: string; fileDiff: FileDiffMetadata }>;
@@ -52,7 +53,10 @@ type ReviewAllModeViewProps = {
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
     onOpenInlineDraftForPath: (path: string, props: OnDiffLineClickProps) => void;
+    onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
+    onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
+    onReplyToThread: (commentId: number, content: string) => void;
     onDiffLineEnter: (props: OnDiffLineEnterLeaveProps) => void;
     onDiffLineLeave: (props: OnDiffLineEnterLeaveProps) => void;
     diffTypographyStyle: CSSProperties;
@@ -68,6 +72,7 @@ export function ReviewAllModeView({
     pullRequestTitle,
     prData,
     lineStats,
+    currentUserDisplayName,
     isSummaryCollapsedInAllMode,
     onToggleSummaryCollapsed,
     allModeDiffEntries,
@@ -98,7 +103,10 @@ export function ReviewAllModeView({
     onInlineDraftReady,
     onCancelInlineDraft,
     onOpenInlineDraftForPath,
+    onDeleteComment,
     onResolveThread,
+    onHistoryCommentNavigate,
+    onReplyToThread,
     onDiffLineEnter,
     onDiffLineLeave,
     diffTypographyStyle,
@@ -159,7 +167,9 @@ export function ReviewAllModeView({
                             {isSummaryCollapsedInAllMode ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
                         </span>
                     </div>
-                    {!isSummaryCollapsedInAllMode && <PullRequestSummaryPanel bundle={prData} diffStats={lineStats} />}
+                    {!isSummaryCollapsedInAllMode && (
+                        <PullRequestSummaryPanel bundle={prData} diffStats={lineStats} onSelectComment={onHistoryCommentNavigate} />
+                    )}
                 </div>
             ) : null}
 
@@ -265,7 +275,10 @@ export function ReviewAllModeView({
                                                 onSubmitInlineComment={onSubmitInlineComment}
                                                 onInlineDraftReady={onInlineDraftReady}
                                                 onCancelInlineDraft={onCancelInlineDraft}
+                                                currentUserDisplayName={currentUserDisplayName}
+                                                onDeleteComment={onDeleteComment}
                                                 onResolveThread={onResolveThread}
+                                                onReplyToThread={onReplyToThread}
                                             />
                                         )}
                                     />

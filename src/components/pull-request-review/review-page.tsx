@@ -38,7 +38,7 @@ import { useViewedStorageKey } from "@/components/pull-request-review/use-review
 import { getSettingsTreeItems } from "@/components/settings-navigation";
 import { useAppearance } from "@/lib/appearance-context";
 import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
-import { fileAnchorId } from "@/lib/file-anchors";
+import { commentAnchorId, fileAnchorId } from "@/lib/file-anchors";
 import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
 import { getPullRequestFileContextCollection, savePullRequestFileContextRecord } from "@/lib/git-host/query-collections";
@@ -150,6 +150,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const [copiedSourceBranch, setCopiedSourceBranch] = useState(false);
     const [fileContexts, setFileContexts] = useState<Record<string, FullFileContextEntry>>({});
     const [dirStateHydrated, setDirStateHydrated] = useState(false);
+    const [pendingCommentTick, setPendingCommentTick] = useState(0);
     const autoMarkedViewedFilesRef = useRef<Set<string>>(new Set());
     const copyResetTimeoutRef = useRef<number | null>(null);
     const copySourceBranchResetTimeoutRef = useRef<number | null>(null);
@@ -158,6 +159,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const allModeSuppressObserverUntilRef = useRef<number>(0);
     const allModeLastStickyPathRef = useRef<string | null>(null);
     const suppressHashSyncRef = useRef(false);
+    const pendingCommentScrollRef = useRef<number | null>(null);
     const { inlineComment, setInlineComment, getInlineDraftContent, setInlineDraftContent, clearInlineDraftContent, openInlineCommentDraft } =
         useInlineCommentDrafts({
             workspace,
@@ -525,11 +527,13 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         mergeMutation,
         createCommentMutation,
         resolveCommentMutation,
+        deleteCommentMutation,
         handleApprovePullRequest,
         handleRequestChangesPullRequest,
         handleDeclinePullRequest,
         handleMarkPullRequestAsDraft,
         submitInlineComment,
+        submitThreadReply,
         handleCopyPath,
         handleCopySourceBranch,
     } = useReviewPageActions({
@@ -561,6 +565,12 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         setAllModePendingScrollPath(path);
         allModeSuppressObserverUntilRef.current = Date.now() + 1200;
     }, []);
+    const handleDeleteComment = useCallback(
+        (commentId: number, hasInlineContext: boolean) => {
+            deleteCommentMutation.mutate({ commentId, hasInlineContext });
+        },
+        [deleteCommentMutation],
+    );
 
     const { handleToggleSettingsPanel, selectAndRevealFile, toggleViewed, collapseAllDirectories, expandAllDirectories } = useReviewPageNavigation({
         activeFile,
@@ -581,6 +591,18 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         onApprovePullRequest: handleApprovePullRequest,
         onRequestChangesPullRequest: handleRequestChangesPullRequest,
     });
+    const handleHistoryCommentNavigate = useCallback(
+        ({ path, commentId }: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => {
+            if (!path) return;
+            setShowSettingsPanel(false);
+            selectAndRevealFile(path);
+            if (typeof commentId === "number") {
+                pendingCommentScrollRef.current = commentId;
+                setPendingCommentTick((tick) => tick + 1);
+            }
+        },
+        [selectAndRevealFile],
+    );
     const handleHashPathResolved = useCallback(
         (path: string) => {
             setShowSettingsPanel(false);
@@ -666,6 +688,35 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             }
         }
     }, [allModePendingScrollPath, showSettingsPanel, viewMode]);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (pendingCommentTick === 0) return;
+        if (pendingCommentScrollRef.current === null) return;
+        let cancelled = false;
+        let attempts = 0;
+        const attemptScroll = () => {
+            if (cancelled) return;
+            const targetId = pendingCommentScrollRef.current;
+            if (targetId === null) return;
+            const anchor = document.getElementById(commentAnchorId(targetId));
+            if (anchor) {
+                anchor.scrollIntoView({ behavior: "smooth", block: "center" });
+                pendingCommentScrollRef.current = null;
+                return;
+            }
+            attempts += 1;
+            if (attempts < 20) {
+                window.setTimeout(attemptScroll, 150);
+            } else {
+                pendingCommentScrollRef.current = null;
+            }
+        };
+        const timeoutId = window.setTimeout(attemptScroll, 80);
+        return () => {
+            cancelled = true;
+            window.clearTimeout(timeoutId);
+        };
+    }, [pendingCommentTick]);
     useEffect(() => {
         if (typeof window === "undefined") return;
         if (viewMode !== "all") return;
@@ -834,6 +885,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                     activeFile={activeFile}
                     prData={prData}
                     pullRequestTitle={pullRequestTitle}
+                    currentUserDisplayName={pullRequest?.currentUser?.displayName}
                     lineStats={lineStats}
                     isSummarySelected={isSummarySelected}
                     selectedFilePath={selectedFilePath}
@@ -881,9 +933,14 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                         clearInlineDraftContent(draft);
                         setInlineComment(null);
                     }}
+                    onDeleteComment={handleDeleteComment}
                     onResolveThread={(commentId, resolve) => {
                         resolveCommentMutation.mutate({ commentId, resolve });
                     }}
+                    onReplyToThread={(commentId, content) => {
+                        submitThreadReply(commentId, content);
+                    }}
+                    onHistoryCommentNavigate={handleHistoryCommentNavigate}
                     onToggleSummaryCollapsed={() => setIsSummaryCollapsedInAllMode((prev) => !prev)}
                     onToggleCollapsedFile={(path, next) =>
                         setCollapsedAllModeFiles((prev) => ({

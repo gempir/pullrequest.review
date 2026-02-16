@@ -21,6 +21,7 @@ type ReviewSingleModeViewProps = {
     onWorkspaceModeChange: (mode: "single" | "all") => void;
     prData: PullRequestBundle;
     pullRequestTitle?: string;
+    currentUserDisplayName?: string;
     lineStats: { added: number; removed: number };
     isSummarySelected: boolean;
     selectedFilePath?: string;
@@ -50,10 +51,13 @@ type ReviewSingleModeViewProps = {
     onSubmitInlineComment: () => void;
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
+    onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
+    onReplyToThread: (commentId: number, content: string) => void;
     onOpenDiffSettings: () => void;
     onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
     fileContextState: Record<string, DiffContextState>;
+    onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
 };
 
 export function ReviewSingleModeView({
@@ -61,6 +65,7 @@ export function ReviewSingleModeView({
     onWorkspaceModeChange,
     prData,
     pullRequestTitle,
+    currentUserDisplayName,
     lineStats,
     isSummarySelected,
     selectedFilePath,
@@ -90,10 +95,13 @@ export function ReviewSingleModeView({
     onSubmitInlineComment,
     onInlineDraftReady,
     onCancelInlineDraft,
+    onDeleteComment,
     onResolveThread,
+    onReplyToThread,
     onOpenDiffSettings,
     onLoadFullFileContext,
     fileContextState,
+    onHistoryCommentNavigate,
 }: ReviewSingleModeViewProps) {
     const hasFullContext = selectedFilePath ? fileContextState[selectedFilePath]?.status === "ready" : false;
     const resolvedFileDiffOptions =
@@ -109,6 +117,7 @@ export function ReviewSingleModeView({
                     bundle={prData}
                     headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
                     diffStats={lineStats}
+                    onSelectComment={onHistoryCommentNavigate}
                     headerRight={
                         <Button
                             type="button"
@@ -200,7 +209,10 @@ export function ReviewSingleModeView({
                                 onSubmitInlineComment={onSubmitInlineComment}
                                 onInlineDraftReady={onInlineDraftReady}
                                 onCancelInlineDraft={onCancelInlineDraft}
+                                currentUserDisplayName={currentUserDisplayName}
+                                onDeleteComment={onDeleteComment}
                                 onResolveThread={onResolveThread}
+                                onReplyToThread={onReplyToThread}
                             />
                         )}
                     />
@@ -216,8 +228,13 @@ export function ReviewSingleModeView({
                             key={thread.id}
                             thread={thread}
                             canResolveThread={canResolveThread}
+                            canCommentInline={canCommentInline}
+                            createCommentPending={createCommentPending}
                             resolveCommentPending={resolveCommentPending}
+                            currentUserDisplayName={currentUserDisplayName}
+                            onDeleteComment={onDeleteComment}
                             onResolveThread={onResolveThread}
+                            onReplyToThread={onReplyToThread}
                         />
                     ))}
                 </div>

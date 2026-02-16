@@ -84,6 +84,7 @@ export interface PullRequestDetails {
         user?: { displayName?: string; avatarUrl?: string };
     }>;
     currentUserReviewStatus?: "approved" | "changesRequested" | "none";
+    currentUser?: { displayName?: string; avatarUrl?: string };
     links?: { html?: { href?: string } };
 }
 
@@ -109,6 +110,13 @@ export interface PullRequestHistoryEvent {
     content?: string;
     contentHtml?: string;
     details?: string;
+    comment?: {
+        id?: number;
+        path?: string;
+        line?: number;
+        side?: "additions" | "deletions";
+        isInline?: boolean;
+    };
 }
 
 export type PullRequestReviewerStatus = "approved" | "changesRequested" | "commented" | "pending";
@@ -216,5 +224,6 @@ export interface GitHostClient {
         } & CommentPayload,
     ): Promise<{ ok: true }>;
     resolvePullRequestComment(data: { prRef: PullRequestRef; commentId: number; resolve: boolean }): Promise<{ ok: true }>;
+    deletePullRequestComment(data: { prRef: PullRequestRef; commentId: number; hasInlineContext: boolean }): Promise<{ ok: true }>;
     fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }): Promise<string>;
 }

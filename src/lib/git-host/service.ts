@@ -84,6 +84,10 @@ export async function resolvePullRequestComment(data: { prRef: PullRequestRef; c
     return getHostClient(data.prRef.host).resolvePullRequestComment(data);
 }
 
+export async function deletePullRequestComment(data: { prRef: PullRequestRef; commentId: number; hasInlineContext: boolean }) {
+    return getHostClient(data.prRef.host).deletePullRequestComment(data);
+}
+
 export async function fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }) {
     return getHostClient(data.prRef.host).fetchPullRequestFileContents(data);
 }

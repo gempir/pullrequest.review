@@ -741,4 +741,27 @@ export const bitbucketClient: GitHostClient = {
 
         return { ok: true as const };
     },
+    async fetchPullRequestFileContents({ prRef, commit, path }) {
+        const encodedPath = encodeBitbucketPath(path);
+        if (!encodedPath) return "";
+        try {
+            const url = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/src/${commit}/${encodedPath}`;
+            const res = await request(url, { headers: { Accept: "application/octet-stream" } });
+            return await res.text();
+        } catch (error) {
+            if (error instanceof HostApiError && error.status === 404) {
+                return "";
+            }
+            throw error;
+        }
+    },
 };
+
+function encodeBitbucketPath(path: string) {
+    const trimmed = path.replace(/^\/+/, "");
+    if (!trimmed) return "";
+    return trimmed
+        .split("/")
+        .map((segment) => encodeURIComponent(segment))
+        .join("/");
+}

@@ -26,6 +26,7 @@ export function useReviewPageDerived({
     theme,
     compactDiffOptions,
     onOpenInlineCommentDraft,
+    fullFileContexts,
 }: {
     prData: PullRequestBundle | undefined;
     pullRequest: PullRequestDetails | undefined;
@@ -41,14 +42,26 @@ export function useReviewPageDerived({
     theme: Parameters<typeof useDiffHighlighterState>[0]["theme"];
     compactDiffOptions: FileDiffOptions<undefined>;
     onOpenInlineCommentDraft: (path: string, props: OnDiffLineClickProps) => void;
+    fullFileContexts: Record<string, { oldLines: string[]; newLines: string[] }>;
 }) {
     const diffText = prData?.diff ?? "";
 
-    const fileDiffs = useMemo(() => {
+    const rawFileDiffs = useMemo(() => {
         if (!diffText) return [] as FileDiffMetadata[];
         const patches = parsePatchFiles(diffText);
         return patches.flatMap((patch) => patch.files);
     }, [diffText]);
+
+    const fileDiffs = useMemo(() => {
+        if (!rawFileDiffs.length) return rawFileDiffs;
+        if (Object.keys(fullFileContexts).length === 0) return rawFileDiffs;
+        return rawFileDiffs.map((fileDiff, index) => {
+            const path = getFilePath(fileDiff, index);
+            const context = fullFileContexts[path];
+            if (!context) return fileDiff;
+            return applyFullContext(fileDiff, context);
+        });
+    }, [rawFileDiffs, fullFileContexts]);
 
     const preloadLanguages = useMemo(() => {
         const langs = new Set<string>(["text", "javascript"]);
@@ -286,4 +299,30 @@ export function useReviewPageDerived({
         singleFileAnnotations,
         singleFileDiffOptions,
     };
+}
+
+function applyFullContext(fileDiff: FileDiffMetadata, context: { oldLines: string[]; newLines: string[] }): FileDiffMetadata {
+    const hunks = fileDiff.hunks.map((hunk, index, all) => {
+        const collapsedBefore = calculateCollapsedBefore(all, index);
+        if (collapsedBefore === hunk.collapsedBefore) return hunk;
+        return { ...hunk, collapsedBefore };
+    });
+    return {
+        ...fileDiff,
+        hunks,
+        oldLines: context.oldLines,
+        newLines: context.newLines,
+    };
+}
+
+function calculateCollapsedBefore(hunks: FileDiffMetadata["hunks"], index: number) {
+    const hunk = hunks[index];
+    const currentStart = hunk.additionStart ?? hunk.deletionStart ?? 1;
+    if (index === 0) {
+        return Math.max(0, currentStart - 1);
+    }
+    const prev = hunks[index - 1];
+    const prevStart = prev.additionStart ?? prev.deletionStart ?? 1;
+    const prevEnd = prevStart + prev.splitLineCount;
+    return Math.max(0, currentStart - prevEnd);
 }

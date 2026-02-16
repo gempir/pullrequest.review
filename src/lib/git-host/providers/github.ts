@@ -61,6 +61,7 @@ interface GithubPull {
     };
     base?: {
         ref?: string;
+        sha?: string;
         repo?: { full_name?: string };
     };
 }
@@ -272,10 +273,12 @@ function mapPullRequestDetails(
         source: {
             branch: { name: pr.head?.ref },
             repository: { fullName: pr.head?.repo?.full_name },
+            commit: { hash: pr.head?.sha },
         },
         destination: {
             branch: { name: pr.base?.ref },
             repository: { fullName: pr.base?.repo?.full_name },
+            commit: { hash: pr.base?.sha },
         },
         participants: [
             {
@@ -932,4 +935,28 @@ export const githubClient: GitHostClient = {
     async resolvePullRequestComment() {
         throw new Error("GitHub thread resolution is not yet supported in this app.");
     },
+    async fetchPullRequestFileContents({ prRef, commit, path }) {
+        const encodedPath = encodeGitHubPath(path);
+        if (!encodedPath) return "";
+        try {
+            const res = await request(`/repos/${prRef.workspace}/${prRef.repo}/contents/${encodedPath}?ref=${commit}`, {
+                headers: { Accept: "application/vnd.github.raw" },
+            });
+            return await res.text();
+        } catch (error) {
+            if (error instanceof HostApiError && error.status === 404) {
+                return "";
+            }
+            throw error;
+        }
+    },
 };
+
+function encodeGitHubPath(path: string) {
+    const trimmed = path.replace(/^\/+/, "");
+    if (!trimmed) return "";
+    return trimmed
+        .split("/")
+        .map((segment) => encodeURIComponent(segment))
+        .join("/");
+}

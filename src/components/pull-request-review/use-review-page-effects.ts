@@ -1,5 +1,5 @@
 import { type FileDiffMetadata, preloadHighlighter } from "@pierre/diffs";
-import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useRef, useState } from "react";
+import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import { fileAnchorId } from "@/lib/file-anchors";
 import { buildKindMapForTree, buildTreeFromPaths, type ChangeKind, type FileNode } from "@/lib/file-tree-context";
 import type { PullRequestBundle } from "@/lib/git-host/types";
@@ -145,6 +145,11 @@ export function useDiffHighlighterState({
 }) {
     const [diffHighlighterReady, setDiffHighlighterReady] = useState(false);
     const [diffPlainTextFallback, setDiffPlainTextFallback] = useState(false);
+    const preloadLanguagesKey = useMemo(() => [...new Set(preloadLanguages)].sort().join(","), [preloadLanguages]);
+    const languagesForPreload = useMemo(() => {
+        if (!preloadLanguagesKey) return [];
+        return preloadLanguagesKey.split(",");
+    }, [preloadLanguagesKey]);
 
     useEffect(() => {
         if (fileDiffs.length === 0) {
@@ -157,7 +162,7 @@ export function useDiffHighlighterState({
         setDiffPlainTextFallback(false);
         void preloadHighlighter({
             themes: [theme],
-            langs: preloadLanguages as Parameters<typeof preloadHighlighter>[0]["langs"],
+            langs: languagesForPreload as Parameters<typeof preloadHighlighter>[0]["langs"],
         })
             .then(() => {
                 if (cancelled) return;
@@ -171,7 +176,7 @@ export function useDiffHighlighterState({
         return () => {
             cancelled = true;
         };
-    }, [fileDiffs.length, preloadLanguages, theme]);
+    }, [fileDiffs.length, languagesForPreload, theme]);
 
     return { diffHighlighterReady, diffPlainTextFallback };
 }

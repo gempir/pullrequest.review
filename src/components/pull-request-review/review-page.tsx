@@ -195,14 +195,34 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
     const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
 
+    const readyFileContextsRef = useRef<Record<string, { oldLines: string[]; newLines: string[] }>>({});
+
     const readyFileContexts = useMemo(() => {
-        const entries: Record<string, { oldLines: string[]; newLines: string[] }> = {};
+        const prevEntries = readyFileContextsRef.current;
+        const nextEntries: Record<string, { oldLines: string[]; newLines: string[] }> = {};
+        let changed = false;
+
         for (const [path, entry] of Object.entries(fileContexts)) {
-            if (entry.status === "ready") {
-                entries[path] = { oldLines: entry.oldLines, newLines: entry.newLines };
+            if (entry.status !== "ready") continue;
+            const prev = prevEntries[path];
+            if (prev && prev.oldLines === entry.oldLines && prev.newLines === entry.newLines) {
+                nextEntries[path] = prev;
+                continue;
             }
+            nextEntries[path] = { oldLines: entry.oldLines, newLines: entry.newLines };
+            changed = true;
         }
-        return entries;
+
+        const prevKeys = Object.keys(prevEntries);
+        const nextKeys = Object.keys(nextEntries);
+        const hasKeyChange = prevKeys.length !== nextKeys.length || prevKeys.some((key) => nextEntries[key] !== prevEntries[key]);
+
+        if (!changed && !hasKeyChange) {
+            return prevEntries;
+        }
+
+        readyFileContextsRef.current = nextEntries;
+        return nextEntries;
     }, [fileContexts]);
 
     const fileContextStatus = useMemo(() => {

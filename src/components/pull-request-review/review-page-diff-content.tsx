@@ -18,6 +18,7 @@ type ReviewPageDiffContentProps = {
     activeFile: string | undefined;
     prData: PullRequestBundle;
     pullRequestTitle?: string;
+    currentUserDisplayName?: string;
     lineStats: { added: number; removed: number };
     isSummarySelected: boolean;
     selectedFilePath?: string;
@@ -58,12 +59,15 @@ type ReviewPageDiffContentProps = {
     onSubmitInlineComment: () => void;
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
+    onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
+    onReplyToThread: (commentId: number, content: string) => void;
     onToggleSummaryCollapsed: () => void;
     onToggleCollapsedFile: (path: string, next: boolean) => void;
     onOpenInlineDraftForPath: (path: string, props: Parameters<NonNullable<FileDiffOptions<undefined>["onLineClick"]>>[0]) => void;
     onDiffLineEnter: NonNullable<FileDiffOptions<undefined>["onLineEnter"]>;
     onDiffLineLeave: NonNullable<FileDiffOptions<undefined>["onLineLeave"]>;
+    onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
 };
 
 export function ReviewPageDiffContent({
@@ -72,6 +76,7 @@ export function ReviewPageDiffContent({
     activeFile,
     prData,
     pullRequestTitle,
+    currentUserDisplayName,
     lineStats,
     isSummarySelected,
     selectedFilePath,
@@ -112,12 +117,15 @@ export function ReviewPageDiffContent({
     onSubmitInlineComment,
     onInlineDraftReady,
     onCancelInlineDraft,
+    onDeleteComment,
     onResolveThread,
+    onReplyToThread,
     onToggleSummaryCollapsed,
     onToggleCollapsedFile,
     onOpenInlineDraftForPath,
     onDiffLineEnter,
     onDiffLineLeave,
+    onHistoryCommentNavigate,
 }: ReviewPageDiffContentProps) {
     const openDiffSettings = () => {
         onActiveFileChange(settingsPathForTab("diff"));
@@ -150,6 +158,7 @@ export function ReviewPageDiffContent({
                 onWorkspaceModeChange={onWorkspaceModeChange}
                 prData={prData}
                 pullRequestTitle={pullRequestTitle}
+                currentUserDisplayName={currentUserDisplayName}
                 lineStats={lineStats}
                 isSummarySelected={isSummarySelected}
                 selectedFilePath={selectedFilePath}
@@ -179,7 +188,10 @@ export function ReviewPageDiffContent({
                 onSubmitInlineComment={onSubmitInlineComment}
                 onInlineDraftReady={onInlineDraftReady}
                 onCancelInlineDraft={onCancelInlineDraft}
+                onDeleteComment={onDeleteComment}
                 onResolveThread={onResolveThread}
+                onReplyToThread={onReplyToThread}
+                onHistoryCommentNavigate={onHistoryCommentNavigate}
                 onOpenDiffSettings={openDiffSettings}
                 onLoadFullFileContext={onLoadFullFileContext}
                 fileContextState={fileContextState}
@@ -194,6 +206,7 @@ export function ReviewPageDiffContent({
             pullRequestTitle={pullRequestTitle || PR_SUMMARY_NAME}
             prData={prData}
             lineStats={lineStats}
+            currentUserDisplayName={currentUserDisplayName}
             isSummaryCollapsedInAllMode={isSummaryCollapsedInAllMode}
             onToggleSummaryCollapsed={onToggleSummaryCollapsed}
             allModeDiffEntries={allModeDiffEntries}
@@ -224,7 +237,10 @@ export function ReviewPageDiffContent({
             onInlineDraftReady={onInlineDraftReady}
             onCancelInlineDraft={onCancelInlineDraft}
             onOpenInlineDraftForPath={onOpenInlineDraftForPath}
+            onDeleteComment={onDeleteComment}
             onResolveThread={onResolveThread}
+            onReplyToThread={onReplyToThread}
+            onHistoryCommentNavigate={onHistoryCommentNavigate}
             onDiffLineEnter={onDiffLineEnter}
             onDiffLineLeave={onDiffLineLeave}
             diffTypographyStyle={diffTypographyStyle}

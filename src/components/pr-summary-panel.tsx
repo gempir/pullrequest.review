@@ -124,37 +124,83 @@ function Avatar({ name, url, sizeClass = "size-5" }: { name?: string; url?: stri
     );
 }
 
+function extractHistoryCommentId(event: PullRequestHistoryEvent) {
+    if (event.comment?.id !== undefined) return event.comment.id;
+    if (event.type !== "comment") return null;
+    const match = event.id.match(/comment-(\d+)$/i);
+    if (!match) return null;
+    const parsed = Number(match[1]);
+    return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function PullRequestSummaryPanel({
     bundle,
     headerTitle,
     diffStats,
     headerRight,
+    onSelectComment,
 }: {
     bundle: PullRequestBundle;
     headerTitle?: string;
     diffStats?: { added: number; removed: number };
     headerRight?: ReactNode;
+    onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
 }) {
     const { pr, commits, history } = bundle;
-    const resolvedHistory: PullRequestHistoryEvent[] =
-        history && history.length > 0
-            ? history
-            : bundle.comments
-                  .filter((comment) => !comment.inline?.path)
-                  .map(
-                      (comment): PullRequestHistoryEvent => ({
-                          id: `fallback-comment-${comment.id}`,
-                          type: "comment",
-                          createdAt: comment.createdAt,
-                          actor: {
-                              displayName: comment.user?.displayName,
-                              avatarUrl: comment.user?.avatarUrl,
-                          },
-                          content: comment.content?.raw,
-                          contentHtml: comment.content?.html,
-                      }),
-                  );
-    const visibleHistory = resolvedHistory.filter((event) => event.type !== "reopened");
+    const baseHistory: PullRequestHistoryEvent[] = history ?? [];
+    const commentHistoryById = new Map<number, PullRequestHistoryEvent>();
+    for (const event of baseHistory) {
+        const commentId = extractHistoryCommentId(event);
+        if (typeof commentId === "number") {
+            commentHistoryById.set(commentId, event);
+        }
+    }
+    const fallbackCommentEvents: PullRequestHistoryEvent[] = bundle.comments
+        .filter((comment) => Boolean(comment.inline?.path))
+        .map((comment) => {
+            const line = comment.inline?.to ?? comment.inline?.from;
+            const side = comment.inline?.from ? "deletions" : "additions";
+            return {
+                id: `fallback-comment-${comment.id}`,
+                type: "comment",
+                createdAt: comment.createdAt,
+                actor: {
+                    displayName: comment.user?.displayName,
+                    avatarUrl: comment.user?.avatarUrl,
+                },
+                content: comment.content?.raw,
+                contentHtml: comment.content?.html,
+                comment: {
+                    id: comment.id,
+                    path: comment.inline?.path,
+                    line,
+                    side,
+                    isInline: Boolean(comment.inline?.path),
+                },
+            };
+        });
+    const resolvedHistory: PullRequestHistoryEvent[] = [...baseHistory];
+    for (const fallbackEvent of fallbackCommentEvents) {
+        const commentId = fallbackEvent.comment?.id;
+        if (typeof commentId === "number") {
+            const existing = commentHistoryById.get(commentId);
+            if (existing) {
+                if (!existing.comment?.path && fallbackEvent.comment?.path) {
+                    existing.comment = { ...existing.comment, ...fallbackEvent.comment };
+                }
+                continue;
+            }
+            commentHistoryById.set(commentId, fallbackEvent);
+        }
+        resolvedHistory.push(fallbackEvent);
+    }
+    const visibleHistory = resolvedHistory.filter((event) => {
+        if (event.type === "reopened") return false;
+        if (event.type === "comment" && !event.content && !event.contentHtml && !event.comment?.path) {
+            return false;
+        }
+        return true;
+    });
     const orderedHistory = [...visibleHistory].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
     const orderedCommits = [...commits].sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
 
@@ -193,22 +239,48 @@ export function PullRequestSummaryPanel({
                     <Section title="History">
                         {orderedHistory.length > 0 ? (
                             <div className="space-y-2">
-                                {orderedHistory.map((event) => (
-                                    <div key={event.id} className="rounded-md bg-secondary/40 px-2.5 py-2">
-                                        <div className="flex items-center gap-2 text-[11px]">
-                                            <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} sizeClass="size-4" />
-                                            <span className="text-foreground">{eventLabel(event.type)}</span>
-                                            <span className="text-muted-foreground">{event.actor?.displayName ?? "Unknown"}</span>
-                                            <span className="ml-auto text-muted-foreground">{formatDate(event.createdAt)}</span>
-                                        </div>
-                                        {event.details ? <div className="mt-1 text-[13px] text-muted-foreground break-words">{event.details}</div> : null}
-                                        {event.content || event.contentHtml ? (
-                                            <div className="mt-1">
-                                                <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />
+                                {orderedHistory.map((event) => {
+                                    const canNavigateToComment = Boolean(event.comment?.path && onSelectComment);
+                                    const handleClick = () => {
+                                        if (!canNavigateToComment || !event.comment?.path) return;
+                                        onSelectComment?.({
+                                            path: event.comment.path,
+                                            line: event.comment.line,
+                                            side: event.comment.side,
+                                            commentId: event.comment.id,
+                                        });
+                                    };
+                                    return (
+                                        <button
+                                            key={event.id}
+                                            type="button"
+                                            onClick={handleClick}
+                                            disabled={!canNavigateToComment}
+                                            className={cn(
+                                                "w-full rounded-md px-2.5 py-2 text-left",
+                                                canNavigateToComment
+                                                    ? "bg-secondary/40 transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border"
+                                                    : "bg-secondary/30 cursor-default",
+                                            )}
+                                        >
+                                            <div className="space-y-1.5">
+                                                <div className="flex items-center gap-2 text-[11px]">
+                                                    <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} sizeClass="size-4" />
+                                                    <span className="text-foreground">{eventLabel(event.type)}</span>
+                                                    <span className="text-muted-foreground">{event.actor?.displayName ?? "Unknown"}</span>
+                                                    {event.comment?.path ? <span className="text-primary font-mono truncate">{event.comment.path}</span> : null}
+                                                    <span className="ml-auto text-muted-foreground">{formatDate(event.createdAt)}</span>
+                                                </div>
+                                                {event.details ? <div className="text-[13px] text-muted-foreground break-words">{event.details}</div> : null}
+                                                {event.content || event.contentHtml ? (
+                                                    <div>
+                                                        <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />
+                                                    </div>
+                                                ) : null}
                                             </div>
-                                        ) : null}
-                                    </div>
-                                ))}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         ) : (
                             <div className="text-[13px] text-muted-foreground">No history yet.</div>

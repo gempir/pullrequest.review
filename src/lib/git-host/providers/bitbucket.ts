@@ -376,6 +376,12 @@ function mapPullRequest(pr: BitbucketPullRequestRaw, currentUser: BitbucketUser 
                 },
             })) ?? [],
         currentUserReviewStatus: currentUserParticipant ? mapParticipantReviewStatus(currentUserParticipant) : "none",
+        currentUser: currentUser
+            ? {
+                  displayName: currentUser.display_name,
+                  avatarUrl: getAvatarUrl(currentUser),
+              }
+            : undefined,
         links: pr.links,
     };
 }
@@ -462,7 +468,8 @@ function mapReviewers(pr: PullRequestDetails): PullRequestReviewer[] {
 }
 
 function mapCommentToHistory(comment: Comment): PullRequestHistoryEvent | null {
-    if (comment.inline?.path) return null;
+    const line = comment.inline?.to ?? comment.inline?.from;
+    const side = comment.inline?.from ? "deletions" : "additions";
     return {
         id: `bitbucket-comment-${comment.id}`,
         type: "comment",
@@ -472,6 +479,13 @@ function mapCommentToHistory(comment: Comment): PullRequestHistoryEvent | null {
             avatarUrl: comment.user?.avatarUrl,
         },
         content: comment.content?.raw,
+        comment: {
+            id: comment.id,
+            path: comment.inline?.path,
+            line,
+            side,
+            isInline: Boolean(comment.inline?.path),
+        },
     };
 }
 
@@ -739,6 +753,14 @@ export const bitbucketClient: GitHostClient = {
             headers: { Accept: "application/json" },
         });
 
+        return { ok: true as const };
+    },
+    async deletePullRequestComment(data) {
+        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}`;
+        await request(url, {
+            method: "DELETE",
+            headers: { Accept: "application/json" },
+        });
         return { ok: true as const };
     },
     async fetchPullRequestFileContents({ prRef, commit, path }) {

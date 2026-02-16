@@ -4,6 +4,7 @@ import {
     approvePullRequest,
     createPullRequestComment,
     declinePullRequest,
+    deletePullRequestComment,
     markPullRequestAsDraft,
     mergePullRequest,
     removePullRequestApproval,
@@ -177,8 +178,18 @@ export function useReviewPageActions({
     });
 
     const createCommentMutation = useMutation({
-        mutationFn: (payload: { path: string; content: string; line?: number; side?: CommentLineSide }) => {
+        mutationFn: (payload: { path?: string; content: string; line?: number; side?: CommentLineSide; parentId?: number }) => {
             const prRef = ensurePrRef();
+            if (payload.parentId) {
+                return createPullRequestComment({
+                    prRef,
+                    content: payload.content,
+                    parentId: payload.parentId,
+                });
+            }
+            if (!payload.path) {
+                throw new Error("Comment path is required for inline comments");
+            }
             return createPullRequestComment({
                 prRef,
                 content: payload.content,
@@ -192,7 +203,7 @@ export function useReviewPageActions({
             });
         },
         onSuccess: async (_, vars) => {
-            if (vars.line && vars.side) {
+            if (vars.line && vars.side && vars.path) {
                 clearInlineDraftContent({
                     path: vars.path,
                     line: vars.line,
@@ -233,6 +244,26 @@ export function useReviewPageActions({
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to update comment resolution");
+        },
+    });
+    const deleteCommentMutation = useMutation({
+        mutationFn: (payload: { commentId: number; hasInlineContext: boolean }) => {
+            const prRef = ensurePrRef();
+            if (!authCanWrite) {
+                requestAuth("write");
+                throw new Error("Sign in required");
+            }
+            return deletePullRequestComment({
+                prRef,
+                commentId: payload.commentId,
+                hasInlineContext: payload.hasInlineContext,
+            });
+        },
+        onSuccess: async () => {
+            await queryClient.invalidateQueries({ queryKey: prQueryKey });
+        },
+        onError: (error) => {
+            setActionError(error instanceof Error ? error.message : "Failed to delete comment");
         },
     });
 
@@ -304,6 +335,23 @@ export function useReviewPageActions({
         setActionError,
     ]);
 
+    const submitThreadReply = useCallback(
+        (parentCommentId: number, content: string) => {
+            if (!actionPolicy.canCommentInline) {
+                setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
+                if (!authCanWrite) requestAuth("write");
+                return;
+            }
+            const trimmed = content.trim();
+            if (!trimmed) return;
+            createCommentMutation.mutate({
+                content: trimmed,
+                parentId: parentCommentId,
+            });
+        },
+        [actionPolicy.canCommentInline, actionPolicy.disabledReason.commentInline, authCanWrite, createCommentMutation, requestAuth, setActionError],
+    );
+
     const handleCopyPath = useCallback(
         async (path: string) => {
             if (typeof navigator === "undefined" || !navigator.clipboard) {
@@ -359,11 +407,13 @@ export function useReviewPageActions({
         mergeMutation,
         createCommentMutation,
         resolveCommentMutation,
+        deleteCommentMutation,
         handleApprovePullRequest,
         handleRequestChangesPullRequest,
         handleDeclinePullRequest,
         handleMarkPullRequestAsDraft,
         submitInlineComment,
+        submitThreadReply,
         handleCopyPath,
         handleCopySourceBranch,
     };

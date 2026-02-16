@@ -113,6 +113,14 @@ export function useReviewPageNavigation({
         [activeFile, selectAndRevealFile],
     );
 
+    const getScrollTarget = useCallback(() => {
+        if (viewMode === "single") {
+            const scrollContainer = diffScrollRef.current?.querySelector<HTMLElement>(".diff-content-scroll");
+            if (scrollContainer) return scrollContainer;
+        }
+        return diffScrollRef.current;
+    }, [diffScrollRef, viewMode]);
+
     useKeyboardNavigation({
         onNextUnviewedFile: () =>
             selectFromPaths(
@@ -158,8 +166,8 @@ export function useReviewPageNavigation({
         },
         onApprovePullRequest,
         onRequestChangesPullRequest,
-        onScrollDown: () => diffScrollRef.current?.scrollBy({ top: 120, behavior: "smooth" }),
-        onScrollUp: () => diffScrollRef.current?.scrollBy({ top: -120, behavior: "smooth" }),
+        onScrollDown: () => getScrollTarget()?.scrollBy({ top: 120, behavior: "smooth" }),
+        onScrollUp: () => getScrollTarget()?.scrollBy({ top: -120, behavior: "smooth" }),
     });
 
     const toggleViewed = useCallback(

@@ -601,17 +601,20 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
 
     const handleObservedAllModePath = useCallback(
         (path: string, metadata: { isSticky: boolean }) => {
-            if (allModePendingScrollPath) {
-                if (path !== allModePendingScrollPath) return;
+            const pendingScrollPath = allModePendingScrollPath;
+            if (pendingScrollPath) {
+                if (path !== pendingScrollPath) return;
                 setAllModePendingScrollPath(null);
             }
+            const isProgrammaticReveal = pendingScrollPath === path;
             const isSameActiveFile = activeFile === path;
             if (path !== PR_SUMMARY_PATH) {
                 for (const directory of parentDirectories(path)) {
                     expand(directory);
                 }
                 const shouldMarkViewed =
-                    options.autoMarkViewedFiles && (metadata.isSticky || (allModePendingScrollPath === null && path === lastAllModeSectionPath));
+                    options.autoMarkViewedFiles &&
+                    (metadata.isSticky || isProgrammaticReveal || (pendingScrollPath === null && path === lastAllModeSectionPath));
                 if (shouldMarkViewed && allModeLastStickyPathRef.current !== path) {
                     setViewedFiles((prev) => {
                         if (prev.has(path)) return prev;

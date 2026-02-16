@@ -1,8 +1,9 @@
 import type { FileDiffOptions, OnDiffLineClickProps } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
+import { useLiveQuery } from "@tanstack/react-db";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { type CSSProperties, type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import { ReviewPageDiffContent } from "@/components/pull-request-review/review-page-diff-content";
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
@@ -39,6 +40,7 @@ import { useAppearance } from "@/lib/appearance-context";
 import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
 import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
+import { getPullRequestFileContextCollection, savePullRequestFileContextRecord } from "@/lib/git-host/query-collections";
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import { fetchPullRequestFileContents } from "@/lib/git-host/service";
 import type { GitHost } from "@/lib/git-host/types";
@@ -76,7 +78,7 @@ type FullFileContextEntry =
     | { status: "idle" }
     | { status: "loading" }
     | { status: "error"; error: string }
-    | { status: "ready"; oldLines: string[]; newLines: string[] };
+    | { status: "ready"; oldLines: string[]; newLines: string[]; fetchedAt: number };
 
 function parentDirectories(path: string): string[] {
     const parts = path.split("/").filter(Boolean);
@@ -194,6 +196,21 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
 
     const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
     const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
+    const prContextKey = useMemo(() => `${host}:${workspace}/${repo}/${pullRequestId}`, [host, workspace, repo, pullRequestId]);
+    const fileContextCollection = useMemo(() => getPullRequestFileContextCollection(), []);
+    const fileContextQuery = useLiveQuery((q) => q.from({ context: fileContextCollection }).select(({ context }) => ({ ...context })), [fileContextCollection]);
+    const persistedFileContexts = useMemo(() => {
+        const entries: Record<string, { oldLines: string[]; newLines: string[]; fetchedAt: number }> = {};
+        for (const record of fileContextQuery.data ?? []) {
+            if (record.prKey !== prContextKey) continue;
+            entries[record.path] = {
+                oldLines: record.oldLines,
+                newLines: record.newLines,
+                fetchedAt: record.fetchedAt,
+            };
+        }
+        return entries;
+    }, [fileContextQuery.data, prContextKey]);
 
     const readyFileContextsRef = useRef<Record<string, { oldLines: string[]; newLines: string[] }>>({});
 
@@ -239,6 +256,36 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         return entries;
     }, [fileContexts]);
 
+    useEffect(() => {
+        setFileContexts((prev) => {
+            let changed = false;
+            const next: Record<string, FullFileContextEntry> = { ...prev };
+
+            for (const [path, context] of Object.entries(persistedFileContexts)) {
+                const existing = next[path];
+                if (existing?.status === "ready" && existing.fetchedAt === context.fetchedAt) {
+                    continue;
+                }
+                next[path] = {
+                    status: "ready",
+                    oldLines: context.oldLines,
+                    newLines: context.newLines,
+                    fetchedAt: context.fetchedAt,
+                };
+                changed = true;
+            }
+
+            for (const [path, entry] of Object.entries(next)) {
+                if (entry.status === "ready" && !persistedFileContexts[path]) {
+                    delete next[path];
+                    changed = true;
+                }
+            }
+
+            return changed ? next : prev;
+        });
+    }, [persistedFileContexts]);
+
     useCopyTimeoutCleanup({
         copyResetTimeoutRef,
         copySourceBranchResetTimeoutRef,
@@ -281,7 +328,8 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const handleLoadFullFileContext = useCallback(
         async (filePath: string, fileDiff: FileDiffMetadata) => {
             const current = fileContexts[filePath];
-            if (current?.status === "loading" || current?.status === "ready") return;
+            if (current?.status === "loading") return;
+            if (current?.status === "ready" || persistedFileContexts[filePath]) return;
             setFileContexts((prev) => ({ ...prev, [filePath]: { status: "loading" } }));
             try {
                 const baseCommit = prData?.pr.destination?.commit?.hash;
@@ -302,12 +350,23 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                     needsBase ? fetchPullRequestFileContents({ prRef, commit: effectiveBaseCommit, path: oldPath }) : Promise.resolve(""),
                     needsHead ? fetchPullRequestFileContents({ prRef, commit: effectiveHeadCommit, path: newPath }) : Promise.resolve(""),
                 ]);
+                const readyOldLines = needsBase ? splitFileIntoLines(oldContent) : [];
+                const readyNewLines = needsHead ? splitFileIntoLines(newContent) : [];
+                const fetchedAt = Date.now();
+                await savePullRequestFileContextRecord({
+                    prRef,
+                    path: filePath,
+                    oldLines: readyOldLines,
+                    newLines: readyNewLines,
+                    fetchedAt,
+                });
                 setFileContexts((prev) => ({
                     ...prev,
                     [filePath]: {
                         status: "ready",
-                        oldLines: needsBase ? splitFileIntoLines(oldContent) : [],
-                        newLines: needsHead ? splitFileIntoLines(newContent) : [],
+                        oldLines: readyOldLines,
+                        newLines: readyNewLines,
+                        fetchedAt,
                     },
                 }));
             } catch (error) {
@@ -315,7 +374,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                 setFileContexts((prev) => ({ ...prev, [filePath]: { status: "error", error: message } }));
             }
         },
-        [fileContexts, prData?.pr.destination?.commit?.hash, prData?.pr.source?.commit?.hash, prRef],
+        [fileContexts, persistedFileContexts, prData?.pr.destination?.commit?.hash, prData?.pr.source?.commit?.hash, prRef],
     );
 
     const {

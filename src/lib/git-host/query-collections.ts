@@ -14,6 +14,15 @@ type PersistedPullRequestBundleRecord = {
     fetchedAt: number;
 };
 
+export type PullRequestFileContextRecord = {
+    id: string;
+    prKey: string;
+    path: string;
+    oldLines: string[];
+    newLines: string[];
+    fetchedAt: number;
+};
+
 type PersistedRepoPullRequestRecord = {
     id: string;
     repoKey: string;
@@ -63,10 +72,12 @@ const HOST_DATA_DATABASE_NAME = "pullrequestdotreview_host_data_v2";
 const REPOSITORY_RX_COLLECTION_NAME = "repositories";
 const REPO_PULL_REQUEST_RX_COLLECTION_NAME = "repo_pull_requests";
 const PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME = "pull_request_bundles";
+const PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME = "pull_request_file_contexts";
 
 const REPOSITORY_TANSTACK_COLLECTION_ID = "repos:rxdb";
 const REPO_PULL_REQUEST_TANSTACK_COLLECTION_ID = "repo-prs:rxdb";
 const PULL_REQUEST_BUNDLE_TANSTACK_COLLECTION_ID = "pr-bundle:rxdb";
+const PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID = "pr-file-contexts:rxdb";
 
 const REPOSITORY_RX_SCHEMA = {
     title: "pullrequestdotreview repositories",
@@ -162,12 +173,52 @@ const PULL_REQUEST_BUNDLE_RX_SCHEMA = {
     additionalProperties: false,
 } as const;
 
+const PULL_REQUEST_FILE_CONTEXT_RX_SCHEMA = {
+    title: "pullrequestdotreview pull request file contexts",
+    version: 0,
+    type: "object",
+    primaryKey: "id",
+    properties: {
+        id: {
+            type: "string",
+            maxLength: 1300,
+        },
+        prKey: {
+            type: "string",
+            maxLength: 800,
+        },
+        path: {
+            type: "string",
+            maxLength: 1000,
+        },
+        oldLines: {
+            type: "array",
+            items: {
+                type: "string",
+            },
+        },
+        newLines: {
+            type: "array",
+            items: {
+                type: "string",
+            },
+        },
+        fetchedAt: {
+            type: "number",
+            minimum: 0,
+        },
+    },
+    required: ["id", "prKey", "path", "oldLines", "newLines", "fetchedAt"],
+    additionalProperties: false,
+} as const;
+
 let hostDataReadyPromise: Promise<void> | null = null;
 let hostDataDatabase: { close: () => Promise<boolean> } | null = null;
 
 let repositoryCollection: Collection<RepositoryRecord, string> | null = null;
 let repoPullRequestCollection: Collection<PersistedRepoPullRequestRecord, string> | null = null;
 let pullRequestBundleCollection: Collection<PersistedPullRequestBundleRecord, string> | null = null;
+let pullRequestFileContextCollection: Collection<PullRequestFileContextRecord, string> | null = null;
 
 const repositoryScopedCollections = new Map<GitHost, ScopedCollection<RepositoryRecord>>();
 const repoPullRequestScopedCollections = new Map<string, ScopedCollection<PersistedRepoPullRequestRecord>>();
@@ -285,6 +336,10 @@ export function pullRequestDetailsFetchScopeId(prRef: PullRequestRef) {
     return `pr-bundle:${pullRequestBundleId(prRef)}`;
 }
 
+function pullRequestFileContextId(prRef: PullRequestRef, path: string) {
+    return `${pullRequestBundleId(prRef)}:${path}`;
+}
+
 function normalizeRepoRef(repo: RepoRef): RepoRef {
     const workspace = repo.workspace.trim();
     const repositorySlug = repo.repo.trim();
@@ -352,6 +407,29 @@ function serializeRepoPullRequestRecord(repo: RepoRef, pullRequest: PullRequestS
     };
 }
 
+function serializePullRequestFileContextRecord({
+    prRef,
+    path,
+    oldLines,
+    newLines,
+    fetchedAt,
+}: {
+    prRef: PullRequestRef;
+    path: string;
+    oldLines: string[];
+    newLines: string[];
+    fetchedAt: number;
+}): PullRequestFileContextRecord {
+    return {
+        id: pullRequestFileContextId(prRef, path),
+        prKey: pullRequestBundleId(prRef),
+        path,
+        oldLines,
+        newLines,
+        fetchedAt,
+    };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
@@ -415,7 +493,7 @@ function normalizePullRequestSummary(pullRequest: PullRequestSummary): PullReque
 }
 
 function ensureCollectionsInitialized() {
-    if (repositoryCollection && repoPullRequestCollection && pullRequestBundleCollection) {
+    if (repositoryCollection && repoPullRequestCollection && pullRequestBundleCollection && pullRequestFileContextCollection) {
         return;
     }
 
@@ -436,6 +514,13 @@ function ensureCollectionsInitialized() {
     pullRequestBundleCollection = createCollection(
         localOnlyCollectionOptions<PersistedPullRequestBundleRecord, string>({
             id: PULL_REQUEST_BUNDLE_TANSTACK_COLLECTION_ID,
+            getKey: (item) => item.id,
+        }),
+    );
+
+    pullRequestFileContextCollection = createCollection(
+        localOnlyCollectionOptions<PullRequestFileContextRecord, string>({
+            id: PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID,
             getKey: (item) => item.id,
         }),
     );
@@ -467,6 +552,9 @@ async function initRxdbCollections() {
         [PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME]: {
             schema: PULL_REQUEST_BUNDLE_RX_SCHEMA,
         },
+        [PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME]: {
+            schema: PULL_REQUEST_FILE_CONTEXT_RX_SCHEMA,
+        },
     });
 
     repositoryCollection = createCollection(
@@ -493,7 +581,20 @@ async function initRxdbCollections() {
         }),
     );
 
-    await Promise.all([repositoryCollection.preload(), repoPullRequestCollection.preload(), pullRequestBundleCollection.preload()]);
+    pullRequestFileContextCollection = createCollection(
+        rxdbCollectionOptions<PullRequestFileContextRecord>({
+            id: PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID,
+            rxCollection: collections[PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME],
+            startSync: true,
+        }),
+    );
+
+    await Promise.all([
+        repositoryCollection.preload(),
+        repoPullRequestCollection.preload(),
+        pullRequestBundleCollection.preload(),
+        pullRequestFileContextCollection.preload(),
+    ]);
 }
 
 export function ensureGitHostDataReady() {
@@ -562,6 +663,43 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef) {
     pullRequestBundleScopedCollections.set(bundleId, scoped);
     registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;
+}
+
+export function getPullRequestFileContextCollection() {
+    if (!pullRequestFileContextCollection) ensureCollectionsInitialized();
+    const collection = pullRequestFileContextCollection;
+    if (!collection) {
+        throw new Error("Pull request file context collection is unavailable");
+    }
+    return collection;
+}
+
+export async function savePullRequestFileContextRecord({
+    prRef,
+    path,
+    oldLines,
+    newLines,
+    fetchedAt,
+}: {
+    prRef: PullRequestRef;
+    path: string;
+    oldLines: string[];
+    newLines: string[];
+    fetchedAt?: number;
+}) {
+    if (!pullRequestFileContextCollection) ensureCollectionsInitialized();
+    const collection = pullRequestFileContextCollection;
+    if (!collection) {
+        throw new Error("Pull request file context collection is unavailable");
+    }
+    const record = serializePullRequestFileContextRecord({
+        prRef,
+        path,
+        oldLines,
+        newLines,
+        fetchedAt: fetchedAt ?? Date.now(),
+    });
+    await upsertRecord(collection, record);
 }
 
 export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHost: ReposByHost }) {
@@ -727,6 +865,7 @@ export async function __resetGitHostCollectionsForTests() {
     repositoryCollection = null;
     repoPullRequestCollection = null;
     pullRequestBundleCollection = null;
+    pullRequestFileContextCollection = null;
 
     repositoryScopedCollections.clear();
     repoPullRequestScopedCollections.clear();

@@ -273,6 +273,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
 
     const prData = prQuery.data;
     const pullRequest = prData?.pr;
+    const pullRequestUrl = pullRequest?.links?.html?.href;
     const pullRequestTitle = pullRequest?.title?.trim();
     const isPrQueryFetching = prQuery.isFetching;
     const refetchPrQuery = prQuery.refetch;
@@ -878,6 +879,8 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const { sidebarProps, navbarProps, mergeDialogProps } = useReviewPageViewProps({
         treeWidth,
         treeCollapsed,
+        host,
+        pullRequestUrl,
         showSettingsPanel,
         searchQuery,
         showUnviewedOnly,

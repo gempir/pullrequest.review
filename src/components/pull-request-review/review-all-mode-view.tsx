@@ -4,6 +4,7 @@ import { Check, CheckCheck, ChevronDown, ChevronRight, Copy, ScrollText } from "
 import type { CSSProperties } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
 import { DiffContextButton, type DiffContextState } from "@/components/pull-request-review/diff-context-button";
+import { FileVersionSelect, type FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { InlineDiffAnnotation } from "@/components/pull-request-review/inline-diff-annotation";
 import { ReviewDiffSettingsMenu } from "@/components/pull-request-review/review-diff-settings-menu";
 import type { SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
@@ -46,6 +47,14 @@ type ReviewAllModeViewProps = {
     canResolveThread: boolean;
     resolveCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
+    getSelectedVersionIdForPath: (path: string) => string | undefined;
+    getVersionOptionsForPath: (path: string) => FileVersionSelectOption[];
+    onSelectVersionForPath: (path: string, versionId: string) => void;
+    resolveDisplayedDiffForPath: (
+        path: string,
+        latestFileDiff: FileDiffMetadata | undefined,
+    ) => { fileDiff: FileDiffMetadata | undefined; readOnlyHistorical: boolean; selectedVersionId: string | undefined };
+    isVersionViewed: (versionId: string) => boolean;
     compactDiffOptions: FileDiffOptions<undefined>;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
@@ -96,6 +105,11 @@ export function ReviewAllModeView({
     canResolveThread,
     resolveCommentPending,
     toRenderableFileDiff,
+    getSelectedVersionIdForPath,
+    getVersionOptionsForPath,
+    onSelectVersionForPath,
+    resolveDisplayedDiffForPath,
+    isVersionViewed,
     compactDiffOptions,
     getInlineDraftContent,
     setInlineDraftContent,
@@ -180,6 +194,13 @@ export function ReviewAllModeView({
                 const fileName = filePath.split("/").pop() || filePath;
                 const isCollapsed = collapsedAllModeFiles[filePath] ?? (collapseViewedFilesByDefault && viewedFiles.has(filePath));
                 const hasFullContext = fileContextState[filePath]?.status === "ready";
+                const fileVersionOptions = getVersionOptionsForPath(filePath);
+                const selectedVersionId = getSelectedVersionIdForPath(filePath) ?? fileVersionOptions[0]?.id;
+                const selectedVersionUnread = selectedVersionId ? !isVersionViewed(selectedVersionId) : false;
+                const isSelectedVersionViewed = selectedVersionId ? isVersionViewed(selectedVersionId) : false;
+                const displayed = resolveDisplayedDiffForPath(filePath, fileDiff);
+                const displayedFileDiff = displayed.fileDiff;
+                const readOnlyHistorical = displayed.readOnlyHistorical;
                 const fileDiffOptions =
                     hasFullContext && typeof compactDiffOptions.hunkSeparators !== "function"
                         ? compactDiffOptions.hunkSeparators === "line-info"
@@ -220,7 +241,16 @@ export function ReviewAllModeView({
                                 >
                                     {copiedPath === filePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                                 </Button>
-                                <DiffContextButton state={fileContextState[filePath]} onClick={() => onLoadFullFileContext(filePath, fileDiff)} />
+                                <FileVersionSelect
+                                    value={selectedVersionId ?? ""}
+                                    options={fileVersionOptions}
+                                    onValueChange={(versionId) => onSelectVersionForPath(filePath, versionId)}
+                                />
+                                <DiffContextButton
+                                    state={fileContextState[filePath]}
+                                    onClick={() => onLoadFullFileContext(filePath, fileDiff)}
+                                    disabled={readOnlyHistorical}
+                                />
                             </div>
                             <div className="ml-auto flex shrink-0 items-center gap-2 text-[12px]">
                                 <span className="select-none text-status-added">+{fileStats.added}</span>
@@ -230,9 +260,11 @@ export function ReviewAllModeView({
                                 <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(filePath)}>
                                     <span
                                         className={
-                                            viewedFiles.has(filePath)
-                                                ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                                : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                                            selectedVersionUnread
+                                                ? "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                                                : isSelectedVersionViewed
+                                                  ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                                  : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
                                         }
                                     >
                                         <Check className="size-3" />
@@ -248,19 +280,25 @@ export function ReviewAllModeView({
                         </div>
                         {!isCollapsed ? (
                             <div className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">
-                                {diffHighlighterReady ? (
+                                {diffHighlighterReady && displayedFileDiff ? (
                                     <FileDiff
-                                        fileDiff={toRenderableFileDiff(fileDiff)}
+                                        fileDiff={toRenderableFileDiff(displayedFileDiff)}
                                         options={{
                                             ...fileDiffOptions,
-                                            onLineClick: (props) => onOpenInlineDraftForPath(filePath, props),
-                                            onLineNumberClick: (props) => onOpenInlineDraftForPath(filePath, props),
+                                            onLineClick: (props) => {
+                                                if (readOnlyHistorical) return;
+                                                onOpenInlineDraftForPath(filePath, props);
+                                            },
+                                            onLineNumberClick: (props) => {
+                                                if (readOnlyHistorical) return;
+                                                onOpenInlineDraftForPath(filePath, props);
+                                            },
                                             onLineEnter: onDiffLineEnter,
                                             onLineLeave: onDiffLineLeave,
                                         }}
                                         className="compact-diff commentable-diff pr-diff-font"
                                         style={diffTypographyStyle}
-                                        lineAnnotations={buildFileAnnotations(filePath)}
+                                        lineAnnotations={readOnlyHistorical ? [] : buildFileAnnotations(filePath)}
                                         renderAnnotation={(annotation) => (
                                             <InlineDiffAnnotation
                                                 annotation={annotation as SingleFileAnnotation}
@@ -268,7 +306,7 @@ export function ReviewAllModeView({
                                                 repo={repo}
                                                 pullRequestId={pullRequestId}
                                                 createCommentPending={createCommentPending}
-                                                canCommentInline={canCommentInline}
+                                                canCommentInline={canCommentInline && !readOnlyHistorical}
                                                 canResolveThread={canResolveThread}
                                                 resolveCommentPending={resolveCommentPending}
                                                 getInlineDraftContent={getInlineDraftContent}

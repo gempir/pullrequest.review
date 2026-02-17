@@ -23,6 +23,9 @@ jobs:
       - name: Run Biome check
         run: bun run check
 
+      - name: Run Knip
+        run: bun run knip
+
   build:
     name: Build
     runs-on: ubuntu-latest

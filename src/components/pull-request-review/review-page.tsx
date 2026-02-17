@@ -28,12 +28,24 @@ import {
     useReviewTreeModelSync,
     useReviewTreeReset,
     useSyncMergeStrategy,
-    useViewedFilesStorage,
 } from "@/components/pull-request-review/use-review-page-effects";
 import { useReviewPageNavigation } from "@/components/pull-request-review/use-review-page-navigation";
 import { useReviewPageViewProps } from "@/components/pull-request-review/use-review-page-view-props";
 import { isRateLimitedError as isRateLimitedQueryError, useReviewQuery } from "@/components/pull-request-review/use-review-query";
-import { useViewedStorageKey } from "@/components/pull-request-review/use-review-storage";
+import {
+    buildLatestVersionIdByPath,
+    cleanupViewedVersionIds,
+    collectKnownVersionIds,
+    getVersionLabel,
+    mergeCurrentFileVersionsIntoHistory,
+    readFileVersionHistory,
+    readViewedVersionIds,
+    type StoredFileHistory,
+    type StoredFileVersion,
+    useViewedStorageKey,
+    writeFileVersionHistory,
+    writeViewedVersionIds,
+} from "@/components/pull-request-review/use-review-storage";
 import { getSettingsTreeItems } from "@/components/settings-navigation";
 import { useAppearance } from "@/lib/appearance-context";
 import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
@@ -235,14 +247,16 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         },
         [uiStore],
     );
-    const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
+    const [viewedVersionIds, setViewedVersionIds] = useState<Set<string>>(new Set());
+    const [fileVersionHistoryByPath, setFileVersionHistoryByPath] = useState<Record<string, StoredFileHistory>>({});
+    const [selectedVersionIdByPath, setSelectedVersionIdByPath] = useState<Record<string, string>>({});
     const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<Record<string, boolean>>({});
     const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [fileContexts, setFileContexts] = useState<Record<string, FullFileContextEntry>>({});
     const [dirStateHydrated, setDirStateHydrated] = useState(false);
     const [pendingCommentTick, setPendingCommentTick] = useState(0);
-    const autoMarkedViewedFilesRef = useRef<Set<string>>(new Set());
+    const autoMarkedViewedVersionIdsRef = useRef<Set<string>>(new Set());
     const copyResetTimeoutRef = useRef<number | null>(null);
     const copySourceBranchResetTimeoutRef = useRef<number | null>(null);
     const allModeProgrammaticTargetRef = useRef<string | null>(null);
@@ -251,6 +265,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const allModeLastStickyPathRef = useRef<string | null>(null);
     const suppressHashSyncRef = useRef(false);
     const pendingCommentScrollRef = useRef<number | null>(null);
+    const loadedViewedStorageKeyRef = useRef<string>("");
     const { inlineComment, setInlineComment, getInlineDraftContent, setInlineDraftContent, clearInlineDraftContent, openInlineCommentDraft } =
         useInlineCommentDrafts({
             workspace,
@@ -282,6 +297,16 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
 
     // Build viewed-file storage key from stable primitives to avoid object identity churn.
     const viewedStorageKey = useViewedStorageKey(prData?.prRef);
+    const latestVersionIdByPath = useMemo(() => buildLatestVersionIdByPath(fileVersionHistoryByPath), [fileVersionHistoryByPath]);
+    const viewedFiles = useMemo(() => {
+        const next = new Set<string>();
+        for (const [path, latestVersionId] of latestVersionIdByPath.entries()) {
+            if (viewedVersionIds.has(latestVersionId)) {
+                next.add(path);
+            }
+        }
+        return next;
+    }, [latestVersionIdByPath, viewedVersionIds]);
 
     const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
     const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
@@ -489,6 +514,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         singleFileAnnotations,
         singleFileDiffOptions,
         fileDiffFingerprints,
+        fileDiffSnapshots,
     } = useReviewPageDerived({
         prData,
         pullRequest,
@@ -506,13 +532,228 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         onOpenInlineCommentDraft: openInlineCommentDraftForPath,
         fullFileContexts: readyFileContexts,
     });
-    useViewedFilesStorage({
-        viewedStorageKey,
-        viewedFiles,
-        setViewedFiles,
-        autoMarkedViewedFilesRef,
-        fileDiffFingerprints,
-    });
+    const sourceCommitHash = prData?.pr.source?.commit?.hash;
+    const destinationCommitHash = prData?.pr.destination?.commit?.hash;
+
+    const currentFileVersionsByPath = useMemo(() => {
+        const next = new Map<
+            string,
+            {
+                fingerprint: string;
+                snapshot: { type: string; name: string; prevName?: string; hunks: unknown[] };
+                sourceCommitHash?: string;
+                destinationCommitHash?: string;
+            }
+        >();
+        for (const [path, fingerprint] of fileDiffFingerprints.entries()) {
+            const snapshot = fileDiffSnapshots.get(path);
+            if (!snapshot) continue;
+            next.set(path, {
+                fingerprint,
+                snapshot,
+                sourceCommitHash,
+                destinationCommitHash,
+            });
+        }
+        return next;
+    }, [destinationCommitHash, fileDiffFingerprints, fileDiffSnapshots, sourceCommitHash]);
+
+    useEffect(() => {
+        if (!viewedStorageKey || typeof window === "undefined") return;
+        if (loadedViewedStorageKeyRef.current === viewedStorageKey) return;
+        loadedViewedStorageKeyRef.current = viewedStorageKey;
+        autoMarkedViewedVersionIdsRef.current = new Set();
+        const history = readFileVersionHistory(viewedStorageKey);
+        const knownVersionIds = collectKnownVersionIds(history);
+        const fingerprintFallback = new Map<string, string>();
+        for (const [path, current] of currentFileVersionsByPath.entries()) {
+            fingerprintFallback.set(path, current.fingerprint);
+        }
+        const viewedIds = readViewedVersionIds(viewedStorageKey, {
+            fileDiffFingerprints: fingerprintFallback,
+            knownVersionIds,
+        });
+        setFileVersionHistoryByPath(history);
+        setViewedVersionIds(viewedIds);
+        setSelectedVersionIdByPath({});
+    }, [currentFileVersionsByPath, viewedStorageKey]);
+
+    useEffect(() => {
+        setFileVersionHistoryByPath((prev) => mergeCurrentFileVersionsIntoHistory(prev, currentFileVersionsByPath));
+    }, [currentFileVersionsByPath]);
+
+    useEffect(() => {
+        if (!viewedStorageKey || typeof window === "undefined") return;
+        writeFileVersionHistory(viewedStorageKey, fileVersionHistoryByPath);
+    }, [fileVersionHistoryByPath, viewedStorageKey]);
+
+    const knownVersionIds = useMemo(() => collectKnownVersionIds(fileVersionHistoryByPath), [fileVersionHistoryByPath]);
+
+    useEffect(() => {
+        setViewedVersionIds((prev) => cleanupViewedVersionIds(prev, knownVersionIds));
+    }, [knownVersionIds]);
+
+    useEffect(() => {
+        if (!viewedStorageKey || typeof window === "undefined") return;
+        writeViewedVersionIds(viewedStorageKey, viewedVersionIds);
+    }, [viewedStorageKey, viewedVersionIds]);
+
+    useEffect(() => {
+        setSelectedVersionIdByPath((prev) => {
+            let changed = false;
+            const next: Record<string, string> = {};
+            for (const [path, pathHistory] of Object.entries(fileVersionHistoryByPath)) {
+                const selectedVersionId = prev[path];
+                if (selectedVersionId && pathHistory.versions[selectedVersionId]) {
+                    next[path] = selectedVersionId;
+                    if (selectedVersionId !== prev[path]) changed = true;
+                    continue;
+                }
+                const latestVersionId = pathHistory.order[0];
+                if (!latestVersionId) continue;
+                next[path] = latestVersionId;
+                if (selectedVersionId !== latestVersionId) {
+                    changed = true;
+                }
+            }
+            if (!changed && Object.keys(prev).length === Object.keys(next).length) {
+                return prev;
+            }
+            return next;
+        });
+    }, [fileVersionHistoryByPath]);
+
+    const getSelectedVersionIdForPath = useCallback(
+        (path: string) => {
+            const selectedVersionId = selectedVersionIdByPath[path];
+            if (selectedVersionId && fileVersionHistoryByPath[path]?.versions[selectedVersionId]) {
+                return selectedVersionId;
+            }
+            return latestVersionIdByPath.get(path);
+        },
+        [fileVersionHistoryByPath, latestVersionIdByPath, selectedVersionIdByPath],
+    );
+
+    const markVersionViewed = useCallback((versionId: string) => {
+        setViewedVersionIds((prev) => {
+            if (prev.has(versionId)) return prev;
+            const next = new Set(prev);
+            next.add(versionId);
+            return next;
+        });
+    }, []);
+
+    const markPathViewed = useCallback(
+        (path: string) => {
+            const selectedVersionId = getSelectedVersionIdForPath(path);
+            if (!selectedVersionId) return;
+            markVersionViewed(selectedVersionId);
+        },
+        [getSelectedVersionIdForPath, markVersionViewed],
+    );
+
+    const markLatestPathViewed = useCallback(
+        (path: string) => {
+            const latestVersionId = latestVersionIdByPath.get(path);
+            if (!latestVersionId) return;
+            markVersionViewed(latestVersionId);
+        },
+        [latestVersionIdByPath, markVersionViewed],
+    );
+
+    const toggleViewedForPath = useCallback(
+        (path: string) => {
+            const selectedVersionId = getSelectedVersionIdForPath(path);
+            if (!selectedVersionId) return;
+            setViewedVersionIds((prev) => {
+                const next = new Set(prev);
+                if (next.has(selectedVersionId)) {
+                    next.delete(selectedVersionId);
+                } else {
+                    next.add(selectedVersionId);
+                }
+                return next;
+            });
+        },
+        [getSelectedVersionIdForPath],
+    );
+
+    const isPathViewed = useCallback((path: string) => viewedFiles.has(path), [viewedFiles]);
+    const isVersionViewed = useCallback((versionId: string) => viewedVersionIds.has(versionId), [viewedVersionIds]);
+    const setSelectedVersionForPath = useCallback((path: string, versionId: string) => {
+        setSelectedVersionIdByPath((prev) => {
+            if (prev[path] === versionId) return prev;
+            return {
+                ...prev,
+                [path]: versionId,
+            };
+        });
+    }, []);
+    const getVersionOptionsForPath = useCallback(
+        (path: string) => {
+            const pathHistory = fileVersionHistoryByPath[path];
+            if (!pathHistory || pathHistory.order.length === 0)
+                return [] as Array<{ id: string; label: string; unread: boolean; latest: boolean; version: StoredFileVersion }>;
+            const latestVersionId = pathHistory.order[0];
+            return pathHistory.order
+                .map((versionId, index) => {
+                    const version = pathHistory.versions[versionId];
+                    if (!version) return null;
+                    const latest = versionId === latestVersionId;
+                    return {
+                        id: versionId,
+                        label: getVersionLabel(version, latest, index),
+                        unread: !viewedVersionIds.has(versionId),
+                        latest,
+                        version,
+                    };
+                })
+                .filter((option): option is { id: string; label: string; unread: boolean; latest: boolean; version: StoredFileVersion } => Boolean(option));
+        },
+        [fileVersionHistoryByPath, viewedVersionIds],
+    );
+    const resolveDisplayedDiffForPath = useCallback(
+        (path: string, latestFileDiff: FileDiffMetadata | undefined) => {
+            if (!latestFileDiff) {
+                return {
+                    fileDiff: undefined,
+                    readOnlyHistorical: false,
+                    selectedVersionId: undefined,
+                };
+            }
+            const selectedVersionId = getSelectedVersionIdForPath(path);
+            const latestVersionId = latestVersionIdByPath.get(path);
+            if (!selectedVersionId || !latestVersionId || selectedVersionId === latestVersionId) {
+                return {
+                    fileDiff: latestFileDiff,
+                    readOnlyHistorical: false,
+                    selectedVersionId: latestVersionId ?? selectedVersionId,
+                };
+            }
+            const selectedVersion = fileVersionHistoryByPath[path]?.versions[selectedVersionId];
+            if (!selectedVersion) {
+                return {
+                    fileDiff: latestFileDiff,
+                    readOnlyHistorical: false,
+                    selectedVersionId: latestVersionId,
+                };
+            }
+            return {
+                fileDiff: selectedVersion.snapshot as unknown as FileDiffMetadata,
+                readOnlyHistorical: true,
+                selectedVersionId,
+            };
+        },
+        [fileVersionHistoryByPath, getSelectedVersionIdForPath, latestVersionIdByPath],
+    );
+    const selectedFileDisplayState = useMemo(
+        () =>
+            selectedFilePath
+                ? resolveDisplayedDiffForPath(selectedFilePath, selectedFileDiff)
+                : { fileDiff: selectedFileDiff, readOnlyHistorical: false, selectedVersionId: undefined },
+        [resolveDisplayedDiffForPath, selectedFileDiff, selectedFilePath],
+    );
+
     const allModeSectionPaths = useMemo(
         () => (prData ? [PR_SUMMARY_PATH, ...allModeDiffEntries.map((entry) => entry.filePath)] : allModeDiffEntries.map((entry) => entry.filePath)),
         [allModeDiffEntries, prData],
@@ -526,25 +767,36 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         () => allDiffFilePaths.reduce((count, path) => (viewedFiles.has(path) ? count : count + 1), 0),
         [allDiffFilePaths, viewedFiles],
     );
+    const allVersionIdsForVisibleFiles = useMemo(() => {
+        const ids = new Set<string>();
+        for (const path of allDiffFilePaths) {
+            const pathHistory = fileVersionHistoryByPath[path];
+            if (!pathHistory) continue;
+            for (const versionId of pathHistory.order) {
+                ids.add(versionId);
+            }
+        }
+        return ids;
+    }, [allDiffFilePaths, fileVersionHistoryByPath]);
     const areAllFilesViewed = useMemo(
-        () => allDiffFilePaths.length > 0 && allDiffFilePaths.every((path) => viewedFiles.has(path)),
-        [allDiffFilePaths, viewedFiles],
+        () => allVersionIdsForVisibleFiles.size > 0 && Array.from(allVersionIdsForVisibleFiles).every((versionId) => viewedVersionIds.has(versionId)),
+        [allVersionIdsForVisibleFiles, viewedVersionIds],
     );
     const toggleAllFilesViewed = useCallback(() => {
-        setViewedFiles((prev) => {
+        setViewedVersionIds((prev) => {
             const next = new Set(prev);
             if (areAllFilesViewed) {
-                for (const path of allDiffFilePaths) {
-                    next.delete(path);
+                for (const versionId of allVersionIdsForVisibleFiles) {
+                    next.delete(versionId);
                 }
                 return next;
             }
-            for (const path of allDiffFilePaths) {
-                next.add(path);
+            for (const versionId of allVersionIdsForVisibleFiles) {
+                next.add(versionId);
             }
             return next;
         });
-    }, [allDiffFilePaths, areAllFilesViewed]);
+    }, [allVersionIdsForVisibleFiles, areAllFilesViewed]);
 
     useReviewTreeModelSync({
         showSettingsPanel,
@@ -575,8 +827,9 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         showSettingsPanel,
         activeFile,
         visiblePathSet,
-        autoMarkedViewedFilesRef,
-        setViewedFiles,
+        autoMarkedViewedVersionIdsRef,
+        getSelectedVersionIdForPath,
+        markPathViewed,
     });
 
     useEnsureSummarySelection({
@@ -666,7 +919,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         settingsPathSet,
         viewMode,
         treeOrderedVisiblePaths,
-        viewedFiles,
+        isPathViewed,
         directoryPaths,
         diffScrollRef,
         setActiveFile,
@@ -674,7 +927,8 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         setShowSettingsPanel,
         setCollapsedAllModeFiles,
         setIsSummaryCollapsedInAllMode,
-        setViewedFiles,
+        toggleViewedForPath,
+        markViewedForPath: markPathViewed,
         setDirectoryExpandedMap,
         onProgrammaticAllModeRevealStart: handleProgrammaticAllModeRevealStart,
         onApprovePullRequest: handleApprovePullRequest,
@@ -727,12 +981,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                     options.autoMarkViewedFiles &&
                     (metadata.isSticky || isProgrammaticReveal || (pendingScrollPath === null && path === lastAllModeSectionPath));
                 if (shouldMarkViewed && allModeLastStickyPathRef.current !== path) {
-                    setViewedFiles((prev) => {
-                        if (prev.has(path)) return prev;
-                        const next = new Set(prev);
-                        next.add(path);
-                        return next;
-                    });
+                    markLatestPathViewed(path);
                 }
             }
             if (metadata.isSticky) {
@@ -745,7 +994,16 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             suppressHashSyncRef.current = true;
             setActiveFile(path);
         },
-        [activeFile, allModePendingScrollPath, expand, lastAllModeSectionPath, options.autoMarkViewedFiles, revealTreePath, setActiveFile],
+        [
+            activeFile,
+            allModePendingScrollPath,
+            expand,
+            lastAllModeSectionPath,
+            markLatestPathViewed,
+            options.autoMarkViewedFiles,
+            revealTreePath,
+            setActiveFile,
+        ],
     );
 
     useReviewFileHashSelection({
@@ -981,7 +1239,9 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                     lineStats={lineStats}
                     isSummarySelected={isSummarySelected}
                     selectedFilePath={selectedFilePath}
-                    selectedFileDiff={selectedFileDiff}
+                    selectedFileDiff={selectedFileDisplayState.fileDiff}
+                    selectedFileReadOnlyHistorical={selectedFileDisplayState.readOnlyHistorical}
+                    selectedFileVersionId={selectedFileDisplayState.selectedVersionId}
                     copiedPath={copiedPath}
                     fileLineStats={fileLineStats}
                     viewedFiles={viewedFiles}
@@ -1000,6 +1260,11 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                     resolveCommentPending={resolveCommentMutation.isPending}
                     toRenderableFileDiff={toRenderableFileDiff}
                     allModeDiffEntries={allModeDiffEntries}
+                    getSelectedVersionIdForPath={getSelectedVersionIdForPath}
+                    getVersionOptionsForPath={getVersionOptionsForPath}
+                    onSelectVersionForPath={setSelectedVersionForPath}
+                    resolveDisplayedDiffForPath={resolveDisplayedDiffForPath}
+                    isVersionViewed={isVersionViewed}
                     threadsByPath={threadsByPath}
                     collapsedAllModeFiles={collapsedAllModeFiles}
                     collapseViewedFilesByDefault={options.collapseViewedFilesByDefault}

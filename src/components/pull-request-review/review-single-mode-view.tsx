@@ -4,6 +4,7 @@ import { Check, CheckCheck, Copy } from "lucide-react";
 import type { CSSProperties } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
 import { DiffContextButton, type DiffContextState } from "@/components/pull-request-review/diff-context-button";
+import { FileVersionSelect, type FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { InlineDiffAnnotation } from "@/components/pull-request-review/inline-diff-annotation";
 import { ReviewDiffSettingsMenu } from "@/components/pull-request-review/review-diff-settings-menu";
 import { ThreadCard } from "@/components/pull-request-review/review-thread-card";
@@ -26,9 +27,11 @@ type ReviewSingleModeViewProps = {
     isSummarySelected: boolean;
     selectedFilePath?: string;
     selectedFileDiff?: FileDiffMetadata;
+    selectedFileReadOnlyHistorical: boolean;
+    selectedFileVersionId?: string;
+    selectedFileVersionOptions: FileVersionSelectOption[];
     copiedPath: string | null;
     fileLineStats: Map<string, { added: number; removed: number }>;
-    viewedFiles: Set<string>;
     diffHighlighterReady: boolean;
     diffTypographyStyle: CSSProperties;
     singleFileDiffOptions: FileDiffOptions<undefined>;
@@ -46,6 +49,7 @@ type ReviewSingleModeViewProps = {
     areAllFilesViewed: boolean;
     onToggleAllFilesViewed: () => void;
     onToggleViewed: (path: string) => void;
+    onSelectFileVersion: (versionId: string) => void;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
     onSubmitInlineComment: () => void;
@@ -70,9 +74,11 @@ export function ReviewSingleModeView({
     isSummarySelected,
     selectedFilePath,
     selectedFileDiff,
+    selectedFileReadOnlyHistorical,
+    selectedFileVersionId,
+    selectedFileVersionOptions,
     copiedPath,
     fileLineStats,
-    viewedFiles,
     diffHighlighterReady,
     diffTypographyStyle,
     singleFileDiffOptions,
@@ -90,6 +96,7 @@ export function ReviewSingleModeView({
     areAllFilesViewed,
     onToggleAllFilesViewed,
     onToggleViewed,
+    onSelectFileVersion,
     getInlineDraftContent,
     setInlineDraftContent,
     onSubmitInlineComment,
@@ -104,6 +111,9 @@ export function ReviewSingleModeView({
     onHistoryCommentNavigate,
 }: ReviewSingleModeViewProps) {
     const hasFullContext = selectedFilePath ? fileContextState[selectedFilePath]?.status === "ready" : false;
+    const isSelectedVersionViewed = selectedFileVersionId
+        ? selectedFileVersionOptions.some((option) => option.id === selectedFileVersionId && !option.unread)
+        : false;
     const resolvedFileDiffOptions =
         hasFullContext && typeof singleFileDiffOptions.hunkSeparators !== "function"
             ? singleFileDiffOptions.hunkSeparators === "line-info"
@@ -169,7 +179,12 @@ export function ReviewSingleModeView({
                     >
                         {copiedPath === selectedFilePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                     </Button>
-                    <DiffContextButton state={fileContextState[selectedFilePath]} onClick={() => onLoadFullFileContext(selectedFilePath, selectedFileDiff)} />
+                    <FileVersionSelect value={selectedFileVersionId ?? ""} options={selectedFileVersionOptions} onValueChange={onSelectFileVersion} />
+                    <DiffContextButton
+                        state={fileContextState[selectedFilePath]}
+                        onClick={() => onLoadFullFileContext(selectedFilePath, selectedFileDiff)}
+                        disabled={selectedFileReadOnlyHistorical}
+                    />
                 </div>
                 <div className="ml-auto flex items-center gap-2 text-[12px]">
                     <span className="select-none text-status-added">+{fileLineStats.get(selectedFilePath)?.added ?? 0}</span>
@@ -178,7 +193,7 @@ export function ReviewSingleModeView({
                     <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(selectedFilePath)}>
                         <span
                             className={
-                                viewedFiles.has(selectedFilePath)
+                                isSelectedVersionViewed
                                     ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
                                     : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
                             }
@@ -196,7 +211,7 @@ export function ReviewSingleModeView({
                         options={resolvedFileDiffOptions}
                         className="compact-diff commentable-diff pr-diff-font"
                         style={diffTypographyStyle}
-                        lineAnnotations={singleFileAnnotations}
+                        lineAnnotations={selectedFileReadOnlyHistorical ? [] : singleFileAnnotations}
                         renderAnnotation={(annotation) => (
                             <InlineDiffAnnotation
                                 annotation={annotation as SingleFileAnnotation}
@@ -204,7 +219,7 @@ export function ReviewSingleModeView({
                                 repo={repo}
                                 pullRequestId={pullRequestId}
                                 createCommentPending={createCommentPending}
-                                canCommentInline={canCommentInline}
+                                canCommentInline={canCommentInline && !selectedFileReadOnlyHistorical}
                                 canResolveThread={canResolveThread}
                                 resolveCommentPending={resolveCommentPending}
                                 getInlineDraftContent={getInlineDraftContent}
@@ -224,7 +239,7 @@ export function ReviewSingleModeView({
                 )}
             </div>
 
-            {selectedFileLevelThreads.length > 0 ? (
+            {!selectedFileReadOnlyHistorical && selectedFileLevelThreads.length > 0 ? (
                 <div className="border-t border-border px-3 py-2 space-y-2">
                     {selectedFileLevelThreads.map((thread) => (
                         <ThreadCard

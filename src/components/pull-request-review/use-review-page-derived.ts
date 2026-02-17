@@ -3,6 +3,7 @@ import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useCallback, useMemo } from "react";
 import { formatNavbarDate, linesUpdated, normalizeNavbarState } from "@/components/pull-request-review/review-formatters";
 import { useDiffHighlighterState } from "@/components/pull-request-review/use-review-page-effects";
+import type { StoredFileDiffSnapshot } from "@/components/pull-request-review/use-review-storage";
 import type { FileNode } from "@/lib/file-tree-context";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
@@ -44,6 +45,15 @@ function buildFileDiffFingerprint(fileDiff: FileDiffMetadata) {
         })),
     };
     return hashString(JSON.stringify(normalized));
+}
+
+function toStoredSnapshot(fileDiff: FileDiffMetadata): StoredFileDiffSnapshot {
+    return {
+        type: fileDiff.type,
+        name: fileDiff.name,
+        prevName: fileDiff.prevName,
+        hunks: fileDiff.hunks,
+    };
 }
 
 export function useReviewPageDerived({
@@ -136,6 +146,16 @@ export function useReviewPageDerived({
         fileDiffs.forEach((fileDiff, index) => {
             const path = getFilePath(fileDiff, index);
             if (!map.has(path)) map.set(path, fileDiff);
+        });
+        return map;
+    }, [fileDiffs]);
+    const fileDiffSnapshots = useMemo(() => {
+        const map = new Map<string, StoredFileDiffSnapshot>();
+        fileDiffs.forEach((fileDiff, index) => {
+            const path = getFilePath(fileDiff, index);
+            if (!map.has(path)) {
+                map.set(path, toStoredSnapshot(fileDiff));
+            }
         });
         return map;
     }, [fileDiffs]);
@@ -345,6 +365,7 @@ export function useReviewPageDerived({
         singleFileAnnotations,
         singleFileDiffOptions,
         fileDiffFingerprints,
+        fileDiffSnapshots,
     };
 }
 

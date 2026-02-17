@@ -1,4 +1,4 @@
-import type { DiffStatEntry, PullRequestBuildStatus, PullRequestDetails } from "@/lib/git-host/types";
+import type { DiffStatEntry, PullRequestBuildStatus } from "@/lib/git-host/types";
 
 const RELATIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000;
 
@@ -131,9 +131,4 @@ export function linesUpdated(diffstat: DiffStatEntry[]) {
         removed += Number(entry.linesRemoved ?? 0);
     }
     return { added, removed };
-}
-
-export function getNavbarStatusDate(prData?: { pr: PullRequestDetails }) {
-    if (!prData) return "Unknown";
-    return formatNavbarDate(prData.pr.mergedAt ?? prData.pr.closedAt ?? prData.pr.updatedAt);
 }

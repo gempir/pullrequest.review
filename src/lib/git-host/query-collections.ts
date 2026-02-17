@@ -2,17 +2,14 @@ import { type Collection, createCollection, localOnlyCollectionOptions } from "@
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
 import { fetchPullRequestBundleByRef, fetchRepoPullRequestsForHost, listRepositoriesForHost } from "@/lib/git-host/service";
 import type { GitHost, PullRequestBundle, PullRequestRef, PullRequestSummary, RepoRef } from "@/lib/git-host/types";
+import { LruCache } from "@/lib/utils/lru";
 
 export type PullRequestBundleRecord = PullRequestBundle & {
     id: string;
     fetchedAt: number;
 };
 
-type PersistedPullRequestBundleRecord = {
-    id: string;
-    bundleJson: string;
-    fetchedAt: number;
-};
+type PersistedPullRequestBundleRecord = PullRequestBundleRecord;
 
 export type PullRequestFileContextRecord = {
     id: string;
@@ -27,8 +24,8 @@ type PersistedRepoPullRequestRecord = {
     id: string;
     repoKey: string;
     host: GitHost;
-    repoJson: string;
-    pullRequestJson: string;
+    repo: RepoRef;
+    pullRequest: PullRequestSummary;
     fetchedAt: number;
 };
 
@@ -78,7 +75,7 @@ export type GitHostFetchActivitySnapshot = {
     trackedScopeCount: number;
 };
 
-const HOST_DATA_DATABASE_NAME = "pullrequestdotreview_host_data_v2";
+const HOST_DATA_DATABASE_NAME = "pullrequestdotreview_host_data_v3";
 const REPOSITORY_RX_COLLECTION_NAME = "repositories";
 const REPO_PULL_REQUEST_RX_COLLECTION_NAME = "repo_pull_requests";
 const PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME = "pull_request_bundles";
@@ -88,6 +85,7 @@ const REPOSITORY_TANSTACK_COLLECTION_ID = "repos:rxdb";
 const REPO_PULL_REQUEST_TANSTACK_COLLECTION_ID = "repo-prs:rxdb";
 const PULL_REQUEST_BUNDLE_TANSTACK_COLLECTION_ID = "pr-bundle:rxdb";
 const PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID = "pr-file-contexts:rxdb";
+const SCOPED_COLLECTION_CACHE_SIZE = 100;
 
 const REPOSITORY_RX_SCHEMA = {
     title: "pullrequestdotreview repositories",
@@ -146,18 +144,20 @@ const REPO_PULL_REQUEST_RX_SCHEMA = {
             type: "string",
             maxLength: 20,
         },
-        repoJson: {
-            type: "string",
+        repo: {
+            type: "object",
+            additionalProperties: true,
         },
-        pullRequestJson: {
-            type: "string",
+        pullRequest: {
+            type: "object",
+            additionalProperties: true,
         },
         fetchedAt: {
             type: "number",
             minimum: 0,
         },
     },
-    required: ["id", "repoKey", "host", "repoJson", "pullRequestJson", "fetchedAt"],
+    required: ["id", "repoKey", "host", "repo", "pullRequest", "fetchedAt"],
     additionalProperties: false,
 } as const;
 
@@ -171,15 +171,65 @@ const PULL_REQUEST_BUNDLE_RX_SCHEMA = {
             type: "string",
             maxLength: 800,
         },
-        bundleJson: {
+        prRef: {
+            type: "object",
+            additionalProperties: true,
+        },
+        pr: {
+            type: "object",
+            additionalProperties: true,
+        },
+        diff: {
             type: "string",
+        },
+        diffstat: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: true,
+            },
+        },
+        commits: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: true,
+            },
+        },
+        comments: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: true,
+            },
+        },
+        history: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: true,
+            },
+        },
+        reviewers: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: true,
+            },
+        },
+        buildStatuses: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: true,
+            },
         },
         fetchedAt: {
             type: "number",
             minimum: 0,
         },
     },
-    required: ["id", "bundleJson", "fetchedAt"],
+    required: ["id", "prRef", "pr", "diff", "diffstat", "commits", "comments", "fetchedAt"],
     additionalProperties: false,
 } as const;
 
@@ -233,11 +283,11 @@ let pullRequestBundleCollection: Collection<PersistedPullRequestBundleRecord, st
 let pullRequestFileContextCollection: Collection<PullRequestFileContextRecord, string> | null = null;
 
 const repositoryScopedCollections = new Map<GitHost, ScopedCollection<RepositoryRecord>>();
-const repoPullRequestScopedCollections = new Map<string, ScopedCollection<PersistedRepoPullRequestRecord>>();
-const pullRequestBundleScopedCollections = new Map<string, ScopedCollection<PersistedPullRequestBundleRecord>>();
+const repoPullRequestScopedCollections = new LruCache<string, ScopedCollection<PersistedRepoPullRequestRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
+const pullRequestBundleScopedCollections = new LruCache<string, ScopedCollection<PersistedPullRequestBundleRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
 const fetchActivityListeners = new Set<() => void>();
 const activeFetchesByScope = new Map<string, FetchActivity>();
-const refetchRegistry = new Map<string, RefetchRegistryEntry>();
+const refetchRegistry = new LruCache<string, RefetchRegistryEntry>(SCOPED_COLLECTION_CACHE_SIZE);
 const hostDataCollectionsVersionListeners = new Set<() => void>();
 let fetchActivityVersion = 0;
 let cachedFetchActivitySnapshotVersion = -1;
@@ -281,11 +331,24 @@ function registerRefetchScope(scopeId: string, label: string, refetch: (opts?: {
     if (existing?.label === label && existing.refetch === refetch) {
         return;
     }
-    refetchRegistry.set(scopeId, {
+    const { evicted } = refetchRegistry.set(scopeId, {
         label,
         refetch,
     });
+    if (evicted) {
+        activeFetchesByScope.delete(evicted.key);
+        notifyFetchActivityListeners();
+    }
     // Do not notify during render-time scope registration; listeners update on fetch transitions.
+}
+
+function unregisterScope(scopeId: string) {
+    const hadFetch = activeFetchesByScope.has(scopeId);
+    refetchRegistry.delete(scopeId);
+    activeFetchesByScope.delete(scopeId);
+    if (hadFetch) {
+        notifyFetchActivityListeners();
+    }
 }
 
 export function subscribeGitHostFetchActivity(listener: () => void) {
@@ -411,16 +474,10 @@ function stringifyCollectionRepos(reposByHost: ReposByHost) {
 }
 
 function serializePullRequestBundle(bundle: PullRequestBundle): PersistedPullRequestBundleRecord {
-    const serialized: PullRequestBundleRecord = {
+    return {
         ...bundle,
         id: pullRequestBundleId(bundle.prRef),
         fetchedAt: Date.now(),
-    };
-
-    return {
-        id: serialized.id,
-        fetchedAt: serialized.fetchedAt,
-        bundleJson: JSON.stringify(serialized),
     };
 }
 
@@ -433,8 +490,8 @@ function serializeRepoPullRequestRecord(repo: RepoRef, pullRequest: PullRequestS
         id: `${repoKey}#${normalizedPullRequest.id}`,
         repoKey,
         host: normalizedRepo.host,
-        repoJson: JSON.stringify(normalizedRepo),
-        pullRequestJson: JSON.stringify(normalizedPullRequest),
+        repo: normalizedRepo,
+        pullRequest: normalizedPullRequest,
         fetchedAt: Date.now(),
     };
 }
@@ -460,42 +517,6 @@ function serializePullRequestFileContextRecord({
         newLines,
         fetchedAt,
     };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-}
-
-function isValidPullRequestRef(value: unknown): value is PullRequestRef {
-    if (!isRecord(value)) return false;
-    return (
-        (value.host === "bitbucket" || value.host === "github") &&
-        typeof value.workspace === "string" &&
-        value.workspace.length > 0 &&
-        typeof value.repo === "string" &&
-        value.repo.length > 0 &&
-        typeof value.pullRequestId === "string" &&
-        value.pullRequestId.length > 0
-    );
-}
-
-export function isValidPullRequestBundleRecord(value: unknown): value is PullRequestBundleRecord {
-    if (!isRecord(value)) return false;
-    const pullRequest = value.pr;
-    if (!isRecord(pullRequest)) return false;
-    return (
-        typeof value.id === "string" &&
-        value.id.length > 0 &&
-        isValidPullRequestRef(value.prRef) &&
-        typeof value.diff === "string" &&
-        Array.isArray(value.diffstat) &&
-        Array.isArray(value.commits) &&
-        Array.isArray(value.comments) &&
-        typeof pullRequest.id === "number" &&
-        Number.isFinite(pullRequest.id) &&
-        typeof pullRequest.title === "string" &&
-        typeof pullRequest.state === "string"
-    );
 }
 
 function isValidRepoRef(repo: RepoRef | undefined): repo is RepoRef {
@@ -613,12 +634,12 @@ async function fallbackToInMemoryHostDataCollections() {
         repositoryScopedCollections.forEach((scoped) => {
             scoped.collection = nextRepositoryCollection;
         });
-        repoPullRequestScopedCollections.forEach((scoped) => {
+        for (const scoped of repoPullRequestScopedCollections.values()) {
             scoped.collection = nextRepoPullRequestCollection;
-        });
-        pullRequestBundleScopedCollections.forEach((scoped) => {
+        }
+        for (const scoped of pullRequestBundleScopedCollections.values()) {
             scoped.collection = nextPullRequestBundleCollection;
-        });
+        }
 
         console.warn("Host-data collections switched to in-memory mode after storage quota errors.");
         hostDataFallbackActive = true;
@@ -839,7 +860,10 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef) {
         collection: getHostDataCollection("pullRequestBundles"),
         utils,
     };
-    pullRequestBundleScopedCollections.set(bundleId, scoped);
+    const { evicted } = pullRequestBundleScopedCollections.set(bundleId, scoped);
+    if (evicted) {
+        unregisterScope(`pr-bundle:${evicted.key}`);
+    }
     registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;
 }
@@ -963,7 +987,10 @@ export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHo
         collection: getHostDataCollection("repoPullRequests"),
         utils,
     };
-    repoPullRequestScopedCollections.set(scopeId, scoped);
+    const { evicted } = repoPullRequestScopedCollections.set(scopeId, scoped);
+    if (evicted) {
+        unregisterScope(evicted.key);
+    }
     registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;
 }
@@ -1019,25 +1046,4 @@ export function getRepositoryCollection(host: GitHost) {
     repositoryScopedCollections.set(host, scoped);
     registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;
-}
-
-export async function __resetGitHostCollectionsForTests() {
-    if (hostDataDatabase) {
-        await hostDataDatabase.close();
-    }
-
-    hostDataDatabase = null;
-    hostDataReadyPromise = null;
-
-    repositoryCollection = null;
-    repoPullRequestCollection = null;
-    pullRequestBundleCollection = null;
-    pullRequestFileContextCollection = null;
-
-    repositoryScopedCollections.clear();
-    repoPullRequestScopedCollections.clear();
-    pullRequestBundleScopedCollections.clear();
-    activeFetchesByScope.clear();
-    refetchRegistry.clear();
-    notifyFetchActivityListeners();
 }

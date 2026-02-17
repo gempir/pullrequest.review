@@ -1,8 +1,8 @@
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 
-export const PR_FILE_HASH_PREFIX = "/";
+const PR_FILE_HASH_PREFIX = "/";
 
-export function buildPrFileHash(path: string): string {
+function buildPrFileHash(path: string): string {
     return `${PR_FILE_HASH_PREFIX}${path}`;
 }
 

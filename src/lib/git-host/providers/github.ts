@@ -1,3 +1,4 @@
+import { githubAuthSchema, parseSchema } from "@/lib/git-host/schemas";
 import { parseFailureBody } from "@/lib/git-host/shared/http";
 import { collectPaginated } from "@/lib/git-host/shared/pagination";
 import {
@@ -163,8 +164,8 @@ interface GithubCombinedStatusResponse {
 function parseAuth(rawValue: string | null): GithubAuth | null {
     if (!rawValue) return null;
     try {
-        const parsed = JSON.parse(rawValue) as Partial<GithubAuth>;
-        const token = parsed.token?.trim();
+        const parsed = parseSchema(githubAuthSchema, JSON.parse(rawValue));
+        const token = parsed?.token.trim();
         if (!token) return null;
         return { token };
     } catch {

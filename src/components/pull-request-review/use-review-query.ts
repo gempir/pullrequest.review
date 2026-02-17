@@ -9,6 +9,7 @@ import {
     subscribeGitHostFetchActivity,
     subscribeHostDataCollectionsVersion,
 } from "@/lib/git-host/query-collections";
+import { parseSchema, pullRequestBundleSchema } from "@/lib/git-host/schemas";
 import { getCapabilitiesForHost } from "@/lib/git-host/service";
 import { type GitHost, HostApiError } from "@/lib/git-host/types";
 
@@ -34,41 +35,16 @@ export function isRateLimitedError(error: unknown) {
 }
 
 function normalizeBundleRecord(value: unknown): PullRequestBundleRecord | undefined {
-    if (!value || typeof value !== "object") return undefined;
-    const record = value as Record<string, unknown>;
-    if (typeof record.bundleJson === "string") {
-        try {
-            const parsed = JSON.parse(record.bundleJson) as unknown;
-            return normalizeBundleRecord(parsed);
-        } catch {
-            return undefined;
-        }
-    }
-    if (record.bundle && typeof record.bundle === "object") {
-        return normalizeBundleRecord(record.bundle);
-    }
-
-    let normalized: PullRequestBundleRecord | undefined;
-    if (record.pr && typeof record.pr === "object") {
-        normalized = value as PullRequestBundleRecord;
-    } else if (record.pullRequest && typeof record.pullRequest === "object") {
-        // Support stale runtime rows that still use "pullRequest" as the details key.
-        normalized = {
-            ...(record as unknown as PullRequestBundleRecord),
-            pr: record.pullRequest as PullRequestBundleRecord["pr"],
-        };
-    } else {
-        normalized = value as PullRequestBundleRecord;
-    }
-
+    const parsed = parseSchema(pullRequestBundleSchema, value);
+    if (!parsed) return undefined;
     return {
-        ...normalized,
-        diffstat: Array.isArray(normalized.diffstat) ? normalized.diffstat : [],
-        commits: Array.isArray(normalized.commits) ? normalized.commits : [],
-        comments: Array.isArray(normalized.comments) ? normalized.comments : [],
-        history: Array.isArray(normalized.history) ? normalized.history : [],
-        reviewers: Array.isArray(normalized.reviewers) ? normalized.reviewers : [],
-        buildStatuses: Array.isArray(normalized.buildStatuses) ? normalized.buildStatuses : [],
+        ...(value as PullRequestBundleRecord),
+        diffstat: Array.isArray(parsed.diffstat) ? (parsed.diffstat as PullRequestBundleRecord["diffstat"]) : [],
+        commits: Array.isArray(parsed.commits) ? (parsed.commits as PullRequestBundleRecord["commits"]) : [],
+        comments: Array.isArray(parsed.comments) ? (parsed.comments as PullRequestBundleRecord["comments"]) : [],
+        history: Array.isArray(parsed.history) ? (parsed.history as PullRequestBundleRecord["history"]) : [],
+        reviewers: Array.isArray(parsed.reviewers) ? (parsed.reviewers as PullRequestBundleRecord["reviewers"]) : [],
+        buildStatuses: Array.isArray(parsed.buildStatuses) ? (parsed.buildStatuses as PullRequestBundleRecord["buildStatuses"]) : [],
     };
 }
 
@@ -76,7 +52,6 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
     const hostCapabilities = useMemo(() => getCapabilitiesForHost(host), [host]);
     const canLoadPullRequest = canRead || hostCapabilities.publicReadSupported;
     const bundleId = useMemo(() => `${host}:${workspace}/${repo}/${pullRequestId}`, [host, pullRequestId, repo, workspace]);
-    const queryKey = useMemo(() => ["pr-bundle", host, workspace, repo, pullRequestId] as const, [host, pullRequestId, repo, workspace]);
     const fetchScopeId = useMemo(() => pullRequestDetailsFetchScopeId({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
     const fetchActivity = useSyncExternalStore(subscribeGitHostFetchActivity, getGitHostFetchActivitySnapshot, getGitHostFetchActivitySnapshot);
     const hostDataCollectionsVersion = useSyncExternalStore(
@@ -152,8 +127,6 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
 
     return {
         hostCapabilities,
-        queryKey,
         query,
-        hasPendingBuildStatuses,
     };
 }

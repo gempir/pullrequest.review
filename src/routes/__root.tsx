@@ -2,12 +2,11 @@
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createRootRoute, HeadContent, Link, Outlet, Scripts, useNavigate, useRouterState } from "@tanstack/react-router";
-import { ExternalLink, GitPullRequest } from "lucide-react";
+import { GitPullRequest } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
+import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { AppearanceProvider } from "@/lib/appearance-context";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
@@ -90,19 +89,8 @@ function RootComponent() {
 }
 
 function OnboardingScreen() {
-    const { login, setActiveHost, activeHost } = usePrContext();
+    const { setActiveHost, activeHost } = usePrContext();
     const navigate = useNavigate();
-
-    const [email, setEmail] = useState("");
-    const [apiToken, setApiToken] = useState("");
-    const [githubToken, setGithubToken] = useState("");
-    const [copiedScopes, setCopiedScopes] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const bitbucketScopes = ["read:repository:bitbucket", "read:user:bitbucket", "read:pullrequest:bitbucket", "write:pullrequest:bitbucket"];
-
-    const scopeText = bitbucketScopes.join(", ");
 
     return (
         <div className="h-full min-h-0 flex bg-background">
@@ -128,7 +116,6 @@ function OnboardingScreen() {
                             }`}
                             onClick={() => {
                                 setActiveHost(host);
-                                setError(null);
                             }}
                         >
                             <GitHostIcon host={host} className="size-3.5" />
@@ -147,116 +134,7 @@ function OnboardingScreen() {
 
                 <main data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto p-4">
                     <div className="max-w-2xl space-y-4">
-                        <p className="text-[13px] text-muted-foreground">
-                            {activeHost === "bitbucket"
-                                ? "Use your Bitbucket email and API token to continue."
-                                : "Use a GitHub fine-grained personal access token to continue."}
-                        </p>
-
-                        {activeHost === "bitbucket" ? (
-                            <div className="border border-border bg-card p-3 text-[13px] space-y-2">
-                                <div className="text-muted-foreground">Required scopes</div>
-                                <div className="leading-relaxed break-words">{scopeText}</div>
-                                <div className="border border-status-modified/50 bg-status-modified/15 text-status-modified px-2 py-1.5 text-[12px]">
-                                    Hint: Paste these scopes into "Search by scope name" while creating the token
-                                </div>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 px-2 text-[11px]"
-                                    onClick={() => {
-                                        void navigator.clipboard.writeText(scopeText);
-                                        setCopiedScopes(true);
-                                        window.setTimeout(() => setCopiedScopes(false), 1200);
-                                    }}
-                                >
-                                    {copiedScopes ? "Copied" : "Copy scopes"}
-                                </Button>
-                            </div>
-                        ) : null}
-
-                        {activeHost === "bitbucket" ? (
-                            <Button
-                                className="w-full"
-                                onClick={() => window.open("https://id.atlassian.com/manage-profile/security/api-tokens", "_blank", "noopener,noreferrer")}
-                            >
-                                <ExternalLink className="size-3.5" />
-                                Create Atlassian Bitbucket Scoped API Token
-                            </Button>
-                        ) : (
-                            <Button
-                                className="w-full"
-                                variant="outline"
-                                onClick={() => window.open("https://github.com/settings/personal-access-tokens/new", "_blank", "noopener,noreferrer")}
-                            >
-                                <ExternalLink className="size-3.5" />
-                                Create GitHub Fine-Grained Token
-                            </Button>
-                        )}
-
-                        <form
-                            className="space-y-2"
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                setIsSubmitting(true);
-                                setError(null);
-
-                                const authPromise =
-                                    activeHost === "bitbucket" ? login({ host: "bitbucket", email, apiToken }) : login({ host: "github", token: githubToken });
-
-                                authPromise
-                                    .catch((err) => {
-                                        const msg = err instanceof Error ? err.message : "Failed to authenticate";
-                                        setError(msg);
-                                    })
-                                    .finally(() => {
-                                        setIsSubmitting(false);
-                                    });
-                            }}
-                        >
-                            {activeHost === "bitbucket" ? (
-                                <>
-                                    <Input
-                                        type="email"
-                                        value={email}
-                                        onChange={(event) => setEmail(event.target.value)}
-                                        placeholder="Bitbucket account email"
-                                        autoComplete="email"
-                                        className="text-[14px] h-10"
-                                    />
-                                    <Input
-                                        type="password"
-                                        value={apiToken}
-                                        onChange={(event) => setApiToken(event.target.value)}
-                                        placeholder="Bitbucket API token"
-                                        autoComplete="current-password"
-                                        className="text-[14px] h-10"
-                                    />
-                                </>
-                            ) : (
-                                <Input
-                                    type="password"
-                                    value={githubToken}
-                                    onChange={(event) => setGithubToken(event.target.value)}
-                                    placeholder="GitHub fine-grained personal access token"
-                                    autoComplete="current-password"
-                                    className="text-[14px] h-10"
-                                />
-                            )}
-
-                            <Button
-                                type="submit"
-                                className="w-full text-[14px] h-10"
-                                disabled={isSubmitting || (activeHost === "bitbucket" ? !email.trim() || !apiToken.trim() : !githubToken.trim())}
-                            >
-                                Authenticate
-                            </Button>
-                        </form>
-
-                        {error && <div className="border border-destructive bg-destructive/10 p-3 text-destructive text-[13px]">[AUTH ERROR] {error}</div>}
-
-                        <p className="text-[12px] text-muted-foreground">Credentials are stored in browser local storage.</p>
+                        <HostAuthForm host={activeHost} mode="onboarding" />
                     </div>
                 </main>
             </section>

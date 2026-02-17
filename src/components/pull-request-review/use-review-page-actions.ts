@@ -1,4 +1,4 @@
-import { type QueryClient, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { type MutableRefObject, useCallback } from "react";
 import {
     approvePullRequest,
@@ -34,8 +34,6 @@ type UseReviewPageActionsProps = {
     prData: PullRequestBundle | undefined;
     pullRequest: PullRequestDetails | undefined;
     isApprovedByCurrentUser: boolean;
-    queryClient: QueryClient;
-    prQueryKey: readonly unknown[];
     refetchPullRequest: () => Promise<unknown>;
     mergeMessage: string;
     mergeStrategy: string;
@@ -59,8 +57,6 @@ export function useReviewPageActions({
     prData,
     pullRequest,
     isApprovedByCurrentUser,
-    queryClient,
-    prQueryKey,
     refetchPullRequest,
     mergeMessage,
     mergeStrategy,
@@ -77,8 +73,8 @@ export function useReviewPageActions({
     setCopiedSourceBranch,
 }: UseReviewPageActionsProps) {
     const refreshPullRequest = useCallback(async () => {
-        await Promise.all([queryClient.invalidateQueries({ queryKey: prQueryKey }), refetchPullRequest()]);
-    }, [prQueryKey, queryClient, refetchPullRequest]);
+        await refetchPullRequest();
+    }, [refetchPullRequest]);
 
     const ensurePrRef = useCallback(() => {
         if (!prData?.prRef || !pullRequest) {

@@ -737,6 +737,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         (path: string) => {
             const options: FileVersionSelectOption[] = [];
             const latestVersionId = latestVersionIdByPath.get(path);
+            const remote = persistedFileHistoryByPath[path];
             if (latestVersionId) {
                 options.push({
                     id: latestVersionId,
@@ -745,24 +746,35 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                     latest: true,
                 });
             }
-            const remote = persistedFileHistoryByPath[path];
             if (!remote) return options;
-            for (let index = 0; index < remote.entries.length; index += 1) {
-                const entry = remote.entries[index];
+            const historicalEntries = [...remote.entries].sort((a, b) => {
+                const timeA = a.commitDate ? Date.parse(a.commitDate) : Number.NaN;
+                const timeB = b.commitDate ? Date.parse(b.commitDate) : Number.NaN;
+                if (Number.isNaN(timeA) && Number.isNaN(timeB)) return 0;
+                if (Number.isNaN(timeA)) return 1;
+                if (Number.isNaN(timeB)) return -1;
+                return timeB - timeA;
+            });
+            for (let index = 0; index < historicalEntries.length; index += 1) {
+                const entry = historicalEntries[index];
                 const label = entry.commitHash.slice(0, 8);
+                const commitMessage = entry.commitMessage?.split("\n")[0]?.trim();
                 options.push({
                     id: commitVersionId(path, entry.commitHash),
                     label,
                     unread: false,
                     latest: false,
+                    commitMessage: commitMessage || undefined,
+                    commitDate: entry.commitDate,
                 });
             }
             if (historyLoadingByPath[path]) {
                 options.push({
                     id: `${path}:loading`,
-                    label: "Loading...",
+                    label: "Loading history...",
                     unread: false,
                     latest: false,
+                    state: "loading",
                 });
             }
             if (historyErrorByPath[path]) {
@@ -771,6 +783,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                     label: "Failed to load",
                     unread: false,
                     latest: false,
+                    state: "error",
                 });
             }
             return options;

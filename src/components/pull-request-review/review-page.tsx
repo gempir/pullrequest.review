@@ -3,7 +3,7 @@ import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import { ReviewPageDiffContent } from "@/components/pull-request-review/review-page-diff-content";
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
@@ -41,7 +41,12 @@ import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
 import { commentAnchorId, fileAnchorId } from "@/lib/file-anchors";
 import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
-import { getPullRequestFileContextCollection, savePullRequestFileContextRecord } from "@/lib/git-host/query-collections";
+import {
+    getHostDataCollectionsVersionSnapshot,
+    getPullRequestFileContextCollection,
+    savePullRequestFileContextRecord,
+    subscribeHostDataCollectionsVersion,
+} from "@/lib/git-host/query-collections";
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import { fetchPullRequestFileContents } from "@/lib/git-host/service";
 import type { GitHost } from "@/lib/git-host/types";
@@ -131,6 +136,11 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const { root, dirState, setTree, setKinds, allFiles, activeFile, setActiveFile, setDirectoryExpandedMap, expand } = useFileTree();
     const queryClient = useQueryClient();
     const { treeWidth, treeCollapsed, setTreeCollapsed, viewMode, setViewMode, startTreeResize } = useReviewLayoutPreferences();
+    const hostDataCollectionsVersion = useSyncExternalStore(
+        subscribeHostDataCollectionsVersion,
+        getHostDataCollectionsVersionSnapshot,
+        getHostDataCollectionsVersionSnapshot,
+    );
 
     const workspaceRef = useRef<HTMLDivElement | null>(null);
     const diffScrollRef = useRef<HTMLDivElement | null>(null);
@@ -204,7 +214,11 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
     const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
     const prContextKey = useMemo(() => `${host}:${workspace}/${repo}/${pullRequestId}`, [host, workspace, repo, pullRequestId]);
-    const fileContextCollection = useMemo(() => getPullRequestFileContextCollection(), []);
+    const fileContextCollection = useMemo(() => {
+        // Recreate the scoped collection when host-data storage falls back.
+        void hostDataCollectionsVersion;
+        return getPullRequestFileContextCollection();
+    }, [hostDataCollectionsVersion]);
     const fileContextQuery = useLiveQuery((q) => q.from({ context: fileContextCollection }).select(({ context }) => ({ ...context })), [fileContextCollection]);
     const persistedFileContexts = useMemo(() => {
         const entries: Record<string, { oldLines: string[]; newLines: string[]; fetchedAt: number }> = {};
@@ -870,7 +884,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         if (!auth.canRead && !hostCapabilities.publicReadSupported) {
             return <ReviewPageAuthRequiredState hostLabel={host === "github" ? "GitHub" : "Bitbucket"} authPromptSlot={authPromptSlot} />;
         }
-        return null;
+        return <ReviewPageLoadingView workspaceRef={workspaceRef} sidebarProps={sidebarProps} navbarProps={navbarProps} />;
     }
 
     return (

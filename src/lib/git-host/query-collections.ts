@@ -51,6 +51,16 @@ type ScopedCollection<T extends object> = {
     utils: CollectionUtils;
 };
 
+type HostDataCollectionKey = "repositories" | "repoPullRequests" | "pullRequestBundles" | "pullRequestFileContexts";
+type HostDataRecordMap = {
+    repositories: RepositoryRecord;
+    repoPullRequests: PersistedRepoPullRequestRecord;
+    pullRequestBundles: PersistedPullRequestBundleRecord;
+    pullRequestFileContexts: PullRequestFileContextRecord;
+};
+type HostDataRecordForKey<K extends HostDataCollectionKey> = HostDataRecordMap[K];
+type HostDataCollectionForKey<K extends HostDataCollectionKey> = Collection<HostDataRecordForKey<K>, string>;
+
 type FetchActivity = {
     scopeId: string;
     label: string;
@@ -214,6 +224,8 @@ const PULL_REQUEST_FILE_CONTEXT_RX_SCHEMA = {
 
 let hostDataReadyPromise: Promise<void> | null = null;
 let hostDataDatabase: { close: () => Promise<boolean> } | null = null;
+let hostDataFallbackActive = false;
+let hostDataFallbackPromise: Promise<void> | null = null;
 
 let repositoryCollection: Collection<RepositoryRecord, string> | null = null;
 let repoPullRequestCollection: Collection<PersistedRepoPullRequestRecord, string> | null = null;
@@ -226,6 +238,7 @@ const pullRequestBundleScopedCollections = new Map<string, ScopedCollection<Pers
 const fetchActivityListeners = new Set<() => void>();
 const activeFetchesByScope = new Map<string, FetchActivity>();
 const refetchRegistry = new Map<string, RefetchRegistryEntry>();
+const hostDataCollectionsVersionListeners = new Set<() => void>();
 let fetchActivityVersion = 0;
 let cachedFetchActivitySnapshotVersion = -1;
 let cachedFetchActivitySnapshot: GitHostFetchActivitySnapshot = {
@@ -233,6 +246,7 @@ let cachedFetchActivitySnapshot: GitHostFetchActivitySnapshot = {
     activeFetchCount: 0,
     trackedScopeCount: 0,
 };
+let hostDataCollectionsVersion = 0;
 
 function notifyFetchActivityListeners() {
     fetchActivityVersion += 1;
@@ -253,6 +267,13 @@ function setFetchActivity(scopeId: string, label: string, fetching: boolean) {
         activeFetchesByScope.delete(scopeId);
     }
     notifyFetchActivityListeners();
+}
+
+function notifyHostDataCollectionsVersionListeners() {
+    hostDataCollectionsVersion += 1;
+    for (const listener of hostDataCollectionsVersionListeners) {
+        listener();
+    }
 }
 
 function registerRefetchScope(scopeId: string, label: string, refetch: (opts?: { throwOnError?: boolean }) => Promise<void>) {
@@ -285,6 +306,17 @@ export function getGitHostFetchActivitySnapshot(): GitHostFetchActivitySnapshot 
         cachedFetchActivitySnapshotVersion = fetchActivityVersion;
     }
     return cachedFetchActivitySnapshot;
+}
+
+export function getHostDataCollectionsVersionSnapshot() {
+    return hostDataCollectionsVersion;
+}
+
+export function subscribeHostDataCollectionsVersion(listener: () => void) {
+    hostDataCollectionsVersionListeners.add(listener);
+    return () => {
+        hostDataCollectionsVersionListeners.delete(listener);
+    };
 }
 
 export async function refetchAllGitHostData(opts?: { throwOnError?: boolean }) {
@@ -492,6 +524,141 @@ function normalizePullRequestSummary(pullRequest: PullRequestSummary): PullReque
     };
 }
 
+function getHostDataCollection<K extends HostDataCollectionKey>(key: K): HostDataCollectionForKey<K> {
+    if (!repositoryCollection || !repoPullRequestCollection || !pullRequestBundleCollection || !pullRequestFileContextCollection) {
+        ensureCollectionsInitialized();
+    }
+
+    switch (key) {
+        case "repositories":
+            if (!repositoryCollection) {
+                throw new Error("Repository collection is unavailable");
+            }
+            return repositoryCollection as HostDataCollectionForKey<K>;
+        case "repoPullRequests":
+            if (!repoPullRequestCollection) {
+                throw new Error("Repository pull request collection is unavailable");
+            }
+            return repoPullRequestCollection as HostDataCollectionForKey<K>;
+        case "pullRequestBundles":
+            if (!pullRequestBundleCollection) {
+                throw new Error("Pull request bundle collection is unavailable");
+            }
+            return pullRequestBundleCollection as HostDataCollectionForKey<K>;
+        case "pullRequestFileContexts":
+            if (!pullRequestFileContextCollection) {
+                throw new Error("Pull request file context collection is unavailable");
+            }
+            return pullRequestFileContextCollection as HostDataCollectionForKey<K>;
+        default: {
+            const exhaustiveCheck: never = key;
+            throw new Error(`Unsupported host data collection key: ${exhaustiveCheck}`);
+        }
+    }
+}
+
+function captureCollectionSnapshot<T extends { id: string }>(collection: Collection<T, string> | null) {
+    if (!collection) return [];
+    return Array.from(collection.values());
+}
+
+function hydrateCollectionRecords<T extends { id: string }>(collection: Collection<T, string> | null, records: T[]) {
+    if (!collection || records.length === 0) return;
+    for (const record of records) {
+        const transaction = collection.insert(record);
+        transaction.isPersisted.promise.catch(() => undefined);
+    }
+}
+
+async function fallbackToInMemoryHostDataCollections() {
+    if (hostDataFallbackActive) return;
+    if (hostDataFallbackPromise) {
+        await hostDataFallbackPromise;
+        return;
+    }
+
+    hostDataFallbackPromise = (async () => {
+        const repositoryRecords = captureCollectionSnapshot(repositoryCollection);
+        const repoPullRequestRecords = captureCollectionSnapshot(repoPullRequestCollection);
+        const pullRequestBundleRecords = captureCollectionSnapshot(pullRequestBundleCollection);
+        const pullRequestFileContextRecords = captureCollectionSnapshot(pullRequestFileContextCollection);
+
+        if (hostDataDatabase) {
+            try {
+                await hostDataDatabase.close();
+            } catch (error) {
+                console.warn("Failed to close host-data database during fallback.", error);
+            }
+        }
+
+        hostDataDatabase = null;
+        hostDataReadyPromise = Promise.resolve();
+
+        repositoryCollection = null;
+        repoPullRequestCollection = null;
+        pullRequestBundleCollection = null;
+        pullRequestFileContextCollection = null;
+
+        ensureCollectionsInitialized();
+
+        hydrateCollectionRecords(repositoryCollection, repositoryRecords);
+        hydrateCollectionRecords(repoPullRequestCollection, repoPullRequestRecords);
+        hydrateCollectionRecords(pullRequestBundleCollection, pullRequestBundleRecords);
+        hydrateCollectionRecords(pullRequestFileContextCollection, pullRequestFileContextRecords);
+
+        const nextRepositoryCollection = getHostDataCollection("repositories");
+        const nextRepoPullRequestCollection = getHostDataCollection("repoPullRequests");
+        const nextPullRequestBundleCollection = getHostDataCollection("pullRequestBundles");
+
+        repositoryScopedCollections.forEach((scoped) => {
+            scoped.collection = nextRepositoryCollection;
+        });
+        repoPullRequestScopedCollections.forEach((scoped) => {
+            scoped.collection = nextRepoPullRequestCollection;
+        });
+        pullRequestBundleScopedCollections.forEach((scoped) => {
+            scoped.collection = nextPullRequestBundleCollection;
+        });
+
+        console.warn("Host-data collections switched to in-memory mode after storage quota errors.");
+        hostDataFallbackActive = true;
+        notifyHostDataCollectionsVersionListeners();
+    })().finally(() => {
+        hostDataFallbackPromise = null;
+    });
+
+    await hostDataFallbackPromise;
+}
+
+function isQuotaExceededError(error: unknown) {
+    if (!error) return false;
+    if (typeof DOMException !== "undefined" && error instanceof DOMException) {
+        return error.name === "QuotaExceededError" || error.code === 22 || error.code === 1014;
+    }
+    if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+        return message.includes("quota") && message.includes("exceeded");
+    }
+    return false;
+}
+
+function logQuotaExceededWarning(context: string, error: unknown) {
+    console.warn(`Host data persistence quota exceeded during ${context}; continuing without storing this payload.`, error);
+}
+
+async function persistCollectionTransaction(persistPromise: Promise<unknown>, context: string) {
+    try {
+        await persistPromise;
+        return true;
+    } catch (error) {
+        if (isQuotaExceededError(error)) {
+            logQuotaExceededWarning(context, error);
+            return false;
+        }
+        throw error;
+    }
+}
+
 function ensureCollectionsInitialized() {
     if (repositoryCollection && repoPullRequestCollection && pullRequestBundleCollection && pullRequestFileContextCollection) {
         return;
@@ -532,11 +699,11 @@ async function initRxdbCollections() {
         return;
     }
 
-    const [{ createRxDatabase }, { getRxStorageLocalstorage }] = await Promise.all([import("rxdb/plugins/core"), import("rxdb/plugins/storage-localstorage")]);
+    const [{ createRxDatabase }, { getRxStorageDexie }] = await Promise.all([import("rxdb/plugins/core"), import("rxdb/plugins/storage-dexie")]);
 
     const database = await createRxDatabase({
         name: HOST_DATA_DATABASE_NAME,
-        storage: getRxStorageLocalstorage(),
+        storage: getRxStorageDexie(),
         multiInstance: true,
     });
 
@@ -607,33 +774,42 @@ export function ensureGitHostDataReady() {
     return hostDataReadyPromise;
 }
 
-async function upsertRecord<T extends { id: string }>(collection: Collection<T, string>, record: T) {
+async function upsertRecord<K extends HostDataCollectionKey>(collectionKey: K, record: HostDataRecordForKey<K>): Promise<void> {
+    const collection = getHostDataCollection(collectionKey);
     const existing = collection.get(record.id);
     if (!existing) {
         const transaction = collection.insert(record);
-        await transaction.isPersisted.promise;
+        const persisted = await persistCollectionTransaction(transaction.isPersisted.promise, `insert:${record.id}`);
+        if (!persisted) {
+            await fallbackToInMemoryHostDataCollections();
+            await upsertRecord(collectionKey, record);
+        }
         return;
     }
 
     const transaction = collection.update(record.id, (draft) => {
         Object.assign(draft as Record<string, unknown>, record);
     });
-    await transaction.isPersisted.promise;
+    const persisted = await persistCollectionTransaction(transaction.isPersisted.promise, `update:${record.id}`);
+    if (!persisted) {
+        await fallbackToInMemoryHostDataCollections();
+        await upsertRecord(collectionKey, record);
+    }
 }
 
-async function deleteRecord<T extends { id: string }>(collection: Collection<T, string>, id: string) {
+async function deleteRecord<K extends HostDataCollectionKey>(collectionKey: K, id: string): Promise<void> {
+    const collection = getHostDataCollection(collectionKey);
     if (!collection.has(id)) return;
     const transaction = collection.delete(id);
-    await transaction.isPersisted.promise;
+    const persisted = await persistCollectionTransaction(transaction.isPersisted.promise, `delete:${id}`);
+    if (!persisted) {
+        await fallbackToInMemoryHostDataCollections();
+        await deleteRecord(collectionKey, id);
+    }
 }
 
 export function getPullRequestBundleCollection(prRef: PullRequestRef) {
-    if (!pullRequestBundleCollection) ensureCollectionsInitialized();
-    const collection = pullRequestBundleCollection;
-    if (!collection) {
-        throw new Error("Pull request bundle collection is unavailable");
-    }
-
+    ensureCollectionsInitialized();
     const bundleId = pullRequestBundleId(prRef);
     const scopeId = pullRequestDetailsFetchScopeId(prRef);
     const scopeLabel = `Pull request details (${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId})`;
@@ -645,7 +821,7 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef) {
         setFetchActivity(scopeId, scopeLabel, true);
         try {
             const bundle = await fetchPullRequestBundleByRef({ prRef });
-            await upsertRecord(collection, serializePullRequestBundle(bundle));
+            await upsertRecord("pullRequestBundles", serializePullRequestBundle(bundle));
             utils.lastError = undefined;
             utils.dataUpdatedAt = Date.now();
         } catch (error) {
@@ -659,19 +835,17 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef) {
         }
     });
 
-    const scoped = { collection, utils };
+    const scoped: ScopedCollection<PersistedPullRequestBundleRecord> = {
+        collection: getHostDataCollection("pullRequestBundles"),
+        utils,
+    };
     pullRequestBundleScopedCollections.set(bundleId, scoped);
     registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;
 }
 
 export function getPullRequestFileContextCollection() {
-    if (!pullRequestFileContextCollection) ensureCollectionsInitialized();
-    const collection = pullRequestFileContextCollection;
-    if (!collection) {
-        throw new Error("Pull request file context collection is unavailable");
-    }
-    return collection;
+    return getHostDataCollection("pullRequestFileContexts");
 }
 
 export async function savePullRequestFileContextRecord({
@@ -687,11 +861,6 @@ export async function savePullRequestFileContextRecord({
     newLines: string[];
     fetchedAt?: number;
 }) {
-    if (!pullRequestFileContextCollection) ensureCollectionsInitialized();
-    const collection = pullRequestFileContextCollection;
-    if (!collection) {
-        throw new Error("Pull request file context collection is unavailable");
-    }
     const record = serializePullRequestFileContextRecord({
         prRef,
         path,
@@ -699,16 +868,11 @@ export async function savePullRequestFileContextRecord({
         newLines,
         fetchedAt: fetchedAt ?? Date.now(),
     });
-    await upsertRecord(collection, record);
+    await upsertRecord("pullRequestFileContexts", record);
 }
 
 export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHost: ReposByHost }) {
-    if (!repoPullRequestCollection) ensureCollectionsInitialized();
-    const collection = repoPullRequestCollection;
-    if (!collection) {
-        throw new Error("Repository pull request collection is unavailable");
-    }
-
+    ensureCollectionsInitialized();
     const normalizedHosts = [...data.hosts].sort();
     const normalizedReposByHost = normalizeReposByHost(data.reposByHost);
     const serializedRepos = stringifyCollectionRepos(normalizedReposByHost);
@@ -720,6 +884,7 @@ export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHo
     if (existing) return existing;
 
     const utils = createCollectionUtils(async (opts) => {
+        const collection = getHostDataCollection("repoPullRequests");
         if (normalizedHosts.length === 0) {
             utils.lastError = undefined;
             return;
@@ -773,13 +938,13 @@ export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHo
             const nextIds = new Set(nextRecords.map((record) => record.id));
 
             for (const record of nextRecords) {
-                await upsertRecord(collection, record);
+                await upsertRecord("repoPullRequests", record);
             }
 
             for (const existingRecord of collection.values()) {
                 if (!selectedRepoKeys.has(existingRecord.repoKey)) continue;
                 if (nextIds.has(existingRecord.id)) continue;
-                await deleteRecord(collection, existingRecord.id);
+                await deleteRecord("repoPullRequests", existingRecord.id);
             }
 
             utils.lastError = undefined;
@@ -794,25 +959,24 @@ export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHo
         }
     });
 
-    const scoped = { collection, utils };
+    const scoped: ScopedCollection<PersistedRepoPullRequestRecord> = {
+        collection: getHostDataCollection("repoPullRequests"),
+        utils,
+    };
     repoPullRequestScopedCollections.set(scopeId, scoped);
     registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;
 }
 
 export function getRepositoryCollection(host: GitHost) {
-    if (!repositoryCollection) ensureCollectionsInitialized();
-    const collection = repositoryCollection;
-    if (!collection) {
-        throw new Error("Repository collection is unavailable");
-    }
-
+    ensureCollectionsInitialized();
     const existing = repositoryScopedCollections.get(host);
     if (existing) return existing;
     const scopeId = `repos:${host}`;
     const scopeLabel = `Repositories (${host})`;
 
     const utils = createCollectionUtils(async (opts) => {
+        const collection = getHostDataCollection("repositories");
         utils.isFetching = true;
         setFetchActivity(scopeId, scopeLabel, true);
         try {
@@ -826,13 +990,13 @@ export function getRepositoryCollection(host: GitHost) {
             const nextIds = new Set(nextRecords.map((record) => record.id));
 
             for (const record of nextRecords) {
-                await upsertRecord(collection, record);
+                await upsertRecord("repositories", record);
             }
 
             for (const existingRecord of collection.values()) {
                 if (existingRecord.host !== host) continue;
                 if (nextIds.has(existingRecord.id)) continue;
-                await deleteRecord(collection, existingRecord.id);
+                await deleteRecord("repositories", existingRecord.id);
             }
 
             utils.lastError = undefined;
@@ -848,7 +1012,10 @@ export function getRepositoryCollection(host: GitHost) {
         }
     });
 
-    const scoped = { collection, utils };
+    const scoped: ScopedCollection<RepositoryRecord> = {
+        collection: getHostDataCollection("repositories"),
+        utils,
+    };
     repositoryScopedCollections.set(host, scoped);
     registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;

@@ -1,4 +1,4 @@
-import { Check, Copy, GitMerge, Loader2, Menu, Minus, PanelLeftOpen, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
+import { Check, Copy, Github, GitMerge, GlassWater, Loader2, Menu, Minus, PanelLeftOpen, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
 import {
     aggregateBuildState,
     buildRunningTime,
@@ -9,13 +9,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { PullRequestBuildStatus } from "@/lib/git-host/types";
+import type { GitHost, PullRequestBuildStatus } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
 
 type ReviewTopNavbarProps = {
     loading: boolean;
     isRefreshing: boolean;
     treeCollapsed: boolean;
+    host: GitHost;
+    pullRequestUrl?: string;
     sourceBranch: string;
     destinationBranch: string;
     navbarState: string;
@@ -45,6 +47,8 @@ export function ReviewTopNavbar({
     loading,
     isRefreshing,
     treeCollapsed,
+    host,
+    pullRequestUrl,
     sourceBranch,
     destinationBranch,
     navbarState,
@@ -120,6 +124,28 @@ export function ReviewTopNavbar({
                     </div>
 
                     <div className="ml-2 -mr-1.5 flex h-full shrink-0 border-l border-border">
+                        {pullRequestUrl ? (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        asChild
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-full w-10 rounded-none border-0 border-r border-border px-0 bg-chrome text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-0"
+                                    >
+                                        <a
+                                            href={pullRequestUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            aria-label={host === "github" ? "Open pull request in GitHub" : "Open pull request in Bitbucket"}
+                                        >
+                                            {host === "github" ? <Github className="size-4" /> : <GlassWater className="size-4" />}
+                                        </a>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">{host === "github" ? "Open in GitHub" : "Open in Bitbucket"}</TooltipContent>
+                            </Tooltip>
+                        ) : null}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button

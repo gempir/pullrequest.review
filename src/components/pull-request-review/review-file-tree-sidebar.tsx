@@ -92,9 +92,11 @@ export function ReviewFileTreeSidebar({
                                             aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
                                         >
                                             {showUnviewedOnly ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                                            <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">
-                                                {badgeValue}
-                                            </span>
+                                            {unviewedFileCount > 0 ? (
+                                                <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">
+                                                    {badgeValue}
+                                                </span>
+                                            ) : null}
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>

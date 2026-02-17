@@ -519,42 +519,6 @@ function serializePullRequestFileContextRecord({
     };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-}
-
-function isValidPullRequestRef(value: unknown): value is PullRequestRef {
-    if (!isRecord(value)) return false;
-    return (
-        (value.host === "bitbucket" || value.host === "github") &&
-        typeof value.workspace === "string" &&
-        value.workspace.length > 0 &&
-        typeof value.repo === "string" &&
-        value.repo.length > 0 &&
-        typeof value.pullRequestId === "string" &&
-        value.pullRequestId.length > 0
-    );
-}
-
-export function isValidPullRequestBundleRecord(value: unknown): value is PullRequestBundleRecord {
-    if (!isRecord(value)) return false;
-    const pullRequest = value.pr;
-    if (!isRecord(pullRequest)) return false;
-    return (
-        typeof value.id === "string" &&
-        value.id.length > 0 &&
-        isValidPullRequestRef(value.prRef) &&
-        typeof value.diff === "string" &&
-        Array.isArray(value.diffstat) &&
-        Array.isArray(value.commits) &&
-        Array.isArray(value.comments) &&
-        typeof pullRequest.id === "number" &&
-        Number.isFinite(pullRequest.id) &&
-        typeof pullRequest.title === "string" &&
-        typeof pullRequest.state === "string"
-    );
-}
-
 function isValidRepoRef(repo: RepoRef | undefined): repo is RepoRef {
     return Boolean(
         repo &&
@@ -1082,25 +1046,4 @@ export function getRepositoryCollection(host: GitHost) {
     repositoryScopedCollections.set(host, scoped);
     registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;
-}
-
-export async function __resetGitHostCollectionsForTests() {
-    if (hostDataDatabase) {
-        await hostDataDatabase.close();
-    }
-
-    hostDataDatabase = null;
-    hostDataReadyPromise = null;
-
-    repositoryCollection = null;
-    repoPullRequestCollection = null;
-    pullRequestBundleCollection = null;
-    pullRequestFileContextCollection = null;
-
-    repositoryScopedCollections.clear();
-    repoPullRequestScopedCollections.clear();
-    pullRequestBundleScopedCollections.clear();
-    activeFetchesByScope.clear();
-    refetchRegistry.clear();
-    notifyFetchActivityListeners();
 }

@@ -18,27 +18,6 @@ export async function fetchRepoPullRequestsForHost(data: { host: GitHost; repos:
     return client.listPullRequestsForRepos({ repos: data.repos });
 }
 
-export async function fetchRepoPullRequestsByHost(data: { hosts: GitHost[]; reposByHost: Record<GitHost, RepoRef[]> }) {
-    const settled = await Promise.allSettled(
-        data.hosts.map(async (host) => {
-            const repos = data.reposByHost[host] ?? [];
-            return fetchRepoPullRequestsForHost({ host, repos });
-        }),
-    );
-
-    const successful = settled.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
-    if (successful.length > 0) {
-        return successful;
-    }
-
-    const firstFailure = settled.find((result): result is PromiseRejectedResult => result.status === "rejected");
-    if (firstFailure) {
-        throw firstFailure.reason;
-    }
-
-    return [];
-}
-
 export async function listRepositoriesForHost(data: { host: GitHost }) {
     return getHostClient(data.host).listRepositories();
 }

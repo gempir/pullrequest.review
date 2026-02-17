@@ -3,9 +3,8 @@ import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { FileCode2, Files, RotateCcw, Settings2 } from "lucide-react";
 import { type CSSProperties, useCallback, useMemo, useState } from "react";
 import { DiffToolbar } from "@/components/diff-toolbar";
-import { getSettingsTabIcon, getSettingsTreeItems, type SettingsTab } from "@/components/settings-navigation";
+import type { SettingsTab } from "@/components/settings-navigation";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { NumberStepperInput } from "@/components/ui/number-stepper-input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,13 +24,6 @@ import {
 } from "@/lib/font-options";
 import { type ShortcutConfig, useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
-
-export type { SettingsTab } from "@/components/settings-navigation";
-export {
-    getSettingsTreeItems,
-    settingsPathForTab,
-    settingsTabFromPath,
-} from "@/components/settings-navigation";
 
 type WorkspaceMode = "single" | "all";
 
@@ -491,27 +483,6 @@ function TreeTab() {
     );
 }
 
-export function SettingsMenu({
-    workspaceMode,
-    onWorkspaceModeChange,
-}: {
-    workspaceMode?: WorkspaceMode;
-    onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
-} = {}) {
-    return (
-        <Dialog>
-            <DialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Settings" data-component="settings">
-                    <Settings2 className="size-3.5" />
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0">
-                <SettingsPanelWithSidebar workspaceMode={workspaceMode} onWorkspaceModeChange={onWorkspaceModeChange} />
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 type SettingsPanelSharedProps = {
     workspaceMode?: WorkspaceMode;
     onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
@@ -520,18 +491,8 @@ type SettingsPanelSharedProps = {
     onActiveTabChange?: (tab: SettingsTab) => void;
 };
 
-function useResolvedSettingsTab({ activeTab: controlledActiveTab, onActiveTabChange }: Pick<SettingsPanelSharedProps, "activeTab" | "onActiveTabChange">) {
-    // Share controlled/uncontrolled tab behavior across explicit panel variants.
-    const [internalActiveTab, setInternalActiveTab] = useState<SettingsTab>("appearance");
-    const isControlled = controlledActiveTab !== undefined;
-    const resolvedActiveTab = isControlled ? controlledActiveTab : internalActiveTab;
-    const setActiveTab = (nextTab: SettingsTab) => {
-        if (!isControlled) {
-            setInternalActiveTab(nextTab);
-        }
-        onActiveTabChange?.(nextTab);
-    };
-    return { resolvedActiveTab, setActiveTab };
+function useResolvedSettingsTab({ activeTab: controlledActiveTab }: Pick<SettingsPanelSharedProps, "activeTab">) {
+    return { resolvedActiveTab: controlledActiveTab ?? "appearance" };
 }
 
 function SettingsPanelHeader({ onClose, onResetAllSettings }: { onClose?: () => void; onResetAllSettings?: () => void }) {
@@ -579,56 +540,9 @@ function SettingsPanelContent({
     );
 }
 
-function SettingsPanelSidebar({ activeTab, onSelectTab }: { activeTab: SettingsTab; onSelectTab: (tab: SettingsTab) => void }) {
-    return (
-        <div className="w-56 border-r border-border bg-sidebar">
-            <nav className="p-3 space-y-1.5">
-                {getSettingsTreeItems().map((item) => {
-                    const Icon = getSettingsTabIcon(item.tab);
-                    return (
-                        <button
-                            key={item.tab}
-                            type="button"
-                            onClick={() => onSelectTab(item.tab)}
-                            className={cn(
-                                "w-full flex items-center gap-2 px-3 py-2.5 text-[13px] transition-colors",
-                                activeTab === item.tab ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50",
-                            )}
-                        >
-                            <Icon className="size-4" />
-                            {item.name}
-                        </button>
-                    );
-                })}
-            </nav>
-        </div>
-    );
-}
-
-export function SettingsPanelWithSidebar({ workspaceMode, onWorkspaceModeChange, onClose, activeTab, onActiveTabChange }: SettingsPanelSharedProps = {}) {
-    const { resolvedActiveTab, setActiveTab } = useResolvedSettingsTab({
-        activeTab,
-        onActiveTabChange,
-    });
-    const resetAllSettings = useResetAllSettingsAction();
-
-    return (
-        <div className="h-full min-h-0 flex flex-col">
-            <SettingsPanelHeader onClose={onClose} onResetAllSettings={resetAllSettings} />
-            <div className="flex flex-1 min-h-0">
-                <SettingsPanelSidebar activeTab={resolvedActiveTab} onSelectTab={setActiveTab} />
-                <div className="flex-1 px-3 py-2.5 overflow-auto">
-                    <SettingsPanelContent workspaceMode={workspaceMode} onWorkspaceModeChange={onWorkspaceModeChange} activeTab={resolvedActiveTab} />
-                </div>
-            </div>
-        </div>
-    );
-}
-
-export function SettingsPanelContentOnly({ workspaceMode, onWorkspaceModeChange, onClose, activeTab, onActiveTabChange }: SettingsPanelSharedProps = {}) {
+export function SettingsPanelContentOnly({ workspaceMode, onWorkspaceModeChange, onClose, activeTab }: SettingsPanelSharedProps = {}) {
     const { resolvedActiveTab } = useResolvedSettingsTab({
         activeTab,
-        onActiveTabChange,
     });
     const resetAllSettings = useResetAllSettingsAction();
 

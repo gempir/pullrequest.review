@@ -11,20 +11,6 @@ export function getHostClient(host: GitHost): GitHostClient {
     return clients[host];
 }
 
-export function listHostClients(): GitHostClient[] {
-    return [clients.bitbucket, clients.github];
-}
-
-export async function listConfiguredHosts(): Promise<GitHost[]> {
-    const states = await Promise.all(
-        listHostClients().map(async (client) => ({
-            host: client.host,
-            state: await client.getAuthState(),
-        })),
-    );
-    return states.filter(({ state }) => state.authenticated).map(({ host }) => host);
-}
-
 export function getHostCapabilities(host: GitHost): HostCapabilities {
     return clients[host].capabilities;
 }

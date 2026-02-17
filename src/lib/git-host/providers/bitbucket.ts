@@ -11,6 +11,8 @@ import {
     type PullRequestBuildStatus,
     type PullRequestBundle,
     type PullRequestDetails,
+    type PullRequestFileHistory,
+    type PullRequestFileHistoryEntry,
     type PullRequestHistoryEvent,
     type PullRequestReviewer,
     type PullRequestSummary,
@@ -778,6 +780,43 @@ export const bitbucketClient: GitHostClient = {
             throw error;
         }
     },
+    async fetchPullRequestFileHistory({ prRef, path, commits, limit = 20 }): Promise<PullRequestFileHistory> {
+        const normalizedPath = path.trim();
+        if (!normalizedPath || commits.length === 0) {
+            return { path: normalizedPath, entries: [], fetchedAt: Date.now() };
+        }
+
+        const entries: PullRequestFileHistoryEntry[] = [];
+        for (const commit of commits) {
+            if (entries.length >= limit) break;
+            const commitHash = commit.hash?.trim();
+            if (!commitHash) continue;
+
+            const diffRes = await request(`https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/diff/${commitHash}`, {
+                headers: { Accept: "text/plain" },
+            });
+            const diffText = await diffRes.text();
+            const match = extractSingleFilePatchFromUnifiedDiff(diffText, normalizedPath);
+            if (!match) continue;
+
+            entries.push({
+                versionId: `${normalizedPath}:${commitHash}`,
+                commitHash,
+                commitDate: commit.date,
+                commitMessage: commit.message,
+                authorDisplayName: commit.author?.user?.displayName ?? commit.author?.raw,
+                filePathAtCommit: match.filePathAtCommit,
+                status: match.status,
+                patch: match.patch,
+            });
+        }
+
+        return {
+            path: normalizedPath,
+            entries,
+            fetchedAt: Date.now(),
+        };
+    },
 };
 
 function encodeBitbucketPath(path: string) {
@@ -787,4 +826,47 @@ function encodeBitbucketPath(path: string) {
         .split("/")
         .map((segment) => encodeURIComponent(segment))
         .join("/");
+}
+
+function splitUnifiedDiffByFile(diffText: string) {
+    const sections = diffText.split(/^diff --git /m);
+    const patches: string[] = [];
+    for (const section of sections) {
+        const trimmed = section.trim();
+        if (!trimmed) continue;
+        patches.push(`diff --git ${trimmed}`);
+    }
+    return patches;
+}
+
+function extractPathPairFromPatch(patch: string) {
+    const firstLine = patch.split("\n", 1)[0] ?? "";
+    const match = firstLine.match(/^diff --git a\/(.+?) b\/(.+)$/);
+    if (!match) return null;
+    return {
+        oldPath: match[1],
+        newPath: match[2],
+    };
+}
+
+function inferBitbucketPatchStatus(patch: string): DiffStatEntry["status"] {
+    if (patch.includes("\nnew file mode ")) return "added";
+    if (patch.includes("\ndeleted file mode ")) return "removed";
+    if (patch.includes("\nrename from ")) return "renamed";
+    return "modified";
+}
+
+function extractSingleFilePatchFromUnifiedDiff(diffText: string, targetPath: string) {
+    for (const patch of splitUnifiedDiffByFile(diffText)) {
+        const pair = extractPathPairFromPatch(patch);
+        if (!pair) continue;
+        if (pair.oldPath === targetPath || pair.newPath === targetPath) {
+            return {
+                patch: patch.endsWith("\n") ? patch : `${patch}\n`,
+                filePathAtCommit: pair.newPath || pair.oldPath,
+                status: inferBitbucketPatchStatus(patch),
+            };
+        }
+    }
+    return null;
 }

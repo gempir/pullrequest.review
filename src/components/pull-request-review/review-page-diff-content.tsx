@@ -47,6 +47,7 @@ type ReviewPageDiffContentProps = {
     getSelectedVersionIdForPath: (path: string) => string | undefined;
     getVersionOptionsForPath: (path: string) => FileVersionSelectOption[];
     onSelectVersionForPath: (path: string, versionId: string) => void;
+    onOpenVersionMenuForPath: (path: string) => void;
     resolveDisplayedDiffForPath: (
         path: string,
         latestFileDiff: FileDiffMetadata | undefined,
@@ -115,6 +116,7 @@ export function ReviewPageDiffContent({
     getSelectedVersionIdForPath,
     getVersionOptionsForPath,
     onSelectVersionForPath,
+    onOpenVersionMenuForPath,
     resolveDisplayedDiffForPath,
     isVersionViewed,
     threadsByPath,
@@ -207,6 +209,10 @@ export function ReviewPageDiffContent({
                     if (!selectedFilePath) return;
                     onSelectVersionForPath(selectedFilePath, versionId);
                 }}
+                onFileVersionMenuOpen={() => {
+                    if (!selectedFilePath) return;
+                    onOpenVersionMenuForPath(selectedFilePath);
+                }}
                 getInlineDraftContent={getInlineDraftContent}
                 setInlineDraftContent={setInlineDraftContent}
                 onSubmitInlineComment={onSubmitInlineComment}
@@ -237,6 +243,7 @@ export function ReviewPageDiffContent({
             getSelectedVersionIdForPath={getSelectedVersionIdForPath}
             getVersionOptionsForPath={getVersionOptionsForPath}
             onSelectVersionForPath={onSelectVersionForPath}
+            onOpenVersionMenuForPath={onOpenVersionMenuForPath}
             resolveDisplayedDiffForPath={resolveDisplayedDiffForPath}
             isVersionViewed={isVersionViewed}
             threadsByPath={threadsByPath}

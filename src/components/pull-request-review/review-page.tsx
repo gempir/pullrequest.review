@@ -1,9 +1,10 @@
-import type { FileDiffOptions, OnDiffLineClickProps } from "@pierre/diffs";
+import { type FileDiffOptions, type OnDiffLineClickProps, parsePatchFiles } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
+import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { createReviewPageUiStore, useReviewPageUiValue } from "@/components/pull-request-review/review-page.store";
 import { ReviewPageDiffContent } from "@/components/pull-request-review/review-page-diff-content";
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
@@ -32,20 +33,7 @@ import {
 import { useReviewPageNavigation } from "@/components/pull-request-review/use-review-page-navigation";
 import { useReviewPageViewProps } from "@/components/pull-request-review/use-review-page-view-props";
 import { isRateLimitedError as isRateLimitedQueryError, useReviewQuery } from "@/components/pull-request-review/use-review-query";
-import {
-    buildLatestVersionIdByPath,
-    cleanupViewedVersionIds,
-    collectKnownVersionIds,
-    getVersionLabel,
-    mergeCurrentFileVersionsIntoHistory,
-    readFileVersionHistory,
-    readViewedVersionIds,
-    type StoredFileHistory,
-    type StoredFileVersion,
-    useViewedStorageKey,
-    writeFileVersionHistory,
-    writeViewedVersionIds,
-} from "@/components/pull-request-review/use-review-storage";
+import { readViewedVersionIds, useViewedStorageKey, writeViewedVersionIds } from "@/components/pull-request-review/use-review-storage";
 import { getSettingsTreeItems } from "@/components/settings-navigation";
 import { useAppearance } from "@/lib/appearance-context";
 import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
@@ -55,6 +43,8 @@ import { fontFamilyToCss } from "@/lib/font-options";
 import {
     getHostDataCollectionsVersionSnapshot,
     getPullRequestFileContextCollection,
+    getPullRequestFileHistoryCollection,
+    getPullRequestFileHistoryDataCollection,
     savePullRequestFileContextRecord,
     subscribeHostDataCollectionsVersion,
 } from "@/lib/git-host/query-collections";
@@ -89,6 +79,22 @@ function splitFileIntoLines(contents: string) {
         lines.push(normalized.slice(start));
     }
     return lines;
+}
+
+function latestVersionIdFromFingerprint(path: string, fingerprint: string) {
+    return `${path}::${fingerprint}`;
+}
+
+function commitVersionId(path: string, commitHash: string) {
+    return `${path}:${commitHash}`;
+}
+
+function parseSingleFilePatch(patch: string) {
+    if (!patch) return undefined;
+    const parsed = parsePatchFiles(patch);
+    const firstPatch = parsed[0];
+    const firstFile = firstPatch?.files?.[0];
+    return firstFile;
 }
 
 type FullFileContextEntry =
@@ -247,9 +253,11 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         },
         [uiStore],
     );
-    const [viewedVersionIds, setViewedVersionIds] = useState<Set<string>>(new Set());
-    const [fileVersionHistoryByPath, setFileVersionHistoryByPath] = useState<Record<string, StoredFileHistory>>({});
+    const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
     const [selectedVersionIdByPath, setSelectedVersionIdByPath] = useState<Record<string, string>>({});
+    const [historyRequestedPaths, setHistoryRequestedPaths] = useState<Set<string>>(new Set());
+    const [historyLoadingByPath, setHistoryLoadingByPath] = useState<Record<string, boolean>>({});
+    const [historyErrorByPath, setHistoryErrorByPath] = useState<Record<string, string | null>>({});
     const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<Record<string, boolean>>({});
     const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -266,6 +274,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const suppressHashSyncRef = useRef(false);
     const pendingCommentScrollRef = useRef<number | null>(null);
     const loadedViewedStorageKeyRef = useRef<string>("");
+    const loadedHistoryRevisionRef = useRef<string>("");
     const { inlineComment, setInlineComment, getInlineDraftContent, setInlineDraftContent, clearInlineDraftContent, openInlineCommentDraft } =
         useInlineCommentDrafts({
             workspace,
@@ -297,16 +306,6 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
 
     // Build viewed-file storage key from stable primitives to avoid object identity churn.
     const viewedStorageKey = useViewedStorageKey(prData?.prRef);
-    const latestVersionIdByPath = useMemo(() => buildLatestVersionIdByPath(fileVersionHistoryByPath), [fileVersionHistoryByPath]);
-    const viewedFiles = useMemo(() => {
-        const next = new Set<string>();
-        for (const [path, latestVersionId] of latestVersionIdByPath.entries()) {
-            if (viewedVersionIds.has(latestVersionId)) {
-                next.add(path);
-            }
-        }
-        return next;
-    }, [latestVersionIdByPath, viewedVersionIds]);
 
     const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
     const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
@@ -316,7 +315,12 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         void hostDataCollectionsVersion;
         return getPullRequestFileContextCollection();
     }, [hostDataCollectionsVersion]);
+    const fileHistoryCollection = useMemo(() => {
+        void hostDataCollectionsVersion;
+        return getPullRequestFileHistoryDataCollection();
+    }, [hostDataCollectionsVersion]);
     const fileContextQuery = useLiveQuery((q) => q.from({ context: fileContextCollection }).select(({ context }) => ({ ...context })), [fileContextCollection]);
+    const fileHistoryQuery = useLiveQuery((q) => q.from({ history: fileHistoryCollection }).select(({ history }) => ({ ...history })), [fileHistoryCollection]);
     const persistedFileContexts = useMemo(() => {
         const entries: Record<string, { oldLines: string[]; newLines: string[]; fetchedAt: number }> = {};
         for (const record of fileContextQuery.data ?? []) {
@@ -329,6 +333,32 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         }
         return entries;
     }, [fileContextQuery.data, prContextKey]);
+    const persistedFileHistoryByPath = useMemo(() => {
+        const entries: Record<
+            string,
+            {
+                entries: Array<{
+                    versionId: string;
+                    commitHash: string;
+                    commitDate?: string;
+                    commitMessage?: string;
+                    authorDisplayName?: string;
+                    filePathAtCommit: string;
+                    status: "added" | "modified" | "removed" | "renamed";
+                    patch: string;
+                }>;
+                fetchedAt: number;
+            }
+        > = {};
+        for (const record of fileHistoryQuery.data ?? []) {
+            if (record.prKey !== prContextKey) continue;
+            entries[record.path] = {
+                entries: record.entries,
+                fetchedAt: record.fetchedAt,
+            };
+        }
+        return entries;
+    }, [fileHistoryQuery.data, prContextKey]);
 
     const readyFileContextsRef = useRef<Record<string, { oldLines: string[]; newLines: string[] }>>({});
 
@@ -514,7 +544,6 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         singleFileAnnotations,
         singleFileDiffOptions,
         fileDiffFingerprints,
-        fileDiffSnapshots,
     } = useReviewPageDerived({
         prData,
         pullRequest,
@@ -532,121 +561,126 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         onOpenInlineCommentDraft: openInlineCommentDraftForPath,
         fullFileContexts: readyFileContexts,
     });
-    const sourceCommitHash = prData?.pr.source?.commit?.hash;
-    const destinationCommitHash = prData?.pr.destination?.commit?.hash;
-
-    const currentFileVersionsByPath = useMemo(() => {
-        const next = new Map<
-            string,
-            {
-                fingerprint: string;
-                snapshot: { type: string; name: string; prevName?: string; hunks: unknown[] };
-                sourceCommitHash?: string;
-                destinationCommitHash?: string;
-            }
-        >();
+    const latestVersionIdByPath = useMemo(() => {
+        const map = new Map<string, string>();
         for (const [path, fingerprint] of fileDiffFingerprints.entries()) {
-            const snapshot = fileDiffSnapshots.get(path);
-            if (!snapshot) continue;
-            next.set(path, {
-                fingerprint,
-                snapshot,
-                sourceCommitHash,
-                destinationCommitHash,
-            });
+            map.set(path, latestVersionIdFromFingerprint(path, fingerprint));
         }
-        return next;
-    }, [destinationCommitHash, fileDiffFingerprints, fileDiffSnapshots, sourceCommitHash]);
+        return map;
+    }, [fileDiffFingerprints]);
+    const historyRevision = `${prData?.pr.destination?.commit?.hash ?? ""}:${prData?.pr.source?.commit?.hash ?? ""}`;
 
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
         if (loadedViewedStorageKeyRef.current === viewedStorageKey) return;
         loadedViewedStorageKeyRef.current = viewedStorageKey;
         autoMarkedViewedVersionIdsRef.current = new Set();
-        const history = readFileVersionHistory(viewedStorageKey);
-        const knownVersionIds = collectKnownVersionIds(history);
-        const fingerprintFallback = new Map<string, string>();
-        for (const [path, current] of currentFileVersionsByPath.entries()) {
-            fingerprintFallback.set(path, current.fingerprint);
-        }
+        const knownVersionIds = new Set(latestVersionIdByPath.values());
         const viewedIds = readViewedVersionIds(viewedStorageKey, {
-            fileDiffFingerprints: fingerprintFallback,
+            fileDiffFingerprints,
             knownVersionIds,
         });
-        setFileVersionHistoryByPath(history);
-        setViewedVersionIds(viewedIds);
-        setSelectedVersionIdByPath({});
-    }, [currentFileVersionsByPath, viewedStorageKey]);
+        const nextViewedFiles = new Set<string>();
+        for (const [path, versionId] of latestVersionIdByPath.entries()) {
+            if (viewedIds.has(versionId)) {
+                nextViewedFiles.add(path);
+            }
+        }
+        setViewedFiles(nextViewedFiles);
+        setHistoryRequestedPaths(new Set());
+        setHistoryLoadingByPath({});
+        setHistoryErrorByPath({});
+    }, [fileDiffFingerprints, latestVersionIdByPath, viewedStorageKey]);
 
     useEffect(() => {
-        setFileVersionHistoryByPath((prev) => mergeCurrentFileVersionsIntoHistory(prev, currentFileVersionsByPath));
-    }, [currentFileVersionsByPath]);
+        if (loadedHistoryRevisionRef.current === historyRevision) return;
+        loadedHistoryRevisionRef.current = historyRevision;
+        setHistoryRequestedPaths(new Set());
+        setHistoryLoadingByPath({});
+        setHistoryErrorByPath({});
+    }, [historyRevision]);
 
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
-        writeFileVersionHistory(viewedStorageKey, fileVersionHistoryByPath);
-    }, [fileVersionHistoryByPath, viewedStorageKey]);
-
-    const knownVersionIds = useMemo(() => collectKnownVersionIds(fileVersionHistoryByPath), [fileVersionHistoryByPath]);
-
-    useEffect(() => {
-        setViewedVersionIds((prev) => cleanupViewedVersionIds(prev, knownVersionIds));
-    }, [knownVersionIds]);
-
-    useEffect(() => {
-        if (!viewedStorageKey || typeof window === "undefined") return;
+        const viewedVersionIds = new Set<string>();
+        for (const viewedPath of viewedFiles) {
+            const latestVersionId = latestVersionIdByPath.get(viewedPath);
+            if (!latestVersionId) continue;
+            viewedVersionIds.add(latestVersionId);
+        }
         writeViewedVersionIds(viewedStorageKey, viewedVersionIds);
-    }, [viewedStorageKey, viewedVersionIds]);
+    }, [latestVersionIdByPath, viewedFiles, viewedStorageKey]);
 
     useEffect(() => {
         setSelectedVersionIdByPath((prev) => {
-            let changed = false;
             const next: Record<string, string> = {};
-            for (const [path, pathHistory] of Object.entries(fileVersionHistoryByPath)) {
-                const latestVersionId = pathHistory.order[0];
-                if (!latestVersionId) continue;
+            let changed = false;
+            for (const [path, latestVersionId] of latestVersionIdByPath.entries()) {
                 next[path] = latestVersionId;
                 if (prev[path] !== latestVersionId) {
                     changed = true;
                 }
             }
-            if (!changed && Object.keys(prev).length === Object.keys(next).length) {
-                return prev;
-            }
+            if (!changed && Object.keys(prev).length === Object.keys(next).length) return prev;
             return next;
         });
-    }, [fileVersionHistoryByPath]);
+    }, [latestVersionIdByPath]);
+
+    const fetchRemoteFileHistory = useCallback(
+        async (path: string) => {
+            if (!prData) return;
+            const normalizedPath = path.trim();
+            if (!normalizedPath) return;
+            setHistoryRequestedPaths((prev) => {
+                if (prev.has(normalizedPath)) return prev;
+                const next = new Set(prev);
+                next.add(normalizedPath);
+                return next;
+            });
+            setHistoryLoadingByPath((prev) => ({ ...prev, [normalizedPath]: true }));
+            setHistoryErrorByPath((prev) => ({ ...prev, [normalizedPath]: null }));
+            try {
+                const scopedHistory = getPullRequestFileHistoryCollection({
+                    prRef,
+                    path: normalizedPath,
+                    commits: prData.commits ?? [],
+                    limit: 20,
+                });
+                await scopedHistory.utils.refetch({ throwOnError: false });
+                const maybeError = scopedHistory.utils.lastError;
+                if (maybeError instanceof Error) {
+                    setHistoryErrorByPath((prev) => ({ ...prev, [normalizedPath]: maybeError.message }));
+                } else {
+                    setHistoryErrorByPath((prev) => ({ ...prev, [normalizedPath]: null }));
+                }
+            } finally {
+                setHistoryLoadingByPath((prev) => ({ ...prev, [normalizedPath]: false }));
+            }
+        },
+        [prData, prRef],
+    );
 
     const getSelectedVersionIdForPath = useCallback(
         (path: string) => {
-            const selectedVersionId = selectedVersionIdByPath[path];
-            if (selectedVersionId && fileVersionHistoryByPath[path]?.versions[selectedVersionId]) {
-                return selectedVersionId;
-            }
+            const selected = selectedVersionIdByPath[path];
+            if (selected) return selected;
             return latestVersionIdByPath.get(path);
         },
-        [fileVersionHistoryByPath, latestVersionIdByPath, selectedVersionIdByPath],
+        [latestVersionIdByPath, selectedVersionIdByPath],
     );
 
     const markVersionViewed = useCallback((versionId: string) => {
-        setViewedVersionIds((prev) => {
-            if (prev.has(versionId)) return prev;
+        const path = versionId.split("::")[0];
+        if (!path) return;
+        setViewedFiles((prev) => {
+            if (prev.has(path)) return prev;
             const next = new Set(prev);
-            next.add(versionId);
+            next.add(path);
             return next;
         });
     }, []);
 
     const markPathViewed = useCallback(
-        (path: string) => {
-            const selectedVersionId = getSelectedVersionIdForPath(path);
-            if (!selectedVersionId) return;
-            markVersionViewed(selectedVersionId);
-        },
-        [getSelectedVersionIdForPath, markVersionViewed],
-    );
-
-    const markLatestPathViewed = useCallback(
         (path: string) => {
             const latestVersionId = latestVersionIdByPath.get(path);
             if (!latestVersionId) return;
@@ -655,25 +689,33 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         [latestVersionIdByPath, markVersionViewed],
     );
 
+    const markLatestPathViewed = markPathViewed;
+
     const toggleViewedForPath = useCallback(
         (path: string) => {
-            const selectedVersionId = getSelectedVersionIdForPath(path);
-            if (!selectedVersionId) return;
-            setViewedVersionIds((prev) => {
+            if (!latestVersionIdByPath.has(path)) return;
+            setViewedFiles((prev) => {
                 const next = new Set(prev);
-                if (next.has(selectedVersionId)) {
-                    next.delete(selectedVersionId);
+                if (next.has(path)) {
+                    next.delete(path);
                 } else {
-                    next.add(selectedVersionId);
+                    next.add(path);
                 }
                 return next;
             });
         },
-        [getSelectedVersionIdForPath],
+        [latestVersionIdByPath],
     );
 
     const isPathViewed = useCallback((path: string) => viewedFiles.has(path), [viewedFiles]);
-    const isVersionViewed = useCallback((versionId: string) => viewedVersionIds.has(versionId), [viewedVersionIds]);
+    const isVersionViewed = useCallback(
+        (versionId: string) => {
+            if (!versionId.includes("::")) return true;
+            const path = versionId.split("::")[0];
+            return path ? viewedFiles.has(path) : true;
+        },
+        [viewedFiles],
+    );
     const setSelectedVersionForPath = useCallback((path: string, versionId: string) => {
         setSelectedVersionIdByPath((prev) => {
             if (prev[path] === versionId) return prev;
@@ -683,29 +725,59 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             };
         });
     }, []);
+    const handleOpenVersionMenuForPath = useCallback(
+        (path: string) => {
+            if (historyRequestedPaths.has(path)) return;
+            void fetchRemoteFileHistory(path);
+        },
+        [fetchRemoteFileHistory, historyRequestedPaths],
+    );
+
     const getVersionOptionsForPath = useCallback(
         (path: string) => {
-            const pathHistory = fileVersionHistoryByPath[path];
-            if (!pathHistory || pathHistory.order.length === 0)
-                return [] as Array<{ id: string; label: string; unread: boolean; latest: boolean; version: StoredFileVersion }>;
-            const latestVersionId = pathHistory.order[0];
-            return pathHistory.order
-                .map((versionId, index) => {
-                    const version = pathHistory.versions[versionId];
-                    if (!version) return null;
-                    const latest = versionId === latestVersionId;
-                    return {
-                        id: versionId,
-                        label: getVersionLabel(version, latest, index),
-                        unread: !viewedVersionIds.has(versionId),
-                        latest,
-                        version,
-                    };
-                })
-                .filter((option): option is { id: string; label: string; unread: boolean; latest: boolean; version: StoredFileVersion } => Boolean(option));
+            const options: FileVersionSelectOption[] = [];
+            const latestVersionId = latestVersionIdByPath.get(path);
+            if (latestVersionId) {
+                options.push({
+                    id: latestVersionId,
+                    label: "Latest",
+                    unread: !viewedFiles.has(path),
+                    latest: true,
+                });
+            }
+            const remote = persistedFileHistoryByPath[path];
+            if (!remote) return options;
+            for (let index = 0; index < remote.entries.length; index += 1) {
+                const entry = remote.entries[index];
+                const label = entry.commitHash.slice(0, 8);
+                options.push({
+                    id: commitVersionId(path, entry.commitHash),
+                    label,
+                    unread: false,
+                    latest: false,
+                });
+            }
+            if (historyLoadingByPath[path]) {
+                options.push({
+                    id: `${path}:loading`,
+                    label: "Loading...",
+                    unread: false,
+                    latest: false,
+                });
+            }
+            if (historyErrorByPath[path]) {
+                options.push({
+                    id: `${path}:error`,
+                    label: "Failed to load",
+                    unread: false,
+                    latest: false,
+                });
+            }
+            return options;
         },
-        [fileVersionHistoryByPath, viewedVersionIds],
+        [historyErrorByPath, historyLoadingByPath, latestVersionIdByPath, persistedFileHistoryByPath, viewedFiles],
     );
+
     const resolveDisplayedDiffForPath = useCallback(
         (path: string, latestFileDiff: FileDiffMetadata | undefined) => {
             if (!latestFileDiff) {
@@ -724,8 +796,18 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                     selectedVersionId: latestVersionId ?? selectedVersionId,
                 };
             }
-            const selectedVersion = fileVersionHistoryByPath[path]?.versions[selectedVersionId];
-            if (!selectedVersion) {
+            if (selectedVersionId.endsWith(":loading") || selectedVersionId.endsWith(":error")) {
+                return {
+                    fileDiff: latestFileDiff,
+                    readOnlyHistorical: false,
+                    selectedVersionId: latestVersionId,
+                };
+            }
+            const commitHash = selectedVersionId.slice(path.length + 1);
+            const remote = persistedFileHistoryByPath[path];
+            const entry = remote?.entries.find((item) => item.commitHash === commitHash);
+            const parsed = entry ? parseSingleFilePatch(entry.patch) : undefined;
+            if (!parsed) {
                 return {
                     fileDiff: latestFileDiff,
                     readOnlyHistorical: false,
@@ -733,13 +815,14 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                 };
             }
             return {
-                fileDiff: selectedVersion.snapshot as unknown as FileDiffMetadata,
+                fileDiff: parsed,
                 readOnlyHistorical: true,
                 selectedVersionId,
             };
         },
-        [fileVersionHistoryByPath, getSelectedVersionIdForPath, latestVersionIdByPath],
+        [getSelectedVersionIdForPath, latestVersionIdByPath, persistedFileHistoryByPath],
     );
+
     const selectedFileDisplayState = useMemo(
         () =>
             selectedFilePath
@@ -747,6 +830,31 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                 : { fileDiff: selectedFileDiff, readOnlyHistorical: false, selectedVersionId: undefined },
         [resolveDisplayedDiffForPath, selectedFileDiff, selectedFilePath],
     );
+
+    const allDiffFilePaths = useMemo(() => Array.from(selectableDiffPathSet), [selectableDiffPathSet]);
+    const unviewedFileCount = useMemo(
+        () => allDiffFilePaths.reduce((count, path) => (viewedFiles.has(path) ? count : count + 1), 0),
+        [allDiffFilePaths, viewedFiles],
+    );
+    const areAllFilesViewed = useMemo(
+        () => allDiffFilePaths.length > 0 && allDiffFilePaths.every((path) => viewedFiles.has(path)),
+        [allDiffFilePaths, viewedFiles],
+    );
+    const toggleAllFilesViewed = useCallback(() => {
+        setViewedFiles((prev) => {
+            const next = new Set(prev);
+            if (areAllFilesViewed) {
+                for (const path of allDiffFilePaths) {
+                    next.delete(path);
+                }
+                return next;
+            }
+            for (const path of allDiffFilePaths) {
+                next.add(path);
+            }
+            return next;
+        });
+    }, [allDiffFilePaths, areAllFilesViewed]);
 
     const allModeSectionPaths = useMemo(
         () => (prData ? [PR_SUMMARY_PATH, ...allModeDiffEntries.map((entry) => entry.filePath)] : allModeDiffEntries.map((entry) => entry.filePath)),
@@ -756,41 +864,6 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         () => (allModeSectionPaths.length > 0 ? allModeSectionPaths[allModeSectionPaths.length - 1] : null),
         [allModeSectionPaths],
     );
-    const allDiffFilePaths = useMemo(() => Array.from(selectableDiffPathSet), [selectableDiffPathSet]);
-    const unviewedFileCount = useMemo(
-        () => allDiffFilePaths.reduce((count, path) => (viewedFiles.has(path) ? count : count + 1), 0),
-        [allDiffFilePaths, viewedFiles],
-    );
-    const allVersionIdsForVisibleFiles = useMemo(() => {
-        const ids = new Set<string>();
-        for (const path of allDiffFilePaths) {
-            const pathHistory = fileVersionHistoryByPath[path];
-            if (!pathHistory) continue;
-            for (const versionId of pathHistory.order) {
-                ids.add(versionId);
-            }
-        }
-        return ids;
-    }, [allDiffFilePaths, fileVersionHistoryByPath]);
-    const areAllFilesViewed = useMemo(
-        () => allVersionIdsForVisibleFiles.size > 0 && Array.from(allVersionIdsForVisibleFiles).every((versionId) => viewedVersionIds.has(versionId)),
-        [allVersionIdsForVisibleFiles, viewedVersionIds],
-    );
-    const toggleAllFilesViewed = useCallback(() => {
-        setViewedVersionIds((prev) => {
-            const next = new Set(prev);
-            if (areAllFilesViewed) {
-                for (const versionId of allVersionIdsForVisibleFiles) {
-                    next.delete(versionId);
-                }
-                return next;
-            }
-            for (const versionId of allVersionIdsForVisibleFiles) {
-                next.add(versionId);
-            }
-            return next;
-        });
-    }, [allVersionIdsForVisibleFiles, areAllFilesViewed]);
 
     useReviewTreeModelSync({
         showSettingsPanel,
@@ -1257,6 +1330,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                     getSelectedVersionIdForPath={getSelectedVersionIdForPath}
                     getVersionOptionsForPath={getVersionOptionsForPath}
                     onSelectVersionForPath={setSelectedVersionForPath}
+                    onOpenVersionMenuForPath={handleOpenVersionMenuForPath}
                     resolveDisplayedDiffForPath={resolveDisplayedDiffForPath}
                     isVersionViewed={isVersionViewed}
                     threadsByPath={threadsByPath}

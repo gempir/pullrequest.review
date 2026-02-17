@@ -50,6 +50,7 @@ type ReviewSingleModeViewProps = {
     onToggleAllFilesViewed: () => void;
     onToggleViewed: (path: string) => void;
     onSelectFileVersion: (versionId: string) => void;
+    onFileVersionMenuOpen: () => void;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
     onSubmitInlineComment: () => void;
@@ -97,6 +98,7 @@ export function ReviewSingleModeView({
     onToggleAllFilesViewed,
     onToggleViewed,
     onSelectFileVersion,
+    onFileVersionMenuOpen,
     getInlineDraftContent,
     setInlineDraftContent,
     onSubmitInlineComment,
@@ -179,7 +181,15 @@ export function ReviewSingleModeView({
                     >
                         {copiedPath === selectedFilePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                     </Button>
-                    <FileVersionSelect value={selectedFileVersionId ?? ""} options={selectedFileVersionOptions} onValueChange={onSelectFileVersion} />
+                    <FileVersionSelect
+                        value={selectedFileVersionId ?? ""}
+                        options={selectedFileVersionOptions}
+                        onValueChange={onSelectFileVersion}
+                        onOpenChange={(open) => {
+                            if (!open) return;
+                            onFileVersionMenuOpen();
+                        }}
+                    />
                     <DiffContextButton
                         state={fileContextState[selectedFilePath]}
                         onClick={() => onLoadFullFileContext(selectedFilePath, selectedFileDiff)}

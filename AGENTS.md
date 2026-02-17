@@ -4,7 +4,6 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 
 ## Project Principles
 - Keep the UI practical, compact, and keyboard-friendly.
-- Preserve the terminal-inspired design language.
 - Prefer simple, maintainable code over complex abstractions.
 - Mobile-specific UX is a non-goal; optimize for desktop keyboard-first workflows.
 

@@ -51,11 +51,11 @@ async function initStorageCollection() {
         return;
     }
 
-    const [{ createRxDatabase }, { getRxStorageLocalstorage }] = await Promise.all([import("rxdb/plugins/core"), import("rxdb/plugins/storage-localstorage")]);
+    const [{ createRxDatabase }, { getRxStorageDexie }] = await Promise.all([import("rxdb/plugins/core"), import("rxdb/plugins/storage-dexie")]);
 
     const database = await createRxDatabase({
         name: STORAGE_DATABASE_NAME,
-        storage: getRxStorageLocalstorage(),
+        storage: getRxStorageDexie(),
         multiInstance: true,
     });
     storageDatabase = database;
@@ -88,7 +88,7 @@ export function ensureStorageReady() {
     if (!storageReadyPromise) {
         storageReadyPromise = initStorageCollection().catch((error) => {
             // Keep storage best-effort to avoid blocking app usage.
-            console.error("Failed to initialize RxDB storage, using localStorage.", error);
+            console.error("Failed to initialize IndexedDB storage, falling back to window.localStorage.", error);
             useLocalStorageFallback = true;
         });
     }

@@ -1,3 +1,4 @@
+import { bitbucketAuthSchema, parseSchema } from "@/lib/git-host/schemas";
 import { parseFailureBody } from "@/lib/git-host/shared/http";
 import {
     type AuthState,
@@ -158,9 +159,9 @@ interface BitbucketBuildStatusPage {
 function parseCredentials(rawValue: string | null): BitbucketCredentials | null {
     if (!rawValue) return null;
     try {
-        const parsed = JSON.parse(rawValue) as Partial<BitbucketCredentials>;
-        const email = parsed.email?.trim();
-        const apiToken = parsed.apiToken?.trim();
+        const parsed = parseSchema(bitbucketAuthSchema, JSON.parse(rawValue));
+        const email = parsed?.email.trim();
+        const apiToken = parsed?.apiToken.trim();
         if (!email || !apiToken) return null;
         return { email, apiToken };
     } catch {

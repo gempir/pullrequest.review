@@ -1,10 +1,10 @@
 import type { FileDiffOptions, OnDiffLineClickProps } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useLiveQuery } from "@tanstack/react-db";
-import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { type CSSProperties, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
+import { createReviewPageUiStore, useReviewPageUiValue } from "@/components/pull-request-review/review-page.store";
 import { ReviewPageDiffContent } from "@/components/pull-request-review/review-page-diff-content";
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
 import { ReviewPageLoadingView } from "@/components/pull-request-review/review-page-loading-view";
@@ -21,7 +21,6 @@ import {
     useDirectoryStateStorage,
     useEnsureSummarySelection,
     useInlineDraftFocus,
-    usePendingBuildStatusesRefresh,
     useReviewActiveFileSync,
     useReviewDocumentTitle,
     useReviewFileHashSelection,
@@ -134,7 +133,6 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         options.diffUseCustomTypography,
     ]);
     const { root, dirState, setTree, setKinds, allFiles, activeFile, setActiveFile, setDirectoryExpandedMap, expand } = useFileTree();
-    const queryClient = useQueryClient();
     const { treeWidth, treeCollapsed, setTreeCollapsed, viewMode, setViewMode, startTreeResize } = useReviewLayoutPreferences();
     const hostDataCollectionsVersion = useSyncExternalStore(
         subscribeHostDataCollectionsVersion,
@@ -145,19 +143,102 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const workspaceRef = useRef<HTMLDivElement | null>(null);
     const diffScrollRef = useRef<HTMLDivElement | null>(null);
     const inlineDraftFocusRef = useRef<(() => void) | null>(null);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [showUnviewedOnly, setShowUnviewedOnly] = useState(false);
+    const uiStoreRef = useRef(createReviewPageUiStore());
+    const uiStore = uiStoreRef.current;
+    const searchQuery = useReviewPageUiValue(uiStore, (state) => state.searchQuery);
+    const showUnviewedOnly = useReviewPageUiValue(uiStore, (state) => state.showUnviewedOnly);
+    const showSettingsPanel = useReviewPageUiValue(uiStore, (state) => state.showSettingsPanel);
+    const mergeOpen = useReviewPageUiValue(uiStore, (state) => state.mergeOpen);
+    const mergeMessage = useReviewPageUiValue(uiStore, (state) => state.mergeMessage);
+    const mergeStrategy = useReviewPageUiValue(uiStore, (state) => state.mergeStrategy);
+    const closeSourceBranch = useReviewPageUiValue(uiStore, (state) => state.closeSourceBranch);
+    const copiedPath = useReviewPageUiValue(uiStore, (state) => state.copiedPath);
+    const copiedSourceBranch = useReviewPageUiValue(uiStore, (state) => state.copiedSourceBranch);
+    const setSearchQuery = useCallback(
+        (next: SetStateAction<string>) => {
+            uiStore.setState((prev) => ({
+                ...prev,
+                searchQuery: typeof next === "function" ? (next as (current: string) => string)(prev.searchQuery) : next,
+            }));
+        },
+        [uiStore],
+    );
+    const setShowUnviewedOnly = useCallback(
+        (next: SetStateAction<boolean>) => {
+            uiStore.setState((prev) => ({
+                ...prev,
+                showUnviewedOnly: typeof next === "function" ? (next as (current: boolean) => boolean)(prev.showUnviewedOnly) : next,
+            }));
+        },
+        [uiStore],
+    );
+    const setShowSettingsPanel = useCallback(
+        (next: SetStateAction<boolean>) => {
+            uiStore.setState((prev) => ({
+                ...prev,
+                showSettingsPanel: typeof next === "function" ? (next as (current: boolean) => boolean)(prev.showSettingsPanel) : next,
+            }));
+        },
+        [uiStore],
+    );
+    const setMergeOpen = useCallback(
+        (next: SetStateAction<boolean>) => {
+            uiStore.setState((prev) => ({
+                ...prev,
+                mergeOpen: typeof next === "function" ? (next as (current: boolean) => boolean)(prev.mergeOpen) : next,
+            }));
+        },
+        [uiStore],
+    );
+    const setMergeMessage = useCallback(
+        (next: SetStateAction<string>) => {
+            uiStore.setState((prev) => ({
+                ...prev,
+                mergeMessage: typeof next === "function" ? (next as (current: string) => string)(prev.mergeMessage) : next,
+            }));
+        },
+        [uiStore],
+    );
+    const setMergeStrategy = useCallback(
+        (next: SetStateAction<string>) => {
+            uiStore.setState((prev) => ({
+                ...prev,
+                mergeStrategy: typeof next === "function" ? (next as (current: string) => string)(prev.mergeStrategy) : next,
+            }));
+        },
+        [uiStore],
+    );
+    const setCloseSourceBranch = useCallback(
+        (next: SetStateAction<boolean>) => {
+            uiStore.setState((prev) => ({
+                ...prev,
+                closeSourceBranch: typeof next === "function" ? (next as (current: boolean) => boolean)(prev.closeSourceBranch) : next,
+            }));
+        },
+        [uiStore],
+    );
+    const setCopiedPath = useCallback(
+        (next: SetStateAction<string | null>) => {
+            uiStore.setState((prev) => ({
+                ...prev,
+                copiedPath: typeof next === "function" ? (next as (current: string | null) => string | null)(prev.copiedPath) : next,
+            }));
+        },
+        [uiStore],
+    );
+    const setCopiedSourceBranch = useCallback(
+        (next: boolean) => {
+            uiStore.setState((prev) => ({
+                ...prev,
+                copiedSourceBranch: next,
+            }));
+        },
+        [uiStore],
+    );
     const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
     const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<Record<string, boolean>>({});
     const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
-    const [showSettingsPanel, setShowSettingsPanel] = useState(false);
-    const [mergeOpen, setMergeOpen] = useState(false);
-    const [mergeMessage, setMergeMessage] = useState("");
-    const [mergeStrategy, setMergeStrategy] = useState("merge_commit");
-    const [closeSourceBranch, setCloseSourceBranch] = useState(true);
-    const [copiedPath, setCopiedPath] = useState<string | null>(null);
-    const [copiedSourceBranch, setCopiedSourceBranch] = useState(false);
     const [fileContexts, setFileContexts] = useState<Record<string, FullFileContextEntry>>({});
     const [dirStateHydrated, setDirStateHydrated] = useState(false);
     const [pendingCommentTick, setPendingCommentTick] = useState(0);
@@ -178,12 +259,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             setActiveFile,
             setViewMode,
         });
-    const {
-        hostCapabilities,
-        queryKey: prQueryKey,
-        query: prQuery,
-        hasPendingBuildStatuses,
-    } = useReviewQuery({
+    const { hostCapabilities, query: prQuery } = useReviewQuery({
         host,
         workspace,
         repo,
@@ -202,11 +278,6 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const refetchPrQuery = prQuery.refetch;
     const isRateLimitedError = useMemo(() => isRateLimitedQueryError(prQuery.error), [prQuery.error]);
     useReviewDocumentTitle({ isLoading: prQuery.isLoading, pullRequestTitle });
-    usePendingBuildStatusesRefresh({
-        hasPendingBuildStatuses,
-        isFetching: isPrQueryFetching,
-        refetch: refetchPrQuery,
-    });
 
     // Build viewed-file storage key from stable primitives to avoid object identity churn.
     const viewedStorageKey = useViewedStorageKey(prData?.prRef);
@@ -562,8 +633,6 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         prData,
         pullRequest,
         isApprovedByCurrentUser: isApproved,
-        queryClient,
-        prQueryKey,
         refetchPullRequest: refetchPrQuery,
         mergeMessage,
         mergeStrategy,
@@ -620,7 +689,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                 setPendingCommentTick((tick) => tick + 1);
             }
         },
-        [selectAndRevealFile],
+        [selectAndRevealFile, setShowSettingsPanel],
     );
     const handleHashPathResolved = useCallback(
         (path: string) => {
@@ -631,7 +700,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             }
             setActiveFile(path);
         },
-        [selectAndRevealFile, setActiveFile, viewMode],
+        [selectAndRevealFile, setActiveFile, setShowSettingsPanel, viewMode],
     );
 
     const revealTreePath = useCallback((path: string) => {

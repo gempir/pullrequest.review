@@ -23,27 +23,6 @@ export function useReviewDocumentTitle({ isLoading, pullRequestTitle }: { isLoad
     }, [isLoading, pullRequestTitle]);
 }
 
-export function usePendingBuildStatusesRefresh({
-    hasPendingBuildStatuses,
-    isFetching,
-    refetch,
-}: {
-    hasPendingBuildStatuses: boolean;
-    isFetching: boolean;
-    refetch: () => Promise<unknown>;
-}) {
-    useEffect(() => {
-        if (!hasPendingBuildStatuses) return;
-        const intervalId = window.setInterval(() => {
-            if (isFetching) return;
-            void refetch();
-        }, 10_000);
-        return () => {
-            window.clearInterval(intervalId);
-        };
-    }, [hasPendingBuildStatuses, isFetching, refetch]);
-}
-
 export function useCopyTimeoutCleanup({
     copyResetTimeoutRef,
     copySourceBranchResetTimeoutRef,

@@ -155,6 +155,23 @@ export interface PullRequestBundle {
     buildStatuses?: PullRequestBuildStatus[];
 }
 
+export interface PullRequestFileHistoryEntry {
+    versionId: string;
+    commitHash: string;
+    commitDate?: string;
+    commitMessage?: string;
+    authorDisplayName?: string;
+    filePathAtCommit: string;
+    status: DiffStatEntry["status"];
+    patch: string;
+}
+
+export interface PullRequestFileHistory {
+    path: string;
+    entries: PullRequestFileHistoryEntry[];
+    fetchedAt: number;
+}
+
 export interface MergeOptions {
     closeSourceBranch?: boolean;
     message?: string;
@@ -226,4 +243,5 @@ export interface GitHostClient {
     resolvePullRequestComment(data: { prRef: PullRequestRef; commentId: number; resolve: boolean }): Promise<{ ok: true }>;
     deletePullRequestComment(data: { prRef: PullRequestRef; commentId: number; hasInlineContext: boolean }): Promise<{ ok: true }>;
     fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }): Promise<string>;
+    fetchPullRequestFileHistory(data: { prRef: PullRequestRef; path: string; commits: Commit[]; limit?: number }): Promise<PullRequestFileHistory>;
 }

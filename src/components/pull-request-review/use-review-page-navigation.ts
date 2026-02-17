@@ -9,7 +9,7 @@ type UseReviewPageNavigationProps = {
     settingsPathSet: Set<string>;
     viewMode: "single" | "all";
     treeOrderedVisiblePaths: string[];
-    viewedFiles: Set<string>;
+    isPathViewed: (path: string) => boolean;
     directoryPaths: string[];
     diffScrollRef: MutableRefObject<HTMLDivElement | null>;
     setActiveFile: (next: string | undefined) => void;
@@ -17,7 +17,8 @@ type UseReviewPageNavigationProps = {
     setShowSettingsPanel: (next: boolean) => void;
     setCollapsedAllModeFiles: Dispatch<SetStateAction<Record<string, boolean>>>;
     setIsSummaryCollapsedInAllMode: Dispatch<SetStateAction<boolean>>;
-    setViewedFiles: Dispatch<SetStateAction<Set<string>>>;
+    toggleViewedForPath: (path: string) => void;
+    markViewedForPath: (path: string) => void;
     setDirectoryExpandedMap: (next: Record<string, boolean>) => void;
     onProgrammaticAllModeRevealStart?: (path: string) => void;
     onApprovePullRequest: () => void;
@@ -29,7 +30,7 @@ export function useReviewPageNavigation({
     settingsPathSet,
     viewMode,
     treeOrderedVisiblePaths,
-    viewedFiles,
+    isPathViewed,
     directoryPaths,
     diffScrollRef,
     setActiveFile,
@@ -37,7 +38,8 @@ export function useReviewPageNavigation({
     setShowSettingsPanel,
     setCollapsedAllModeFiles,
     setIsSummaryCollapsedInAllMode,
-    setViewedFiles,
+    toggleViewedForPath,
+    markViewedForPath,
     setDirectoryExpandedMap,
     onProgrammaticAllModeRevealStart,
     onApprovePullRequest,
@@ -124,14 +126,14 @@ export function useReviewPageNavigation({
     const selectAdjacentUnviewedFile = useCallback(
         (direction: "next" | "previous") => {
             const step = direction === "next" ? 1 : -1;
-            const hasUnviewedCandidate = treeOrderedVisiblePaths.some((path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path));
+            const hasUnviewedCandidate = treeOrderedVisiblePaths.some((path) => path !== PR_SUMMARY_PATH && !isPathViewed(path));
             if (!hasUnviewedCandidate) return;
 
             if (!activeFile) {
                 const fallbackPath =
                     direction === "next"
-                        ? treeOrderedVisiblePaths.find((path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path))
-                        : [...treeOrderedVisiblePaths].reverse().find((path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path));
+                        ? treeOrderedVisiblePaths.find((path) => path !== PR_SUMMARY_PATH && !isPathViewed(path))
+                        : [...treeOrderedVisiblePaths].reverse().find((path) => path !== PR_SUMMARY_PATH && !isPathViewed(path));
                 if (fallbackPath) {
                     selectAndRevealFile(fallbackPath);
                 }
@@ -145,12 +147,12 @@ export function useReviewPageNavigation({
                 const candidate = treeOrderedVisiblePaths[index];
                 if (!candidate) continue;
                 if (candidate === PR_SUMMARY_PATH) continue;
-                if (viewedFiles.has(candidate)) continue;
+                if (isPathViewed(candidate)) continue;
                 selectAndRevealFile(candidate);
                 return;
             }
         },
-        [activeFile, selectAndRevealFile, treeOrderedVisiblePaths, viewedFiles],
+        [activeFile, isPathViewed, selectAndRevealFile, treeOrderedVisiblePaths],
     );
 
     useKeyboardNavigation({
@@ -162,26 +164,13 @@ export function useReviewPageNavigation({
             if (!activeFile) return;
             if (activeFile === PR_SUMMARY_PATH) return;
             if (settingsPathSet.has(activeFile)) return;
-            setViewedFiles((prev) => {
-                const next = new Set(prev);
-                if (next.has(activeFile)) {
-                    next.delete(activeFile);
-                } else {
-                    next.add(activeFile);
-                }
-                return next;
-            });
+            toggleViewedForPath(activeFile);
         },
         onMarkFileViewedAndFold: () => {
             if (!activeFile) return;
             if (activeFile === PR_SUMMARY_PATH) return;
             if (settingsPathSet.has(activeFile)) return;
-            setViewedFiles((prev) => {
-                if (prev.has(activeFile)) return prev;
-                const next = new Set(prev);
-                next.add(activeFile);
-                return next;
-            });
+            markViewedForPath(activeFile);
             setCollapsedAllModeFiles((collapsed) => ({
                 ...collapsed,
                 [activeFile]: true,
@@ -196,22 +185,16 @@ export function useReviewPageNavigation({
 
     const toggleViewed = useCallback(
         (path: string) => {
-            setViewedFiles((prev) => {
-                const wasViewed = prev.has(path);
-                const next = new Set(prev);
-                if (wasViewed) {
-                    next.delete(path);
-                } else {
-                    next.add(path);
-                    setCollapsedAllModeFiles((collapsed) => ({
-                        ...collapsed,
-                        [path]: true,
-                    }));
-                }
-                return next;
-            });
+            const wasViewed = isPathViewed(path);
+            toggleViewedForPath(path);
+            if (!wasViewed) {
+                setCollapsedAllModeFiles((collapsed) => ({
+                    ...collapsed,
+                    [path]: true,
+                }));
+            }
         },
-        [setCollapsedAllModeFiles, setViewedFiles],
+        [isPathViewed, setCollapsedAllModeFiles, toggleViewedForPath],
     );
 
     const collapseAllDirectories = useCallback(() => {

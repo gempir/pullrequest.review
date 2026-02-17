@@ -4,6 +4,21 @@ import { makeVersionedStorageKey, readStorageValue, removeStorageValue, writeLoc
 
 const VIEWED_STORAGE_PREFIX_BASE = "pr_review_viewed";
 const VIEWED_STORAGE_PREFIX = makeVersionedStorageKey(VIEWED_STORAGE_PREFIX_BASE, 2);
+const VIEWED_VERSIONS_SUFFIX = ":viewed_versions";
+
+type LegacyViewedFilesPayload = {
+    version: 3;
+    entries: Record<string, string>;
+};
+
+type ViewedVersionPayload = {
+    version: 1;
+    viewedVersionIds: string[];
+};
+
+function buildFileVersionId(path: string, fingerprint: string) {
+    return `${path}::${fingerprint}`;
+}
 
 export function useViewedStorageKey(data?: { host: GitHost; workspace: string; repo: string; pullRequestId: string }) {
     const host = data?.host;
@@ -17,73 +32,98 @@ export function useViewedStorageKey(data?: { host: GitHost; workspace: string; r
     }, [host, pullRequestId, repo, workspace]);
 }
 
-type ViewedFilesPayload = {
-    version: 3;
-    entries: Record<string, string>;
-};
+function viewedVersionsStorageKey(storageKey: string) {
+    return `${storageKey}${VIEWED_VERSIONS_SUFFIX}`;
+}
 
-function isViewedFilesPayload(value: unknown): value is ViewedFilesPayload {
+function isLegacyViewedFilesPayload(value: unknown): value is LegacyViewedFilesPayload {
     if (!value || typeof value !== "object") return false;
-    const payload = value as ViewedFilesPayload;
-    if (payload.version !== 3) return false;
-    return payload.entries !== undefined && typeof payload.entries === "object";
+    const payload = value as LegacyViewedFilesPayload;
+    return payload.version === 3 && payload.entries !== undefined && typeof payload.entries === "object";
 }
 
-function restoreViewedSet(entries: Record<string, unknown>, fingerprints?: ReadonlyMap<string, string>) {
+function isViewedVersionPayload(value: unknown): value is ViewedVersionPayload {
+    if (!value || typeof value !== "object") return false;
+    const payload = value as ViewedVersionPayload;
+    return payload.version === 1 && Array.isArray(payload.viewedVersionIds);
+}
+
+function parseLegacyViewedIds(legacyRaw: string | null, fileDiffFingerprints?: ReadonlyMap<string, string>, knownVersionIds?: ReadonlySet<string>) {
+    if (!legacyRaw) return new Set<string>();
+
     const next = new Set<string>();
-    for (const [path, fingerprint] of Object.entries(entries)) {
-        if (typeof fingerprint !== "string") continue;
-        if (!fingerprints || fingerprints.get(path) === fingerprint) {
-            next.add(path);
+    const collectFromPath = (path: string, fingerprint?: string) => {
+        if (!fingerprint) return;
+        const versionId = buildFileVersionId(path, fingerprint);
+        if (!knownVersionIds || knownVersionIds.has(versionId)) {
+            next.add(versionId);
         }
-    }
-    return next;
-}
+    };
 
-export function readViewedFiles(storageKey: string, fileDiffFingerprints?: ReadonlyMap<string, string>) {
-    if (!storageKey) return new Set<string>();
     try {
-        const raw = readStorageValue(storageKey);
-        if (!raw) return new Set<string>();
-
-        const parsed = JSON.parse(raw) as unknown;
+        const parsed = JSON.parse(legacyRaw) as unknown;
         if (Array.isArray(parsed)) {
-            return new Set(parsed.filter((path): path is string => typeof path === "string"));
+            for (const path of parsed) {
+                if (typeof path !== "string") continue;
+                collectFromPath(path, fileDiffFingerprints?.get(path));
+            }
+            return next;
         }
-        if (isViewedFilesPayload(parsed)) {
-            return restoreViewedSet(parsed.entries, fileDiffFingerprints);
+
+        const entries = isLegacyViewedFilesPayload(parsed) ? parsed.entries : parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+        if (!entries) return next;
+
+        for (const [path, fingerprint] of Object.entries(entries)) {
+            if (typeof fingerprint !== "string") continue;
+            if (fileDiffFingerprints && fileDiffFingerprints.get(path) !== fingerprint) continue;
+            collectFromPath(path, fingerprint);
         }
-        if (parsed && typeof parsed === "object") {
-            return restoreViewedSet(parsed as Record<string, unknown>, fileDiffFingerprints);
-        }
-        return new Set<string>();
+
+        return next;
     } catch {
-        removeStorageValue(storageKey);
         return new Set<string>();
     }
 }
 
-export function writeViewedFiles(storageKey: string, viewedFiles: Set<string>, fileDiffFingerprints?: ReadonlyMap<string, string>) {
+export function readViewedVersionIds(
+    storageKey: string,
+    {
+        fileDiffFingerprints,
+        knownVersionIds,
+    }: {
+        fileDiffFingerprints?: ReadonlyMap<string, string>;
+        knownVersionIds?: ReadonlySet<string>;
+    } = {},
+) {
+    if (!storageKey) return new Set<string>();
+
+    const key = viewedVersionsStorageKey(storageKey);
+    try {
+        const raw = readStorageValue(key);
+        if (raw) {
+            const parsed = JSON.parse(raw) as unknown;
+            if (isViewedVersionPayload(parsed)) {
+                const filtered = parsed.viewedVersionIds.filter((versionId) => !knownVersionIds || knownVersionIds.has(versionId));
+                return new Set(filtered);
+            }
+        }
+    } catch {
+        removeStorageValue(key);
+    }
+
+    return parseLegacyViewedIds(readStorageValue(storageKey), fileDiffFingerprints, knownVersionIds);
+}
+
+export function writeViewedVersionIds(storageKey: string, viewedVersionIds: Set<string>) {
     if (!storageKey) return;
-    if (fileDiffFingerprints && fileDiffFingerprints.size > 0) {
-        const entries: Record<string, string> = {};
-        let hasEntry = false;
-        for (const path of viewedFiles) {
-            const fingerprint = fileDiffFingerprints.get(path);
-            if (!fingerprint) continue;
-            entries[path] = fingerprint;
-            hasEntry = true;
-        }
-        if (!hasEntry) {
-            removeStorageValue(storageKey);
-            return;
-        }
-        const payload: ViewedFilesPayload = {
-            version: 3,
-            entries,
-        };
-        writeLocalStorageValue(storageKey, JSON.stringify(payload));
+    const key = viewedVersionsStorageKey(storageKey);
+    if (viewedVersionIds.size === 0) {
+        removeStorageValue(key);
         return;
     }
-    writeLocalStorageValue(storageKey, JSON.stringify(Array.from(viewedFiles)));
+    const payload: ViewedVersionPayload = {
+        version: 1,
+        viewedVersionIds: Array.from(viewedVersionIds),
+    };
+    writeLocalStorageValue(key, JSON.stringify(payload));
 }

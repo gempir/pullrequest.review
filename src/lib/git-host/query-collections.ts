@@ -1,7 +1,7 @@
 import { type Collection, createCollection, localOnlyCollectionOptions } from "@tanstack/db";
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
-import { fetchPullRequestBundleByRef, fetchRepoPullRequestsForHost, listRepositoriesForHost } from "@/lib/git-host/service";
-import type { GitHost, PullRequestBundle, PullRequestRef, PullRequestSummary, RepoRef } from "@/lib/git-host/types";
+import { fetchPullRequestBundleByRef, fetchPullRequestFileHistory, fetchRepoPullRequestsForHost, listRepositoriesForHost } from "@/lib/git-host/service";
+import type { Commit, GitHost, PullRequestBundle, PullRequestFileHistoryEntry, PullRequestRef, PullRequestSummary, RepoRef } from "@/lib/git-host/types";
 import { LruCache } from "@/lib/utils/lru";
 
 export type PullRequestBundleRecord = PullRequestBundle & {
@@ -17,6 +17,14 @@ export type PullRequestFileContextRecord = {
     path: string;
     oldLines: string[];
     newLines: string[];
+    fetchedAt: number;
+};
+
+export type PullRequestFileHistoryRecord = {
+    id: string;
+    prKey: string;
+    path: string;
+    entries: PullRequestFileHistoryEntry[];
     fetchedAt: number;
 };
 
@@ -48,12 +56,13 @@ type ScopedCollection<T extends object> = {
     utils: CollectionUtils;
 };
 
-type HostDataCollectionKey = "repositories" | "repoPullRequests" | "pullRequestBundles" | "pullRequestFileContexts";
+type HostDataCollectionKey = "repositories" | "repoPullRequests" | "pullRequestBundles" | "pullRequestFileContexts" | "pullRequestFileHistories";
 type HostDataRecordMap = {
     repositories: RepositoryRecord;
     repoPullRequests: PersistedRepoPullRequestRecord;
     pullRequestBundles: PersistedPullRequestBundleRecord;
     pullRequestFileContexts: PullRequestFileContextRecord;
+    pullRequestFileHistories: PullRequestFileHistoryRecord;
 };
 type HostDataRecordForKey<K extends HostDataCollectionKey> = HostDataRecordMap[K];
 type HostDataCollectionForKey<K extends HostDataCollectionKey> = Collection<HostDataRecordForKey<K>, string>;
@@ -80,11 +89,13 @@ const REPOSITORY_RX_COLLECTION_NAME = "repositories";
 const REPO_PULL_REQUEST_RX_COLLECTION_NAME = "repo_pull_requests";
 const PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME = "pull_request_bundles";
 const PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME = "pull_request_file_contexts";
+const PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME = "pull_request_file_histories";
 
 const REPOSITORY_TANSTACK_COLLECTION_ID = "repos:rxdb";
 const REPO_PULL_REQUEST_TANSTACK_COLLECTION_ID = "repo-prs:rxdb";
 const PULL_REQUEST_BUNDLE_TANSTACK_COLLECTION_ID = "pr-bundle:rxdb";
 const PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID = "pr-file-contexts:rxdb";
+const PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID = "pr-file-histories:rxdb";
 const SCOPED_COLLECTION_CACHE_SIZE = 100;
 
 const REPOSITORY_RX_SCHEMA = {
@@ -272,6 +283,40 @@ const PULL_REQUEST_FILE_CONTEXT_RX_SCHEMA = {
     additionalProperties: false,
 } as const;
 
+const PULL_REQUEST_FILE_HISTORY_RX_SCHEMA = {
+    title: "pullrequestdotreview pull request file histories",
+    version: 0,
+    type: "object",
+    primaryKey: "id",
+    properties: {
+        id: {
+            type: "string",
+            maxLength: 1500,
+        },
+        prKey: {
+            type: "string",
+            maxLength: 800,
+        },
+        path: {
+            type: "string",
+            maxLength: 1000,
+        },
+        entries: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: true,
+            },
+        },
+        fetchedAt: {
+            type: "number",
+            minimum: 0,
+        },
+    },
+    required: ["id", "prKey", "path", "entries", "fetchedAt"],
+    additionalProperties: false,
+} as const;
+
 let hostDataReadyPromise: Promise<void> | null = null;
 let hostDataDatabase: { close: () => Promise<boolean> } | null = null;
 let hostDataFallbackActive = false;
@@ -281,10 +326,12 @@ let repositoryCollection: Collection<RepositoryRecord, string> | null = null;
 let repoPullRequestCollection: Collection<PersistedRepoPullRequestRecord, string> | null = null;
 let pullRequestBundleCollection: Collection<PersistedPullRequestBundleRecord, string> | null = null;
 let pullRequestFileContextCollection: Collection<PullRequestFileContextRecord, string> | null = null;
+let pullRequestFileHistoryCollection: Collection<PullRequestFileHistoryRecord, string> | null = null;
 
 const repositoryScopedCollections = new Map<GitHost, ScopedCollection<RepositoryRecord>>();
 const repoPullRequestScopedCollections = new LruCache<string, ScopedCollection<PersistedRepoPullRequestRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
 const pullRequestBundleScopedCollections = new LruCache<string, ScopedCollection<PersistedPullRequestBundleRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
+const pullRequestFileHistoryScopedCollections = new LruCache<string, ScopedCollection<PullRequestFileHistoryRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
 const fetchActivityListeners = new Set<() => void>();
 const activeFetchesByScope = new Map<string, FetchActivity>();
 const refetchRegistry = new LruCache<string, RefetchRegistryEntry>(SCOPED_COLLECTION_CACHE_SIZE);
@@ -435,6 +482,14 @@ function pullRequestFileContextId(prRef: PullRequestRef, path: string) {
     return `${pullRequestBundleId(prRef)}:${path}`;
 }
 
+function pullRequestFileHistoryId(prRef: PullRequestRef, path: string) {
+    return `${pullRequestBundleId(prRef)}:history:${path}`;
+}
+
+function pullRequestFileHistoryFetchScopeId(prRef: PullRequestRef, path: string) {
+    return `pr-file-history:${pullRequestBundleId(prRef)}:${path}`;
+}
+
 function normalizeRepoRef(repo: RepoRef): RepoRef {
     const workspace = repo.workspace.trim();
     const repositorySlug = repo.repo.trim();
@@ -519,6 +574,26 @@ function serializePullRequestFileContextRecord({
     };
 }
 
+function serializePullRequestFileHistoryRecord({
+    prRef,
+    path,
+    entries,
+    fetchedAt,
+}: {
+    prRef: PullRequestRef;
+    path: string;
+    entries: PullRequestFileHistoryEntry[];
+    fetchedAt: number;
+}): PullRequestFileHistoryRecord {
+    return {
+        id: pullRequestFileHistoryId(prRef, path),
+        prKey: pullRequestBundleId(prRef),
+        path,
+        entries,
+        fetchedAt,
+    };
+}
+
 function isValidRepoRef(repo: RepoRef | undefined): repo is RepoRef {
     return Boolean(
         repo &&
@@ -546,7 +621,13 @@ function normalizePullRequestSummary(pullRequest: PullRequestSummary): PullReque
 }
 
 function getHostDataCollection<K extends HostDataCollectionKey>(key: K): HostDataCollectionForKey<K> {
-    if (!repositoryCollection || !repoPullRequestCollection || !pullRequestBundleCollection || !pullRequestFileContextCollection) {
+    if (
+        !repositoryCollection ||
+        !repoPullRequestCollection ||
+        !pullRequestBundleCollection ||
+        !pullRequestFileContextCollection ||
+        !pullRequestFileHistoryCollection
+    ) {
         ensureCollectionsInitialized();
     }
 
@@ -571,6 +652,11 @@ function getHostDataCollection<K extends HostDataCollectionKey>(key: K): HostDat
                 throw new Error("Pull request file context collection is unavailable");
             }
             return pullRequestFileContextCollection as HostDataCollectionForKey<K>;
+        case "pullRequestFileHistories":
+            if (!pullRequestFileHistoryCollection) {
+                throw new Error("Pull request file history collection is unavailable");
+            }
+            return pullRequestFileHistoryCollection as HostDataCollectionForKey<K>;
         default: {
             const exhaustiveCheck: never = key;
             throw new Error(`Unsupported host data collection key: ${exhaustiveCheck}`);
@@ -603,6 +689,7 @@ async function fallbackToInMemoryHostDataCollections() {
         const repoPullRequestRecords = captureCollectionSnapshot(repoPullRequestCollection);
         const pullRequestBundleRecords = captureCollectionSnapshot(pullRequestBundleCollection);
         const pullRequestFileContextRecords = captureCollectionSnapshot(pullRequestFileContextCollection);
+        const pullRequestFileHistoryRecords = captureCollectionSnapshot(pullRequestFileHistoryCollection);
 
         if (hostDataDatabase) {
             try {
@@ -619,6 +706,7 @@ async function fallbackToInMemoryHostDataCollections() {
         repoPullRequestCollection = null;
         pullRequestBundleCollection = null;
         pullRequestFileContextCollection = null;
+        pullRequestFileHistoryCollection = null;
 
         ensureCollectionsInitialized();
 
@@ -626,10 +714,12 @@ async function fallbackToInMemoryHostDataCollections() {
         hydrateCollectionRecords(repoPullRequestCollection, repoPullRequestRecords);
         hydrateCollectionRecords(pullRequestBundleCollection, pullRequestBundleRecords);
         hydrateCollectionRecords(pullRequestFileContextCollection, pullRequestFileContextRecords);
+        hydrateCollectionRecords(pullRequestFileHistoryCollection, pullRequestFileHistoryRecords);
 
         const nextRepositoryCollection = getHostDataCollection("repositories");
         const nextRepoPullRequestCollection = getHostDataCollection("repoPullRequests");
         const nextPullRequestBundleCollection = getHostDataCollection("pullRequestBundles");
+        const nextPullRequestFileHistoryCollection = getHostDataCollection("pullRequestFileHistories");
 
         repositoryScopedCollections.forEach((scoped) => {
             scoped.collection = nextRepositoryCollection;
@@ -639,6 +729,9 @@ async function fallbackToInMemoryHostDataCollections() {
         }
         for (const scoped of pullRequestBundleScopedCollections.values()) {
             scoped.collection = nextPullRequestBundleCollection;
+        }
+        for (const scoped of pullRequestFileHistoryScopedCollections.values()) {
+            scoped.collection = nextPullRequestFileHistoryCollection;
         }
 
         console.warn("Host-data collections switched to in-memory mode after storage quota errors.");
@@ -681,7 +774,13 @@ async function persistCollectionTransaction(persistPromise: Promise<unknown>, co
 }
 
 function ensureCollectionsInitialized() {
-    if (repositoryCollection && repoPullRequestCollection && pullRequestBundleCollection && pullRequestFileContextCollection) {
+    if (
+        repositoryCollection &&
+        repoPullRequestCollection &&
+        pullRequestBundleCollection &&
+        pullRequestFileContextCollection &&
+        pullRequestFileHistoryCollection
+    ) {
         return;
     }
 
@@ -709,6 +808,13 @@ function ensureCollectionsInitialized() {
     pullRequestFileContextCollection = createCollection(
         localOnlyCollectionOptions<PullRequestFileContextRecord, string>({
             id: PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID,
+            getKey: (item) => item.id,
+        }),
+    );
+
+    pullRequestFileHistoryCollection = createCollection(
+        localOnlyCollectionOptions<PullRequestFileHistoryRecord, string>({
+            id: PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID,
             getKey: (item) => item.id,
         }),
     );
@@ -742,6 +848,9 @@ async function initRxdbCollections() {
         },
         [PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME]: {
             schema: PULL_REQUEST_FILE_CONTEXT_RX_SCHEMA,
+        },
+        [PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME]: {
+            schema: PULL_REQUEST_FILE_HISTORY_RX_SCHEMA,
         },
     });
 
@@ -777,11 +886,20 @@ async function initRxdbCollections() {
         }),
     );
 
+    pullRequestFileHistoryCollection = createCollection(
+        rxdbCollectionOptions<PullRequestFileHistoryRecord>({
+            id: PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID,
+            rxCollection: collections[PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME],
+            startSync: true,
+        }),
+    );
+
     await Promise.all([
         repositoryCollection.preload(),
         repoPullRequestCollection.preload(),
         pullRequestBundleCollection.preload(),
         pullRequestFileContextCollection.preload(),
+        pullRequestFileHistoryCollection.preload(),
     ]);
 }
 
@@ -870,6 +988,73 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef) {
 
 export function getPullRequestFileContextCollection() {
     return getHostDataCollection("pullRequestFileContexts");
+}
+
+export function getPullRequestFileHistoryDataCollection() {
+    return getHostDataCollection("pullRequestFileHistories");
+}
+
+export function getPullRequestFileHistoryCollection({
+    prRef,
+    path,
+    commits,
+    limit = 20,
+}: {
+    prRef: PullRequestRef;
+    path: string;
+    commits: Commit[];
+    limit?: number;
+}) {
+    ensureCollectionsInitialized();
+    const normalizedPath = path.trim();
+    const revision = `${commits[0]?.hash ?? "none"}:${commits.length}`;
+    const scopeId = `${pullRequestFileHistoryFetchScopeId(prRef, normalizedPath)}:${revision}:${limit}`;
+    const scopeLabel = `Pull request file history (${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId}:${normalizedPath})`;
+    const existing = pullRequestFileHistoryScopedCollections.get(scopeId);
+    if (existing) return existing;
+
+    const utils = createCollectionUtils(async (opts) => {
+        utils.isFetching = true;
+        setFetchActivity(scopeId, scopeLabel, true);
+        try {
+            const history = await fetchPullRequestFileHistory({
+                prRef,
+                path: normalizedPath,
+                commits: commits.map((commit) => ({ ...commit })),
+                limit,
+            });
+            await upsertRecord(
+                "pullRequestFileHistories",
+                serializePullRequestFileHistoryRecord({
+                    prRef,
+                    path: normalizedPath,
+                    entries: history.entries,
+                    fetchedAt: history.fetchedAt,
+                }),
+            );
+            utils.lastError = undefined;
+            utils.dataUpdatedAt = Date.now();
+        } catch (error) {
+            utils.lastError = error;
+            if (opts?.throwOnError) {
+                throw error;
+            }
+        } finally {
+            utils.isFetching = false;
+            setFetchActivity(scopeId, scopeLabel, false);
+        }
+    });
+
+    const scoped: ScopedCollection<PullRequestFileHistoryRecord> = {
+        collection: getHostDataCollection("pullRequestFileHistories"),
+        utils,
+    };
+    const { evicted } = pullRequestFileHistoryScopedCollections.set(scopeId, scoped);
+    if (evicted) {
+        unregisterScope(evicted.key);
+    }
+    registerRefetchScope(scopeId, scopeLabel, utils.refetch);
+    return scoped;
 }
 
 export async function savePullRequestFileContextRecord({

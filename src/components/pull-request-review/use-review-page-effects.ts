@@ -68,22 +68,25 @@ export function useViewedFilesStorage({
     viewedFiles,
     setViewedFiles,
     autoMarkedViewedFilesRef,
+    fileDiffFingerprints,
 }: {
     viewedStorageKey: string | null;
     viewedFiles: Set<string>;
     setViewedFiles: Dispatch<SetStateAction<Set<string>>>;
     autoMarkedViewedFilesRef: MutableRefObject<Set<string>>;
+    fileDiffFingerprints?: ReadonlyMap<string, string>;
 }) {
+    const fingerprintSource = fileDiffFingerprints && fileDiffFingerprints.size > 0 ? fileDiffFingerprints : undefined;
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
         autoMarkedViewedFilesRef.current = new Set();
-        setViewedFiles(readViewedFiles(viewedStorageKey));
-    }, [viewedStorageKey, setViewedFiles, autoMarkedViewedFilesRef]);
+        setViewedFiles(readViewedFiles(viewedStorageKey, fingerprintSource));
+    }, [autoMarkedViewedFilesRef, fingerprintSource, setViewedFiles, viewedStorageKey]);
 
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
-        writeViewedFiles(viewedStorageKey, viewedFiles);
-    }, [viewedStorageKey, viewedFiles]);
+        writeViewedFiles(viewedStorageKey, viewedFiles, fingerprintSource);
+    }, [fingerprintSource, viewedFiles, viewedStorageKey]);
 }
 
 export function useDirectoryStateStorage({

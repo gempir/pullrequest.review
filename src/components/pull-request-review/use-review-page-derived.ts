@@ -11,6 +11,41 @@ import type { CommentThread } from "./review-threads";
 import { buildCommentThreads, sortThreadsByCreatedAt } from "./review-threads";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
+function hashString(value: string) {
+    let hash1 = 0x811c9dc5;
+    let hash2 = 0x01000193;
+    for (let i = 0; i < value.length; i += 1) {
+        const char = value.charCodeAt(i);
+        hash1 = Math.imul(hash1 ^ char, 0x01000193);
+        hash2 = Math.imul(hash2 ^ (char + i), 0x01000193);
+    }
+    return `${(hash1 >>> 0).toString(16)}${(hash2 >>> 0).toString(16)}`;
+}
+
+function buildFileDiffFingerprint(fileDiff: FileDiffMetadata) {
+    const normalized = {
+        type: fileDiff.type,
+        name: fileDiff.name,
+        prevName: fileDiff.prevName ?? "",
+        hunks: (fileDiff.hunks ?? []).map((hunk) => ({
+            additionCount: hunk.additionCount,
+            additionLines: hunk.additionLines,
+            additionStart: hunk.additionStart,
+            deletionCount: hunk.deletionCount,
+            deletionLines: hunk.deletionLines,
+            deletionStart: hunk.deletionStart,
+            unifiedLineCount: hunk.unifiedLineCount,
+            unifiedLineStart: hunk.unifiedLineStart,
+            splitLineCount: hunk.splitLineCount,
+            splitLineStart: hunk.splitLineStart,
+            hunkContext: hunk.hunkContext,
+            hunkSpecs: hunk.hunkSpecs,
+            hunkContent: hunk.hunkContent,
+        })),
+    };
+    return hashString(JSON.stringify(normalized));
+}
+
 export function useReviewPageDerived({
     prData,
     pullRequest,
@@ -100,6 +135,16 @@ export function useReviewPageDerived({
         fileDiffs.forEach((fileDiff, index) => {
             const path = getFilePath(fileDiff, index);
             if (!map.has(path)) map.set(path, fileDiff);
+        });
+        return map;
+    }, [fileDiffs]);
+    const fileDiffFingerprints = useMemo(() => {
+        const map = new Map<string, string>();
+        fileDiffs.forEach((fileDiff, index) => {
+            const path = getFilePath(fileDiff, index);
+            if (!map.has(path)) {
+                map.set(path, buildFileDiffFingerprint(fileDiff));
+            }
         });
         return map;
     }, [fileDiffs]);
@@ -298,6 +343,7 @@ export function useReviewPageDerived({
         buildFileAnnotations,
         singleFileAnnotations,
         singleFileDiffOptions,
+        fileDiffFingerprints,
     };
 }
 

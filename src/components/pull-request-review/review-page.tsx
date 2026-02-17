@@ -297,12 +297,6 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         copyResetTimeoutRef,
         copySourceBranchResetTimeoutRef,
     });
-    useViewedFilesStorage({
-        viewedStorageKey,
-        viewedFiles,
-        setViewedFiles,
-        autoMarkedViewedFilesRef,
-    });
     useDirectoryStateStorage({
         directoryStateStorageKey,
         dirState,
@@ -408,6 +402,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         buildFileAnnotations,
         singleFileAnnotations,
         singleFileDiffOptions,
+        fileDiffFingerprints,
     } = useReviewPageDerived({
         prData,
         pullRequest,
@@ -424,6 +419,13 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         compactDiffOptions,
         onOpenInlineCommentDraft: openInlineCommentDraftForPath,
         fullFileContexts: readyFileContexts,
+    });
+    useViewedFilesStorage({
+        viewedStorageKey,
+        viewedFiles,
+        setViewedFiles,
+        autoMarkedViewedFilesRef,
+        fileDiffFingerprints,
     });
     const allModeSectionPaths = useMemo(
         () => (prData ? [PR_SUMMARY_PATH, ...allModeDiffEntries.map((entry) => entry.filePath)] : allModeDiffEntries.map((entry) => entry.filePath)),

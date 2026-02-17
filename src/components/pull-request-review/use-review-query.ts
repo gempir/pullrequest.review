@@ -2,10 +2,12 @@ import { useLiveQuery } from "@tanstack/react-db";
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import {
     getGitHostFetchActivitySnapshot,
+    getHostDataCollectionsVersionSnapshot,
     getPullRequestBundleCollection,
     type PullRequestBundleRecord,
     pullRequestDetailsFetchScopeId,
     subscribeGitHostFetchActivity,
+    subscribeHostDataCollectionsVersion,
 } from "@/lib/git-host/query-collections";
 import { getCapabilitiesForHost } from "@/lib/git-host/service";
 import { type GitHost, HostApiError } from "@/lib/git-host/types";
@@ -77,8 +79,15 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
     const queryKey = useMemo(() => ["pr-bundle", host, workspace, repo, pullRequestId] as const, [host, pullRequestId, repo, workspace]);
     const fetchScopeId = useMemo(() => pullRequestDetailsFetchScopeId({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
     const fetchActivity = useSyncExternalStore(subscribeGitHostFetchActivity, getGitHostFetchActivitySnapshot, getGitHostFetchActivitySnapshot);
+    const hostDataCollectionsVersion = useSyncExternalStore(
+        subscribeHostDataCollectionsVersion,
+        getHostDataCollectionsVersionSnapshot,
+        getHostDataCollectionsVersionSnapshot,
+    );
 
     const bundleStore = useMemo(() => {
+        // Depend on host-data collection version so we rescope when persistence falls back.
+        void hostDataCollectionsVersion;
         if (!canLoadPullRequest) return null;
         return getPullRequestBundleCollection({
             host,
@@ -86,7 +95,7 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
             repo,
             pullRequestId,
         });
-    }, [canLoadPullRequest, host, pullRequestId, repo, workspace]);
+    }, [canLoadPullRequest, host, hostDataCollectionsVersion, pullRequestId, repo, workspace]);
 
     const bundleQuery = useLiveQuery(
         (q) => {

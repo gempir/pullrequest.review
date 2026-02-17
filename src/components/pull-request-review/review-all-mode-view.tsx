@@ -139,7 +139,8 @@ export function ReviewAllModeView({
                             <span className="text-status-added">+{lineStats.added}</span>
                             <span className="ml-2 text-status-removed">-{lineStats.removed}</span>
                         </div>
-                        <div className="shrink-0">
+                        <div className="shrink-0 flex items-center gap-1">
+                            <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
                             <Button
                                 type="button"
                                 variant="ghost"

@@ -450,6 +450,10 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         [allModeSectionPaths],
     );
     const allDiffFilePaths = useMemo(() => Array.from(selectableDiffPathSet), [selectableDiffPathSet]);
+    const unviewedFileCount = useMemo(
+        () => allDiffFilePaths.reduce((count, path) => (viewedFiles.has(path) ? count : count + 1), 0),
+        [allDiffFilePaths, viewedFiles],
+    );
     const areAllFilesViewed = useMemo(
         () => allDiffFilePaths.length > 0 && allDiffFilePaths.every((path) => viewedFiles.has(path)),
         [allDiffFilePaths, viewedFiles],
@@ -497,7 +501,6 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         viewMode,
         autoMarkViewedFiles: options.autoMarkViewedFiles,
         showSettingsPanel,
-        showUnviewedOnly,
         activeFile,
         visiblePathSet,
         autoMarkedViewedFilesRef,
@@ -809,6 +812,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         showSettingsPanel,
         searchQuery,
         showUnviewedOnly,
+        unviewedFileCount,
         allowedPathSet,
         viewedFiles,
         pullRequest: pullRequest ?? {},

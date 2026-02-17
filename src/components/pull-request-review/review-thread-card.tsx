@@ -1,4 +1,4 @@
-import { Check, Reply, SendHorizontal, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Reply, SendHorizontal, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -97,6 +97,9 @@ export function ThreadCard({
     const [isReplying, setIsReplying] = useState(false);
     const [replyValue, setReplyValue] = useState("");
     const replyFocusRef = useRef<(() => void) | null>(null);
+    const isResolved = Boolean(thread.root.resolution);
+    const [collapsed, setCollapsed] = useState(() => isResolved);
+    const prevResolutionRef = useRef(thread.root.resolution);
     const normalizedCurrentUser = normalizeName(currentUserDisplayName);
     const isSameUser = (name?: string) => {
         if (!normalizedCurrentUser) return false;
@@ -114,6 +117,17 @@ export function ThreadCard({
             replyFocusRef.current?.();
         }
     }, [isReplying]);
+    useEffect(() => {
+        if (thread.root.resolution !== prevResolutionRef.current) {
+            prevResolutionRef.current = thread.root.resolution;
+            setCollapsed(Boolean(thread.root.resolution));
+        }
+    }, [thread.root.resolution]);
+    useEffect(() => {
+        if (collapsed && isReplying) {
+            setIsReplying(false);
+        }
+    }, [collapsed, isReplying]);
 
     const handleStartReply = () => {
         if (!canCommentInline || createCommentPending) return;
@@ -134,6 +148,11 @@ export function ThreadCard({
         setIsReplying(false);
     };
     const rootIsOwn = isSameUser(thread.root.user?.displayName);
+    const commentCount = thread.replies.length + 1;
+    const toggleCollapsed = () => {
+        if (!isResolved) return;
+        setCollapsed((prev) => !prev);
+    };
 
     return (
         <div className="p-0.5 text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
@@ -144,83 +163,120 @@ export function ThreadCard({
                         <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
                             <span className="font-medium text-foreground text-[12px]">{thread.root.user?.displayName ?? "Unknown"}</span>
                             <span>{formatDate(thread.root.createdAt)}</span>
-                            <span className="ml-auto text-[10px] uppercase tracking-wide">{thread.root.resolution ? "Resolved" : "Unresolved"}</span>
+                            <span className="ml-auto text-[10px] uppercase tracking-wide">{isResolved ? "Resolved" : "Unresolved"}</span>
+                            {isResolved ? (
+                                <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors text-[10px] uppercase tracking-wide"
+                                    onClick={toggleCollapsed}
+                                    aria-expanded={!collapsed}
+                                    aria-label={collapsed ? "Expand resolved thread" : "Collapse resolved thread"}
+                                >
+                                    {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
+                                    <span>{collapsed ? "Expand" : "Collapse"}</span>
+                                </button>
+                            ) : null}
                         </div>
-                        <CommentMarkdown text={thread.root.content?.html ?? thread.root.content?.raw ?? ""} />
-                        {isReplying ? (
-                            <CommentEditor
-                                value={replyValue}
-                                placeholder="Reply to this thread"
-                                disabled={createCommentPending || !canCommentInline}
-                                onReady={(focus) => {
-                                    replyFocusRef.current = focus;
-                                    if (isReplying) {
-                                        focus();
-                                    }
-                                }}
-                                onChange={setReplyValue}
-                                onSubmit={handleSubmitReply}
-                            />
-                        ) : null}
-                        <div className="flex flex-wrap items-center gap-1.5">
-                            {rootIsOwn ? renderDeleteButton(thread.root.id, Boolean(thread.root.inline?.path)) : null}
-                            {isReplying ? (
-                                <>
+                        {!collapsed ? (
+                            <>
+                                <CommentMarkdown text={thread.root.content?.html ?? thread.root.content?.raw ?? ""} />
+                                {isReplying ? (
+                                    <CommentEditor
+                                        value={replyValue}
+                                        placeholder="Reply to this thread"
+                                        disabled={createCommentPending || !canCommentInline}
+                                        onReady={(focus) => {
+                                            replyFocusRef.current = focus;
+                                            if (isReplying) {
+                                                focus();
+                                            }
+                                        }}
+                                        onChange={setReplyValue}
+                                        onSubmit={handleSubmitReply}
+                                    />
+                                ) : null}
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {rootIsOwn ? renderDeleteButton(thread.root.id, Boolean(thread.root.inline?.path)) : null}
+                                    {isReplying ? (
+                                        <>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-7 gap-1.5"
+                                                disabled={createCommentPending || !canCommentInline}
+                                                onClick={handleSubmitReply}
+                                            >
+                                                <SendHorizontal className="size-3.5" />
+                                                Comment
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-7 gap-1.5"
+                                                disabled={createCommentPending}
+                                                onClick={handleCancelReply}
+                                            >
+                                                <X className="size-3.5" />
+                                                Cancel
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 gap-1.5"
+                                            disabled={createCommentPending || !canCommentInline}
+                                            onClick={handleStartReply}
+                                        >
+                                            <Reply className="size-3.5" />
+                                            Reply
+                                        </Button>
+                                    )}
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         className="h-7 gap-1.5"
-                                        disabled={createCommentPending || !canCommentInline}
-                                        onClick={handleSubmitReply}
+                                        disabled={resolveCommentPending || !canResolveThread}
+                                        onClick={() => onResolveThread(thread.root.id, !thread.root.resolution)}
                                     >
-                                        <SendHorizontal className="size-3.5" />
-                                        Comment
+                                        <Check className="size-3.5" />
+                                        {thread.root.resolution ? "Unresolve" : "Resolve"}
                                     </Button>
-                                    <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={createCommentPending} onClick={handleCancelReply}>
-                                        <X className="size-3.5" />
-                                        Cancel
-                                    </Button>
-                                </>
-                            ) : (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 gap-1.5"
-                                    disabled={createCommentPending || !canCommentInline}
-                                    onClick={handleStartReply}
-                                >
-                                    <Reply className="size-3.5" />
-                                    Reply
-                                </Button>
-                            )}
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 gap-1.5"
-                                disabled={resolveCommentPending || !canResolveThread}
-                                onClick={() => onResolveThread(thread.root.id, !thread.root.resolution)}
+                                </div>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                className="w-full rounded border border-dashed border-border/70 bg-muted/20 px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground hover:border-border flex items-center gap-1"
+                                onClick={() => setCollapsed(false)}
+                                aria-label="Expand resolved thread"
                             >
-                                <Check className="size-3.5" />
-                                {thread.root.resolution ? "Unresolve" : "Resolve"}
-                            </Button>
-                        </div>
+                                <ChevronRight className="size-3" />
+                                <span>
+                                    Show resolved thread
+                                    {commentCount > 1 ? ` (${commentCount} comments)` : ""}
+                                </span>
+                            </button>
+                        )}
                     </div>
                 </div>
-                {thread.replies.map((reply) => (
-                    <div key={reply.id} id={commentAnchorId(reply.id)} className="flex gap-2 rounded border border-border/50 bg-muted/20 p-1.5">
-                        <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="size-5" />
-                        <div className="flex-1 space-y-0.5">
-                            <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-[11px]">
-                                <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
-                                <span>{formatDate(reply.createdAt)}</span>
-                            </div>
-                            <CommentMarkdown text={reply.content?.html ?? reply.content?.raw ?? ""} />
-                            <div className="flex flex-wrap items-center gap-1.5">
-                                {isSameUser(reply.user?.displayName) ? renderDeleteButton(reply.id, Boolean(reply.inline?.path)) : null}
-                            </div>
-                        </div>
-                    </div>
-                ))}
+                {!collapsed
+                    ? thread.replies.map((reply) => (
+                          <div key={reply.id} id={commentAnchorId(reply.id)} className="flex gap-2 rounded border border-border/50 bg-muted/20 p-1.5">
+                              <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="size-5" />
+                              <div className="flex-1 space-y-0.5">
+                                  <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-[11px]">
+                                      <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
+                                      <span>{formatDate(reply.createdAt)}</span>
+                                  </div>
+                                  <CommentMarkdown text={reply.content?.html ?? reply.content?.raw ?? ""} />
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                      {isSameUser(reply.user?.displayName) ? renderDeleteButton(reply.id, Boolean(reply.inline?.path)) : null}
+                                  </div>
+                              </div>
+                          </div>
+                      ))
+                    : null}
             </div>
         </div>
     );

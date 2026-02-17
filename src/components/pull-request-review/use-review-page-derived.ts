@@ -121,14 +121,15 @@ export function useReviewPageDerived({
 
     const normalizedSearch = searchQuery.trim().toLowerCase();
     const filteredDiffs = useMemo(() => {
+        const forcedVisiblePath = showUnviewedOnly ? activeFile : undefined;
         return fileDiffs.filter((fileDiff, index) => {
             const filePath = getFilePath(fileDiff, index);
             const path = filePath.toLowerCase();
             const matchesSearch = !normalizedSearch || path.includes(normalizedSearch);
-            const matchesViewedFilter = !showUnviewedOnly || !viewedFiles.has(filePath);
+            const matchesViewedFilter = !showUnviewedOnly || forcedVisiblePath === filePath || !viewedFiles.has(filePath);
             return matchesSearch && matchesViewedFilter;
         });
-    }, [fileDiffs, normalizedSearch, showUnviewedOnly, viewedFiles]);
+    }, [activeFile, fileDiffs, normalizedSearch, showUnviewedOnly, viewedFiles]);
 
     const diffByPath = useMemo(() => {
         const map = new Map<string, FileDiffMetadata>();

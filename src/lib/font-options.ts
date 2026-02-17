@@ -4,6 +4,7 @@ type DetectedFontFamilyValue = `${typeof DETECTED_FONT_VALUE_PREFIX}${string}`;
 export type FontFamilyValue =
     | "geist-sans"
     | "jetbrains-mono"
+    | "menlo"
     | "inter"
     | "manrope"
     | "sora"
@@ -35,6 +36,11 @@ export const FONT_FAMILY_OPTIONS: ReadonlyArray<FontOption> = [
         value: "jetbrains-mono",
         label: "JetBrains Mono",
         cssFamily: '"JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
+    },
+    {
+        value: "menlo",
+        label: "Menlo",
+        cssFamily: 'Menlo, "Geist Mono", ui-monospace, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
     },
     {
         value: "inter",
@@ -121,6 +127,7 @@ export const MONO_FONT_FAMILY_OPTIONS: ReadonlyArray<{
     value: FontFamilyValue;
     label: string;
 }> = [
+    { value: "menlo", label: "Menlo" },
     { value: "jetbrains-mono", label: "JetBrains Mono" },
     { value: "fira-code", label: "Fira Code" },
     { value: "cascadia-code", label: "Cascadia Code" },
@@ -131,7 +138,7 @@ export const MONO_FONT_FAMILY_OPTIONS: ReadonlyArray<{
     { value: "geist-pixel", label: "Geist Pixel" },
 ];
 
-export const DEFAULT_FONT_FAMILY: FontFamilyValue = "jetbrains-mono";
+export const DEFAULT_FONT_FAMILY: FontFamilyValue = "menlo";
 
 export function makeDetectedFontFamilyValue(name: string): FontFamilyValue {
     return `${DETECTED_FONT_VALUE_PREFIX}${name}` as FontFamilyValue;

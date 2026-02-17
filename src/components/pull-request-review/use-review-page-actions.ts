@@ -217,7 +217,7 @@ export function useReviewPageActions({
                 if (vars.side && prev.side !== vars.side) return prev;
                 return null;
             });
-            await queryClient.invalidateQueries({ queryKey: prQueryKey });
+            await refreshPullRequest();
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to create comment");
@@ -240,7 +240,7 @@ export function useReviewPageActions({
             });
         },
         onSuccess: async () => {
-            await queryClient.invalidateQueries({ queryKey: prQueryKey });
+            await refreshPullRequest();
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to update comment resolution");
@@ -260,7 +260,7 @@ export function useReviewPageActions({
             });
         },
         onSuccess: async () => {
-            await queryClient.invalidateQueries({ queryKey: prQueryKey });
+            await refreshPullRequest();
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to delete comment");

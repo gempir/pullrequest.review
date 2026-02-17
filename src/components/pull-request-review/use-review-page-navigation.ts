@@ -121,17 +121,41 @@ export function useReviewPageNavigation({
         return diffScrollRef.current;
     }, [diffScrollRef, viewMode]);
 
+    const selectAdjacentUnviewedFile = useCallback(
+        (direction: "next" | "previous") => {
+            const step = direction === "next" ? 1 : -1;
+            const hasUnviewedCandidate = treeOrderedVisiblePaths.some((path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path));
+            if (!hasUnviewedCandidate) return;
+
+            if (!activeFile) {
+                const fallbackPath =
+                    direction === "next"
+                        ? treeOrderedVisiblePaths.find((path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path))
+                        : [...treeOrderedVisiblePaths].reverse().find((path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path));
+                if (fallbackPath) {
+                    selectAndRevealFile(fallbackPath);
+                }
+                return;
+            }
+
+            const currentIndex = treeOrderedVisiblePaths.indexOf(activeFile);
+            if (currentIndex < 0) return;
+
+            for (let index = currentIndex + step; index >= 0 && index < treeOrderedVisiblePaths.length; index += step) {
+                const candidate = treeOrderedVisiblePaths[index];
+                if (!candidate) continue;
+                if (candidate === PR_SUMMARY_PATH) continue;
+                if (viewedFiles.has(candidate)) continue;
+                selectAndRevealFile(candidate);
+                return;
+            }
+        },
+        [activeFile, selectAndRevealFile, treeOrderedVisiblePaths, viewedFiles],
+    );
+
     useKeyboardNavigation({
-        onNextUnviewedFile: () =>
-            selectFromPaths(
-                treeOrderedVisiblePaths.filter((path) => !viewedFiles.has(path)),
-                "next",
-            ),
-        onPreviousUnviewedFile: () =>
-            selectFromPaths(
-                treeOrderedVisiblePaths.filter((path) => !viewedFiles.has(path)),
-                "previous",
-            ),
+        onNextUnviewedFile: () => selectAdjacentUnviewedFile("next"),
+        onPreviousUnviewedFile: () => selectAdjacentUnviewedFile("previous"),
         onNextFile: () => selectFromPaths(treeOrderedVisiblePaths, "next"),
         onPreviousFile: () => selectFromPaths(treeOrderedVisiblePaths, "previous"),
         onMarkFileViewed: () => {

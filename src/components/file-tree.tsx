@@ -315,6 +315,7 @@ function FileNodeRow({
     const isPullRequestNode = isPullRequestPath(node.path);
     const isSettingsNode = node.type === "file" && isSettingsPath(node.path);
     const isActive = node.path === active;
+    const isUnviewedFile = showUnviewedIndicator && node.type !== "summary" && !isSettingsNode && !isHomeNode && !viewed;
 
     return (
         <button
@@ -349,10 +350,7 @@ function FileNodeRow({
                 )}
             </span>
             {kindMarker(kind)}
-            <span className="flex-1 min-w-0 truncate pr-2 text-foreground">{node.name}</span>
-            {showUnviewedIndicator && node.type !== "summary" && !isSettingsNode && !isHomeNode && !viewed && (
-                <span className="sticky right-2 ml-auto size-2.5 shrink-0 rounded-full bg-status-renamed" aria-hidden />
-            )}
+            <span className={cn("flex-1 min-w-0 truncate pr-2 text-foreground", isUnviewedFile ? "text-status-renamed" : "")}>{node.name}</span>
         </button>
     );
 }

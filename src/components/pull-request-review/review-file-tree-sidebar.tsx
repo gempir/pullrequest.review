@@ -15,6 +15,7 @@ type ReviewFileTreeSidebarProps = {
     showSettingsPanel: boolean;
     searchQuery: string;
     showUnviewedOnly: boolean;
+    unviewedFileCount: number;
     allowedPathSet: Set<string>;
     viewedFiles: Set<string>;
     onHome: () => void;
@@ -36,6 +37,7 @@ export function ReviewFileTreeSidebar({
     showSettingsPanel,
     searchQuery,
     showUnviewedOnly,
+    unviewedFileCount,
     allowedPathSet,
     viewedFiles,
     onHome,
@@ -49,6 +51,8 @@ export function ReviewFileTreeSidebar({
     onFileClick,
     onStartTreeResize,
 }: ReviewFileTreeSidebarProps) {
+    const badgeValue = unviewedFileCount > 999 ? "999+" : unviewedFileCount.toString();
+
     return (
         <aside
             className={cn("relative shrink-0 bg-background flex flex-col overflow-hidden", treeCollapsed ? "border-r-0" : "border-r border-border")}
@@ -83,11 +87,14 @@ export function ReviewFileTreeSidebar({
                                             type="button"
                                             variant="ghost"
                                             size="sm"
-                                            className={cn("size-7 p-0", showUnviewedOnly ? "bg-accent text-foreground" : "")}
+                                            className={cn("size-7 p-0 relative", showUnviewedOnly ? "bg-accent text-foreground" : "")}
                                             onClick={onToggleUnviewedOnly}
                                             aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
                                         >
                                             {showUnviewedOnly ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                                            <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-75">
+                                                {badgeValue}
+                                            </span>
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>

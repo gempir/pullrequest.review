@@ -491,7 +491,6 @@ export function useAutoMarkActiveFileViewed({
     viewMode,
     autoMarkViewedFiles,
     showSettingsPanel,
-    showUnviewedOnly,
     activeFile,
     visiblePathSet,
     autoMarkedViewedFilesRef,
@@ -500,7 +499,6 @@ export function useAutoMarkActiveFileViewed({
     viewMode: "single" | "all";
     autoMarkViewedFiles: boolean;
     showSettingsPanel: boolean;
-    showUnviewedOnly: boolean;
     activeFile: string | undefined;
     visiblePathSet: Set<string>;
     autoMarkedViewedFilesRef: MutableRefObject<Set<string>>;
@@ -510,7 +508,6 @@ export function useAutoMarkActiveFileViewed({
         if (!autoMarkViewedFiles) return;
         if (viewMode !== "single") return;
         if (showSettingsPanel) return;
-        if (showUnviewedOnly) return;
         if (!activeFile || !visiblePathSet.has(activeFile)) return;
         if (activeFile === PR_SUMMARY_PATH) return;
         if (autoMarkedViewedFilesRef.current.has(activeFile)) return;
@@ -522,7 +519,7 @@ export function useAutoMarkActiveFileViewed({
             next.add(activeFile);
             return next;
         });
-    }, [activeFile, autoMarkViewedFiles, autoMarkedViewedFilesRef, setViewedFiles, showSettingsPanel, showUnviewedOnly, viewMode, visiblePathSet]);
+    }, [activeFile, autoMarkViewedFiles, autoMarkedViewedFilesRef, setViewedFiles, showSettingsPanel, viewMode, visiblePathSet]);
 }
 
 export function useEnsureSummarySelection({

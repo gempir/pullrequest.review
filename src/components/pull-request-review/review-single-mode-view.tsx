@@ -119,25 +119,28 @@ export function ReviewSingleModeView({
                     diffStats={lineStats}
                     onSelectComment={onHistoryCommentNavigate}
                     headerRight={
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={onToggleAllFilesViewed}
-                            aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
-                            title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
-                        >
-                            <span
-                                className={
-                                    areAllFilesViewed
-                                        ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                        : "size-4 bg-muted/40 border border-border/70 text-muted-foreground flex items-center justify-center"
-                                }
+                        <div className="flex items-center gap-1">
+                            <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={onToggleAllFilesViewed}
+                                aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                                title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
                             >
-                                <CheckCheck className="size-3" />
-                            </span>
-                        </Button>
+                                <span
+                                    className={
+                                        areAllFilesViewed
+                                            ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                            : "size-4 bg-muted/40 border border-border/70 text-muted-foreground flex items-center justify-center"
+                                    }
+                                >
+                                    <CheckCheck className="size-3" />
+                                </span>
+                            </Button>
+                        </div>
                     }
                 />
             </div>

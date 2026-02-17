@@ -10,6 +10,7 @@ export function useReviewPageViewProps({
     showSettingsPanel,
     searchQuery,
     showUnviewedOnly,
+    unviewedFileCount,
     allowedPathSet,
     viewedFiles,
     pullRequest,
@@ -59,6 +60,7 @@ export function useReviewPageViewProps({
     showSettingsPanel: boolean;
     searchQuery: string;
     showUnviewedOnly: boolean;
+    unviewedFileCount: number;
     allowedPathSet: Set<string>;
     viewedFiles: Set<string>;
     pullRequest: { source?: { branch?: { name?: string } }; destination?: { branch?: { name?: string } } };
@@ -111,6 +113,7 @@ export function useReviewPageViewProps({
             showSettingsPanel,
             searchQuery,
             showUnviewedOnly,
+            unviewedFileCount,
             allowedPathSet,
             viewedFiles,
             onHome,
@@ -139,6 +142,7 @@ export function useReviewPageViewProps({
             searchQuery,
             showSettingsPanel,
             showUnviewedOnly,
+            unviewedFileCount,
             treeCollapsed,
             treeWidth,
             viewedFiles,

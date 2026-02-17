@@ -603,16 +603,10 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             let changed = false;
             const next: Record<string, string> = {};
             for (const [path, pathHistory] of Object.entries(fileVersionHistoryByPath)) {
-                const selectedVersionId = prev[path];
-                if (selectedVersionId && pathHistory.versions[selectedVersionId]) {
-                    next[path] = selectedVersionId;
-                    if (selectedVersionId !== prev[path]) changed = true;
-                    continue;
-                }
                 const latestVersionId = pathHistory.order[0];
                 if (!latestVersionId) continue;
                 next[path] = latestVersionId;
-                if (selectedVersionId !== latestVersionId) {
+                if (prev[path] !== latestVersionId) {
                     changed = true;
                 }
             }

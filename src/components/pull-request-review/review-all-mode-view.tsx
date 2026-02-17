@@ -50,6 +50,7 @@ type ReviewAllModeViewProps = {
     getSelectedVersionIdForPath: (path: string) => string | undefined;
     getVersionOptionsForPath: (path: string) => FileVersionSelectOption[];
     onSelectVersionForPath: (path: string, versionId: string) => void;
+    onOpenVersionMenuForPath: (path: string) => void;
     resolveDisplayedDiffForPath: (
         path: string,
         latestFileDiff: FileDiffMetadata | undefined,
@@ -108,6 +109,7 @@ export function ReviewAllModeView({
     getSelectedVersionIdForPath,
     getVersionOptionsForPath,
     onSelectVersionForPath,
+    onOpenVersionMenuForPath,
     resolveDisplayedDiffForPath,
     isVersionViewed,
     compactDiffOptions,
@@ -245,6 +247,10 @@ export function ReviewAllModeView({
                                     value={selectedVersionId ?? ""}
                                     options={fileVersionOptions}
                                     onValueChange={(versionId) => onSelectVersionForPath(filePath, versionId)}
+                                    onOpenChange={(open) => {
+                                        if (!open) return;
+                                        onOpenVersionMenuForPath(filePath);
+                                    }}
                                 />
                                 <DiffContextButton
                                     state={fileContextState[filePath]}

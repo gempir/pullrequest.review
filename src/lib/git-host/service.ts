@@ -1,5 +1,5 @@
 import { getHostCapabilities, getHostClient } from "@/lib/git-host/registry";
-import type { GitHost, PullRequestRef, RepoRef } from "@/lib/git-host/types";
+import type { Commit, GitHost, PullRequestRef, RepoRef } from "@/lib/git-host/types";
 
 export async function fetchRepoPullRequestsForHost(data: { host: GitHost; repos: RepoRef[] }) {
     if (data.repos.length === 0) {
@@ -69,6 +69,10 @@ export async function deletePullRequestComment(data: { prRef: PullRequestRef; co
 
 export async function fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }) {
     return getHostClient(data.prRef.host).fetchPullRequestFileContents(data);
+}
+
+export async function fetchPullRequestFileHistory(data: { prRef: PullRequestRef; path: string; commits: Commit[]; limit?: number }) {
+    return getHostClient(data.prRef.host).fetchPullRequestFileHistory(data);
 }
 
 export function getCapabilitiesForHost(host: GitHost) {

@@ -12,6 +12,8 @@ import {
     type PullRequestBuildStatus,
     type PullRequestBundle,
     type PullRequestDetails,
+    type PullRequestFileHistory,
+    type PullRequestFileHistoryEntry,
     type PullRequestHistoryEvent,
     type PullRequestReviewer,
     type PullRequestSummary,
@@ -161,6 +163,17 @@ interface GithubCombinedStatusResponse {
     statuses?: GithubCommitStatus[];
 }
 
+interface GithubCommitFile {
+    status?: string;
+    filename?: string;
+    previous_filename?: string;
+    patch?: string;
+}
+
+interface GithubCommitDetails extends GithubCommit {
+    files?: GithubCommitFile[];
+}
+
 function parseAuth(rawValue: string | null): GithubAuth | null {
     if (!rawValue) return null;
     try {
@@ -240,6 +253,53 @@ function mapFileStatus(status: string): DiffStatEntry["status"] {
     if (status === "removed") return "removed";
     if (status === "renamed") return "renamed";
     return "modified";
+}
+
+function matchGithubCommitFileForPath(file: GithubCommitFile, targetPath: string) {
+    const normalizedTarget = targetPath.trim();
+    if (!normalizedTarget) return false;
+    return file.filename === normalizedTarget || file.previous_filename === normalizedTarget;
+}
+
+function buildGithubSingleFilePatch(file: GithubCommitFile) {
+    const filename = file.filename?.trim();
+    if (!filename || !file.patch) return null;
+    const previousFilename = file.previous_filename?.trim();
+    const oldPath = previousFilename ?? filename;
+    const newPath = filename;
+    return `diff --git a/${oldPath} b/${newPath}\n--- a/${oldPath}\n+++ b/${newPath}\n${file.patch}\n`;
+}
+
+function splitUnifiedDiffByFile(diffText: string) {
+    const sections = diffText.split(/^diff --git /m);
+    const patches: string[] = [];
+    for (const section of sections) {
+        const trimmed = section.trim();
+        if (!trimmed) continue;
+        patches.push(`diff --git ${trimmed}`);
+    }
+    return patches;
+}
+
+function extractPathPairFromPatch(patch: string) {
+    const firstLine = patch.split("\n", 1)[0] ?? "";
+    const match = firstLine.match(/^diff --git a\/(.+?) b\/(.+)$/);
+    if (!match) return null;
+    return {
+        oldPath: match[1],
+        newPath: match[2],
+    };
+}
+
+function extractSingleFilePatchFromUnifiedDiff(diffText: string, targetPath: string) {
+    for (const patch of splitUnifiedDiffByFile(diffText)) {
+        const pair = extractPathPairFromPatch(patch);
+        if (!pair) continue;
+        if (pair.oldPath === targetPath || pair.newPath === targetPath) {
+            return patch.endsWith("\n") ? patch : `${patch}\n`;
+        }
+    }
+    return null;
 }
 
 function mapPullRequestSummary(pr: GithubPull): PullRequestSummary {
@@ -975,6 +1035,53 @@ export const githubClient: GitHostClient = {
             }
             throw error;
         }
+    },
+    async fetchPullRequestFileHistory({ prRef, path, commits, limit = 20 }): Promise<PullRequestFileHistory> {
+        const normalizedPath = path.trim();
+        if (!normalizedPath || commits.length === 0) {
+            return { path: normalizedPath, entries: [], fetchedAt: Date.now() };
+        }
+
+        const entries: PullRequestFileHistoryEntry[] = [];
+        for (const commit of commits) {
+            if (entries.length >= limit) break;
+            const commitHash = commit.hash?.trim();
+            if (!commitHash) continue;
+
+            const commitRes = await request(`/repos/${prRef.workspace}/${prRef.repo}/commits/${commitHash}`);
+            const commitDetails = (await commitRes.json()) as GithubCommitDetails;
+            const matchingFile = (commitDetails.files ?? []).find((file) => matchGithubCommitFileForPath(file, normalizedPath));
+            if (!matchingFile) continue;
+
+            let patch = buildGithubSingleFilePatch(matchingFile);
+            if (!patch) {
+                const diffRes = await request(`/repos/${prRef.workspace}/${prRef.repo}/commits/${commitHash}`, {
+                    headers: { Accept: "application/vnd.github.v3.diff" },
+                });
+                const diffText = await diffRes.text();
+                patch = extractSingleFilePatchFromUnifiedDiff(diffText, normalizedPath);
+            }
+            if (!patch) continue;
+
+            const filePathAtCommit = matchingFile.filename?.trim() || matchingFile.previous_filename?.trim() || normalizedPath;
+            const status = mapFileStatus((matchingFile.status ?? "modified").toLowerCase());
+            entries.push({
+                versionId: `${normalizedPath}:${commitHash}`,
+                commitHash,
+                commitDate: commit.date,
+                commitMessage: commit.message,
+                authorDisplayName: commit.author?.user?.displayName ?? commit.author?.raw,
+                filePathAtCommit,
+                status,
+                patch,
+            });
+        }
+
+        return {
+            path: normalizedPath,
+            entries,
+            fetchedAt: Date.now(),
+        };
     },
 };
 

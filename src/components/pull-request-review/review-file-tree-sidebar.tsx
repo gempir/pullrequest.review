@@ -92,7 +92,7 @@ export function ReviewFileTreeSidebar({
                                             aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
                                         >
                                             {showUnviewedOnly ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                                            <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-75">
+                                            <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">
                                                 {badgeValue}
                                             </span>
                                         </Button>

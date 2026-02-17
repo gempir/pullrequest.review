@@ -7,9 +7,10 @@ export type DiffContextState = { status: "idle" } | { status: "loading" } | { st
 interface DiffContextButtonProps {
     state?: DiffContextState;
     onClick: () => void;
+    disabled?: boolean;
 }
 
-export function DiffContextButton({ state, onClick }: DiffContextButtonProps) {
+export function DiffContextButton({ state, onClick, disabled = false }: DiffContextButtonProps) {
     const status = state?.status ?? "idle";
     const isLoading = status === "loading";
     const isReady = status === "ready";
@@ -36,7 +37,7 @@ export function DiffContextButton({ state, onClick }: DiffContextButtonProps) {
             size="sm"
             className="h-7 px-2 text-[12px] gap-1.5"
             onClick={onClick}
-            disabled={isLoading || isReady}
+            disabled={disabled || isLoading || isReady}
             title={isError && state?.status === "error" ? state.error : undefined}
         >
             <Icon className={cn("size-3.5", isLoading && "animate-spin")} />

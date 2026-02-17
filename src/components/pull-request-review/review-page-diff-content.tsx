@@ -2,6 +2,7 @@ import type { FileDiffOptions } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { CSSProperties } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
+import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { ReviewAllModeView } from "@/components/pull-request-review/review-all-mode-view";
 import type { SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
 import { ReviewSingleModeView } from "@/components/pull-request-review/review-single-mode-view";
@@ -23,6 +24,8 @@ type ReviewPageDiffContentProps = {
     isSummarySelected: boolean;
     selectedFilePath?: string;
     selectedFileDiff?: FileDiffMetadata;
+    selectedFileReadOnlyHistorical: boolean;
+    selectedFileVersionId?: string;
     copiedPath: string | null;
     fileLineStats: Map<string, { added: number; removed: number }>;
     viewedFiles: Set<string>;
@@ -41,6 +44,15 @@ type ReviewPageDiffContentProps = {
     resolveCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     allModeDiffEntries: Array<{ filePath: string; fileDiff: FileDiffMetadata }>;
+    getSelectedVersionIdForPath: (path: string) => string | undefined;
+    getVersionOptionsForPath: (path: string) => FileVersionSelectOption[];
+    onSelectVersionForPath: (path: string, versionId: string) => void;
+    onOpenVersionMenuForPath: (path: string) => void;
+    resolveDisplayedDiffForPath: (
+        path: string,
+        latestFileDiff: FileDiffMetadata | undefined,
+    ) => { fileDiff: FileDiffMetadata | undefined; readOnlyHistorical: boolean; selectedVersionId: string | undefined };
+    isVersionViewed: (versionId: string) => boolean;
     threadsByPath: Map<string, CommentThread[]>;
     collapsedAllModeFiles: Record<string, boolean>;
     collapseViewedFilesByDefault: boolean;
@@ -81,6 +93,8 @@ export function ReviewPageDiffContent({
     isSummarySelected,
     selectedFilePath,
     selectedFileDiff,
+    selectedFileReadOnlyHistorical,
+    selectedFileVersionId,
     copiedPath,
     fileLineStats,
     viewedFiles,
@@ -99,6 +113,12 @@ export function ReviewPageDiffContent({
     resolveCommentPending,
     toRenderableFileDiff,
     allModeDiffEntries,
+    getSelectedVersionIdForPath,
+    getVersionOptionsForPath,
+    onSelectVersionForPath,
+    onOpenVersionMenuForPath,
+    resolveDisplayedDiffForPath,
+    isVersionViewed,
     threadsByPath,
     collapsedAllModeFiles,
     collapseViewedFilesByDefault,
@@ -163,9 +183,11 @@ export function ReviewPageDiffContent({
                 isSummarySelected={isSummarySelected}
                 selectedFilePath={selectedFilePath}
                 selectedFileDiff={selectedFileDiff}
+                selectedFileReadOnlyHistorical={selectedFileReadOnlyHistorical}
+                selectedFileVersionId={selectedFileVersionId}
+                selectedFileVersionOptions={selectedFilePath ? getVersionOptionsForPath(selectedFilePath) : []}
                 copiedPath={copiedPath}
                 fileLineStats={fileLineStats}
-                viewedFiles={viewedFiles}
                 diffHighlighterReady={diffHighlighterReady}
                 diffTypographyStyle={diffTypographyStyle}
                 singleFileDiffOptions={singleFileDiffOptions}
@@ -183,6 +205,14 @@ export function ReviewPageDiffContent({
                 areAllFilesViewed={areAllFilesViewed}
                 onToggleAllFilesViewed={onToggleAllFilesViewed}
                 onToggleViewed={onToggleViewed}
+                onSelectFileVersion={(versionId) => {
+                    if (!selectedFilePath) return;
+                    onSelectVersionForPath(selectedFilePath, versionId);
+                }}
+                onFileVersionMenuOpen={() => {
+                    if (!selectedFilePath) return;
+                    onOpenVersionMenuForPath(selectedFilePath);
+                }}
                 getInlineDraftContent={getInlineDraftContent}
                 setInlineDraftContent={setInlineDraftContent}
                 onSubmitInlineComment={onSubmitInlineComment}
@@ -210,6 +240,12 @@ export function ReviewPageDiffContent({
             isSummaryCollapsedInAllMode={isSummaryCollapsedInAllMode}
             onToggleSummaryCollapsed={onToggleSummaryCollapsed}
             allModeDiffEntries={allModeDiffEntries}
+            getSelectedVersionIdForPath={getSelectedVersionIdForPath}
+            getVersionOptionsForPath={getVersionOptionsForPath}
+            onSelectVersionForPath={onSelectVersionForPath}
+            onOpenVersionMenuForPath={onOpenVersionMenuForPath}
+            resolveDisplayedDiffForPath={resolveDisplayedDiffForPath}
+            isVersionViewed={isVersionViewed}
             threadsByPath={threadsByPath}
             fileLineStats={fileLineStats}
             collapsedAllModeFiles={collapsedAllModeFiles}

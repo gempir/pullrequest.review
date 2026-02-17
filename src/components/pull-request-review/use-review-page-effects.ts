@@ -6,7 +6,6 @@ import type { PullRequestBundle } from "@/lib/git-host/types";
 import { clearableHashFromPath, parsePrFileHash } from "@/lib/pr-file-hash";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { readStorageValue, writeLocalStorageValue } from "@/lib/storage/versioned-local-storage";
-import { readViewedFiles, writeViewedFiles } from "./use-review-storage";
 
 export function useReviewDocumentTitle({ isLoading, pullRequestTitle }: { isLoading: boolean; pullRequestTitle?: string }) {
     useEffect(() => {
@@ -40,32 +39,6 @@ export function useCopyTimeoutCleanup({
             }
         };
     }, [copyResetTimeoutRef, copySourceBranchResetTimeoutRef]);
-}
-
-export function useViewedFilesStorage({
-    viewedStorageKey,
-    viewedFiles,
-    setViewedFiles,
-    autoMarkedViewedFilesRef,
-    fileDiffFingerprints,
-}: {
-    viewedStorageKey: string | null;
-    viewedFiles: Set<string>;
-    setViewedFiles: Dispatch<SetStateAction<Set<string>>>;
-    autoMarkedViewedFilesRef: MutableRefObject<Set<string>>;
-    fileDiffFingerprints?: ReadonlyMap<string, string>;
-}) {
-    const fingerprintSource = fileDiffFingerprints && fileDiffFingerprints.size > 0 ? fileDiffFingerprints : undefined;
-    useEffect(() => {
-        if (!viewedStorageKey || typeof window === "undefined") return;
-        autoMarkedViewedFilesRef.current = new Set();
-        setViewedFiles(readViewedFiles(viewedStorageKey, fingerprintSource));
-    }, [autoMarkedViewedFilesRef, fingerprintSource, setViewedFiles, viewedStorageKey]);
-
-    useEffect(() => {
-        if (!viewedStorageKey || typeof window === "undefined") return;
-        writeViewedFiles(viewedStorageKey, viewedFiles, fingerprintSource);
-    }, [fingerprintSource, viewedFiles, viewedStorageKey]);
 }
 
 export function useDirectoryStateStorage({
@@ -472,16 +445,18 @@ export function useAutoMarkActiveFileViewed({
     showSettingsPanel,
     activeFile,
     visiblePathSet,
-    autoMarkedViewedFilesRef,
-    setViewedFiles,
+    autoMarkedViewedVersionIdsRef,
+    getSelectedVersionIdForPath,
+    markPathViewed,
 }: {
     viewMode: "single" | "all";
     autoMarkViewedFiles: boolean;
     showSettingsPanel: boolean;
     activeFile: string | undefined;
     visiblePathSet: Set<string>;
-    autoMarkedViewedFilesRef: MutableRefObject<Set<string>>;
-    setViewedFiles: Dispatch<SetStateAction<Set<string>>>;
+    autoMarkedViewedVersionIdsRef: MutableRefObject<Set<string>>;
+    getSelectedVersionIdForPath: (path: string) => string | undefined;
+    markPathViewed: (path: string) => void;
 }) {
     useEffect(() => {
         if (!autoMarkViewedFiles) return;
@@ -489,16 +464,22 @@ export function useAutoMarkActiveFileViewed({
         if (showSettingsPanel) return;
         if (!activeFile || !visiblePathSet.has(activeFile)) return;
         if (activeFile === PR_SUMMARY_PATH) return;
-        if (autoMarkedViewedFilesRef.current.has(activeFile)) return;
+        const selectedVersionId = getSelectedVersionIdForPath(activeFile);
+        if (!selectedVersionId) return;
+        if (autoMarkedViewedVersionIdsRef.current.has(selectedVersionId)) return;
 
-        autoMarkedViewedFilesRef.current.add(activeFile);
-        setViewedFiles((prev) => {
-            if (prev.has(activeFile)) return prev;
-            const next = new Set(prev);
-            next.add(activeFile);
-            return next;
-        });
-    }, [activeFile, autoMarkViewedFiles, autoMarkedViewedFilesRef, setViewedFiles, showSettingsPanel, viewMode, visiblePathSet]);
+        autoMarkedViewedVersionIdsRef.current.add(selectedVersionId);
+        markPathViewed(activeFile);
+    }, [
+        activeFile,
+        autoMarkViewedFiles,
+        autoMarkedViewedVersionIdsRef,
+        getSelectedVersionIdForPath,
+        markPathViewed,
+        showSettingsPanel,
+        viewMode,
+        visiblePathSet,
+    ]);
 }
 
 export function useEnsureSummarySelection({

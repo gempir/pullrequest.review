@@ -16,12 +16,6 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 
 ## TanStack DB Architecture
 - External host data is collection-driven.
-- PR bundles, repo PR listings, and repository listings are defined in `src/lib/git-host/query-collections.ts`.
-- Host data collections are RxDB-backed and persisted locally (with in-memory fallback if RxDB initialization fails).
-- Collection accessors return scoped handles (`{ collection, utils }`) where:
-  - `collection` is consumed by `useLiveQuery` (`@tanstack/react-db`)
-  - `utils.refetch(...)` is used for stale-while-revalidate refreshes
-  - `utils.lastError`/`utils.isFetching` are the canonical UI status signals
 - Components read host data via `useLiveQuery` against the scoped `.collection` instead of ad-hoc `useQuery` calls in UI components.
 - App bootstrap must initialize both settings storage and host-data storage (`ensureStorageReady()` + `ensureGitHostDataReady()`) before rendering data-dependent providers.
 - To extend host data features, add/extend a collection in `src/lib/git-host/query-collections.ts` first, then consume it from UI with `useLiveQuery` and scoped collection utils.

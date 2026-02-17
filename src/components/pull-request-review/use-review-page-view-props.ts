@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { useMemo } from "react";
+import type { GitHost } from "@/lib/git-host/types";
 import type { ReviewPageMainView } from "./review-page-main-view";
 
 type MainViewProps = ComponentProps<typeof ReviewPageMainView>;
@@ -7,6 +8,8 @@ type MainViewProps = ComponentProps<typeof ReviewPageMainView>;
 export function useReviewPageViewProps({
     treeWidth,
     treeCollapsed,
+    host,
+    pullRequestUrl,
     showSettingsPanel,
     searchQuery,
     showUnviewedOnly,
@@ -57,6 +60,8 @@ export function useReviewPageViewProps({
 }: {
     treeWidth: number;
     treeCollapsed: boolean;
+    host: GitHost;
+    pullRequestUrl?: string;
     showSettingsPanel: boolean;
     searchQuery: string;
     showUnviewedOnly: boolean;
@@ -154,6 +159,8 @@ export function useReviewPageViewProps({
             loading: false,
             isRefreshing,
             treeCollapsed,
+            host,
+            pullRequestUrl,
             sourceBranch: pullRequest?.source?.branch?.name ?? "source",
             destinationBranch: pullRequest?.destination?.branch?.name ?? "target",
             navbarState,
@@ -191,6 +198,8 @@ export function useReviewPageViewProps({
             declinePending,
             isRefreshing,
             markDraftPending,
+            host,
+            pullRequestUrl,
             navbarState,
             navbarStatusDate,
             onApprove,

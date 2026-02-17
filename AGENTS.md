@@ -49,6 +49,7 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 
 ## Validation
 - Always run `bun run tsc` and `bun run check` after code changes.
+- Always run `bun run knip` and fix all findings after code changes.
 - Run `bun test` when touching data mappings, storage behavior, or keyboard/input handling logic.
 
 ## UI Conventions

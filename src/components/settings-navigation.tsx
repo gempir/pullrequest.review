@@ -1,11 +1,8 @@
-import { Command, FolderTree, SlidersHorizontal, SwatchBook } from "lucide-react";
-import type { ComponentType } from "react";
-
 export type SettingsTab = "appearance" | "diff" | "tree" | "shortcuts";
 
-export const SETTINGS_PATH_PREFIX = "__settings__/";
+const SETTINGS_PATH_PREFIX = "__settings__/";
 
-export const SETTINGS_NAV_ITEMS: ReadonlyArray<{
+const SETTINGS_NAV_ITEMS: ReadonlyArray<{
     tab: SettingsTab;
     name: string;
 }> = [
@@ -34,13 +31,4 @@ export function settingsTabFromPath(path?: string): SettingsTab | null {
         return tab;
     }
     return null;
-}
-
-export function getSettingsTabIcon(tab: SettingsTab): ComponentType<{
-    className?: string;
-}> {
-    if (tab === "appearance") return SwatchBook;
-    if (tab === "diff") return SlidersHorizontal;
-    if (tab === "tree") return FolderTree;
-    return Command;
 }

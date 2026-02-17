@@ -1,4 +1,4 @@
-export const DETECTED_FONT_VALUE_PREFIX = "detected:" as const;
+const DETECTED_FONT_VALUE_PREFIX = "detected:" as const;
 type DetectedFontFamilyValue = `${typeof DETECTED_FONT_VALUE_PREFIX}${string}`;
 
 export type FontFamilyValue =

@@ -1,8 +1,8 @@
 import { useLiveQuery } from "@tanstack/react-db";
-import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { AlertCircle, ExternalLink, GitPullRequest, Loader2 } from "lucide-react";
+import { AlertCircle, GitPullRequest, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { FileTree } from "@/components/file-tree";
 import { RepositorySelector } from "@/components/repository-selector";
 import { SettingsPanelContentOnly } from "@/components/settings-menu";
@@ -29,17 +29,6 @@ type PullRequestTreeMeta = {
     pullRequestId: string;
 };
 
-function parseJsonObject<T extends object>(value: unknown): T | undefined {
-    if (typeof value !== "string") return undefined;
-    try {
-        const parsed = JSON.parse(value) as unknown;
-        if (!parsed || typeof parsed !== "object") return undefined;
-        return parsed as T;
-    } catch {
-        return undefined;
-    }
-}
-
 function normalizePullRequestRecord(record: unknown): {
     repoKey: string;
     host: GitHost;
@@ -47,31 +36,15 @@ function normalizePullRequestRecord(record: unknown): {
     pullRequest: PullRequestSummary;
 } | null {
     if (!record || typeof record !== "object") return null;
-    const maybeWrapped = record as {
-        repoPullRequest?: unknown;
-        repoPullRequestRecord?: unknown;
-    };
-    const rawRecord =
-        maybeWrapped.repoPullRequest && typeof maybeWrapped.repoPullRequest === "object"
-            ? maybeWrapped.repoPullRequest
-            : maybeWrapped.repoPullRequestRecord && typeof maybeWrapped.repoPullRequestRecord === "object"
-              ? maybeWrapped.repoPullRequestRecord
-              : record;
-    const value = rawRecord as {
+    const value = record as {
         repoKey?: unknown;
         host?: unknown;
         repo?: Partial<RepoRef>;
-        repository?: Partial<RepoRef>;
-        repoJson?: unknown;
         pullRequest?: Partial<PullRequestSummary>;
-        pr?: Partial<PullRequestSummary>;
-        pullRequestJson?: unknown;
     };
     if (value.host !== "bitbucket" && value.host !== "github") return null;
-    const parsedRepoSource = parseJsonObject<Partial<RepoRef>>(value.repoJson);
-    const parsedPullRequestSource = parseJsonObject<Partial<PullRequestSummary>>(value.pullRequestJson);
-    const pullRequestSource = value.pullRequest ?? value.pr ?? parsedPullRequestSource;
-    const repoSource = value.repo ?? value.repository ?? parsedRepoSource;
+    const pullRequestSource = value.pullRequest;
+    const repoSource = value.repo;
     if (!repoSource || !pullRequestSource) return null;
 
     const workspace = repoSource.workspace?.trim();
@@ -135,12 +108,7 @@ export const Route = createFileRoute("/")({
 });
 
 function HostAuthPanel({ host }: { host: GitHost }) {
-    const { authByHost, login, logout } = usePrContext();
-    const [email, setEmail] = useState("");
-    const [apiToken, setApiToken] = useState("");
-    const [githubToken, setGithubToken] = useState("");
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const { authByHost, logout } = usePrContext();
 
     const authenticated = authByHost[host];
 
@@ -160,80 +128,7 @@ function HostAuthPanel({ host }: { host: GitHost }) {
             </div>
         );
     }
-
-    const bitbucketScopeText = ["read:repository:bitbucket", "read:user:bitbucket", "read:pullrequest:bitbucket", "write:pullrequest:bitbucket"].join(", ");
-
-    return (
-        <form
-            className="space-y-3"
-            onSubmit={(event) => {
-                event.preventDefault();
-                setError(null);
-                setIsSubmitting(true);
-
-                const promise = host === "bitbucket" ? login({ host: "bitbucket", email, apiToken }) : login({ host: "github", token: githubToken });
-
-                promise
-                    .catch((err) => {
-                        setError(err instanceof Error ? err.message : "Failed to authenticate");
-                    })
-                    .finally(() => {
-                        setIsSubmitting(false);
-                    });
-            }}
-        >
-            {host === "bitbucket" ? (
-                <div className="border border-border bg-card p-3 text-[12px] space-y-2">
-                    <div className="text-muted-foreground">Required scopes</div>
-                    <div className="break-words">{bitbucketScopeText}</div>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-[11px]"
-                        onClick={() => {
-                            void navigator.clipboard.writeText(bitbucketScopeText);
-                        }}
-                    >
-                        Copy scopes
-                    </Button>
-                </div>
-            ) : null}
-
-            <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() =>
-                    window.open(
-                        host === "bitbucket"
-                            ? "https://id.atlassian.com/manage-profile/security/api-tokens"
-                            : "https://github.com/settings/personal-access-tokens/new",
-                        "_blank",
-                        "noopener,noreferrer",
-                    )
-                }
-            >
-                <ExternalLink className="size-3.5" />
-                {host === "bitbucket" ? "Create Atlassian Bitbucket Scoped API Token" : "Create GitHub Fine-Grained Token"}
-            </Button>
-
-            {host === "bitbucket" ? (
-                <>
-                    <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Bitbucket email" />
-                    <Input type="password" value={apiToken} onChange={(event) => setApiToken(event.target.value)} placeholder="Bitbucket API token" />
-                </>
-            ) : (
-                <Input type="password" value={githubToken} onChange={(event) => setGithubToken(event.target.value)} placeholder="GitHub fine-grained PAT" />
-            )}
-
-            <Button type="submit" disabled={isSubmitting || (host === "bitbucket" ? !email.trim() || !apiToken.trim() : !githubToken.trim())}>
-                Connect {getHostLabel(host)}
-            </Button>
-
-            {error && <div className="border border-destructive bg-destructive/10 p-3 text-destructive text-[13px]">{error}</div>}
-        </form>
-    );
+    return <HostAuthForm host={host} mode="panel" />;
 }
 
 function buildPullRequestTree(reposByHost: Record<GitHost, RepoRef[]>, pullRequestsByRepo: Map<string, PullRequestSummary[]>, query: string) {
@@ -311,7 +206,6 @@ function buildPullRequestTree(reposByHost: Record<GitHost, RepoRef[]>, pullReque
 
 export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }: { initialHost?: GitHost; initialDiffPanel?: DiffPanel } = {}) {
     const navigate = useNavigate();
-    const queryClient = useQueryClient();
     const { setTree, setKinds, activeFile, setActiveFile } = useFileTree();
     const { authByHost, activeHost, setActiveHost, reposByHost, setReposForHost, clearReposForHost, logout } = usePrContext();
 
@@ -570,9 +464,6 @@ export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }:
                                         saveLabel="Save Selection"
                                         onSave={(nextRepos) => {
                                             setReposForHost(activeHost, nextRepos);
-                                            void queryClient.invalidateQueries({
-                                                queryKey: ["repo-prs"],
-                                            });
                                             navigate({ to: "/" });
                                         }}
                                     />
@@ -581,9 +472,6 @@ export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }:
                                             variant="outline"
                                             onClick={() => {
                                                 clearReposForHost(activeHost);
-                                                void queryClient.invalidateQueries({
-                                                    queryKey: ["repo-prs"],
-                                                });
                                             }}
                                         >
                                             Clear {getHostLabel(activeHost)} repositories
@@ -600,9 +488,6 @@ export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }:
                                                 }
                                                 void (async () => {
                                                     await logout(activeHost);
-                                                    await queryClient.invalidateQueries({
-                                                        queryKey: ["repo-prs"],
-                                                    });
                                                 })();
                                             }}
                                         >

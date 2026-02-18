@@ -7,25 +7,28 @@ import { LruCache } from "@/lib/utils/lru";
 export type PullRequestBundleRecord = PullRequestBundle & {
     id: string;
     fetchedAt: number;
+    expiresAt: number;
 };
 
 type PersistedPullRequestBundleRecord = PullRequestBundleRecord;
 
-export type PullRequestFileContextRecord = {
+type PullRequestFileContextRecord = {
     id: string;
     prKey: string;
     path: string;
     oldLines: string[];
     newLines: string[];
     fetchedAt: number;
+    expiresAt: number;
 };
 
-export type PullRequestFileHistoryRecord = {
+type PullRequestFileHistoryRecord = {
     id: string;
     prKey: string;
     path: string;
     entries: PullRequestFileHistoryEntry[];
     fetchedAt: number;
+    expiresAt: number;
 };
 
 type PersistedRepoPullRequestRecord = {
@@ -35,11 +38,13 @@ type PersistedRepoPullRequestRecord = {
     repo: RepoRef;
     pullRequest: PullRequestSummary;
     fetchedAt: number;
+    expiresAt: number;
 };
 
-export type RepositoryRecord = RepoRef & {
+type RepositoryRecord = RepoRef & {
     id: string;
     fetchedAt: number;
+    expiresAt: number;
 };
 
 type ReposByHost = Record<GitHost, RepoRef[]>;
@@ -78,13 +83,33 @@ type RefetchRegistryEntry = {
     refetch: (opts?: { throwOnError?: boolean }) => Promise<void>;
 };
 
-export type GitHostFetchActivitySnapshot = {
+type GitHostFetchActivitySnapshot = {
     activeFetches: FetchActivity[];
     activeFetchCount: number;
     trackedScopeCount: number;
 };
 
-const HOST_DATA_DATABASE_NAME = "pullrequestdotreview_host_data_v3";
+export type GitHostDataDebugSnapshot = {
+    backendMode: "indexeddb" | "memory";
+    cacheTtlMs: number;
+    totalRecords: number;
+    totalBytes: number;
+    lastSweepAt: number | null;
+    collections: Record<
+        HostDataCollectionKey,
+        {
+            count: number;
+            approxBytes: number;
+            oldestFetchedAt: number | null;
+            newestFetchedAt: number | null;
+            oldestExpiresAt: number | null;
+            newestExpiresAt: number | null;
+            expiredCount: number;
+        }
+    >;
+};
+
+const HOST_DATA_DATABASE_NAME = "pullrequestdotreview_data_v1";
 const REPOSITORY_RX_COLLECTION_NAME = "repositories";
 const REPO_PULL_REQUEST_RX_COLLECTION_NAME = "repo_pull_requests";
 const PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME = "pull_request_bundles";
@@ -97,6 +122,7 @@ const PULL_REQUEST_BUNDLE_TANSTACK_COLLECTION_ID = "pr-bundle:rxdb";
 const PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID = "pr-file-contexts:rxdb";
 const PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID = "pr-file-histories:rxdb";
 const SCOPED_COLLECTION_CACHE_SIZE = 100;
+const HOST_DATA_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const REPOSITORY_RX_SCHEMA = {
     title: "pullrequestdotreview repositories",
@@ -132,8 +158,12 @@ const REPOSITORY_RX_SCHEMA = {
             type: "number",
             minimum: 0,
         },
+        expiresAt: {
+            type: "number",
+            minimum: 0,
+        },
     },
-    required: ["id", "host", "workspace", "repo", "fullName", "displayName", "fetchedAt"],
+    required: ["id", "host", "workspace", "repo", "fullName", "displayName", "fetchedAt", "expiresAt"],
     additionalProperties: false,
 } as const;
 
@@ -167,8 +197,12 @@ const REPO_PULL_REQUEST_RX_SCHEMA = {
             type: "number",
             minimum: 0,
         },
+        expiresAt: {
+            type: "number",
+            minimum: 0,
+        },
     },
-    required: ["id", "repoKey", "host", "repo", "pullRequest", "fetchedAt"],
+    required: ["id", "repoKey", "host", "repo", "pullRequest", "fetchedAt", "expiresAt"],
     additionalProperties: false,
 } as const;
 
@@ -239,8 +273,12 @@ const PULL_REQUEST_BUNDLE_RX_SCHEMA = {
             type: "number",
             minimum: 0,
         },
+        expiresAt: {
+            type: "number",
+            minimum: 0,
+        },
     },
-    required: ["id", "prRef", "pr", "diff", "diffstat", "commits", "comments", "fetchedAt"],
+    required: ["id", "prRef", "pr", "diff", "diffstat", "commits", "comments", "fetchedAt", "expiresAt"],
     additionalProperties: false,
 } as const;
 
@@ -278,8 +316,12 @@ const PULL_REQUEST_FILE_CONTEXT_RX_SCHEMA = {
             type: "number",
             minimum: 0,
         },
+        expiresAt: {
+            type: "number",
+            minimum: 0,
+        },
     },
-    required: ["id", "prKey", "path", "oldLines", "newLines", "fetchedAt"],
+    required: ["id", "prKey", "path", "oldLines", "newLines", "fetchedAt", "expiresAt"],
     additionalProperties: false,
 } as const;
 
@@ -312,8 +354,12 @@ const PULL_REQUEST_FILE_HISTORY_RX_SCHEMA = {
             type: "number",
             minimum: 0,
         },
+        expiresAt: {
+            type: "number",
+            minimum: 0,
+        },
     },
-    required: ["id", "prKey", "path", "entries", "fetchedAt"],
+    required: ["id", "prKey", "path", "entries", "fetchedAt", "expiresAt"],
     additionalProperties: false,
 } as const;
 
@@ -344,6 +390,7 @@ let cachedFetchActivitySnapshot: GitHostFetchActivitySnapshot = {
     trackedScopeCount: 0,
 };
 let hostDataCollectionsVersion = 0;
+let lastHostDataSweepAt: number | null = null;
 
 function notifyFetchActivityListeners() {
     fetchActivityVersion += 1;
@@ -528,11 +575,26 @@ function stringifyCollectionRepos(reposByHost: ReposByHost) {
     });
 }
 
+function cacheExpiresAt(from: number) {
+    return from + HOST_DATA_CACHE_TTL_MS;
+}
+
+function isExpiredRecord(record: { expiresAt?: number }, now: number) {
+    if (typeof record.expiresAt !== "number") return false;
+    return record.expiresAt <= now;
+}
+
+function approxRecordBytes(record: object) {
+    return new TextEncoder().encode(JSON.stringify(record)).length;
+}
+
 function serializePullRequestBundle(bundle: PullRequestBundle): PersistedPullRequestBundleRecord {
+    const fetchedAt = Date.now();
     return {
         ...bundle,
         id: pullRequestBundleId(bundle.prRef),
-        fetchedAt: Date.now(),
+        fetchedAt,
+        expiresAt: cacheExpiresAt(fetchedAt),
     };
 }
 
@@ -541,13 +603,15 @@ function serializeRepoPullRequestRecord(repo: RepoRef, pullRequest: PullRequestS
     const normalizedPullRequest = normalizePullRequestSummary(pullRequest);
     const repoKey = `${normalizedRepo.host}:${normalizedRepo.fullName}`;
 
+    const fetchedAt = Date.now();
     return {
         id: `${repoKey}#${normalizedPullRequest.id}`,
         repoKey,
         host: normalizedRepo.host,
         repo: normalizedRepo,
         pullRequest: normalizedPullRequest,
-        fetchedAt: Date.now(),
+        fetchedAt,
+        expiresAt: cacheExpiresAt(fetchedAt),
     };
 }
 
@@ -571,6 +635,7 @@ function serializePullRequestFileContextRecord({
         oldLines,
         newLines,
         fetchedAt,
+        expiresAt: cacheExpiresAt(fetchedAt),
     };
 }
 
@@ -591,6 +656,7 @@ function serializePullRequestFileHistoryRecord({
         path,
         entries,
         fetchedAt,
+        expiresAt: cacheExpiresAt(fetchedAt),
     };
 }
 
@@ -909,11 +975,20 @@ export function ensureGitHostDataReady() {
             console.error("Failed to initialize RxDB host-data collections, falling back to in-memory collections.", error);
             ensureCollectionsInitialized();
         });
+        hostDataReadyPromise = hostDataReadyPromise.then(async () => {
+            await sweepExpiredGitHostData();
+        });
     }
     return hostDataReadyPromise;
 }
 
 async function upsertRecord<K extends HostDataCollectionKey>(collectionKey: K, record: HostDataRecordForKey<K>): Promise<void> {
+    if (collectionKey === "pullRequestBundles" || collectionKey === "pullRequestFileContexts" || collectionKey === "pullRequestFileHistories") {
+        const now = Date.now();
+        if (!lastHostDataSweepAt || now - lastHostDataSweepAt > 60 * 1000) {
+            await sweepExpiredGitHostData(now);
+        }
+    }
     const collection = getHostDataCollection(collectionKey);
     const existing = collection.get(record.id);
     if (!existing) {
@@ -945,6 +1020,103 @@ async function deleteRecord<K extends HostDataCollectionKey>(collectionKey: K, i
         await fallbackToInMemoryHostDataCollections();
         await deleteRecord(collectionKey, id);
     }
+}
+
+const HOST_DATA_COLLECTION_KEYS: HostDataCollectionKey[] = [
+    "repositories",
+    "repoPullRequests",
+    "pullRequestBundles",
+    "pullRequestFileContexts",
+    "pullRequestFileHistories",
+];
+
+async function sweepExpiredCollection<K extends HostDataCollectionKey>(collectionKey: K, now: number) {
+    const collection = getHostDataCollection(collectionKey);
+    let removed = 0;
+    for (const record of collection.values()) {
+        if (!isExpiredRecord(record as { expiresAt?: number }, now)) continue;
+        await deleteRecord(collectionKey, record.id);
+        removed += 1;
+    }
+    return removed;
+}
+
+export async function sweepExpiredGitHostData(now = Date.now()) {
+    ensureCollectionsInitialized();
+    let removed = 0;
+    for (const collectionKey of HOST_DATA_COLLECTION_KEYS) {
+        removed += await sweepExpiredCollection(collectionKey, now);
+    }
+    lastHostDataSweepAt = now;
+    return { removed };
+}
+
+export async function clearGitHostCacheTierData() {
+    ensureCollectionsInitialized();
+    let removed = 0;
+    for (const collectionKey of HOST_DATA_COLLECTION_KEYS) {
+        const collection = getHostDataCollection(collectionKey);
+        for (const record of collection.values()) {
+            await deleteRecord(collectionKey, record.id);
+            removed += 1;
+        }
+    }
+    lastHostDataSweepAt = Date.now();
+    return { removed };
+}
+
+export async function getGitHostDataDebugSnapshot(now = Date.now()): Promise<GitHostDataDebugSnapshot> {
+    ensureCollectionsInitialized();
+    const collections = {} as GitHostDataDebugSnapshot["collections"];
+    let totalRecords = 0;
+    let totalBytes = 0;
+
+    for (const collectionKey of HOST_DATA_COLLECTION_KEYS) {
+        const collection = getHostDataCollection(collectionKey);
+        const summary: GitHostDataDebugSnapshot["collections"][HostDataCollectionKey] = {
+            count: 0,
+            approxBytes: 0,
+            oldestFetchedAt: null,
+            newestFetchedAt: null,
+            oldestExpiresAt: null,
+            newestExpiresAt: null,
+            expiredCount: 0,
+        };
+
+        for (const record of collection.values()) {
+            summary.count += 1;
+            const bytes = approxRecordBytes(record);
+            summary.approxBytes += bytes;
+            totalBytes += bytes;
+
+            const fetchedAt = (record as { fetchedAt?: number }).fetchedAt;
+            if (typeof fetchedAt === "number") {
+                summary.oldestFetchedAt = summary.oldestFetchedAt === null ? fetchedAt : Math.min(summary.oldestFetchedAt, fetchedAt);
+                summary.newestFetchedAt = summary.newestFetchedAt === null ? fetchedAt : Math.max(summary.newestFetchedAt, fetchedAt);
+            }
+
+            const expiresAt = (record as { expiresAt?: number }).expiresAt;
+            if (typeof expiresAt === "number") {
+                summary.oldestExpiresAt = summary.oldestExpiresAt === null ? expiresAt : Math.min(summary.oldestExpiresAt, expiresAt);
+                summary.newestExpiresAt = summary.newestExpiresAt === null ? expiresAt : Math.max(summary.newestExpiresAt, expiresAt);
+                if (expiresAt <= now) {
+                    summary.expiredCount += 1;
+                }
+            }
+        }
+
+        totalRecords += summary.count;
+        collections[collectionKey] = summary;
+    }
+
+    return {
+        backendMode: hostDataFallbackActive ? "memory" : "indexeddb",
+        cacheTtlMs: HOST_DATA_CACHE_TTL_MS,
+        totalRecords,
+        totalBytes,
+        lastSweepAt: lastHostDataSweepAt,
+        collections,
+    };
 }
 
 export function getPullRequestBundleCollection(prRef: PullRequestRef) {
@@ -1198,6 +1370,7 @@ export function getRepositoryCollection(host: GitHost) {
                 ...repository,
                 id: `${repository.host}:${repository.fullName}`,
                 fetchedAt: timestamp,
+                expiresAt: cacheExpiresAt(timestamp),
             }));
             const nextIds = new Set(nextRecords.map((record) => record.id));
 

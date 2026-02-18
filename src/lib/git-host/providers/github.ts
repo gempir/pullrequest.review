@@ -1,3 +1,4 @@
+import { clearGithubAuthCredential, readGithubAuthCredential, writeGithubAuthCredential } from "@/lib/data/query-collections";
 import { githubAuthSchema, parseSchema } from "@/lib/git-host/schemas";
 import { parseFailureBody } from "@/lib/git-host/shared/http";
 import { collectPaginated } from "@/lib/git-host/shared/pagination";
@@ -19,9 +20,7 @@ import {
     type PullRequestSummary,
     type RepoRef,
 } from "@/lib/git-host/types";
-import { readStorageValue, removeStorageValue, writeStorageValue } from "@/lib/storage/versioned-local-storage";
 
-const AUTH_KEY = "pr_review_auth_github";
 const API_BASE = "https://api.github.com";
 
 interface GithubAuth {
@@ -187,15 +186,17 @@ function parseAuth(rawValue: string | null): GithubAuth | null {
 }
 
 function readAuth() {
-    return parseAuth(readStorageValue(AUTH_KEY));
+    const stored = readGithubAuthCredential();
+    if (!stored) return null;
+    return parseAuth(JSON.stringify(stored));
 }
 
 function writeAuth(auth: GithubAuth) {
-    writeStorageValue(AUTH_KEY, JSON.stringify(auth));
+    writeGithubAuthCredential(auth);
 }
 
 function clearAuth() {
-    removeStorageValue(AUTH_KEY);
+    clearGithubAuthCredential();
 }
 
 function authHeader() {

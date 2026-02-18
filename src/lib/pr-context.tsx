@@ -1,21 +1,9 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { readHostPreferencesRecord, writeHostPreferencesRecord } from "@/lib/data/query-collections";
 import { getAuthStateForHost, loginToHost, logoutHost } from "@/lib/git-host/service";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
-import { makeVersionedStorageKey, readLocalStorageValue, writeLocalStorageValue } from "@/lib/storage/versioned-local-storage";
 
 const HOSTS: GitHost[] = ["bitbucket", "github"];
-
-const REPO_STORAGE_KEYS_BASE: Record<GitHost, string> = {
-    bitbucket: "pr_review_repos_bitbucket",
-    github: "pr_review_repos_github",
-};
-const REPO_STORAGE_KEYS: Record<GitHost, string> = {
-    bitbucket: makeVersionedStorageKey(REPO_STORAGE_KEYS_BASE.bitbucket, 2),
-    github: makeVersionedStorageKey(REPO_STORAGE_KEYS_BASE.github, 2),
-};
-
-const ACTIVE_HOST_KEY_BASE = "pr_review_active_host";
-const ACTIVE_HOST_KEY = makeVersionedStorageKey(ACTIVE_HOST_KEY_BASE, 2);
 
 type AuthByHost = Record<GitHost, boolean>;
 type ReposByHost = Record<GitHost, RepoRef[]>;
@@ -52,50 +40,42 @@ function emptyAuthByHost(): AuthByHost {
 }
 
 function parseRepos(host: GitHost): RepoRef[] {
-    const parse = (value: string | null) => {
-        if (!value) return [];
-        try {
-            const parsed = JSON.parse(value) as RepoRef[];
-            if (!Array.isArray(parsed)) return [];
-            return parsed.flatMap((repo) => {
-                if (!repo || repo.host !== host || typeof repo.workspace !== "string" || typeof repo.repo !== "string") {
-                    return [];
-                }
+    const stored = readHostPreferencesRecord();
+    const parsed = stored?.reposByHost?.[host];
+    if (!Array.isArray(parsed)) return [];
 
-                const workspace = repo.workspace.trim();
-                const repositorySlug = repo.repo.trim();
-                if (!workspace || !repositorySlug) return [];
-
-                const fullName = typeof repo.fullName === "string" && repo.fullName.trim().length > 0 ? repo.fullName.trim() : `${workspace}/${repositorySlug}`;
-                const displayName = typeof repo.displayName === "string" && repo.displayName.trim().length > 0 ? repo.displayName.trim() : repositorySlug;
-
-                return [
-                    {
-                        host,
-                        workspace,
-                        repo: repositorySlug,
-                        fullName,
-                        displayName,
-                    } satisfies RepoRef,
-                ];
-            });
-        } catch {
+    return parsed.flatMap((repo) => {
+        if (!repo || repo.host !== host || typeof repo.workspace !== "string" || typeof repo.repo !== "string") {
             return [];
         }
-    };
 
-    const current = parse(readLocalStorageValue(REPO_STORAGE_KEYS[host]));
-    return current;
+        const workspace = repo.workspace.trim();
+        const repositorySlug = repo.repo.trim();
+        if (!workspace || !repositorySlug) return [];
+
+        const fullName = typeof repo.fullName === "string" && repo.fullName.trim().length > 0 ? repo.fullName.trim() : `${workspace}/${repositorySlug}`;
+        const displayName = typeof repo.displayName === "string" && repo.displayName.trim().length > 0 ? repo.displayName.trim() : repositorySlug;
+
+        return [
+            {
+                host,
+                workspace,
+                repo: repositorySlug,
+                fullName,
+                displayName,
+            } satisfies RepoRef,
+        ];
+    });
 }
 
 function parseActiveHost(): GitHost {
-    const value = readLocalStorageValue(ACTIVE_HOST_KEY);
+    const value = readHostPreferencesRecord()?.activeHost;
     return value === "github" ? "github" : "bitbucket";
 }
 
 export function PrProvider({ children }: { children: ReactNode }) {
     const [authHydrated, setAuthHydrated] = useState(false);
-    const [authByHost, setAuthByHost] = useState<AuthByHost>(emptyAuthByHost());
+    const [authByHost, setAuthByHost] = useState<AuthByHost>(() => emptyAuthByHost());
     const [reposByHost, setReposByHost] = useState<ReposByHost>(() => ({
         bitbucket: parseRepos("bitbucket"),
         github: parseRepos("github"),
@@ -124,13 +104,8 @@ export function PrProvider({ children }: { children: ReactNode }) {
     }, [refreshAuth]);
 
     useEffect(() => {
-        writeLocalStorageValue(REPO_STORAGE_KEYS.bitbucket, JSON.stringify(reposByHost.bitbucket));
-        writeLocalStorageValue(REPO_STORAGE_KEYS.github, JSON.stringify(reposByHost.github));
-    }, [reposByHost]);
-
-    useEffect(() => {
-        writeLocalStorageValue(ACTIVE_HOST_KEY, activeHost);
-    }, [activeHost]);
+        writeHostPreferencesRecord({ activeHost, reposByHost });
+    }, [activeHost, reposByHost]);
 
     const setActiveHost = useCallback((host: GitHost) => {
         setActiveHostState(host);

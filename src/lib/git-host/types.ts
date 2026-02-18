@@ -194,7 +194,7 @@ export interface HostCapabilities {
     markDraftAvailable: boolean;
 }
 
-export interface HostApiErrorDetails {
+interface HostApiErrorDetails {
     status?: number;
     statusText?: string;
     body?: string;

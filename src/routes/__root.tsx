@@ -8,16 +8,15 @@ import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { AppearanceProvider } from "@/lib/appearance-context";
+import { ensureDataCollectionsReady } from "@/lib/data/query-collections";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
-import { ensureGitHostDataReady } from "@/lib/git-host/query-collections";
 import { getHostLabel } from "@/lib/git-host/service";
 import type { GitHost } from "@/lib/git-host/types";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
 import { appQueryClient } from "@/lib/query-client";
 import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
-import { ensureStorageReady } from "@/lib/storage/versioned-local-storage";
 
 import "../../styles.css";
 
@@ -55,7 +54,7 @@ function RootComponent() {
 
     useEffect(() => {
         let cancelled = false;
-        Promise.all([ensureStorageReady(), ensureGitHostDataReady()]).finally(() => {
+        ensureDataCollectionsReady().finally(() => {
             if (cancelled) return;
             setStorageReady(true);
         });

@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { InlineDraftLocation } from "@/components/pull-request-review/use-inline-drafts";
 import {
-    type InlineDraftLocation,
-    inlineActiveDraftStorageKey,
-    inlineDraftStorageKey,
-    parseInlineDraftStorageKey,
-} from "@/components/pull-request-review/use-inline-drafts";
-import { listStorageKeys, readStorageValue, removeStorageValue, writeLocalStorageValue } from "@/lib/storage/versioned-local-storage";
+    clearInlineCommentActiveDraft,
+    clearInlineCommentDraftContent as clearInlineCommentDraftContentRecord,
+    listInlineCommentDrafts,
+    readInlineCommentActiveDraft,
+    readInlineCommentDraftContent as readInlineCommentDraftContentRecord,
+    writeInlineCommentActiveDraft,
+    writeInlineCommentDraftContent as writeInlineCommentDraftContentRecord,
+} from "@/lib/data/query-collections";
 
 export type InlineCommentDraft = InlineDraftLocation;
 
@@ -34,58 +37,41 @@ export function useInlineCommentDrafts({
     setViewMode,
 }: UseInlineCommentDraftsProps): UseInlineCommentDraftsReturn {
     const [inlineComment, setInlineComment] = useState<InlineCommentDraft | null>(null);
+    const scopeId = useMemo(() => `${workspace}/${repo}/${pullRequestId}`, [pullRequestId, repo, workspace]);
 
     const getInlineDraftContent = useCallback(
-        (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => {
-            const key = inlineDraftStorageKey(workspace, repo, pullRequestId, draft);
-            return readStorageValue(key) ?? "";
-        },
-        [pullRequestId, repo, workspace],
+        (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => readInlineCommentDraftContentRecord(scopeId, draft),
+        [scopeId],
     );
 
     const setInlineDraftContent = useCallback(
         (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => {
-            const key = inlineDraftStorageKey(workspace, repo, pullRequestId, draft);
-            const activeKey = inlineActiveDraftStorageKey(workspace, repo, pullRequestId);
             if (content.length > 0) {
-                writeLocalStorageValue(key, content);
-                writeLocalStorageValue(activeKey, JSON.stringify(draft));
+                writeInlineCommentDraftContentRecord(scopeId, draft, content);
+                writeInlineCommentActiveDraft(scopeId, draft);
                 return;
             }
 
-            removeStorageValue(key);
-            const activeRaw = readStorageValue(activeKey);
-            if (!activeRaw) return;
+            clearInlineCommentDraftContentRecord(scopeId, draft);
+            const activeDraft = readInlineCommentActiveDraft(scopeId);
+            if (!activeDraft) return;
 
-            try {
-                const activeDraft = JSON.parse(activeRaw) as InlineCommentDraft;
-                if (activeDraft.path === draft.path && activeDraft.line === draft.line && activeDraft.side === draft.side) {
-                    removeStorageValue(activeKey);
-                }
-            } catch {
-                removeStorageValue(activeKey);
+            if (activeDraft.path === draft.path && activeDraft.line === draft.line && activeDraft.side === draft.side) {
+                clearInlineCommentActiveDraft(scopeId);
             }
         },
-        [pullRequestId, repo, workspace],
+        [scopeId],
     );
 
     const clearInlineDraftContent = useCallback(
         (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => {
-            const activeKey = inlineActiveDraftStorageKey(workspace, repo, pullRequestId);
-            const activeRaw = readStorageValue(activeKey);
-            if (activeRaw) {
-                try {
-                    const activeDraft = JSON.parse(activeRaw) as InlineCommentDraft;
-                    if (activeDraft.path === draft.path && activeDraft.line === draft.line && activeDraft.side === draft.side) {
-                        removeStorageValue(activeKey);
-                    }
-                } catch {
-                    removeStorageValue(activeKey);
-                }
+            const activeDraft = readInlineCommentActiveDraft(scopeId);
+            if (activeDraft && activeDraft.path === draft.path && activeDraft.line === draft.line && activeDraft.side === draft.side) {
+                clearInlineCommentActiveDraft(scopeId);
             }
-            removeStorageValue(inlineDraftStorageKey(workspace, repo, pullRequestId, draft));
+            clearInlineCommentDraftContentRecord(scopeId, draft);
         },
-        [pullRequestId, repo, workspace],
+        [scopeId],
     );
 
     const openInlineCommentDraft = useCallback(
@@ -108,9 +94,6 @@ export function useInlineCommentDrafts({
     );
 
     useEffect(() => {
-        const activeKey = inlineActiveDraftStorageKey(workspace, repo, pullRequestId);
-        const raw = readStorageValue(activeKey);
-
         const restoreDraft = (draft: InlineCommentDraft) => {
             const content = getInlineDraftContent(draft);
             if (!content.trim()) return false;
@@ -120,29 +103,24 @@ export function useInlineCommentDrafts({
             return true;
         };
 
-        if (raw) {
-            try {
-                const parsed = JSON.parse(raw) as InlineCommentDraft;
-                if (parsed.path && parsed.line && parsed.side && restoreDraft(parsed)) {
-                    return;
-                }
-            } catch {
-                removeStorageValue(activeKey);
-            }
+        const activeDraft = readInlineCommentActiveDraft(scopeId);
+        if (activeDraft && restoreDraft(activeDraft)) {
+            return;
         }
 
-        const storageKeys = listStorageKeys();
-        for (let i = storageKeys.length - 1; i >= 0; i -= 1) {
-            const key = storageKeys[i];
-            if (!key) continue;
-            const parsed = parseInlineDraftStorageKey(key, workspace, repo, pullRequestId);
-            if (!parsed) continue;
+        const drafts = listInlineCommentDrafts(scopeId);
+        for (const draft of drafts) {
+            const parsed: InlineCommentDraft = {
+                path: draft.path,
+                line: draft.line,
+                side: draft.side,
+            };
             if (restoreDraft(parsed)) {
-                writeLocalStorageValue(activeKey, JSON.stringify(parsed));
+                writeInlineCommentActiveDraft(scopeId, parsed);
                 return;
             }
         }
-    }, [getInlineDraftContent, pullRequestId, repo, setActiveFile, setViewMode, workspace]);
+    }, [getInlineDraftContent, scopeId, setActiveFile, setViewMode]);
 
     return {
         inlineComment,

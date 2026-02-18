@@ -1,24 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { inlineDraftStorageKey, parseInlineDraftStorageKey } from "../src/components/pull-request-review/use-inline-drafts";
+import { inlineDraftStorageKey } from "../src/components/pull-request-review/use-inline-drafts";
 
 describe("inline draft storage keys", () => {
-    test("parses valid keys", () => {
+    test("builds stable keys with escaped file paths", () => {
         const key = inlineDraftStorageKey("workspace", "repo", "42", {
             side: "additions",
             line: 17,
-            path: "src/file.ts",
+            path: "src/file with spaces.ts",
         });
 
-        expect(parseInlineDraftStorageKey(key, "workspace", "repo", "42")).toEqual({
-            side: "additions",
-            line: 17,
-            path: "src/file.ts",
-        });
-    });
-
-    test("guards malformed URI sequences", () => {
-        const malformedKey = "pr_review_inline_comment_draft:v2:workspace/repo/42:additions:17:%E0%A4%A";
-
-        expect(parseInlineDraftStorageKey(malformedKey, "workspace", "repo", "42")).toBeNull();
+        expect(key).toBe("inline_comment_draft:v1:workspace/repo/42:additions:17:src%2Ffile%20with%20spaces.ts");
     });
 });

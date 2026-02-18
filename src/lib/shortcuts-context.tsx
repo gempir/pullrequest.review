@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { makeVersionedStorageKey, readLocalStorageValue, removeLocalStorageKeys, writeLocalStorageValue } from "@/lib/storage/versioned-local-storage";
+import { readShortcutsRecord, writeShortcutsRecord } from "@/lib/data/query-collections";
 
 export interface ShortcutConfig {
     key: string;
@@ -12,7 +12,7 @@ export interface ShortcutConfig {
     description: string;
 }
 
-export interface Shortcuts {
+interface Shortcuts {
     nextUnviewedFile: ShortcutConfig;
     previousUnviewedFile: ShortcutConfig;
     scrollDown: ShortcutConfig;
@@ -78,9 +78,6 @@ const DEFAULT_SHORTCUTS: Shortcuts = {
     },
 };
 
-const STORAGE_KEY_BASE = "pr_review_shortcuts";
-const STORAGE_KEY = makeVersionedStorageKey(STORAGE_KEY_BASE, 2);
-
 interface ShortcutsContextType {
     shortcuts: Shortcuts;
     updateShortcut: (action: keyof Shortcuts, config: Partial<ShortcutConfig>) => void;
@@ -95,21 +92,16 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
     const [hydrated, setHydrated] = useState(false);
 
     useEffect(() => {
-        const stored = readLocalStorageValue(STORAGE_KEY);
+        const stored = readShortcutsRecord();
         if (stored) {
-            try {
-                const parsed = JSON.parse(stored) as Shortcuts;
-                setShortcuts({ ...DEFAULT_SHORTCUTS, ...parsed });
-            } catch {
-                removeLocalStorageKeys([STORAGE_KEY]);
-            }
+            setShortcuts({ ...DEFAULT_SHORTCUTS, ...stored });
         }
         setHydrated(true);
     }, []);
 
     useEffect(() => {
         if (!hydrated) return;
-        writeLocalStorageValue(STORAGE_KEY, JSON.stringify(shortcuts));
+        writeShortcutsRecord(shortcuts);
     }, [shortcuts, hydrated]);
 
     const updateShortcut = useCallback((action: keyof Shortcuts, config: Partial<ShortcutConfig>) => {

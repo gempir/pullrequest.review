@@ -1,9 +1,9 @@
 import type { BaseDiffOptions } from "@pierre/diffs";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { readDiffOptionsRecord, writeDiffOptionsRecord } from "@/lib/data/query-collections";
 import { registerExtendedDiffThemes } from "@/lib/diff-theme-registration";
 import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue } from "@/lib/font-options";
-import { makeVersionedStorageKey, readLocalStorageValue, writeLocalStorageValue } from "@/lib/storage/versioned-local-storage";
 
 export interface DiffOptions {
     followSystemTheme: boolean;
@@ -25,9 +25,6 @@ export interface DiffOptions {
     collapseViewedFilesByDefault: boolean;
     autoMarkViewedFiles: boolean;
 }
-
-const STORAGE_KEY_BASE = "pr_review_diff_options";
-const STORAGE_KEY = makeVersionedStorageKey(STORAGE_KEY_BASE, 2);
 
 const defaultOptions: DiffOptions = {
     followSystemTheme: true,
@@ -74,28 +71,24 @@ function normalizeDiffLineHeight(value: number) {
     return Number(clamped.toFixed(2));
 }
 
-function parseStoredOptions(raw: string | null): DiffOptions | null {
+function parseStoredOptions(raw: Record<string, unknown> | null): DiffOptions | null {
     if (!raw) return null;
-    try {
-        const parsed = JSON.parse(raw) as Partial<DiffOptions>;
-        const parsedTheme = typeof parsed.theme === "string" ? parsed.theme : getBrowserPreferredTheme();
-        return {
-            ...defaultOptions,
-            ...parsed,
-            theme: parsedTheme,
-            followSystemTheme: typeof parsed.followSystemTheme === "boolean" ? parsed.followSystemTheme : defaultOptions.followSystemTheme,
-            diffFontFamily: (parsed.diffFontFamily as FontFamilyValue) ?? defaultOptions.diffFontFamily,
-            diffFontSize: normalizeDiffFontSize(Number(parsed.diffFontSize ?? defaultOptions.diffFontSize)),
-            diffLineHeight: normalizeDiffLineHeight(Number(parsed.diffLineHeight ?? defaultOptions.diffLineHeight)),
-        };
-    } catch {
-        return null;
-    }
+    const parsed = raw as Partial<DiffOptions>;
+    const parsedTheme = typeof parsed.theme === "string" ? parsed.theme : getBrowserPreferredTheme();
+    return {
+        ...defaultOptions,
+        ...parsed,
+        theme: parsedTheme,
+        followSystemTheme: typeof parsed.followSystemTheme === "boolean" ? parsed.followSystemTheme : defaultOptions.followSystemTheme,
+        diffFontFamily: (parsed.diffFontFamily as FontFamilyValue) ?? defaultOptions.diffFontFamily,
+        diffFontSize: normalizeDiffFontSize(Number(parsed.diffFontSize ?? defaultOptions.diffFontSize)),
+        diffLineHeight: normalizeDiffLineHeight(Number(parsed.diffLineHeight ?? defaultOptions.diffLineHeight)),
+    };
 }
 
 export function DiffOptionsProvider({ children }: { children: ReactNode }) {
     const [options, setOptions] = useState<DiffOptions>(() => {
-        const parsed = parseStoredOptions(readLocalStorageValue(STORAGE_KEY));
+        const parsed = parseStoredOptions(readDiffOptionsRecord());
         if (parsed) return parsed;
         return {
             ...defaultOptions,
@@ -114,7 +107,7 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!hydratedRef.current) return;
-        writeLocalStorageValue(STORAGE_KEY, JSON.stringify(options));
+        writeDiffOptionsRecord(options);
     }, [options]);
 
     useEffect(() => {

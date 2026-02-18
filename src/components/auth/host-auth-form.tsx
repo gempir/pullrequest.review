@@ -8,7 +8,7 @@ import { usePrContext } from "@/lib/pr-context";
 
 type HostAuthFormMode = "onboarding" | "panel" | "inline";
 
-export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHost; mode?: HostAuthFormMode; onSuccess?: () => void }) {
+function useHostAuthFormState({ host, onSuccess }: { host: GitHost; onSuccess?: () => void }) {
     const { login } = usePrContext();
     const [email, setEmail] = useState("");
     const [apiToken, setApiToken] = useState("");
@@ -19,30 +19,62 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
 
     const isBitbucket = host === "bitbucket";
     const bitbucketScopeText = ["read:repository:bitbucket", "read:user:bitbucket", "read:pullrequest:bitbucket", "write:pullrequest:bitbucket"].join(", ");
+    const authenticate = async () => {
+        setError(null);
+        setIsSubmitting(true);
+
+        const promise = isBitbucket ? login({ host: "bitbucket", email, apiToken }) : login({ host: "github", token: githubToken });
+
+        await promise
+            .then(() => {
+                setEmail("");
+                setApiToken("");
+                setGithubToken("");
+                onSuccess?.();
+            })
+            .catch((err) => {
+                setError(err instanceof Error ? err.message : "Failed to authenticate");
+            });
+        setIsSubmitting(false);
+    };
+
+    return {
+        isBitbucket,
+        email,
+        apiToken,
+        githubToken,
+        copiedScopes,
+        isSubmitting,
+        error,
+        bitbucketScopeText,
+        setEmail,
+        setApiToken,
+        setGithubToken,
+        setCopiedScopes,
+        authenticate,
+    };
+}
+
+export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHost; mode?: HostAuthFormMode; onSuccess?: () => void }) {
+    const {
+        isBitbucket,
+        email,
+        apiToken,
+        githubToken,
+        copiedScopes,
+        isSubmitting,
+        error,
+        bitbucketScopeText,
+        setEmail,
+        setApiToken,
+        setGithubToken,
+        setCopiedScopes,
+        authenticate,
+    } = useHostAuthFormState({ host, onSuccess });
     const ctaLabel = mode === "inline" ? "Authenticate" : `Connect ${getHostLabel(host)}`;
 
     return (
-        <form
-            className="space-y-3"
-            action={async () => {
-                setError(null);
-                setIsSubmitting(true);
-
-                const promise = isBitbucket ? login({ host: "bitbucket", email, apiToken }) : login({ host: "github", token: githubToken });
-
-                await promise
-                    .then(() => {
-                        setEmail("");
-                        setApiToken("");
-                        setGithubToken("");
-                        onSuccess?.();
-                    })
-                    .catch((err) => {
-                        setError(err instanceof Error ? err.message : "Failed to authenticate");
-                    });
-                setIsSubmitting(false);
-            }}
-        >
+        <form className="space-y-3" action={authenticate}>
             <p className="text-[13px] text-muted-foreground">
                 {isBitbucket ? "Use your Bitbucket email and API token to continue." : "Use a GitHub fine-grained personal access token to continue."}
             </p>

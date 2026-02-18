@@ -157,7 +157,7 @@ function getAllFiles(nodes: FileNode[]): FileNode[] {
     return files;
 }
 
-export function FileTreeProvider({ children }: { children: ReactNode }) {
+function useFileTreeProviderValue(): FileTreeContextType {
     const [tree, setTree] = useState<FileNode[]>([]);
     const [kinds, setKinds] = useState<ReadonlyMap<string, ChangeKind>>(new Map());
     const [dirState, setDirState] = useState<Record<string, DirectoryState>>({
@@ -369,6 +369,11 @@ export function FileTreeProvider({ children }: { children: ReactNode }) {
         ],
     );
 
+    return value;
+}
+
+export function FileTreeProvider({ children }: { children: ReactNode }) {
+    const value = useFileTreeProviderValue();
     return <FileTreeContext.Provider value={value}>{children}</FileTreeContext.Provider>;
 }
 

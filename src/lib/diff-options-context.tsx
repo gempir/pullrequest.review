@@ -1,5 +1,5 @@
 import type { BaseDiffOptions } from "@pierre/diffs";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { registerExtendedDiffThemes } from "@/lib/diff-theme-registration";
 import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue } from "@/lib/font-options";
@@ -94,30 +94,28 @@ function parseStoredOptions(raw: string | null): DiffOptions | null {
 }
 
 export function DiffOptionsProvider({ children }: { children: ReactNode }) {
-    const [options, setOptions] = useState<DiffOptions>(defaultOptions);
-    const [hydrated, setHydrated] = useState(false);
+    const [options, setOptions] = useState<DiffOptions>(() => {
+        const parsed = parseStoredOptions(readLocalStorageValue(STORAGE_KEY));
+        if (parsed) return parsed;
+        return {
+            ...defaultOptions,
+            theme: getBrowserPreferredTheme(),
+        };
+    });
+    const hydratedRef = useRef(false);
 
     useEffect(() => {
         registerExtendedDiffThemes();
     }, []);
 
     useEffect(() => {
-        const parsed = parseStoredOptions(readLocalStorageValue(STORAGE_KEY));
-        if (parsed) {
-            setOptions(parsed);
-        } else {
-            setOptions((prev) => ({
-                ...prev,
-                theme: getBrowserPreferredTheme(),
-            }));
-        }
-        setHydrated(true);
+        hydratedRef.current = true;
     }, []);
 
     useEffect(() => {
-        if (!hydrated) return;
+        if (!hydratedRef.current) return;
         writeLocalStorageValue(STORAGE_KEY, JSON.stringify(options));
-    }, [hydrated, options]);
+    }, [options]);
 
     useEffect(() => {
         if (typeof window === "undefined" || !options.followSystemTheme) return;

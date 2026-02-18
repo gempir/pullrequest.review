@@ -22,6 +22,7 @@ const SHORTCUTS_COLLECTION_NAME = "shortcuts_settings";
 const HOST_PREFERENCES_COLLECTION_NAME = "host_preferences";
 const AUTH_CREDENTIALS_COLLECTION_NAME = "auth_credentials";
 const REVIEW_VIEWED_STATE_COLLECTION_NAME = "review_viewed_state";
+const REVIEW_BASELINE_COMMIT_COLLECTION_NAME = "review_baseline_commit";
 const REVIEW_DIRECTORY_STATE_COLLECTION_NAME = "review_directory_state";
 const REVIEW_LAYOUT_STATE_COLLECTION_NAME = "review_layout_state";
 const INLINE_COMMENT_DRAFTS_COLLECTION_NAME = "inline_comment_drafts";
@@ -35,6 +36,7 @@ const SHORTCUTS_COLLECTION_ID = "shortcuts:rxdb";
 const HOST_PREFERENCES_COLLECTION_ID = "host-preferences:rxdb";
 const AUTH_CREDENTIALS_COLLECTION_ID = "auth-credentials:rxdb";
 const REVIEW_VIEWED_STATE_COLLECTION_ID = "review-viewed-state:rxdb";
+const REVIEW_BASELINE_COMMIT_COLLECTION_ID = "review-baseline-commit:rxdb";
 const REVIEW_DIRECTORY_STATE_COLLECTION_ID = "review-directory-state:rxdb";
 const REVIEW_LAYOUT_STATE_COLLECTION_ID = "review-layout-state:rxdb";
 const INLINE_COMMENT_DRAFTS_COLLECTION_ID = "inline-comment-drafts:rxdb";
@@ -150,6 +152,11 @@ type ReviewViewedStateRecord = BaseCollectionRecord & {
     viewedVersionIds: string[];
 };
 
+type ReviewBaselineCommitRecord = BaseCollectionRecord & {
+    id: string;
+    baselineCommitHash: string;
+};
+
 type ReviewDirectoryStateRecord = BaseCollectionRecord & {
     id: string;
     expandedByPath: Record<string, boolean>;
@@ -235,6 +242,7 @@ let shortcutsCollection: Collection<ShortcutsRecord, string> | null = null;
 let hostPreferencesCollection: Collection<HostPreferencesRecord, string> | null = null;
 let authCredentialsCollection: Collection<AuthCredentialRecord, string> | null = null;
 let reviewViewedStateCollection: Collection<ReviewViewedStateRecord, string> | null = null;
+let reviewBaselineCommitCollection: Collection<ReviewBaselineCommitRecord, string> | null = null;
 let reviewDirectoryStateCollection: Collection<ReviewDirectoryStateRecord, string> | null = null;
 let reviewLayoutStateCollection: Collection<ReviewLayoutStateRecord, string> | null = null;
 let inlineCommentDraftsCollection: Collection<InlineCommentDraftRecord, string> | null = null;
@@ -494,6 +502,22 @@ const REVIEW_VIEWED_STATE_SCHEMA = {
     additionalProperties: false,
 } as const;
 
+const REVIEW_BASELINE_COMMIT_SCHEMA = {
+    title: "pullrequestdotreview review baseline commit",
+    version: 0,
+    type: "object",
+    primaryKey: "id",
+    properties: {
+        ...createBaseSchema(900),
+        baselineCommitHash: {
+            type: "string",
+            maxLength: 80,
+        },
+    },
+    required: ["id", "updatedAt", "expiresAt", "baselineCommitHash"],
+    additionalProperties: false,
+} as const;
+
 const REVIEW_DIRECTORY_STATE_SCHEMA = {
     title: "pullrequestdotreview review directory state",
     version: 0,
@@ -582,6 +606,7 @@ function ensureCollectionsInitialized() {
         hostPreferencesCollection &&
         authCredentialsCollection &&
         reviewViewedStateCollection &&
+        reviewBaselineCommitCollection &&
         reviewDirectoryStateCollection &&
         reviewLayoutStateCollection &&
         inlineCommentDraftsCollection &&
@@ -636,6 +661,13 @@ function ensureCollectionsInitialized() {
     reviewViewedStateCollection = createCollection(
         localOnlyCollectionOptions<ReviewViewedStateRecord, string>({
             id: REVIEW_VIEWED_STATE_COLLECTION_ID,
+            getKey: (item) => item.id,
+        }),
+    );
+
+    reviewBaselineCommitCollection = createCollection(
+        localOnlyCollectionOptions<ReviewBaselineCommitRecord, string>({
+            id: REVIEW_BASELINE_COMMIT_COLLECTION_ID,
             getKey: (item) => item.id,
         }),
     );
@@ -714,6 +746,9 @@ async function initRxdbCollections() {
         [REVIEW_VIEWED_STATE_COLLECTION_NAME]: {
             schema: REVIEW_VIEWED_STATE_SCHEMA,
         },
+        [REVIEW_BASELINE_COMMIT_COLLECTION_NAME]: {
+            schema: REVIEW_BASELINE_COMMIT_SCHEMA,
+        },
         [REVIEW_DIRECTORY_STATE_COLLECTION_NAME]: {
             schema: REVIEW_DIRECTORY_STATE_SCHEMA,
         },
@@ -787,6 +822,14 @@ async function initRxdbCollections() {
         }),
     );
 
+    reviewBaselineCommitCollection = createCollection(
+        rxdbCollectionOptions<ReviewBaselineCommitRecord>({
+            id: REVIEW_BASELINE_COMMIT_COLLECTION_ID,
+            rxCollection: collections[REVIEW_BASELINE_COMMIT_COLLECTION_NAME],
+            startSync: true,
+        }),
+    );
+
     reviewDirectoryStateCollection = createCollection(
         rxdbCollectionOptions<ReviewDirectoryStateRecord>({
             id: REVIEW_DIRECTORY_STATE_COLLECTION_ID,
@@ -835,6 +878,7 @@ async function initRxdbCollections() {
         hostPreferencesCollection.preload(),
         authCredentialsCollection.preload(),
         reviewViewedStateCollection.preload(),
+        reviewBaselineCommitCollection.preload(),
         reviewDirectoryStateCollection.preload(),
         reviewLayoutStateCollection.preload(),
         inlineCommentDraftsCollection.preload(),
@@ -975,6 +1019,14 @@ function getReviewViewedStateCollection() {
         throw new Error("Review viewed state collection is unavailable");
     }
     return reviewViewedStateCollection;
+}
+
+function getReviewBaselineCommitCollection() {
+    ensureCollectionsInitialized();
+    if (!reviewBaselineCommitCollection) {
+        throw new Error("Review baseline commit collection is unavailable");
+    }
+    return reviewBaselineCommitCollection;
 }
 
 function getReviewDirectoryStateCollection() {
@@ -1252,6 +1304,34 @@ export function readReviewViewedVersionIds(scopeId: string) {
     return new Set(record.viewedVersionIds);
 }
 
+export function readReviewBaselineCommitHash(scopeId: string) {
+    if (!scopeId) return null;
+    const record = readStateRecord(getReviewBaselineCommitCollection(), scopeId);
+    if (!record) return null;
+    return record.baselineCommitHash;
+}
+
+export function writeReviewBaselineCommitHash(scopeId: string, baselineCommitHash: string | null) {
+    if (!scopeId) return;
+    const normalized = baselineCommitHash?.trim();
+    if (!normalized) {
+        void deleteRecord(getReviewBaselineCommitCollection(), scopeId, `baseline:${scopeId}`);
+        return;
+    }
+
+    const now = Date.now();
+    void upsertRecord(
+        getReviewBaselineCommitCollection(),
+        {
+            id: scopeId,
+            baselineCommitHash: normalized,
+            updatedAt: now,
+            expiresAt: stateExpiresAt(now),
+        },
+        `baseline:${scopeId}`,
+    );
+}
+
 export function writeReviewViewedVersionIds(scopeId: string, viewedVersionIds: Set<string>) {
     if (!scopeId) return;
     if (viewedVersionIds.size === 0) {
@@ -1434,6 +1514,7 @@ async function sweepExpiredStateCollections(now = Date.now()) {
     ensureCollectionsInitialized();
     let removed = 0;
     removed += await sweepExpiredCollection(getReviewViewedStateCollection(), now, "viewed");
+    removed += await sweepExpiredCollection(getReviewBaselineCommitCollection(), now, "baseline");
     removed += await sweepExpiredCollection(getReviewDirectoryStateCollection(), now, "directory");
     removed += await sweepExpiredCollection(getReviewLayoutStateCollection(), now, "layout");
     removed += await sweepExpiredCollection(getInlineCommentDraftsCollection(), now, "inline-draft");
@@ -1457,6 +1538,7 @@ function getAppCollectionSummaries(): AppCollectionSummary[] {
         { name: "hostPreferences", tier: "permanent", collection: getHostPreferencesCollection() as Collection<BaseCollectionRecord, string> },
         { name: "authCredentials", tier: "permanent", collection: getAuthCredentialsCollection() as Collection<BaseCollectionRecord, string> },
         { name: "reviewViewedState", tier: "state", collection: getReviewViewedStateCollection() as Collection<BaseCollectionRecord, string> },
+        { name: "reviewBaselineCommit", tier: "state", collection: getReviewBaselineCommitCollection() as Collection<BaseCollectionRecord, string> },
         { name: "reviewDirectoryState", tier: "state", collection: getReviewDirectoryStateCollection() as Collection<BaseCollectionRecord, string> },
         { name: "reviewLayoutState", tier: "state", collection: getReviewLayoutStateCollection() as Collection<BaseCollectionRecord, string> },
         { name: "inlineCommentDrafts", tier: "state", collection: getInlineCommentDraftsCollection() as Collection<BaseCollectionRecord, string> },
@@ -1625,6 +1707,7 @@ async function __resetDataCollectionsForTests() {
     hostPreferencesCollection = null;
     authCredentialsCollection = null;
     reviewViewedStateCollection = null;
+    reviewBaselineCommitCollection = null;
     reviewDirectoryStateCollection = null;
     reviewLayoutStateCollection = null;
     inlineCommentDraftsCollection = null;

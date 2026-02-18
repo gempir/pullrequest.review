@@ -1,7 +1,22 @@
 import { type Collection, createCollection, localOnlyCollectionOptions } from "@tanstack/db";
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
-import { fetchPullRequestBundleByRef, fetchPullRequestFileHistory, fetchRepoPullRequestsForHost, listRepositoriesForHost } from "@/lib/git-host/service";
-import type { Commit, GitHost, PullRequestBundle, PullRequestFileHistoryEntry, PullRequestRef, PullRequestSummary, RepoRef } from "@/lib/git-host/types";
+import {
+    fetchPullRequestBundleByRef,
+    fetchPullRequestCommitRangeDiff,
+    fetchPullRequestFileHistory,
+    fetchRepoPullRequestsForHost,
+    listRepositoriesForHost,
+} from "@/lib/git-host/service";
+import type {
+    Commit,
+    GitHost,
+    PullRequestBundle,
+    PullRequestCommitRangeDiff,
+    PullRequestFileHistoryEntry,
+    PullRequestRef,
+    PullRequestSummary,
+    RepoRef,
+} from "@/lib/git-host/types";
 import { LruCache } from "@/lib/utils/lru";
 
 export type PullRequestBundleRecord = PullRequestBundle & {
@@ -27,6 +42,13 @@ type PullRequestFileHistoryRecord = {
     prKey: string;
     path: string;
     entries: PullRequestFileHistoryEntry[];
+    fetchedAt: number;
+    expiresAt: number;
+};
+
+export type PullRequestCommitRangeDiffRecord = PullRequestCommitRangeDiff & {
+    id: string;
+    prKey: string;
     fetchedAt: number;
     expiresAt: number;
 };
@@ -61,13 +83,20 @@ type ScopedCollection<T extends object> = {
     utils: CollectionUtils;
 };
 
-type HostDataCollectionKey = "repositories" | "repoPullRequests" | "pullRequestBundles" | "pullRequestFileContexts" | "pullRequestFileHistories";
+type HostDataCollectionKey =
+    | "repositories"
+    | "repoPullRequests"
+    | "pullRequestBundles"
+    | "pullRequestFileContexts"
+    | "pullRequestFileHistories"
+    | "pullRequestCommitRangeDiffs";
 type HostDataRecordMap = {
     repositories: RepositoryRecord;
     repoPullRequests: PersistedRepoPullRequestRecord;
     pullRequestBundles: PersistedPullRequestBundleRecord;
     pullRequestFileContexts: PullRequestFileContextRecord;
     pullRequestFileHistories: PullRequestFileHistoryRecord;
+    pullRequestCommitRangeDiffs: PullRequestCommitRangeDiffRecord;
 };
 type HostDataRecordForKey<K extends HostDataCollectionKey> = HostDataRecordMap[K];
 type HostDataCollectionForKey<K extends HostDataCollectionKey> = Collection<HostDataRecordForKey<K>, string>;
@@ -115,12 +144,14 @@ const REPO_PULL_REQUEST_RX_COLLECTION_NAME = "repo_pull_requests";
 const PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME = "pull_request_bundles";
 const PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME = "pull_request_file_contexts";
 const PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME = "pull_request_file_histories";
+const PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME = "pull_request_commit_range_diffs";
 
 const REPOSITORY_TANSTACK_COLLECTION_ID = "repos:rxdb";
 const REPO_PULL_REQUEST_TANSTACK_COLLECTION_ID = "repo-prs:rxdb";
 const PULL_REQUEST_BUNDLE_TANSTACK_COLLECTION_ID = "pr-bundle:rxdb";
 const PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID = "pr-file-contexts:rxdb";
 const PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID = "pr-file-histories:rxdb";
+const PULL_REQUEST_COMMIT_RANGE_DIFF_TANSTACK_COLLECTION_ID = "pr-commit-range-diffs:rxdb";
 const SCOPED_COLLECTION_CACHE_SIZE = 100;
 const HOST_DATA_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -363,6 +394,61 @@ const PULL_REQUEST_FILE_HISTORY_RX_SCHEMA = {
     additionalProperties: false,
 } as const;
 
+const PULL_REQUEST_COMMIT_RANGE_DIFF_RX_SCHEMA = {
+    title: "pullrequestdotreview pull request commit range diffs",
+    version: 0,
+    type: "object",
+    primaryKey: "id",
+    properties: {
+        id: {
+            type: "string",
+            maxLength: 1400,
+        },
+        prKey: {
+            type: "string",
+            maxLength: 800,
+        },
+        prRef: {
+            type: "object",
+            additionalProperties: true,
+        },
+        baseCommitHash: {
+            type: "string",
+            maxLength: 80,
+        },
+        headCommitHash: {
+            type: "string",
+            maxLength: 80,
+        },
+        selectedCommitHashes: {
+            type: "array",
+            items: {
+                type: "string",
+            },
+        },
+        diff: {
+            type: "string",
+        },
+        diffstat: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: true,
+            },
+        },
+        fetchedAt: {
+            type: "number",
+            minimum: 0,
+        },
+        expiresAt: {
+            type: "number",
+            minimum: 0,
+        },
+    },
+    required: ["id", "prKey", "prRef", "baseCommitHash", "headCommitHash", "selectedCommitHashes", "diff", "diffstat", "fetchedAt", "expiresAt"],
+    additionalProperties: false,
+} as const;
+
 let hostDataReadyPromise: Promise<void> | null = null;
 let hostDataDatabase: { close: () => Promise<boolean> } | null = null;
 let hostDataFallbackActive = false;
@@ -373,11 +459,13 @@ let repoPullRequestCollection: Collection<PersistedRepoPullRequestRecord, string
 let pullRequestBundleCollection: Collection<PersistedPullRequestBundleRecord, string> | null = null;
 let pullRequestFileContextCollection: Collection<PullRequestFileContextRecord, string> | null = null;
 let pullRequestFileHistoryCollection: Collection<PullRequestFileHistoryRecord, string> | null = null;
+let pullRequestCommitRangeDiffCollection: Collection<PullRequestCommitRangeDiffRecord, string> | null = null;
 
 const repositoryScopedCollections = new Map<GitHost, ScopedCollection<RepositoryRecord>>();
 const repoPullRequestScopedCollections = new LruCache<string, ScopedCollection<PersistedRepoPullRequestRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
 const pullRequestBundleScopedCollections = new LruCache<string, ScopedCollection<PersistedPullRequestBundleRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
 const pullRequestFileHistoryScopedCollections = new LruCache<string, ScopedCollection<PullRequestFileHistoryRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
+const pullRequestCommitRangeDiffScopedCollections = new LruCache<string, ScopedCollection<PullRequestCommitRangeDiffRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
 const fetchActivityListeners = new Set<() => void>();
 const activeFetchesByScope = new Map<string, FetchActivity>();
 const refetchRegistry = new LruCache<string, RefetchRegistryEntry>(SCOPED_COLLECTION_CACHE_SIZE);
@@ -533,8 +621,16 @@ function pullRequestFileHistoryId(prRef: PullRequestRef, path: string) {
     return `${pullRequestBundleId(prRef)}:history:${path}`;
 }
 
+function pullRequestCommitRangeDiffId(prRef: PullRequestRef, baseCommitHash: string, headCommitHash: string) {
+    return `${pullRequestBundleId(prRef)}:range:${baseCommitHash}..${headCommitHash}`;
+}
+
 function pullRequestFileHistoryFetchScopeId(prRef: PullRequestRef, path: string) {
     return `pr-file-history:${pullRequestBundleId(prRef)}:${path}`;
+}
+
+function pullRequestCommitRangeDiffFetchScopeId(prRef: PullRequestRef, baseCommitHash: string, headCommitHash: string) {
+    return `pr-range-diff:${pullRequestBundleId(prRef)}:${baseCommitHash}..${headCommitHash}`;
 }
 
 function normalizeRepoRef(repo: RepoRef): RepoRef {
@@ -660,6 +756,17 @@ function serializePullRequestFileHistoryRecord({
     };
 }
 
+function serializePullRequestCommitRangeDiffRecord(diff: PullRequestCommitRangeDiff): PullRequestCommitRangeDiffRecord {
+    const fetchedAt = Date.now();
+    return {
+        ...diff,
+        id: pullRequestCommitRangeDiffId(diff.prRef, diff.baseCommitHash, diff.headCommitHash),
+        prKey: pullRequestBundleId(diff.prRef),
+        fetchedAt,
+        expiresAt: cacheExpiresAt(fetchedAt),
+    };
+}
+
 function isValidRepoRef(repo: RepoRef | undefined): repo is RepoRef {
     return Boolean(
         repo &&
@@ -692,7 +799,8 @@ function getHostDataCollection<K extends HostDataCollectionKey>(key: K): HostDat
         !repoPullRequestCollection ||
         !pullRequestBundleCollection ||
         !pullRequestFileContextCollection ||
-        !pullRequestFileHistoryCollection
+        !pullRequestFileHistoryCollection ||
+        !pullRequestCommitRangeDiffCollection
     ) {
         ensureCollectionsInitialized();
     }
@@ -723,6 +831,11 @@ function getHostDataCollection<K extends HostDataCollectionKey>(key: K): HostDat
                 throw new Error("Pull request file history collection is unavailable");
             }
             return pullRequestFileHistoryCollection as HostDataCollectionForKey<K>;
+        case "pullRequestCommitRangeDiffs":
+            if (!pullRequestCommitRangeDiffCollection) {
+                throw new Error("Pull request commit range diff collection is unavailable");
+            }
+            return pullRequestCommitRangeDiffCollection as HostDataCollectionForKey<K>;
         default: {
             const exhaustiveCheck: never = key;
             throw new Error(`Unsupported host data collection key: ${exhaustiveCheck}`);
@@ -756,6 +869,7 @@ async function fallbackToInMemoryHostDataCollections() {
         const pullRequestBundleRecords = captureCollectionSnapshot(pullRequestBundleCollection);
         const pullRequestFileContextRecords = captureCollectionSnapshot(pullRequestFileContextCollection);
         const pullRequestFileHistoryRecords = captureCollectionSnapshot(pullRequestFileHistoryCollection);
+        const pullRequestCommitRangeDiffRecords = captureCollectionSnapshot(pullRequestCommitRangeDiffCollection);
 
         if (hostDataDatabase) {
             try {
@@ -773,6 +887,7 @@ async function fallbackToInMemoryHostDataCollections() {
         pullRequestBundleCollection = null;
         pullRequestFileContextCollection = null;
         pullRequestFileHistoryCollection = null;
+        pullRequestCommitRangeDiffCollection = null;
 
         ensureCollectionsInitialized();
 
@@ -781,11 +896,13 @@ async function fallbackToInMemoryHostDataCollections() {
         hydrateCollectionRecords(pullRequestBundleCollection, pullRequestBundleRecords);
         hydrateCollectionRecords(pullRequestFileContextCollection, pullRequestFileContextRecords);
         hydrateCollectionRecords(pullRequestFileHistoryCollection, pullRequestFileHistoryRecords);
+        hydrateCollectionRecords(pullRequestCommitRangeDiffCollection, pullRequestCommitRangeDiffRecords);
 
         const nextRepositoryCollection = getHostDataCollection("repositories");
         const nextRepoPullRequestCollection = getHostDataCollection("repoPullRequests");
         const nextPullRequestBundleCollection = getHostDataCollection("pullRequestBundles");
         const nextPullRequestFileHistoryCollection = getHostDataCollection("pullRequestFileHistories");
+        const nextPullRequestCommitRangeDiffCollection = getHostDataCollection("pullRequestCommitRangeDiffs");
 
         repositoryScopedCollections.forEach((scoped) => {
             scoped.collection = nextRepositoryCollection;
@@ -798,6 +915,9 @@ async function fallbackToInMemoryHostDataCollections() {
         }
         for (const scoped of pullRequestFileHistoryScopedCollections.values()) {
             scoped.collection = nextPullRequestFileHistoryCollection;
+        }
+        for (const scoped of pullRequestCommitRangeDiffScopedCollections.values()) {
+            scoped.collection = nextPullRequestCommitRangeDiffCollection;
         }
 
         console.warn("Host-data collections switched to in-memory mode after storage quota errors.");
@@ -845,7 +965,8 @@ function ensureCollectionsInitialized() {
         repoPullRequestCollection &&
         pullRequestBundleCollection &&
         pullRequestFileContextCollection &&
-        pullRequestFileHistoryCollection
+        pullRequestFileHistoryCollection &&
+        pullRequestCommitRangeDiffCollection
     ) {
         return;
     }
@@ -884,6 +1005,13 @@ function ensureCollectionsInitialized() {
             getKey: (item) => item.id,
         }),
     );
+
+    pullRequestCommitRangeDiffCollection = createCollection(
+        localOnlyCollectionOptions<PullRequestCommitRangeDiffRecord, string>({
+            id: PULL_REQUEST_COMMIT_RANGE_DIFF_TANSTACK_COLLECTION_ID,
+            getKey: (item) => item.id,
+        }),
+    );
 }
 
 async function initRxdbCollections() {
@@ -917,6 +1045,9 @@ async function initRxdbCollections() {
         },
         [PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME]: {
             schema: PULL_REQUEST_FILE_HISTORY_RX_SCHEMA,
+        },
+        [PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME]: {
+            schema: PULL_REQUEST_COMMIT_RANGE_DIFF_RX_SCHEMA,
         },
     });
 
@@ -960,12 +1091,21 @@ async function initRxdbCollections() {
         }),
     );
 
+    pullRequestCommitRangeDiffCollection = createCollection(
+        rxdbCollectionOptions<PullRequestCommitRangeDiffRecord>({
+            id: PULL_REQUEST_COMMIT_RANGE_DIFF_TANSTACK_COLLECTION_ID,
+            rxCollection: collections[PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME],
+            startSync: true,
+        }),
+    );
+
     await Promise.all([
         repositoryCollection.preload(),
         repoPullRequestCollection.preload(),
         pullRequestBundleCollection.preload(),
         pullRequestFileContextCollection.preload(),
         pullRequestFileHistoryCollection.preload(),
+        pullRequestCommitRangeDiffCollection.preload(),
     ]);
 }
 
@@ -983,7 +1123,12 @@ export function ensureGitHostDataReady() {
 }
 
 async function upsertRecord<K extends HostDataCollectionKey>(collectionKey: K, record: HostDataRecordForKey<K>): Promise<void> {
-    if (collectionKey === "pullRequestBundles" || collectionKey === "pullRequestFileContexts" || collectionKey === "pullRequestFileHistories") {
+    if (
+        collectionKey === "pullRequestBundles" ||
+        collectionKey === "pullRequestFileContexts" ||
+        collectionKey === "pullRequestFileHistories" ||
+        collectionKey === "pullRequestCommitRangeDiffs"
+    ) {
         const now = Date.now();
         if (!lastHostDataSweepAt || now - lastHostDataSweepAt > 60 * 1000) {
             await sweepExpiredGitHostData(now);
@@ -1028,6 +1173,7 @@ const HOST_DATA_COLLECTION_KEYS: HostDataCollectionKey[] = [
     "pullRequestBundles",
     "pullRequestFileContexts",
     "pullRequestFileHistories",
+    "pullRequestCommitRangeDiffs",
 ];
 
 async function sweepExpiredCollection<K extends HostDataCollectionKey>(collectionKey: K, now: number) {
@@ -1162,8 +1308,71 @@ export function getPullRequestFileContextCollection() {
     return getHostDataCollection("pullRequestFileContexts");
 }
 
+export function getPullRequestCommitRangeDiffDataCollection() {
+    return getHostDataCollection("pullRequestCommitRangeDiffs");
+}
+
 export function getPullRequestFileHistoryDataCollection() {
     return getHostDataCollection("pullRequestFileHistories");
+}
+
+export function getPullRequestCommitRangeDiffCollection({
+    prRef,
+    baseCommitHash,
+    headCommitHash,
+    selectedCommitHashes,
+}: {
+    prRef: PullRequestRef;
+    baseCommitHash: string;
+    headCommitHash: string;
+    selectedCommitHashes: string[];
+}) {
+    ensureCollectionsInitialized();
+    const normalizedBase = baseCommitHash.trim();
+    const normalizedHead = headCommitHash.trim();
+    const normalizedSelectedHashes = selectedCommitHashes.map((hash) => hash.trim()).filter(Boolean);
+    if (!normalizedBase || !normalizedHead) {
+        throw new Error("Base and head commit hashes are required to fetch commit range diff.");
+    }
+    const scopeId = pullRequestCommitRangeDiffFetchScopeId(prRef, normalizedBase, normalizedHead);
+    const scopeLabel = `Pull request commit range diff (${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId}:${normalizedBase}..${normalizedHead})`;
+    const existing = pullRequestCommitRangeDiffScopedCollections.get(scopeId);
+    if (existing) return existing;
+
+    const utils = createCollectionUtils(async (opts) => {
+        utils.isFetching = true;
+        setFetchActivity(scopeId, scopeLabel, true);
+        try {
+            const rangeDiff = await fetchPullRequestCommitRangeDiff({
+                prRef,
+                baseCommitHash: normalizedBase,
+                headCommitHash: normalizedHead,
+                selectedCommitHashes: normalizedSelectedHashes,
+            });
+            await upsertRecord("pullRequestCommitRangeDiffs", serializePullRequestCommitRangeDiffRecord(rangeDiff));
+            utils.lastError = undefined;
+            utils.dataUpdatedAt = Date.now();
+        } catch (error) {
+            utils.lastError = error;
+            if (opts?.throwOnError) {
+                throw error;
+            }
+        } finally {
+            utils.isFetching = false;
+            setFetchActivity(scopeId, scopeLabel, false);
+        }
+    });
+
+    const scoped: ScopedCollection<PullRequestCommitRangeDiffRecord> = {
+        collection: getHostDataCollection("pullRequestCommitRangeDiffs"),
+        utils,
+    };
+    const { evicted } = pullRequestCommitRangeDiffScopedCollections.set(scopeId, scoped);
+    if (evicted) {
+        unregisterScope(evicted.key);
+    }
+    registerRefetchScope(scopeId, scopeLabel, utils.refetch);
+    return scoped;
 }
 
 export function getPullRequestFileHistoryCollection({

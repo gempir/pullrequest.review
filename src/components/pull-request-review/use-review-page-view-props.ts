@@ -28,6 +28,7 @@ export function useReviewPageViewProps({
     declinePending,
     markDraftPending,
     copiedSourceBranch,
+    commitScopeSlot,
     onHome,
     onToggleSettings,
     onCollapseTree,
@@ -80,6 +81,7 @@ export function useReviewPageViewProps({
     declinePending: boolean;
     markDraftPending: boolean;
     copiedSourceBranch: boolean;
+    commitScopeSlot?: MainViewProps["navbarProps"]["commitScopeSlot"];
     onHome: MainViewProps["sidebarProps"]["onHome"];
     onToggleSettings: MainViewProps["sidebarProps"]["onToggleSettings"];
     onCollapseTree: MainViewProps["sidebarProps"]["onCollapseTree"];
@@ -177,6 +179,7 @@ export function useReviewPageViewProps({
             isDeclinePending: declinePending,
             isMarkDraftPending: markDraftPending,
             copiedSourceBranch,
+            commitScopeSlot,
             onExpandTree,
             onCopySourceBranch,
             onApprove,
@@ -194,6 +197,7 @@ export function useReviewPageViewProps({
             approvePending,
             buildStatuses,
             copiedSourceBranch,
+            commitScopeSlot,
             currentUserReviewStatus,
             declinePending,
             isRefreshing,

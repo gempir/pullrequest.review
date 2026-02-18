@@ -12,6 +12,7 @@ import {
     type LoginCredentials,
     type PullRequestBuildStatus,
     type PullRequestBundle,
+    type PullRequestCommitRangeDiff,
     type PullRequestDetails,
     type PullRequestFileHistory,
     type PullRequestFileHistoryEntry,
@@ -171,6 +172,19 @@ interface GithubCommitFile {
 
 interface GithubCommitDetails extends GithubCommit {
     files?: GithubCommitFile[];
+}
+
+interface GithubCompareFile {
+    status?: string;
+    filename?: string;
+    previous_filename?: string;
+    additions?: number;
+    deletions?: number;
+}
+
+interface GithubCompareResponse {
+    files?: GithubCompareFile[];
+    commits?: Array<{ sha?: string }>;
 }
 
 function parseAuth(rawValue: string | null): GithubAuth | null {
@@ -1036,6 +1050,45 @@ export const githubClient: GitHostClient = {
             }
             throw error;
         }
+    },
+    async fetchPullRequestCommitRangeDiff({ prRef, baseCommitHash, headCommitHash, selectedCommitHashes }): Promise<PullRequestCommitRangeDiff> {
+        const normalizedBase = baseCommitHash.trim();
+        const normalizedHead = headCommitHash.trim();
+        if (!normalizedBase || !normalizedHead) {
+            throw new Error("Both base and head commit hashes are required.");
+        }
+        const compareSpec = `${encodeURIComponent(normalizedBase)}...${encodeURIComponent(normalizedHead)}`;
+        const comparePath = `/repos/${prRef.workspace}/${prRef.repo}/compare/${compareSpec}`;
+        const [compareRes, diffRes] = await Promise.all([
+            request(comparePath),
+            request(comparePath, {
+                headers: { Accept: "application/vnd.github.v3.diff" },
+            }),
+        ]);
+        const compare = (await compareRes.json()) as GithubCompareResponse;
+        const diffstat: DiffStatEntry[] = (compare.files ?? []).flatMap((file) => {
+            const path = file.filename?.trim();
+            if (!path) return [];
+            return [
+                {
+                    status: mapFileStatus((file.status ?? "modified").toLowerCase()),
+                    new: { path },
+                    old: { path: file.previous_filename ?? path },
+                    linesAdded: Number(file.additions ?? 0),
+                    linesRemoved: Number(file.deletions ?? 0),
+                },
+            ];
+        });
+        const compareCommitHashes = (compare.commits ?? []).map((commit) => commit.sha?.trim()).filter((hash): hash is string => Boolean(hash));
+
+        return {
+            prRef,
+            baseCommitHash: normalizedBase,
+            headCommitHash: normalizedHead,
+            selectedCommitHashes: compareCommitHashes.length > 0 ? compareCommitHashes : selectedCommitHashes,
+            diff: await diffRes.text(),
+            diffstat,
+        };
     },
     async fetchPullRequestFileHistory({ prRef, path, commits, limit = 20 }): Promise<PullRequestFileHistory> {
         const normalizedPath = path.trim();

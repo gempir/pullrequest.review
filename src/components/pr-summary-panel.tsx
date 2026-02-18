@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { Button } from "@/components/ui/button";
 import type { PullRequestBundle, PullRequestHistoryEvent } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
 
@@ -139,12 +140,16 @@ export function PullRequestSummaryPanel({
     diffStats,
     headerRight,
     onSelectComment,
+    selectedBaselineCommitHash,
+    onMarkReviewedUpToCommit,
 }: {
     bundle: PullRequestBundle;
     headerTitle?: string;
     diffStats?: { added: number; removed: number };
     headerRight?: ReactNode;
     onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
+    selectedBaselineCommitHash?: string;
+    onMarkReviewedUpToCommit?: (commitHash: string) => void;
 }) {
     const { pr, commits, history } = bundle;
     const baseHistory: PullRequestHistoryEvent[] = history ?? [];
@@ -324,6 +329,20 @@ export function PullRequestSummaryPanel({
                                                 {message ?? "(no message)"}
                                             </span>
                                             <span className="text-right text-muted-foreground">{formatDate(commit.date)}</span>
+                                            <div className="col-span-4 flex justify-end">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className={cn(
+                                                        "h-6 px-2 text-[10px]",
+                                                        selectedBaselineCommitHash === commit.hash ? "text-foreground" : "text-muted-foreground",
+                                                    )}
+                                                    onClick={() => onMarkReviewedUpToCommit?.(commit.hash)}
+                                                >
+                                                    {selectedBaselineCommitHash === commit.hash ? "Baseline" : "Mark reviewed up to here"}
+                                                </Button>
+                                            </div>
                                         </div>
                                     );
                                 })}

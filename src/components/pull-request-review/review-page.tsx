@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
+import { ReviewCommitScopeControl } from "@/components/pull-request-review/review-commit-scope-control";
 import { createReviewPageUiStore, useReviewPageUiValue } from "@/components/pull-request-review/review-page.store";
 import { ReviewPageDiffContent } from "@/components/pull-request-review/review-page-diff-content";
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
@@ -36,15 +37,19 @@ import { isRateLimitedError as isRateLimitedQueryError, useReviewQuery } from "@
 import { readViewedVersionIds, useViewedStorageKey, writeViewedVersionIds } from "@/components/pull-request-review/use-review-storage";
 import { getSettingsTreeItems } from "@/components/settings-navigation";
 import { useAppearance } from "@/lib/appearance-context";
+import { readReviewBaselineCommitHash, writeReviewBaselineCommitHash } from "@/lib/data/query-collections";
 import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
 import { commentAnchorId, fileAnchorId } from "@/lib/file-anchors";
 import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
 import {
     getHostDataCollectionsVersionSnapshot,
+    getPullRequestCommitRangeDiffCollection,
+    getPullRequestCommitRangeDiffDataCollection,
     getPullRequestFileContextCollection,
     getPullRequestFileHistoryCollection,
     getPullRequestFileHistoryDataCollection,
+    type PullRequestCommitRangeDiffRecord,
     savePullRequestFileContextRecord,
     subscribeHostDataCollectionsVersion,
 } from "@/lib/git-host/query-collections";
@@ -52,6 +57,7 @@ import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import { fetchPullRequestFileContents } from "@/lib/git-host/service";
 import type { GitHost } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
+import { diffScopeStorageSegment, type ReviewDiffScopeSearch, resolveReviewDiffScope } from "@/lib/review-diff-scope";
 import { makeDirectoryStateStorageKey } from "@/lib/review-storage";
 
 interface PullRequestReviewPageProps {
@@ -60,6 +66,8 @@ interface PullRequestReviewPageProps {
     repo: string;
     pullRequestId: string;
     auth: { canWrite: boolean; canRead: boolean };
+    reviewDiffScopeSearch?: ReviewDiffScopeSearch;
+    onReviewDiffScopeSearchChange?: (next: ReviewDiffScopeSearch) => void;
     onRequireAuth?: (reason: "write" | "rate_limit") => void;
     authPromptSlot?: ReactNode;
 }
@@ -119,7 +127,21 @@ function parentDirectories(path: string): string[] {
     return directories;
 }
 
-function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, auth, onRequireAuth, authPromptSlot }: PullRequestReviewPageProps) {
+function sameScopeSearch(a: ReviewDiffScopeSearch, b: ReviewDiffScopeSearch) {
+    return a.scope === b.scope && a.includeMerge === b.includeMerge && a.from === b.from && a.to === b.to && a.baseline === b.baseline;
+}
+
+function usePullRequestReviewPageView({
+    host,
+    workspace,
+    repo,
+    pullRequestId,
+    auth,
+    reviewDiffScopeSearch,
+    onReviewDiffScopeSearchChange,
+    onRequireAuth,
+    authPromptSlot,
+}: PullRequestReviewPageProps) {
     const navigate = useNavigate();
     const requestAuth = useCallback(
         (reason: "write" | "rate_limit") => {
@@ -261,6 +283,8 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
     const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<Record<string, boolean>>({});
     const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
+    const [scopeNotice, setScopeNotice] = useState<string | null>(null);
+    const [persistedBaselineCommitHash, setPersistedBaselineCommitHash] = useState<string | null>(null);
     const [fileContexts, setFileContexts] = useState<Record<string, FullFileContextEntry>>({});
     const [dirStateHydrated, setDirStateHydrated] = useState(false);
     const [pendingCommentTick, setPendingCommentTick] = useState(0);
@@ -295,8 +319,9 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
         },
     });
 
-    const prData = prQuery.data;
-    const pullRequest = prData?.pr;
+    const basePrData = prQuery.data;
+    const diffScopeSearch: ReviewDiffScopeSearch = reviewDiffScopeSearch ?? { scope: "full", includeMerge: "0" };
+    const pullRequest = basePrData?.pr;
     const pullRequestUrl = pullRequest?.links?.html?.href;
     const pullRequestTitle = pullRequest?.title?.trim();
     const isPrQueryFetching = prQuery.isFetching;
@@ -304,12 +329,27 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
     const isRateLimitedError = isRateLimitedQueryError(prQuery.error);
     useReviewDocumentTitle({ isLoading: prQuery.isLoading, pullRequestTitle });
 
-    // Build viewed-file storage key from stable primitives to avoid object identity churn.
-    const viewedStorageKey = useViewedStorageKey(prData?.prRef);
-
     const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
     const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
     const prContextKey = `${host}:${workspace}/${repo}/${pullRequestId}`;
+    const baselineStorageKey = prContextKey;
+    const resolvedScope = useMemo(
+        () =>
+            resolveReviewDiffScope({
+                search: diffScopeSearch,
+                commits: basePrData?.commits ?? [],
+                destinationCommitHash: basePrData?.pr.destination?.commit?.hash,
+            }),
+        [basePrData?.commits, basePrData?.pr.destination?.commit?.hash, diffScopeSearch],
+    );
+    const diffScopeSegment = useMemo(() => diffScopeStorageSegment(resolvedScope), [resolvedScope]);
+    // Build viewed-file storage key from stable primitives to avoid object identity churn.
+    const viewedStorageKey = useViewedStorageKey(basePrData?.prRef, diffScopeSegment);
+
+    const commitRangeDiffCollectionData = useMemo(() => {
+        void hostDataCollectionsVersion;
+        return getPullRequestCommitRangeDiffDataCollection();
+    }, [hostDataCollectionsVersion]);
     const fileContextCollection = useMemo(() => {
         // Recreate the scoped collection when host-data storage falls back.
         void hostDataCollectionsVersion;
@@ -319,9 +359,14 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
         void hostDataCollectionsVersion;
         return getPullRequestFileHistoryDataCollection();
     }, [hostDataCollectionsVersion]);
+    const commitRangeDiffQuery = useLiveQuery(
+        (q) => q.from({ range: commitRangeDiffCollectionData }).select(({ range }) => ({ ...range })),
+        [commitRangeDiffCollectionData],
+    );
     const fileContextQuery = useLiveQuery((q) => q.from({ context: fileContextCollection }).select(({ context }) => ({ ...context })), [fileContextCollection]);
     const fileHistoryQuery = useLiveQuery((q) => q.from({ history: fileHistoryCollection }).select(({ history }) => ({ ...history })), [fileHistoryCollection]);
     const persistedFileContexts = useMemo(() => {
+        if (resolvedScope.mode !== "full") return {};
         const entries: Record<string, { oldLines: string[]; newLines: string[]; fetchedAt: number }> = {};
         for (const record of fileContextQuery.data ?? []) {
             if (record.prKey !== prContextKey) continue;
@@ -332,7 +377,7 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
             };
         }
         return entries;
-    }, [fileContextQuery.data, prContextKey]);
+    }, [fileContextQuery.data, prContextKey, resolvedScope.mode]);
     const persistedFileHistoryByPath = useMemo(() => {
         const entries: Record<
             string,
@@ -359,6 +404,113 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
         }
         return entries;
     }, [fileHistoryQuery.data, prContextKey]);
+    const persistedCommitRangeDiffs = useMemo(() => {
+        const entries: Record<string, PullRequestCommitRangeDiffRecord> = {};
+        for (const record of commitRangeDiffQuery.data ?? []) {
+            if (record.prKey !== prContextKey) continue;
+            entries[`${record.baseCommitHash}..${record.headCommitHash}`] = record;
+        }
+        return entries;
+    }, [commitRangeDiffQuery.data, prContextKey]);
+    const scopedRangeDiffRecord = useMemo(() => {
+        if (resolvedScope.mode === "full") return undefined;
+        if (!resolvedScope.baseCommitHash || !resolvedScope.headCommitHash) return undefined;
+        return persistedCommitRangeDiffs[`${resolvedScope.baseCommitHash}..${resolvedScope.headCommitHash}`];
+    }, [persistedCommitRangeDiffs, resolvedScope]);
+    const commitRangeScopedCollection = useMemo(() => {
+        if (!basePrData || resolvedScope.mode === "full") return null;
+        if (!resolvedScope.baseCommitHash || !resolvedScope.headCommitHash) return null;
+        if (resolvedScope.selectedCommitHashes.length === 0) return null;
+        return getPullRequestCommitRangeDiffCollection({
+            prRef,
+            baseCommitHash: resolvedScope.baseCommitHash,
+            headCommitHash: resolvedScope.headCommitHash,
+            selectedCommitHashes: resolvedScope.selectedCommitHashes,
+        });
+    }, [basePrData, prRef, resolvedScope]);
+    const effectivePrData = useMemo(() => {
+        if (!basePrData) return undefined;
+        if (resolvedScope.mode === "full") return basePrData;
+        if (resolvedScope.selectedCommitHashes.length === 0) {
+            return {
+                ...basePrData,
+                diff: "",
+                diffstat: [],
+                commits: resolvedScope.selectedCommits,
+            };
+        }
+        if (!scopedRangeDiffRecord) {
+            return {
+                ...basePrData,
+                diff: "",
+                diffstat: [],
+                commits: resolvedScope.selectedCommits,
+            };
+        }
+        return {
+            ...basePrData,
+            diff: scopedRangeDiffRecord.diff,
+            diffstat: scopedRangeDiffRecord.diffstat,
+            commits: resolvedScope.selectedCommits,
+        };
+    }, [basePrData, resolvedScope, scopedRangeDiffRecord]);
+    const prData = effectivePrData;
+
+    useEffect(() => {
+        setPersistedBaselineCommitHash(readReviewBaselineCommitHash(baselineStorageKey));
+    }, [baselineStorageKey]);
+
+    useEffect(() => {
+        if (!onReviewDiffScopeSearchChange) return;
+        if (sameScopeSearch(diffScopeSearch, resolvedScope.normalizedSearch)) return;
+        onReviewDiffScopeSearchChange(resolvedScope.normalizedSearch);
+    }, [diffScopeSearch, onReviewDiffScopeSearchChange, resolvedScope.normalizedSearch]);
+
+    useEffect(() => {
+        if (!onReviewDiffScopeSearchChange) return;
+        if (resolvedScope.mode !== "full" || !resolvedScope.fallbackReason || diffScopeSearch.scope === "full") return;
+        let notice: string;
+        if (resolvedScope.fallbackReason === "invalid_baseline") {
+            writeReviewBaselineCommitHash(baselineStorageKey, null);
+            setPersistedBaselineCommitHash(null);
+            notice = "Baseline commit was removed from this PR. Switched to full diff.";
+        } else if (resolvedScope.fallbackReason === "invalid_range") {
+            notice = "Selected commit range is unavailable. Switched to full diff.";
+        } else {
+            notice = "Commit range base/head could not be resolved. Switched to full diff.";
+        }
+        setScopeNotice(notice);
+        onReviewDiffScopeSearchChange({ scope: "full", includeMerge: diffScopeSearch.includeMerge });
+    }, [baselineStorageKey, diffScopeSearch.includeMerge, diffScopeSearch.scope, onReviewDiffScopeSearchChange, resolvedScope]);
+
+    useEffect(() => {
+        if (!commitRangeScopedCollection) return;
+        let cancelled = false;
+        setScopeNotice(null);
+        void (async () => {
+            await commitRangeScopedCollection.utils.refetch({ throwOnError: false });
+            if (cancelled) return;
+            const maybeError = commitRangeScopedCollection.utils.lastError;
+            if (!maybeError) return;
+            const message = maybeError instanceof Error ? maybeError.message : "Failed to load commit range diff.";
+            setScopeNotice(message);
+            onReviewDiffScopeSearchChange?.({ scope: "full", includeMerge: diffScopeSearch.includeMerge });
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [commitRangeScopedCollection, diffScopeSearch.includeMerge, onReviewDiffScopeSearchChange]);
+
+    useEffect(() => {
+        if (resolvedScope.mode === "full") return;
+        if (resolvedScope.selectedCommitHashes.length > 0) return;
+        setScopeNotice("No changes in selected range.");
+    }, [resolvedScope.mode, resolvedScope.selectedCommitHashes.length]);
+
+    useEffect(() => {
+        if (resolvedScope.mode === "full") return;
+        setInlineComment(null);
+    }, [resolvedScope.mode, setInlineComment]);
 
     const readyFileContextsRef = useRef<Record<string, { oldLines: string[]; newLines: string[] }>>({});
 
@@ -458,14 +610,17 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
 
     const openInlineCommentDraftForPath = useCallback(
         (path: string, props: OnDiffLineClickProps) => {
+            if (resolvedScope.mode !== "full") return;
             openInlineCommentDraft({
                 path,
                 line: props.lineNumber,
                 side: props.annotationSide ?? "additions",
             });
         },
-        [openInlineCommentDraft],
+        [openInlineCommentDraft, resolvedScope.mode],
     );
+    const effectiveBaseCommitHash = resolvedScope.mode === "full" ? prData?.pr.destination?.commit?.hash : resolvedScope.baseCommitHash;
+    const effectiveHeadCommitHash = resolvedScope.mode === "full" ? prData?.pr.source?.commit?.hash : resolvedScope.headCommitHash;
 
     const handleLoadFullFileContext = useCallback(
         async (filePath: string, fileDiff: FileDiffMetadata) => {
@@ -474,8 +629,8 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
             if (current?.status === "ready" || persistedFileContexts[filePath]) return;
             setFileContexts((prev) => ({ ...prev, [filePath]: { status: "loading" } }));
             try {
-                const baseCommit = prData?.pr.destination?.commit?.hash;
-                const headCommit = prData?.pr.source?.commit?.hash;
+                const baseCommit = effectiveBaseCommitHash;
+                const headCommit = effectiveHeadCommitHash;
                 const needsBase = fileDiff.type !== "new";
                 const needsHead = fileDiff.type !== "deleted";
                 if (needsBase && !baseCommit) {
@@ -495,13 +650,15 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
                 const readyOldLines = needsBase ? splitFileIntoLines(oldContent) : [];
                 const readyNewLines = needsHead ? splitFileIntoLines(newContent) : [];
                 const fetchedAt = Date.now();
-                await savePullRequestFileContextRecord({
-                    prRef,
-                    path: filePath,
-                    oldLines: readyOldLines,
-                    newLines: readyNewLines,
-                    fetchedAt,
-                });
+                if (resolvedScope.mode === "full") {
+                    await savePullRequestFileContextRecord({
+                        prRef,
+                        path: filePath,
+                        oldLines: readyOldLines,
+                        newLines: readyNewLines,
+                        fetchedAt,
+                    });
+                }
                 setFileContexts((prev) => ({
                     ...prev,
                     [filePath]: {
@@ -516,7 +673,7 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
                 setFileContexts((prev) => ({ ...prev, [filePath]: { status: "error", error: message } }));
             }
         },
-        [fileContexts, persistedFileContexts, prData?.pr.destination?.commit?.hash, prData?.pr.source?.commit?.hash, prRef],
+        [effectiveBaseCommitHash, effectiveHeadCommitHash, fileContexts, persistedFileContexts, prRef, resolvedScope.mode],
     );
 
     const {
@@ -568,7 +725,7 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
         }
         return map;
     }, [fileDiffFingerprints]);
-    const historyRevision = `${prData?.pr.destination?.commit?.hash ?? ""}:${prData?.pr.source?.commit?.hash ?? ""}`;
+    const historyRevision = `${effectiveBaseCommitHash ?? ""}:${effectiveHeadCommitHash ?? ""}`;
 
     const resetHistoryTracking = useCallback(() => {
         setHistoryRequestedPaths(new Set());
@@ -600,6 +757,7 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
         if (loadedHistoryRevisionRef.current === historyRevision) return;
         loadedHistoryRevisionRef.current = historyRevision;
         resetHistoryTracking();
+        setFileContexts({});
     }, [historyRevision, resetHistoryTracking]);
 
     useEffect(() => {
@@ -1220,6 +1378,150 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
         suppressHashSyncRef,
     });
 
+    const commitScopeOptions = useMemo(
+        () =>
+            resolvedScope.visibleCommits.map((commit) => ({
+                hash: commit.hash,
+                label: commit.hash.slice(0, 8),
+            })),
+        [resolvedScope.visibleCommits],
+    );
+    const hasPersistedBaseline = useMemo(
+        () => Boolean(persistedBaselineCommitHash && resolvedScope.visibleCommits.some((commit) => commit.hash === persistedBaselineCommitHash)),
+        [persistedBaselineCommitHash, resolvedScope.visibleCommits],
+    );
+    const commitScopeLoading = resolvedScope.mode !== "full" && resolvedScope.selectedCommitHashes.length > 0 && !scopedRangeDiffRecord;
+    const handleScopeModeChange = useCallback(
+        (mode: "full" | "range" | "since") => {
+            if (!onReviewDiffScopeSearchChange) return;
+            if (mode === "full") {
+                setScopeNotice(null);
+                onReviewDiffScopeSearchChange({ scope: "full", includeMerge: diffScopeSearch.includeMerge });
+                return;
+            }
+            if (mode === "range") {
+                const first = commitScopeOptions[0]?.hash;
+                const last = commitScopeOptions[commitScopeOptions.length - 1]?.hash;
+                if (!first || !last) return;
+                onReviewDiffScopeSearchChange({
+                    scope: "range",
+                    from: first,
+                    to: last,
+                    includeMerge: diffScopeSearch.includeMerge,
+                });
+                return;
+            }
+            const baseline = persistedBaselineCommitHash?.trim();
+            if (!baseline) return;
+            onReviewDiffScopeSearchChange({
+                scope: "since",
+                baseline,
+                includeMerge: diffScopeSearch.includeMerge,
+            });
+        },
+        [commitScopeOptions, diffScopeSearch.includeMerge, onReviewDiffScopeSearchChange, persistedBaselineCommitHash],
+    );
+    const handleFromCommitChange = useCallback(
+        (from: string) => {
+            if (!onReviewDiffScopeSearchChange) return;
+            const to = diffScopeSearch.scope === "range" ? diffScopeSearch.to : commitScopeOptions[commitScopeOptions.length - 1]?.hash;
+            if (!to) return;
+            onReviewDiffScopeSearchChange({ scope: "range", from, to, includeMerge: diffScopeSearch.includeMerge });
+        },
+        [commitScopeOptions, diffScopeSearch.includeMerge, diffScopeSearch.scope, diffScopeSearch.to, onReviewDiffScopeSearchChange],
+    );
+    const handleToCommitChange = useCallback(
+        (to: string) => {
+            if (!onReviewDiffScopeSearchChange) return;
+            const from = diffScopeSearch.scope === "range" ? diffScopeSearch.from : commitScopeOptions[0]?.hash;
+            if (!from) return;
+            onReviewDiffScopeSearchChange({ scope: "range", from, to, includeMerge: diffScopeSearch.includeMerge });
+        },
+        [commitScopeOptions, diffScopeSearch.from, diffScopeSearch.includeMerge, diffScopeSearch.scope, onReviewDiffScopeSearchChange],
+    );
+    const handleIncludeMergeToggle = useCallback(
+        (includeMerge: boolean) => {
+            if (!onReviewDiffScopeSearchChange) return;
+            const nextIncludeMerge = includeMerge ? "1" : "0";
+            if (diffScopeSearch.scope === "range") {
+                if (!diffScopeSearch.from || !diffScopeSearch.to) {
+                    onReviewDiffScopeSearchChange({ scope: "full", includeMerge: nextIncludeMerge });
+                    return;
+                }
+                onReviewDiffScopeSearchChange({
+                    scope: "range",
+                    from: diffScopeSearch.from,
+                    to: diffScopeSearch.to,
+                    includeMerge: nextIncludeMerge,
+                });
+                return;
+            }
+            if (diffScopeSearch.scope === "since") {
+                if (!diffScopeSearch.baseline) {
+                    onReviewDiffScopeSearchChange({ scope: "full", includeMerge: nextIncludeMerge });
+                    return;
+                }
+                onReviewDiffScopeSearchChange({
+                    scope: "since",
+                    baseline: diffScopeSearch.baseline,
+                    includeMerge: nextIncludeMerge,
+                });
+                return;
+            }
+            onReviewDiffScopeSearchChange({ scope: "full", includeMerge: nextIncludeMerge });
+        },
+        [diffScopeSearch, onReviewDiffScopeSearchChange],
+    );
+    const handleMarkReviewedUpToCommit = useCallback(
+        (commitHash: string) => {
+            const normalized = commitHash.trim();
+            if (!normalized) return;
+            writeReviewBaselineCommitHash(baselineStorageKey, normalized);
+            setPersistedBaselineCommitHash(normalized);
+            onReviewDiffScopeSearchChange?.({
+                scope: "since",
+                baseline: normalized,
+                includeMerge: diffScopeSearch.includeMerge,
+            });
+            setScopeNotice(`Showing commits since ${normalized.slice(0, 8)}.`);
+        },
+        [baselineStorageKey, diffScopeSearch.includeMerge, onReviewDiffScopeSearchChange],
+    );
+    const commitScopeSlot = useMemo(
+        () => (
+            <ReviewCommitScopeControl
+                mode={resolvedScope.mode}
+                includeMerge={diffScopeSearch.includeMerge === "1"}
+                commitOptions={commitScopeOptions}
+                fromCommitHash={resolvedScope.mode === "range" ? resolvedScope.normalizedSearch.from : undefined}
+                toCommitHash={resolvedScope.mode === "range" ? resolvedScope.normalizedSearch.to : undefined}
+                baselineCommitHash={persistedBaselineCommitHash}
+                hasBaseline={hasPersistedBaseline}
+                isFetching={commitScopeLoading}
+                notice={scopeNotice}
+                onModeChange={handleScopeModeChange}
+                onFromCommitChange={handleFromCommitChange}
+                onToCommitChange={handleToCommitChange}
+                onIncludeMergeChange={handleIncludeMergeToggle}
+            />
+        ),
+        [
+            commitScopeLoading,
+            commitScopeOptions,
+            diffScopeSearch.includeMerge,
+            handleFromCommitChange,
+            handleIncludeMergeToggle,
+            handleScopeModeChange,
+            handleToCommitChange,
+            hasPersistedBaseline,
+            persistedBaselineCommitHash,
+            resolvedScope.mode,
+            resolvedScope.normalizedSearch.from,
+            resolvedScope.normalizedSearch.to,
+            scopeNotice,
+        ],
+    );
+
     const { sidebarProps, navbarProps, mergeDialogProps } = useReviewPageViewProps({
         treeWidth,
         treeCollapsed,
@@ -1243,6 +1545,7 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
         declinePending: declineMutation.isPending,
         markDraftPending: markDraftMutation.isPending,
         copiedSourceBranch,
+        commitScopeSlot,
         onHome: () => navigate({ to: "/" }),
         onToggleSettings: handleToggleSettingsPanel,
         onCollapseTree: () => setTreeCollapsed(true),
@@ -1324,6 +1627,7 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
                     currentUserDisplayName={pullRequest?.currentUser?.displayName}
                     lineStats={lineStats}
                     isSummarySelected={isSummarySelected}
+                    selectedBaselineCommitHash={persistedBaselineCommitHash ?? undefined}
                     selectedFilePath={selectedFilePath}
                     selectedFileDiff={selectedFileDisplayState.fileDiff}
                     selectedFileReadOnlyHistorical={selectedFileDisplayState.readOnlyHistorical}
@@ -1341,7 +1645,7 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
                     repo={repo}
                     pullRequestId={pullRequestId}
                     createCommentPending={createCommentMutation.isPending}
-                    canCommentInline={actionPolicy.canCommentInline}
+                    canCommentInline={actionPolicy.canCommentInline && resolvedScope.mode === "full"}
                     canResolveThread={actionPolicy.canResolveThread}
                     resolveCommentPending={resolveCommentMutation.isPending}
                     toRenderableFileDiff={toRenderableFileDiff}
@@ -1385,6 +1689,7 @@ function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, au
                         submitThreadReply(commentId, content);
                     }}
                     onHistoryCommentNavigate={handleHistoryCommentNavigate}
+                    onMarkReviewedUpToCommit={handleMarkReviewedUpToCommit}
                     onToggleSummaryCollapsed={() => setIsSummaryCollapsedInAllMode((prev) => !prev)}
                     onToggleCollapsedFile={(path, next) =>
                         setCollapsedAllModeFiles((prev) => ({

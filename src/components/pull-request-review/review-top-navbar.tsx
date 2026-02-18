@@ -1,4 +1,5 @@
 import { Check, Copy, Github, GitMerge, GlassWater, Loader2, Menu, Minus, PanelLeftOpen, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
+import type { ReactNode } from "react";
 import {
     aggregateBuildState,
     buildRunningTime,
@@ -34,6 +35,7 @@ type ReviewTopNavbarProps = {
     isDeclinePending: boolean;
     isMarkDraftPending: boolean;
     copiedSourceBranch: boolean;
+    commitScopeSlot?: ReactNode;
     onExpandTree: () => void;
     onCopySourceBranch: (branchName: string) => void;
     onApprove: () => void;
@@ -65,6 +67,7 @@ export function ReviewTopNavbar({
     isDeclinePending,
     isMarkDraftPending,
     copiedSourceBranch,
+    commitScopeSlot,
     onExpandTree,
     onCopySourceBranch,
     onApprove,
@@ -120,6 +123,7 @@ export function ReviewTopNavbar({
                         <span className="max-w-[180px] truncate text-foreground">{destinationBranch}</span>
                         <span className={cn("px-1.5 py-0.5 border uppercase text-[10px] rounded", navbarStateClass(navbarState))}>{navbarState}</span>
                         <span className="truncate">{navbarStatusDate}</span>
+                        {commitScopeSlot ? <div className="shrink-0">{commitScopeSlot}</div> : null}
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 

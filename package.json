@@ -16,7 +16,7 @@
         "cf-typegen": "wrangler types",
         "deploy": "wrangler deploy --config wrangler.jsonc",
         "wrangler": "wrangler",
-        "react-doctor": "react-doctor -y"
+        "react-doctor": "react-doctor -y --verbose"
     },
     "dependencies": {
         "@pierre/diffs": "^1.0.10",

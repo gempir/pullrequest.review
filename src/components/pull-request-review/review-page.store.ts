@@ -1,7 +1,7 @@
 import { Store } from "@tanstack/store";
 import { useSyncExternalStore } from "react";
 
-export type ReviewPageUiState = {
+type ReviewPageUiState = {
     searchQuery: string;
     showUnviewedOnly: boolean;
     showSettingsPanel: boolean;

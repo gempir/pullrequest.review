@@ -1,14 +1,7 @@
 import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useState } from "react";
-import { makeVersionedStorageKey, readStorageValue, writeLocalStorageValue } from "@/lib/storage/versioned-local-storage";
+import { readReviewLayoutState, writeReviewLayoutState } from "@/lib/data/query-collections";
 
-export type ReviewViewMode = "single" | "all";
-
-const TREE_WIDTH_KEY_BASE = "pr_review_tree_width";
-const TREE_WIDTH_KEY = makeVersionedStorageKey(TREE_WIDTH_KEY_BASE, 2);
-const TREE_COLLAPSED_KEY_BASE = "pr_review_tree_collapsed";
-const TREE_COLLAPSED_KEY = makeVersionedStorageKey(TREE_COLLAPSED_KEY_BASE, 2);
-const VIEW_MODE_KEY_BASE = "pr_review_diff_view_mode";
-const VIEW_MODE_KEY = makeVersionedStorageKey(VIEW_MODE_KEY_BASE, 2);
+type ReviewViewMode = "single" | "all";
 
 const DEFAULT_TREE_WIDTH = 280;
 const MIN_TREE_WIDTH = 180;
@@ -33,35 +26,24 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
 
     useEffect(() => {
         if (typeof window === "undefined") return;
-
-        const storedWidth = Number(readStorageValue(TREE_WIDTH_KEY));
-        if (Number.isFinite(storedWidth) && storedWidth >= MIN_TREE_WIDTH && storedWidth <= MAX_TREE_WIDTH) {
-            setTreeWidth(storedWidth);
-        }
-
-        const storedCollapsed = readStorageValue(TREE_COLLAPSED_KEY);
-        if (storedCollapsed === "true") setTreeCollapsed(true);
-
-        const storedMode = readStorageValue(VIEW_MODE_KEY);
-        if (storedMode === "single" || storedMode === "all") {
-            setViewMode(storedMode);
+        const stored = readReviewLayoutState();
+        if (stored) {
+            if (Number.isFinite(stored.treeWidth) && stored.treeWidth >= MIN_TREE_WIDTH && stored.treeWidth <= MAX_TREE_WIDTH) {
+                setTreeWidth(stored.treeWidth);
+            }
+            setTreeCollapsed(stored.treeCollapsed);
+            if (stored.viewMode === "single" || stored.viewMode === "all") {
+                setViewMode(stored.viewMode);
+            }
         }
 
         setViewModeHydrated(true);
     }, []);
 
     useEffect(() => {
-        writeLocalStorageValue(TREE_WIDTH_KEY, String(treeWidth));
-    }, [treeWidth]);
-
-    useEffect(() => {
-        writeLocalStorageValue(TREE_COLLAPSED_KEY, String(treeCollapsed));
-    }, [treeCollapsed]);
-
-    useEffect(() => {
         if (!viewModeHydrated) return;
-        writeLocalStorageValue(VIEW_MODE_KEY, viewMode);
-    }, [viewMode, viewModeHydrated]);
+        writeReviewLayoutState({ treeWidth, treeCollapsed, viewMode });
+    }, [treeCollapsed, treeWidth, viewMode, viewModeHydrated]);
 
     const startTreeResize = useCallback(
         (event: ReactMouseEvent<HTMLButtonElement>) => {

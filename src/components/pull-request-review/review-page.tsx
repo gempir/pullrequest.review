@@ -54,7 +54,7 @@ import type { GitHost } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { makeDirectoryStateStorageKey } from "@/lib/review-storage";
 
-export interface PullRequestReviewPageProps {
+interface PullRequestReviewPageProps {
     host: GitHost;
     workspace: string;
     repo: string;

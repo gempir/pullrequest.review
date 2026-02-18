@@ -1,8 +1,8 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { readAppearanceSettingsRecord, writeAppearanceSettingsRecord } from "@/lib/data/query-collections";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue, fontFamilyToCss } from "@/lib/font-options";
-import { makeVersionedStorageKey, readLocalStorageValue, writeLocalStorageValue } from "@/lib/storage/versioned-local-storage";
 
-export type AppThemeMode = "auto" | "light" | "dark";
+type AppThemeMode = "auto" | "light" | "dark";
 
 type AppearanceSettings = {
     appThemeMode: AppThemeMode;
@@ -32,9 +32,6 @@ type AppearanceContextValue = AppearanceSettings & {
     setTreeLineHeight: (lineHeight: number) => void;
     resetAppearance: () => void;
 };
-
-const STORAGE_KEY_BASE = "pr_review_appearance";
-const STORAGE_KEY = makeVersionedStorageKey(STORAGE_KEY_BASE, 2);
 
 const defaultAppearance: AppearanceSettings = {
     appThemeMode: "auto",
@@ -79,32 +76,24 @@ function deriveTreeLineHeight(treeUseCustomTypography: boolean, treeLineHeight: 
     return normalizeLineHeight(reduced, 1, 2.2);
 }
 
-function parseStoredSettings(raw: string | null): AppearanceSettings | null {
+function parseStoredSettings(raw: Record<string, unknown> | null): AppearanceSettings | null {
     if (!raw) return null;
-    try {
-        const parsed = JSON.parse(raw) as Partial<AppearanceSettings>;
-        const appThemeMode =
-            parsed.appThemeMode === "light" || parsed.appThemeMode === "dark" || parsed.appThemeMode === "auto"
-                ? parsed.appThemeMode
-                : defaultAppearance.appThemeMode;
+    const appThemeMode =
+        raw.appThemeMode === "light" || raw.appThemeMode === "dark" || raw.appThemeMode === "auto" ? raw.appThemeMode : defaultAppearance.appThemeMode;
 
-        return {
-            appThemeMode,
-            sansFontFamily: (parsed.sansFontFamily as FontFamilyValue) ?? defaultAppearance.sansFontFamily,
-            monospaceFontFamily: (parsed.monospaceFontFamily as FontFamilyValue) ?? defaultAppearance.monospaceFontFamily,
-            sansFontSize: normalizeFontSize(Number(parsed.sansFontSize ?? defaultAppearance.sansFontSize), 11, 20),
-            sansLineHeight: normalizeLineHeight(Number(parsed.sansLineHeight ?? defaultAppearance.sansLineHeight), 1, 2.2),
-            monospaceFontSize: normalizeFontSize(Number(parsed.monospaceFontSize ?? defaultAppearance.monospaceFontSize), 11, 20),
-            monospaceLineHeight: normalizeLineHeight(Number(parsed.monospaceLineHeight ?? defaultAppearance.monospaceLineHeight), 1, 2.2),
-            treeUseCustomTypography:
-                typeof parsed.treeUseCustomTypography === "boolean" ? parsed.treeUseCustomTypography : defaultAppearance.treeUseCustomTypography,
-            treeFontFamily: (parsed.treeFontFamily as FontFamilyValue) ?? defaultAppearance.treeFontFamily,
-            treeFontSize: normalizeFontSize(Number(parsed.treeFontSize ?? defaultAppearance.treeFontSize), 10, 18),
-            treeLineHeight: normalizeLineHeight(Number(parsed.treeLineHeight ?? defaultAppearance.treeLineHeight), 1, 2.2),
-        };
-    } catch {
-        return null;
-    }
+    return {
+        appThemeMode,
+        sansFontFamily: (raw.sansFontFamily as FontFamilyValue) ?? defaultAppearance.sansFontFamily,
+        monospaceFontFamily: (raw.monospaceFontFamily as FontFamilyValue) ?? defaultAppearance.monospaceFontFamily,
+        sansFontSize: normalizeFontSize(Number(raw.sansFontSize ?? defaultAppearance.sansFontSize), 11, 20),
+        sansLineHeight: normalizeLineHeight(Number(raw.sansLineHeight ?? defaultAppearance.sansLineHeight), 1, 2.2),
+        monospaceFontSize: normalizeFontSize(Number(raw.monospaceFontSize ?? defaultAppearance.monospaceFontSize), 11, 20),
+        monospaceLineHeight: normalizeLineHeight(Number(raw.monospaceLineHeight ?? defaultAppearance.monospaceLineHeight), 1, 2.2),
+        treeUseCustomTypography: typeof raw.treeUseCustomTypography === "boolean" ? raw.treeUseCustomTypography : defaultAppearance.treeUseCustomTypography,
+        treeFontFamily: (raw.treeFontFamily as FontFamilyValue) ?? defaultAppearance.treeFontFamily,
+        treeFontSize: normalizeFontSize(Number(raw.treeFontSize ?? defaultAppearance.treeFontSize), 10, 18),
+        treeLineHeight: normalizeLineHeight(Number(raw.treeLineHeight ?? defaultAppearance.treeLineHeight), 1, 2.2),
+    };
 }
 
 export function AppearanceProvider({ children }: { children: ReactNode }) {
@@ -112,7 +101,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     const [hydrated, setHydrated] = useState(false);
 
     useEffect(() => {
-        const parsed = parseStoredSettings(readLocalStorageValue(STORAGE_KEY));
+        const parsed = parseStoredSettings(readAppearanceSettingsRecord());
         if (parsed) {
             setSettings(parsed);
         }
@@ -121,7 +110,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!hydrated) return;
-        writeLocalStorageValue(STORAGE_KEY, JSON.stringify(settings));
+        writeAppearanceSettingsRecord(settings);
     }, [settings, hydrated]);
 
     useEffect(() => {

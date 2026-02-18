@@ -1,7 +1,7 @@
 import { useLiveQuery } from "@tanstack/react-db";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AlertCircle, GitPullRequest, Loader2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { FileTree } from "@/components/file-tree";
 import { RepositorySelector } from "@/components/repository-selector";
@@ -204,7 +204,7 @@ function buildPullRequestTree(reposByHost: Record<GitHost, RepoRef[]>, pullReque
     return { root, pullRequestMeta };
 }
 
-export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }: { initialHost?: GitHost; initialDiffPanel?: DiffPanel } = {}) {
+function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }: { initialHost?: GitHost; initialDiffPanel?: DiffPanel } = {}) {
     const navigate = useNavigate();
     const { setTree, setKinds, activeFile, setActiveFile } = useFileTree();
     const { authByHost, activeHost, setActiveHost, reposByHost, setReposForHost, clearReposForHost, logout } = usePrContext();
@@ -215,10 +215,6 @@ export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }:
     const [searchQuery, setSearchQuery] = useState("");
     const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
     const settingsPathSet = useMemo(() => new Set(settingsTreeItems.map((item) => item.path)), [settingsTreeItems]);
-
-    useEffect(() => {
-        setDiffPanel(initialDiffPanel);
-    }, [initialDiffPanel]);
 
     useEffect(() => {
         if (!initialHost) return;
@@ -298,7 +294,7 @@ export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }:
 
     const pullRequestTree = useMemo(() => buildPullRequestTree(reposByHost, pullRequestsByRepo, searchQuery), [reposByHost, pullRequestsByRepo, searchQuery]);
 
-    useEffect(() => {
+    const syncTreeFromPanel = useCallback(() => {
         if (showSettingsPanel) {
             const settingsNodes: FileNode[] = settingsTreeItems.map((item) => ({
                 name: item.name,
@@ -315,6 +311,10 @@ export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }:
             setActiveFile(undefined);
         }
     }, [activeFile, pullRequestTree, setKinds, setTree, setActiveFile, settingsTreeItems, showSettingsPanel]);
+
+    useEffect(() => {
+        syncTreeFromPanel();
+    }, [syncTreeFromPanel]);
 
     useEffect(() => {
         if (!showSettingsPanel) return;
@@ -598,4 +598,8 @@ export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }:
             </section>
         </div>
     );
+}
+
+export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }: { initialHost?: GitHost; initialDiffPanel?: DiffPanel } = {}) {
+    return useLandingPageView({ initialHost, initialDiffPanel });
 }

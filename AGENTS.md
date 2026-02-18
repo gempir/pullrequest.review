@@ -44,7 +44,7 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 - Always run `bun run tsc` and `bun run check` after code changes.
 - Always run `bun run knip` and fix all findings after code changes.
 - Run `bun run test` when touching data mappings, storage behavior, or keyboard/input handling logic.
-- Run `bun run react-doctor` when you are done with a feature, fix any warnings or errors.
+- Run `bun run react-doctor` when you are done with a feature, fix warnings and errors until there are none.
 
 ## UI Conventions
 - Monospaced-first typography.

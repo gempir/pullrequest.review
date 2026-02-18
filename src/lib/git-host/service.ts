@@ -67,6 +67,15 @@ export async function deletePullRequestComment(data: { prRef: PullRequestRef; co
     return getHostClient(data.prRef.host).deletePullRequestComment(data);
 }
 
+export async function fetchPullRequestCommitRangeDiff(data: {
+    prRef: PullRequestRef;
+    baseCommitHash: string;
+    headCommitHash: string;
+    selectedCommitHashes: string[];
+}) {
+    return getHostClient(data.prRef.host).fetchPullRequestCommitRangeDiff(data);
+}
+
 export async function fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }) {
     return getHostClient(data.prRef.host).fetchPullRequestFileContents(data);
 }

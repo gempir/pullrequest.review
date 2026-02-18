@@ -4,7 +4,7 @@ import type { GitHost } from "@/lib/git-host/types";
 
 const VIEWED_STORAGE_PREFIX = "review_viewed_state:v1";
 
-export function useViewedStorageKey(data?: { host: GitHost; workspace: string; repo: string; pullRequestId: string }) {
+export function useViewedStorageKey(data?: { host: GitHost; workspace: string; repo: string; pullRequestId: string }, diffScopeSegment = "full") {
     const host = data?.host;
     const workspace = data?.workspace;
     const repo = data?.repo;
@@ -12,8 +12,8 @@ export function useViewedStorageKey(data?: { host: GitHost; workspace: string; r
 
     return useMemo(() => {
         if (!host || !workspace || !repo || !pullRequestId) return "";
-        return `${VIEWED_STORAGE_PREFIX}:${host}:${workspace}/${repo}/${pullRequestId}`;
-    }, [host, pullRequestId, repo, workspace]);
+        return `${VIEWED_STORAGE_PREFIX}:${host}:${workspace}/${repo}/${pullRequestId}:${diffScopeSegment}`;
+    }, [diffScopeSegment, host, pullRequestId, repo, workspace]);
 }
 
 export function readViewedVersionIds(

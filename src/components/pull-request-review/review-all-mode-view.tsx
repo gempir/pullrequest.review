@@ -23,6 +23,7 @@ type ReviewAllModeViewProps = {
     pullRequestTitle: string;
     prData: PullRequestBundle | null;
     lineStats: { added: number; removed: number };
+    selectedBaselineCommitHash?: string;
     currentUserDisplayName?: string;
     isSummaryCollapsedInAllMode: boolean;
     onToggleSummaryCollapsed: () => void;
@@ -66,6 +67,7 @@ type ReviewAllModeViewProps = {
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
+    onMarkReviewedUpToCommit: (commitHash: string) => void;
     onReplyToThread: (commentId: number, content: string) => void;
     onDiffLineEnter: (props: OnDiffLineEnterLeaveProps) => void;
     onDiffLineLeave: (props: OnDiffLineEnterLeaveProps) => void;
@@ -82,6 +84,7 @@ export function ReviewAllModeView({
     pullRequestTitle,
     prData,
     lineStats,
+    selectedBaselineCommitHash,
     currentUserDisplayName,
     isSummaryCollapsedInAllMode,
     onToggleSummaryCollapsed,
@@ -122,6 +125,7 @@ export function ReviewAllModeView({
     onDeleteComment,
     onResolveThread,
     onHistoryCommentNavigate,
+    onMarkReviewedUpToCommit,
     onReplyToThread,
     onDiffLineEnter,
     onDiffLineLeave,
@@ -185,7 +189,13 @@ export function ReviewAllModeView({
                         </span>
                     </div>
                     {!isSummaryCollapsedInAllMode && (
-                        <PullRequestSummaryPanel bundle={prData} diffStats={lineStats} onSelectComment={onHistoryCommentNavigate} />
+                        <PullRequestSummaryPanel
+                            bundle={prData}
+                            diffStats={lineStats}
+                            onSelectComment={onHistoryCommentNavigate}
+                            selectedBaselineCommitHash={selectedBaselineCommitHash}
+                            onMarkReviewedUpToCommit={onMarkReviewedUpToCommit}
+                        />
                     )}
                 </div>
             ) : null}

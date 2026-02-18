@@ -11,6 +11,7 @@ import {
     type LoginCredentials,
     type PullRequestBuildStatus,
     type PullRequestBundle,
+    type PullRequestCommitRangeDiff,
     type PullRequestDetails,
     type PullRequestFileHistory,
     type PullRequestFileHistoryEntry,
@@ -779,6 +780,28 @@ export const bitbucketClient: GitHostClient = {
             }
             throw error;
         }
+    },
+    async fetchPullRequestCommitRangeDiff({ prRef, baseCommitHash, headCommitHash, selectedCommitHashes }): Promise<PullRequestCommitRangeDiff> {
+        const normalizedBase = baseCommitHash.trim();
+        const normalizedHead = headCommitHash.trim();
+        if (!normalizedBase || !normalizedHead) {
+            throw new Error("Both base and head commit hashes are required.");
+        }
+        const rangeSpec = `${encodeURIComponent(normalizedBase)}..${encodeURIComponent(normalizedHead)}`;
+        const apiBase = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}`;
+        const [diffRes, diffstat] = await Promise.all([
+            request(`${apiBase}/diff/${rangeSpec}`, { headers: { Accept: "text/plain" } }),
+            fetchAllDiffStat(`${apiBase}/diffstat/${rangeSpec}?pagelen=100`),
+        ]);
+
+        return {
+            prRef,
+            baseCommitHash: normalizedBase,
+            headCommitHash: normalizedHead,
+            selectedCommitHashes: selectedCommitHashes.map((hash) => hash.trim()).filter(Boolean),
+            diff: await diffRes.text(),
+            diffstat,
+        };
     },
     async fetchPullRequestFileHistory({ prRef, path, commits, limit = 20 }): Promise<PullRequestFileHistory> {
         const normalizedPath = path.trim();

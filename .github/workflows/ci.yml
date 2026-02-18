@@ -26,6 +26,9 @@ jobs:
       - name: Run Knip
         run: bun run knip
 
+      - name: Run React Doctor
+        run: bun run react-doctor
+
   build:
     name: Build
     runs-on: ubuntu-latest

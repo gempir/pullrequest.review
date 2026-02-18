@@ -113,11 +113,6 @@ export function ThreadCard({
     );
 
     useEffect(() => {
-        if (isReplying) {
-            replyFocusRef.current?.();
-        }
-    }, [isReplying]);
-    useEffect(() => {
         if (thread.root.resolution !== prevResolutionRef.current) {
             prevResolutionRef.current = thread.root.resolution;
             setCollapsed(Boolean(thread.root.resolution));
@@ -132,6 +127,9 @@ export function ThreadCard({
     const handleStartReply = () => {
         if (!canCommentInline || createCommentPending) return;
         setIsReplying(true);
+        window.requestAnimationFrame(() => {
+            replyFocusRef.current?.();
+        });
     };
 
     const handleCancelReply = () => {

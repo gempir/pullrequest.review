@@ -301,7 +301,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     const pullRequestTitle = pullRequest?.title?.trim();
     const isPrQueryFetching = prQuery.isFetching;
     const refetchPrQuery = prQuery.refetch;
-    const isRateLimitedError = useMemo(() => isRateLimitedQueryError(prQuery.error), [prQuery.error]);
+    const isRateLimitedError = isRateLimitedQueryError(prQuery.error);
     useReviewDocumentTitle({ isLoading: prQuery.isLoading, pullRequestTitle });
 
     // Build viewed-file storage key from stable primitives to avoid object identity churn.
@@ -309,7 +309,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
 
     const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
     const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
-    const prContextKey = useMemo(() => `${host}:${workspace}/${repo}/${pullRequestId}`, [host, workspace, repo, pullRequestId]);
+    const prContextKey = `${host}:${workspace}/${repo}/${pullRequestId}`;
     const fileContextCollection = useMemo(() => {
         // Recreate the scoped collection when host-data storage falls back.
         void hostDataCollectionsVersion;

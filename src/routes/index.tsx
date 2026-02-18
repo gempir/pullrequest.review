@@ -217,10 +217,6 @@ export function LandingPage({ initialHost, initialDiffPanel = "pull-requests" }:
     const settingsPathSet = useMemo(() => new Set(settingsTreeItems.map((item) => item.path)), [settingsTreeItems]);
 
     useEffect(() => {
-        setDiffPanel(initialDiffPanel);
-    }, [initialDiffPanel]);
-
-    useEffect(() => {
         if (!initialHost) return;
         setActiveHost(initialHost);
         setDiffPanel("repositories");

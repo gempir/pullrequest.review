@@ -24,14 +24,13 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
     return (
         <form
             className="space-y-3"
-            onSubmit={(event) => {
-                event.preventDefault();
+            action={async () => {
                 setError(null);
                 setIsSubmitting(true);
 
                 const promise = isBitbucket ? login({ host: "bitbucket", email, apiToken }) : login({ host: "github", token: githubToken });
 
-                promise
+                await promise
                     .then(() => {
                         setEmail("");
                         setApiToken("");
@@ -40,10 +39,8 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
                     })
                     .catch((err) => {
                         setError(err instanceof Error ? err.message : "Failed to authenticate");
-                    })
-                    .finally(() => {
-                        setIsSubmitting(false);
                     });
+                setIsSubmitting(false);
             }}
         >
             <p className="text-[13px] text-muted-foreground">

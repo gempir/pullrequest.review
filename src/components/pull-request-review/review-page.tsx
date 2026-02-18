@@ -119,7 +119,7 @@ function parentDirectories(path: string): string[] {
     return directories;
 }
 
-export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, auth, onRequireAuth, authPromptSlot }: PullRequestReviewPageProps) {
+function usePullRequestReviewPageView({ host, workspace, repo, pullRequestId, auth, onRequireAuth, authPromptSlot }: PullRequestReviewPageProps) {
     const navigate = useNavigate();
     const requestAuth = useCallback(
         (reason: "write" | "rate_limit") => {
@@ -570,6 +570,12 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     }, [fileDiffFingerprints]);
     const historyRevision = `${prData?.pr.destination?.commit?.hash ?? ""}:${prData?.pr.source?.commit?.hash ?? ""}`;
 
+    const resetHistoryTracking = useCallback(() => {
+        setHistoryRequestedPaths(new Set());
+        setHistoryLoadingByPath({});
+        setHistoryErrorByPath({});
+    }, []);
+
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
         if (loadedViewedStorageKeyRef.current === viewedStorageKey) return;
@@ -587,18 +593,14 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             }
         }
         setViewedFiles(nextViewedFiles);
-        setHistoryRequestedPaths(new Set());
-        setHistoryLoadingByPath({});
-        setHistoryErrorByPath({});
-    }, [fileDiffFingerprints, latestVersionIdByPath, viewedStorageKey]);
+        resetHistoryTracking();
+    }, [fileDiffFingerprints, latestVersionIdByPath, resetHistoryTracking, viewedStorageKey]);
 
     useEffect(() => {
         if (loadedHistoryRevisionRef.current === historyRevision) return;
         loadedHistoryRevisionRef.current = historyRevision;
-        setHistoryRequestedPaths(new Set());
-        setHistoryLoadingByPath({});
-        setHistoryErrorByPath({});
-    }, [historyRevision]);
+        resetHistoryTracking();
+    }, [historyRevision, resetHistoryTracking]);
 
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
@@ -982,6 +984,9 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         setCopiedPath,
         setCopiedSourceBranch,
     });
+    const clearAllModePendingScrollPath = useCallback(() => {
+        setAllModePendingScrollPath(null);
+    }, []);
     const handleProgrammaticAllModeRevealStart = useCallback((path: string) => {
         allModeProgrammaticTargetRef.current = path;
         setAllModePendingScrollPath(path);
@@ -1049,7 +1054,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             const pendingScrollPath = allModePendingScrollPath;
             if (pendingScrollPath) {
                 if (path !== pendingScrollPath) return;
-                setAllModePendingScrollPath(null);
+                clearAllModePendingScrollPath();
             }
             const isProgrammaticReveal = pendingScrollPath === path;
             const isSameActiveFile = activeFile === path;
@@ -1077,6 +1082,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         [
             activeFile,
             allModePendingScrollPath,
+            clearAllModePendingScrollPath,
             expand,
             lastAllModeSectionPath,
             markLatestPathViewed,
@@ -1108,13 +1114,13 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
     useEffect(() => {
         if (viewMode !== "all" || showSettingsPanel) {
             if (allModePendingScrollPath) {
-                setAllModePendingScrollPath(null);
+                clearAllModePendingScrollPath();
             } else {
                 allModeProgrammaticTargetRef.current = null;
                 allModeSuppressObserverUntilRef.current = 0;
             }
         }
-    }, [allModePendingScrollPath, showSettingsPanel, viewMode]);
+    }, [allModePendingScrollPath, clearAllModePendingScrollPath, showSettingsPanel, viewMode]);
     useEffect(() => {
         if (typeof window === "undefined") return;
         if (pendingCommentTick === 0) return;
@@ -1151,7 +1157,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
         const pendingPath = allModePendingScrollPath;
         if (!pendingPath) return;
         if (allModeProgrammaticTargetRef.current !== pendingPath) {
-            setAllModePendingScrollPath(null);
+            clearAllModePendingScrollPath();
             return;
         }
         if (!allModeSectionPaths.includes(pendingPath)) return;
@@ -1168,7 +1174,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             const stickyLine = rootRect.top + ALL_MODE_STICKY_OFFSET + 1;
             const bottomLine = rootRect.bottom - 4;
             if (anchorRect.top <= stickyLine || anchorRect.bottom <= bottomLine) {
-                setAllModePendingScrollPath(null);
+                clearAllModePendingScrollPath();
                 return true;
             }
             return false;
@@ -1178,7 +1184,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             if (cancelled) return;
             if (viewMode !== "all" || showSettingsPanel) return;
             if (allModeProgrammaticTargetRef.current !== pendingPath) {
-                setAllModePendingScrollPath(null);
+                clearAllModePendingScrollPath();
                 return;
             }
             if (settleIfAnchorVisible()) return;
@@ -1189,7 +1195,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                 void settleIfAnchorVisible();
             });
             if (attemptIndex === ALL_MODE_SCROLL_RETRY_DELAYS.length - 1) {
-                setAllModePendingScrollPath(null);
+                clearAllModePendingScrollPath();
             }
         };
 
@@ -1206,7 +1212,7 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
                 window.clearTimeout(id);
             }
         };
-    }, [allModePendingScrollPath, allModeSectionPaths, showSettingsPanel, viewMode]);
+    }, [allModePendingScrollPath, allModeSectionPaths, clearAllModePendingScrollPath, showSettingsPanel, viewMode]);
     useReviewFileHashSync({
         activeFile,
         showSettingsPanel,
@@ -1394,4 +1400,8 @@ export function PullRequestReviewPage({ host, workspace, repo, pullRequestId, au
             mergeDialogProps={mergeDialogProps}
         />
     );
+}
+
+export function PullRequestReviewPage(props: PullRequestReviewPageProps) {
+    return usePullRequestReviewPageView(props);
 }

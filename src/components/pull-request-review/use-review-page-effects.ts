@@ -1,11 +1,11 @@
 import { type FileDiffMetadata, preloadHighlighter } from "@pierre/diffs";
 import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
+import { readReviewDirectoryState, writeReviewDirectoryState } from "@/lib/data/query-collections";
 import { fileAnchorId } from "@/lib/file-anchors";
 import { buildKindMapForTree, buildTreeFromPaths, type ChangeKind, type FileNode } from "@/lib/file-tree-context";
 import type { PullRequestBundle } from "@/lib/git-host/types";
 import { clearableHashFromPath, parsePrFileHash } from "@/lib/pr-file-hash";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
-import { readStorageValue, writeLocalStorageValue } from "@/lib/storage/versioned-local-storage";
 
 export function useReviewDocumentTitle({ isLoading, pullRequestTitle }: { isLoading: boolean; pullRequestTitle?: string }) {
     useEffect(() => {
@@ -57,25 +57,20 @@ export function useDirectoryStateStorage({
     useEffect(() => {
         if (typeof window === "undefined") return;
         setDirStateHydrated(false);
-        try {
-            const raw = readStorageValue(directoryStateStorageKey);
-            if (!raw) {
-                setDirectoryExpandedMap({});
-                setDirStateHydrated(true);
-                return;
-            }
-            const parsed = JSON.parse(raw) as Record<string, unknown>;
-            const next: Record<string, boolean> = {};
-            for (const [path, expanded] of Object.entries(parsed)) {
-                if (!path) continue;
-                next[path] = expanded === true;
-            }
-            setDirectoryExpandedMap(next);
-        } catch {
+        const stored = readReviewDirectoryState(directoryStateStorageKey);
+        if (!stored) {
             setDirectoryExpandedMap({});
-        } finally {
             setDirStateHydrated(true);
+            return;
         }
+
+        const next: Record<string, boolean> = {};
+        for (const [path, expanded] of Object.entries(stored)) {
+            if (!path) continue;
+            next[path] = expanded === true;
+        }
+        setDirectoryExpandedMap(next);
+        setDirStateHydrated(true);
     }, [directoryStateStorageKey, setDirectoryExpandedMap, setDirStateHydrated]);
 
     useEffect(() => {
@@ -85,7 +80,7 @@ export function useDirectoryStateStorage({
             if (!path) continue;
             toStore[path] = state.expanded;
         }
-        writeLocalStorageValue(directoryStateStorageKey, JSON.stringify(toStore));
+        writeReviewDirectoryState(directoryStateStorageKey, toStore);
     }, [dirState, dirStateHydrated, directoryStateStorageKey]);
 }
 

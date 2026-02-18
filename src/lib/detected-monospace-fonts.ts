@@ -8,7 +8,7 @@ import {
     makeDetectedFontFamilyValue,
 } from "@/lib/font-options";
 
-export type DetectedMonospaceFontOption = FontOption;
+type DetectedMonospaceFontOption = FontOption;
 
 const DETECTABLE_MONO_FONT_CANDIDATES: ReadonlyArray<{ name: string }> = [
     { name: "Menlo" },

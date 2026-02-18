@@ -1,7 +1,7 @@
 import { type FileDiffOptions, parsePatchFiles } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { FileCode2, Files, RotateCcw, Settings2 } from "lucide-react";
-import { type CSSProperties, useCallback, useMemo, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { DiffToolbar } from "@/components/diff-toolbar";
 import type { SettingsTab } from "@/components/settings-navigation";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,13 @@ import { NumberStepperInput } from "@/components/ui/number-stepper-input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useAppearance } from "@/lib/appearance-context";
+import {
+    clearCacheTierData,
+    clearExpiredDataNow,
+    type DataCollectionsDebugSnapshot,
+    getDataCollectionsDebugSnapshot,
+    type StorageTier,
+} from "@/lib/data/query-collections";
 import { getDetectedFontOptionFromValue, useDetectedMonospaceFontOptions } from "@/lib/detected-monospace-fonts";
 import { useDiffOptions } from "@/lib/diff-options-context";
 import { DIFF_THEMES, type DiffTheme } from "@/lib/diff-themes";
@@ -483,6 +490,229 @@ function TreeTab() {
     );
 }
 
+function formatBytes(bytes: number | null) {
+    if (bytes === null || !Number.isFinite(bytes)) return "n/a";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function formatTimestamp(timestamp: number | null) {
+    if (!timestamp || !Number.isFinite(timestamp)) return "n/a";
+    return new Date(timestamp).toLocaleString();
+}
+
+function StorageTab() {
+    const [state, setState] = useState<{
+        snapshot: DataCollectionsDebugSnapshot | null;
+        loading: boolean;
+        busyAction: "refresh" | "clear-cache" | "clear-expired" | "export" | null;
+        statusMessage: string | null;
+    }>({
+        snapshot: null,
+        loading: true,
+        busyAction: null,
+        statusMessage: null,
+    });
+
+    const refreshSnapshots = useCallback(async () => {
+        setState((prev) => ({ ...prev, busyAction: "refresh" }));
+        try {
+            const snapshot = await getDataCollectionsDebugSnapshot();
+            setState((prev) => ({
+                ...prev,
+                snapshot,
+            }));
+        } finally {
+            setState((prev) => ({ ...prev, busyAction: null, loading: false }));
+        }
+    }, []);
+
+    useEffect(() => {
+        void refreshSnapshots();
+    }, [refreshSnapshots]);
+
+    const runClearCache = useCallback(async () => {
+        if (!window.confirm("Clear cache-tier storage now? This removes cached pull request data and forces refetches.")) return;
+        setState((prev) => ({ ...prev, busyAction: "clear-cache", statusMessage: null }));
+        const startedAt = Date.now();
+        try {
+            const result = await clearCacheTierData();
+            await refreshSnapshots();
+            setState((prev) => ({
+                ...prev,
+                statusMessage: `Cleared cache tier: ${result.removed} records removed in ${Date.now() - startedAt}ms (app ${result.appRemoved}, host ${result.hostRemoved}).`,
+            }));
+        } finally {
+            setState((prev) => ({ ...prev, busyAction: null }));
+        }
+    }, [refreshSnapshots]);
+
+    const runClearExpired = useCallback(async () => {
+        if (!window.confirm("Clear expired storage entries now?")) return;
+        setState((prev) => ({ ...prev, busyAction: "clear-expired", statusMessage: null }));
+        const startedAt = Date.now();
+        try {
+            const result = await clearExpiredDataNow();
+            await refreshSnapshots();
+            setState((prev) => ({
+                ...prev,
+                statusMessage: `Cleared expired data: ${result.removed} records removed in ${Date.now() - startedAt}ms (app ${result.appRemoved}, host ${result.hostRemoved}).`,
+            }));
+        } finally {
+            setState((prev) => ({ ...prev, busyAction: null }));
+        }
+    }, [refreshSnapshots]);
+
+    const runExportDiagnostics = useCallback(async () => {
+        setState((prev) => ({ ...prev, busyAction: "export", statusMessage: null }));
+        try {
+            const snapshot = await getDataCollectionsDebugSnapshot();
+            const payload = JSON.stringify(
+                {
+                    generatedAt: new Date().toISOString(),
+                    storage: snapshot,
+                },
+                null,
+                2,
+            );
+
+            let copied = false;
+            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(payload);
+                    copied = true;
+                } catch {
+                    copied = false;
+                }
+            }
+
+            if (!copied && typeof window !== "undefined") {
+                const blob = new Blob([payload], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `storage-diagnostics-${Date.now()}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                setState((prev) => ({ ...prev, statusMessage: "Diagnostics exported as JSON file." }));
+            } else {
+                setState((prev) => ({ ...prev, statusMessage: "Diagnostics copied to clipboard as JSON." }));
+            }
+        } finally {
+            setState((prev) => ({ ...prev, busyAction: null }));
+        }
+    }, []);
+
+    const tierOrder: StorageTier[] = ["cache", "state", "permanent"];
+    const snapshot = state.snapshot;
+
+    if (state.loading && !snapshot) {
+        return <div className="text-[12px] text-muted-foreground">Loading storage diagnostics...</div>;
+    }
+
+    return (
+        <div className="space-y-4 max-w-4xl">
+            <div className="flex items-center justify-between gap-2">
+                <div className="text-[12px] text-muted-foreground">Storage diagnostics and safe maintenance actions.</div>
+                <Button variant="outline" size="sm" onClick={() => void refreshSnapshots()} disabled={state.busyAction !== null}>
+                    Refresh
+                </Button>
+            </div>
+
+            {state.statusMessage ? <div className="text-[11px] px-2 py-1.5 bg-secondary/40">{state.statusMessage}</div> : null}
+
+            {snapshot ? (
+                <section className="space-y-2">
+                    <h3 className="text-[12px] font-medium">Storage Health</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[12px]">
+                        <div className="border border-border p-2">
+                            <div>Collections backend: {snapshot.backendMode}</div>
+                            <div>Host cache backend: {snapshot.hostBackendMode}</div>
+                            <div>Persistence degraded: {snapshot.persistenceDegraded ? "yes" : "no"}</div>
+                            <div>Last sweep: {formatTimestamp(snapshot.lastSweepAt)}</div>
+                        </div>
+                        <div className="border border-border p-2">
+                            <div>Total records: {snapshot.totalRecords}</div>
+                            <div>Total bytes: {formatBytes(snapshot.totalBytes)}</div>
+                            <div>
+                                Quota estimate: {formatBytes(snapshot.estimatedUsageBytes)} / {formatBytes(snapshot.estimatedQuotaBytes)}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            ) : null}
+
+            {snapshot ? (
+                <section className="space-y-2">
+                    <h3 className="text-[12px] font-medium">Tier Summary</h3>
+                    <div className="border border-border divide-y divide-border text-[12px]">
+                        {tierOrder.map((tier) => {
+                            const summary = snapshot.tiers[tier];
+                            return (
+                                <div key={tier} className="p-2 grid grid-cols-1 md:grid-cols-5 gap-2">
+                                    <div className="font-medium capitalize">{tier}</div>
+                                    <div>Records: {summary.count}</div>
+                                    <div>Bytes: {formatBytes(summary.approxBytes)}</div>
+                                    <div>Oldest: {formatTimestamp(summary.oldestUpdatedAt)}</div>
+                                    <div>Newest: {formatTimestamp(summary.newestUpdatedAt)}</div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+            ) : null}
+
+            {snapshot ? (
+                <section className="space-y-2">
+                    <h3 className="text-[12px] font-medium">Collections</h3>
+                    <div className="border border-border divide-y divide-border text-[12px]">
+                        {snapshot.collections.map((summary) => (
+                            <div key={`${summary.tier}:${summary.name}`} className="p-2 grid grid-cols-1 md:grid-cols-7 gap-2">
+                                <div className="font-medium min-w-0 md:col-span-2">
+                                    <div className="break-all" title={summary.name}>
+                                        {summary.name}
+                                    </div>
+                                    <div className="text-[11px] text-muted-foreground">tier: {summary.tier}</div>
+                                </div>
+                                <div className="min-w-0">Records: {summary.count}</div>
+                                <div className="min-w-0">Bytes: {formatBytes(summary.approxBytes)}</div>
+                                <div className="min-w-0">Expired: {summary.expiredCount}</div>
+                                <div className="min-w-0">Oldest: {formatTimestamp(summary.oldestUpdatedAt)}</div>
+                                <div className="min-w-0">Newest: {formatTimestamp(summary.newestUpdatedAt)}</div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            ) : null}
+
+            <section className="space-y-2">
+                <h3 className="text-[12px] font-medium">Actions</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={state.busyAction !== null} onClick={() => void runClearCache()}>
+                        Clear cache tier
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={state.busyAction !== null} onClick={() => void runClearExpired()}>
+                        Clear expired now
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={state.busyAction !== null} onClick={() => void runExportDiagnostics()}>
+                        Export diagnostics JSON
+                    </Button>
+                </div>
+            </section>
+
+            <section className="space-y-1 text-[11px] text-muted-foreground">
+                <div>Quota notes: browser storage quotas are dynamic and may be evicted under storage pressure.</div>
+                <div>Typical ranges: Chromium around 60% of disk, Firefox around min(10% disk, 10GiB), Safari often around 60% for browser apps.</div>
+                <div>localStorage fallback is substantially smaller than IndexedDB.</div>
+            </section>
+        </div>
+    );
+}
+
 type SettingsPanelSharedProps = {
     workspaceMode?: WorkspaceMode;
     onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
@@ -536,6 +766,7 @@ function SettingsPanelContent({
             {activeTab === "appearance" ? <AppearanceTab /> : null}
             {activeTab === "tree" ? <TreeTab /> : null}
             {activeTab === "shortcuts" ? <ShortcutsTab /> : null}
+            {activeTab === "storage" ? <StorageTab /> : null}
         </>
     );
 }

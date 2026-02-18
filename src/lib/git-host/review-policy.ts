@@ -2,7 +2,7 @@ import type { HostCapabilities } from "@/lib/git-host/types";
 
 type DisabledKey = "approve" | "requestChanges" | "merge" | "decline" | "markDraft" | "commentInline" | "resolveThread";
 
-export interface ReviewActionPolicy {
+interface ReviewActionPolicy {
     canApprove: boolean;
     canRequestChanges: boolean;
     canMerge: boolean;

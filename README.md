@@ -27,17 +27,3 @@ To start a development server:
 ```bash
 bun dev
 ```
-
-## React Doctor
-
-Run React Doctor locally with:
-
-```bash
-bun run react-doctor
-```
-
-For JSON output:
-
-```bash
-bun run react-doctor:json
-```

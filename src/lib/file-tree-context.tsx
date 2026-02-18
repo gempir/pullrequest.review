@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { makeVersionedStorageKey, readLocalStorageValue, removeLocalStorageKeys, writeLocalStorageValue } from "@/lib/storage/versioned-local-storage";
+import { readTreeSettingsRecord, writeTreeSettingsRecord } from "@/lib/data/query-collections";
 
 export type FileNodeType = "summary" | "file" | "directory";
 export type ChangeKind = "add" | "del" | "mix";
@@ -43,8 +43,6 @@ interface FileTreeContextType {
 }
 
 const FileTreeContext = createContext<FileTreeContextType | null>(null);
-const TREE_SETTINGS_KEY_BASE = "pr_review_tree_settings";
-const TREE_SETTINGS_KEY = makeVersionedStorageKey(TREE_SETTINGS_KEY_BASE, 2);
 const DEFAULT_TREE_INDENT_SIZE = 8;
 const MIN_TREE_INDENT_SIZE = 8;
 const MAX_TREE_INDENT_SIZE = 24;
@@ -168,27 +166,18 @@ function useFileTreeProviderValue(): FileTreeContextType {
     const [treeIndentSize, setTreeIndentSizeState] = useState(DEFAULT_TREE_INDENT_SIZE);
 
     useEffect(() => {
-        try {
-            const raw = readLocalStorageValue(TREE_SETTINGS_KEY);
-            if (!raw) return;
-            const parsed = JSON.parse(raw) as {
-                compactSingleChildDirectories?: unknown;
-                treeIndentSize?: unknown;
-            };
-            if (typeof parsed.compactSingleChildDirectories === "boolean") {
-                setCompactSingleChildDirectories(parsed.compactSingleChildDirectories);
-            }
-            const parsedIndentSize = Number(parsed.treeIndentSize);
+        const stored = readTreeSettingsRecord();
+        if (stored) {
+            setCompactSingleChildDirectories(stored.compactSingleChildDirectories);
+            const parsedIndentSize = Number(stored.treeIndentSize);
             if (Number.isFinite(parsedIndentSize) && parsedIndentSize >= MIN_TREE_INDENT_SIZE && parsedIndentSize <= MAX_TREE_INDENT_SIZE) {
                 setTreeIndentSizeState(parsedIndentSize);
             }
-        } catch {
-            removeLocalStorageKeys([TREE_SETTINGS_KEY]);
         }
     }, []);
 
     useEffect(() => {
-        writeLocalStorageValue(TREE_SETTINGS_KEY, JSON.stringify({ compactSingleChildDirectories, treeIndentSize }));
+        writeTreeSettingsRecord({ compactSingleChildDirectories, treeIndentSize });
     }, [compactSingleChildDirectories, treeIndentSize]);
 
     const setTreeIndentSize = useCallback((size: number) => {

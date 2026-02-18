@@ -1,3 +1,4 @@
+import { clearBitbucketAuthCredential, readBitbucketAuthCredential, writeBitbucketAuthCredential } from "@/lib/data/query-collections";
 import { bitbucketAuthSchema, parseSchema } from "@/lib/git-host/schemas";
 import { parseFailureBody } from "@/lib/git-host/shared/http";
 import {
@@ -18,9 +19,6 @@ import {
     type PullRequestSummary,
     type RepoRef,
 } from "@/lib/git-host/types";
-import { readStorageValue, removeStorageValue, writeStorageValue } from "@/lib/storage/versioned-local-storage";
-
-const AUTH_KEY = "pr_review_auth_bitbucket";
 
 interface BitbucketCredentials {
     email: string;
@@ -172,15 +170,17 @@ function parseCredentials(rawValue: string | null): BitbucketCredentials | null 
 }
 
 function readCredentials() {
-    return parseCredentials(readStorageValue(AUTH_KEY));
+    const stored = readBitbucketAuthCredential();
+    if (!stored) return null;
+    return parseCredentials(JSON.stringify(stored));
 }
 
 function writeCredentials(credentials: BitbucketCredentials) {
-    writeStorageValue(AUTH_KEY, JSON.stringify(credentials));
+    writeBitbucketAuthCredential(credentials);
 }
 
 function clearCredentials() {
-    removeStorageValue(AUTH_KEY);
+    clearBitbucketAuthCredential();
 }
 
 function encodeBasicAuth(email: string, apiToken: string) {

@@ -6,12 +6,12 @@ import type { CommentThread } from "./review-threads";
 
 export type CommentLineSide = "additions" | "deletions";
 
-export type ExistingThreadAnnotation = {
+type ExistingThreadAnnotation = {
     kind: "thread";
     thread: CommentThread;
 };
 
-export type DraftThreadAnnotation = {
+type DraftThreadAnnotation = {
     kind: "draft";
     draft: InlineCommentDraft;
 };

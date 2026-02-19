@@ -1,13 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PullRequestReviewPage } from "@/components/pull-request-review-page";
 import { usePrContext } from "@/lib/pr-context";
+import { type ReviewDiffScopeSearch, validateReviewDiffScopeSearch } from "@/lib/review-diff-scope";
 
 export const Route = createFileRoute("/$workspace/$repo/pull-requests/$pullRequestId")({
+    validateSearch: validateReviewDiffScopeSearch,
     component: BitbucketPullRequestRoute,
 });
 
 function BitbucketPullRequestRoute() {
     const { workspace, repo, pullRequestId } = Route.useParams();
+    const search = Route.useSearch();
+    const navigate = Route.useNavigate();
     const { authByHost } = usePrContext();
 
     return (
@@ -19,6 +23,13 @@ function BitbucketPullRequestRoute() {
             auth={{
                 canRead: authByHost.bitbucket,
                 canWrite: authByHost.bitbucket,
+            }}
+            reviewDiffScopeSearch={search}
+            onReviewDiffScopeSearchChange={(next: ReviewDiffScopeSearch) => {
+                navigate({
+                    search: () => next,
+                    replace: true,
+                });
             }}
         />
     );

@@ -239,7 +239,6 @@ function DirectoryNode({
                 )}
                 style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
                 onClick={() => {
-                    tree.setActiveFile(displayNode.path);
                     const handled = onDirectoryClick?.(displayNode);
                     if (handled) return;
                     tree.toggle(displayNode.path);

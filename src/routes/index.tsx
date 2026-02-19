@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 const HOSTS: GitHost[] = ["bitbucket", "github"];
 const HOST_PATH_PREFIX = "host:";
 const WORKSPACE_PATH_PREFIX = "workspace:";
+const DEFAULT_REVIEW_SCOPE_SEARCH = { scope: "full" } as const;
 
 type DiffPanel = "pull-requests" | "repositories";
 type PullRequestTreeMeta = {
@@ -402,6 +403,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                             repo: meta.repo,
                                             pullRequestId: meta.pullRequestId,
                                         },
+                                        search: DEFAULT_REVIEW_SCOPE_SEARCH,
                                     });
                                     return;
                                 }
@@ -412,6 +414,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                         repo: meta.repo,
                                         pullRequestId: meta.pullRequestId,
                                     },
+                                    search: DEFAULT_REVIEW_SCOPE_SEARCH,
                                 });
                             }}
                             onDirectoryClick={(node) => {
@@ -569,6 +572,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                                                         repo: repo.repo,
                                                                         pullRequestId: String(pr.id),
                                                                     },
+                                                                    search: DEFAULT_REVIEW_SCOPE_SEARCH,
                                                                 });
                                                                 return;
                                                             }
@@ -579,6 +583,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                                                     repo: repo.repo,
                                                                     pullRequestId: String(pr.id),
                                                                 },
+                                                                search: DEFAULT_REVIEW_SCOPE_SEARCH,
                                                             });
                                                         }}
                                                     >

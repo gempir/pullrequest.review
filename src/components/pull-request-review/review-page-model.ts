@@ -1,7 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { InlineCommentDraft } from "@/components/pull-request-review/use-inline-comment-drafts";
 import type { FileNode } from "@/lib/file-tree-context";
-import type { Comment as PullRequestComment, PullRequestRef } from "@/lib/git-host/types";
+import type { Comment as PullRequestComment } from "@/lib/git-host/types";
 import type { CommentThread } from "./review-threads";
 
 export type CommentLineSide = "additions" | "deletions";
@@ -52,36 +52,4 @@ export function collectDirectoryPaths(nodes: FileNode[]) {
     };
     walk(nodes);
     return paths;
-}
-
-export function hashString(value: string) {
-    let hash1 = 0x811c9dc5;
-    let hash2 = 0x01000193;
-    for (let i = 0; i < value.length; i += 1) {
-        const char = value.charCodeAt(i);
-        hash1 = Math.imul(hash1 ^ char, 0x01000193);
-        hash2 = Math.imul(hash2 ^ (char + i), 0x01000193);
-    }
-    return `${(hash1 >>> 0).toString(16)}${(hash2 >>> 0).toString(16)}`;
-}
-
-export function buildReviewScopeCacheKey(prRef: PullRequestRef, scopeKey: string) {
-    return `${prRef.host}:${prRef.workspace}/${prRef.repo}/${prRef.pullRequestId}:${scopeKey}`;
-}
-
-function commentSignature(comments: PullRequestComment[]) {
-    return comments
-        .map((comment) => {
-            const path = comment.inline?.path ?? "";
-            const line = comment.inline?.to ?? comment.inline?.from ?? 0;
-            const updatedAt = comment.updatedAt ?? comment.createdAt ?? "";
-            return `${comment.id}:${path}:${line}:${updatedAt}:${comment.parent?.id ?? 0}:${comment.deleted ? 1 : 0}`;
-        })
-        .join("|");
-}
-
-export function buildReviewDerivedCacheKey({ scopeCacheKey, diffText, comments }: { scopeCacheKey: string; diffText: string; comments: PullRequestComment[] }) {
-    const diffHash = hashString(diffText);
-    const commentsHash = hashString(commentSignature(comments));
-    return `${scopeCacheKey}:${diffHash}:${commentsHash}`;
 }

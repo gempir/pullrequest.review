@@ -3,8 +3,6 @@ import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
 import {
     fetchPullRequestBundleByRef,
     fetchPullRequestCommitRangeDiff,
-    fetchPullRequestCriticalByRef,
-    fetchPullRequestDeferredByRef,
     fetchPullRequestFileHistory,
     fetchRepoPullRequestsForHost,
     listRepositoriesForHost,
@@ -14,10 +12,7 @@ import type {
     GitHost,
     PullRequestBundle,
     PullRequestCommitRangeDiff,
-    PullRequestCriticalBundle,
-    PullRequestDeferredBundle,
     PullRequestFileHistoryEntry,
-    PullRequestHydrationState,
     PullRequestRef,
     PullRequestSummary,
     RepoRef,
@@ -28,9 +23,6 @@ export type PullRequestBundleRecord = PullRequestBundle & {
     id: string;
     fetchedAt: number;
     expiresAt: number;
-    criticalFetchedAt?: number;
-    deferredFetchedAt?: number;
-    deferredStatus?: PullRequestHydrationState["deferredStatus"];
 };
 
 type PersistedPullRequestBundleRecord = PullRequestBundleRecord;
@@ -146,7 +138,7 @@ export type GitHostDataDebugSnapshot = {
     >;
 };
 
-const HOST_DATA_DATABASE_NAME = "pullrequestdotreview_host_data_v6";
+const HOST_DATA_DATABASE_NAME = "pullrequestdotreview_host_data_v5";
 const REPOSITORY_RX_COLLECTION_NAME = "repositories";
 const REPO_PULL_REQUEST_RX_COLLECTION_NAME = "repo_pull_requests";
 const PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME = "pull_request_bundles";
@@ -325,16 +317,6 @@ const PULL_REQUEST_BUNDLE_RX_SCHEMA = {
         expiresAt: {
             type: "number",
             minimum: 0,
-        },
-        criticalFetchedAt: {
-            type: ["number", "null"],
-        },
-        deferredFetchedAt: {
-            type: ["number", "null"],
-        },
-        deferredStatus: {
-            type: "string",
-            maxLength: 20,
         },
     },
     required: ["id", "prRef", "pr", "diff", "diffstat", "commits", "comments", "fetchedAt", "expiresAt"],
@@ -712,58 +694,13 @@ function approxRecordBytes(record: object) {
     return new TextEncoder().encode(JSON.stringify(record)).length;
 }
 
-function serializePullRequestCriticalBundle(
-    critical: PullRequestCriticalBundle,
-    existing: PersistedPullRequestBundleRecord | undefined,
-): PersistedPullRequestBundleRecord {
+function serializePullRequestBundle(bundle: PullRequestBundle): PersistedPullRequestBundleRecord {
     const fetchedAt = Date.now();
     return {
-        id: pullRequestBundleId(critical.prRef),
-        prRef: critical.prRef,
-        pr: {
-            ...(existing?.pr ?? {}),
-            ...critical.pr,
-        },
-        diff: critical.diff,
-        diffstat: critical.diffstat,
-        commits: critical.commits,
-        comments: existing?.comments ?? [],
-        history: existing?.history ?? [],
-        reviewers: existing?.reviewers ?? [],
-        buildStatuses: existing?.buildStatuses ?? [],
+        ...bundle,
+        id: pullRequestBundleId(bundle.prRef),
         fetchedAt,
         expiresAt: cacheExpiresAt(fetchedAt),
-        criticalFetchedAt: fetchedAt,
-        deferredFetchedAt: existing?.deferredFetchedAt,
-        deferredStatus: "loading",
-    };
-}
-
-function mergePullRequestDeferredBundle(record: PersistedPullRequestBundleRecord, deferred: PullRequestDeferredBundle): PersistedPullRequestBundleRecord {
-    const fetchedAt = Date.now();
-    return {
-        ...record,
-        pr: deferred.prPatch ? { ...record.pr, ...deferred.prPatch } : record.pr,
-        comments: deferred.comments,
-        history: deferred.history ?? [],
-        reviewers: deferred.reviewers ?? [],
-        buildStatuses: deferred.buildStatuses ?? [],
-        fetchedAt,
-        expiresAt: cacheExpiresAt(fetchedAt),
-        criticalFetchedAt: record.criticalFetchedAt ?? fetchedAt,
-        deferredFetchedAt: fetchedAt,
-        deferredStatus: "ready",
-    };
-}
-
-function markPullRequestDeferredError(record: PersistedPullRequestBundleRecord): PersistedPullRequestBundleRecord {
-    const now = Date.now();
-    return {
-        ...record,
-        fetchedAt: now,
-        expiresAt: cacheExpiresAt(now),
-        deferredFetchedAt: now,
-        deferredStatus: "error",
     };
 }
 
@@ -1404,67 +1341,22 @@ export async function getGitHostDataDebugSnapshot(now = Date.now()): Promise<Git
     };
 }
 
-export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: { staged?: boolean }) {
+export function getPullRequestBundleCollection(prRef: PullRequestRef) {
     ensureCollectionsInitialized();
     const bundleId = pullRequestBundleId(prRef);
-    const staged = options?.staged ?? true;
-    const scopeId = `${pullRequestDetailsFetchScopeId(prRef)}:${staged ? "v2" : "v1"}`;
-    const scopeLabel = `Pull request details (${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId}; ${staged ? "v2" : "v1"})`;
-    const existing = pullRequestBundleScopedCollections.get(scopeId);
+    const scopeId = pullRequestDetailsFetchScopeId(prRef);
+    const scopeLabel = `Pull request details (${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId})`;
+    const existing = pullRequestBundleScopedCollections.get(bundleId);
     if (existing) return existing;
-    let requestSerial = 0;
 
     const utils = createCollectionUtils(async (opts) => {
-        const requestId = ++requestSerial;
         utils.isFetching = true;
         setFetchActivity(scopeId, scopeLabel, true);
         try {
-            if (!staged) {
-                const bundle = await fetchPullRequestBundleByRef({ prRef });
-                if (requestId !== requestSerial) return;
-                const legacyRecord = {
-                    ...bundle,
-                    id: pullRequestBundleId(bundle.prRef),
-                    fetchedAt: Date.now(),
-                    expiresAt: cacheExpiresAt(Date.now()),
-                    criticalFetchedAt: Date.now(),
-                    deferredFetchedAt: Date.now(),
-                    deferredStatus: "ready" as const,
-                };
-                await upsertRecord("pullRequestBundles", legacyRecord);
-                utils.lastError = undefined;
-                utils.dataUpdatedAt = Date.now();
-            } else {
-                const collection = getHostDataCollection("pullRequestBundles");
-                const existingRecord = collection.get(bundleId);
-                const critical = await fetchPullRequestCriticalByRef({ prRef });
-                if (requestId !== requestSerial) return;
-                const stagedCriticalRecord = serializePullRequestCriticalBundle(critical, existingRecord);
-                await upsertRecord("pullRequestBundles", stagedCriticalRecord);
-                utils.lastError = undefined;
-                utils.dataUpdatedAt = Date.now();
-
-                const deferredScopeId = `${scopeId}:deferred`;
-                const deferredScopeLabel = `${scopeLabel} [deferred]`;
-                setFetchActivity(deferredScopeId, deferredScopeLabel, true);
-                try {
-                    const deferred = await fetchPullRequestDeferredByRef({ prRef });
-                    if (requestId !== requestSerial) return;
-                    const currentRecord = collection.get(bundleId) ?? stagedCriticalRecord;
-                    const mergedRecord = mergePullRequestDeferredBundle(currentRecord, deferred);
-                    await upsertRecord("pullRequestBundles", mergedRecord);
-                    utils.dataUpdatedAt = Date.now();
-                } catch (deferredError) {
-                    if (requestId !== requestSerial) return;
-                    const currentRecord = collection.get(bundleId) ?? stagedCriticalRecord;
-                    await upsertRecord("pullRequestBundles", markPullRequestDeferredError(currentRecord));
-                    if (opts?.throwOnError && !existingRecord) {
-                        throw deferredError;
-                    }
-                } finally {
-                    setFetchActivity(deferredScopeId, deferredScopeLabel, false);
-                }
-            }
+            const bundle = await fetchPullRequestBundleByRef({ prRef });
+            await upsertRecord("pullRequestBundles", serializePullRequestBundle(bundle));
+            utils.lastError = undefined;
+            utils.dataUpdatedAt = Date.now();
         } catch (error) {
             utils.lastError = error;
             if (opts?.throwOnError) {
@@ -1480,9 +1372,9 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: 
         collection: getHostDataCollection("pullRequestBundles"),
         utils,
     };
-    const { evicted } = pullRequestBundleScopedCollections.set(scopeId, scoped);
+    const { evicted } = pullRequestBundleScopedCollections.set(bundleId, scoped);
     if (evicted) {
-        unregisterScope(evicted.key);
+        unregisterScope(`pr-bundle:${evicted.key}`);
     }
     registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;

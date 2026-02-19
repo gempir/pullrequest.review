@@ -2,18 +2,7 @@ import { type FileDiffOptions, type OnDiffLineClickProps, parsePatchFiles } from
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useNavigate } from "@tanstack/react-router";
-import {
-    type CSSProperties,
-    type ReactNode,
-    type SetStateAction,
-    startTransition,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    useSyncExternalStore,
-} from "react";
+import { type CSSProperties, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { ReviewCommitScopeControl } from "@/components/pull-request-review/review-commit-scope-control";
@@ -22,7 +11,7 @@ import { ReviewPageDiffContent } from "@/components/pull-request-review/review-p
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
 import { ReviewPageLoadingView } from "@/components/pull-request-review/review-page-loading-view";
 import { ReviewPageMainView } from "@/components/pull-request-review/review-page-main-view";
-import { hashString, type SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
+import type { SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
 import { useInlineCommentDrafts } from "@/components/pull-request-review/use-inline-comment-drafts";
 import { useReviewLayoutPreferences } from "@/components/pull-request-review/use-review-layout-preferences";
 import { useReviewPageActions } from "@/components/pull-request-review/use-review-page-actions";
@@ -68,7 +57,6 @@ import { fetchPullRequestFileContents } from "@/lib/git-host/service";
 import type { GitHost } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { diffScopeStorageSegment, type ReviewDiffScopeSearch, resolveReviewDiffScope } from "@/lib/review-diff-scope";
-import { markReviewPerf } from "@/lib/review-performance/metrics";
 import { makeDirectoryStateStorageKey } from "@/lib/review-storage";
 
 interface PullRequestReviewPageProps {
@@ -108,24 +96,11 @@ function commitVersionId(path: string, commitHash: string) {
     return `${path}:${commitHash}`;
 }
 
-const singlePatchParseCache = new Map<string, FileDiffMetadata | undefined>();
-
 function parseSingleFilePatch(patch: string) {
     if (!patch) return undefined;
-    const cacheKey = hashString(patch);
-    if (singlePatchParseCache.has(cacheKey)) {
-        return singlePatchParseCache.get(cacheKey);
-    }
     const parsed = parsePatchFiles(patch);
     const firstPatch = parsed[0];
     const firstFile = firstPatch?.files?.[0];
-    if (singlePatchParseCache.size > 300) {
-        const firstKey = singlePatchParseCache.keys().next().value;
-        if (firstKey) {
-            singlePatchParseCache.delete(firstKey);
-        }
-    }
-    singlePatchParseCache.set(cacheKey, firstFile);
     return firstFile;
 }
 
@@ -232,23 +207,19 @@ function usePullRequestReviewPageView({
     const copiedSourceBranch = useReviewPageUiValue(uiStore, (state) => state.copiedSourceBranch);
     const setSearchQuery = useCallback(
         (next: SetStateAction<string>) => {
-            startTransition(() => {
-                uiStore.setState((prev) => ({
-                    ...prev,
-                    searchQuery: typeof next === "function" ? (next as (current: string) => string)(prev.searchQuery) : next,
-                }));
-            });
+            uiStore.setState((prev) => ({
+                ...prev,
+                searchQuery: typeof next === "function" ? (next as (current: string) => string)(prev.searchQuery) : next,
+            }));
         },
         [uiStore],
     );
     const setShowUnviewedOnly = useCallback(
         (next: SetStateAction<boolean>) => {
-            startTransition(() => {
-                uiStore.setState((prev) => ({
-                    ...prev,
-                    showUnviewedOnly: typeof next === "function" ? (next as (current: boolean) => boolean)(prev.showUnviewedOnly) : next,
-                }));
-            });
+            uiStore.setState((prev) => ({
+                ...prev,
+                showUnviewedOnly: typeof next === "function" ? (next as (current: boolean) => boolean)(prev.showUnviewedOnly) : next,
+            }));
         },
         [uiStore],
     );
@@ -336,10 +307,8 @@ function usePullRequestReviewPageView({
     const allModeLastStickyPathRef = useRef<string | null>(null);
     const suppressHashSyncRef = useRef(false);
     const pendingCommentScrollRef = useRef<number | null>(null);
-    const loadedViewedStateRevisionRef = useRef<string>("");
-    const skipViewedStatePersistRevisionRef = useRef<string>("");
+    const loadedViewedStorageKeyRef = useRef<string>("");
     const loadedHistoryRevisionRef = useRef<string>("");
-    const firstDiffRenderedKeyRef = useRef<string>("");
     const { inlineComment, setInlineComment, getInlineDraftContent, setInlineDraftContent, clearInlineDraftContent, openInlineCommentDraft } =
         useInlineCommentDrafts({
             workspace,
@@ -348,13 +317,7 @@ function usePullRequestReviewPageView({
             setActiveFile,
             setViewMode,
         });
-    const {
-        hostCapabilities,
-        isCriticalLoading,
-        isDeferredLoading,
-        isRefreshing,
-        query: prQuery,
-    } = useReviewQuery({
+    const { hostCapabilities, query: prQuery } = useReviewQuery({
         host,
         workspace,
         repo,
@@ -371,10 +334,10 @@ function usePullRequestReviewPageView({
     const pullRequest = basePrData?.pr;
     const pullRequestUrl = pullRequest?.links?.html?.href;
     const pullRequestTitle = pullRequest?.title?.trim();
-    const isPrQueryFetching = isRefreshing || isDeferredLoading;
+    const isPrQueryFetching = prQuery.isFetching;
     const refetchPrQuery = prQuery.refetch;
     const isRateLimitedError = isRateLimitedQueryError(prQuery.error);
-    useReviewDocumentTitle({ isLoading: isCriticalLoading, pullRequestTitle });
+    useReviewDocumentTitle({ isLoading: prQuery.isLoading, pullRequestTitle });
 
     const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
     const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
@@ -647,7 +610,6 @@ function usePullRequestReviewPageView({
     const openInlineCommentDraftForPath = useCallback(
         (path: string, props: OnDiffLineClickProps) => {
             if (resolvedScope.mode !== "full") return;
-            markReviewPerf("inline_comment_open");
             openInlineCommentDraft({
                 path,
                 line: props.lineNumber,
@@ -762,11 +724,6 @@ function usePullRequestReviewPageView({
         }
         return map;
     }, [fileDiffFingerprints]);
-    const viewedStateLoadRevision = useMemo(() => {
-        if (!viewedStorageKey) return "";
-        const sortedVersionIds = Array.from(latestVersionIdByPath.values()).sort();
-        return `${viewedStorageKey}:${sortedVersionIds.length}:${hashString(sortedVersionIds.join("|"))}`;
-    }, [latestVersionIdByPath, viewedStorageKey]);
     const historyRevision = `${effectiveBaseCommitHash ?? ""}:${effectiveHeadCommitHash ?? ""}`;
 
     const resetHistoryTracking = useCallback(() => {
@@ -777,11 +734,8 @@ function usePullRequestReviewPageView({
 
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
-        if (prData?.diffstat.length && latestVersionIdByPath.size === 0) return;
-        if (loadedViewedStateRevisionRef.current === viewedStateLoadRevision) return;
-        loadedViewedStateRevisionRef.current = viewedStateLoadRevision;
-        // Prevent persisting stale viewedFiles from the previous scope/key during the same commit.
-        skipViewedStatePersistRevisionRef.current = viewedStateLoadRevision;
+        if (loadedViewedStorageKeyRef.current === viewedStorageKey) return;
+        loadedViewedStorageKeyRef.current = viewedStorageKey;
         autoMarkedViewedVersionIdsRef.current = new Set();
         const knownVersionIds = new Set(latestVersionIdByPath.values());
         const viewedIds = readViewedVersionIds(viewedStorageKey, {
@@ -796,7 +750,7 @@ function usePullRequestReviewPageView({
         }
         setViewedFiles(nextViewedFiles);
         resetHistoryTracking();
-    }, [fileDiffFingerprints, latestVersionIdByPath, prData?.diffstat.length, resetHistoryTracking, viewedStateLoadRevision, viewedStorageKey]);
+    }, [fileDiffFingerprints, latestVersionIdByPath, resetHistoryTracking, viewedStorageKey]);
 
     useEffect(() => {
         if (loadedHistoryRevisionRef.current === historyRevision) return;
@@ -807,12 +761,6 @@ function usePullRequestReviewPageView({
 
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
-        if (prData?.diffstat.length && latestVersionIdByPath.size === 0) return;
-        if (loadedViewedStateRevisionRef.current !== viewedStateLoadRevision) return;
-        if (skipViewedStatePersistRevisionRef.current === viewedStateLoadRevision) {
-            skipViewedStatePersistRevisionRef.current = "";
-            return;
-        }
         const viewedVersionIds = new Set<string>();
         for (const viewedPath of viewedFiles) {
             const latestVersionId = latestVersionIdByPath.get(viewedPath);
@@ -820,7 +768,7 @@ function usePullRequestReviewPageView({
             viewedVersionIds.add(latestVersionId);
         }
         writeViewedVersionIds(viewedStorageKey, viewedVersionIds);
-    }, [latestVersionIdByPath, prData?.diffstat.length, viewedFiles, viewedStateLoadRevision, viewedStorageKey]);
+    }, [latestVersionIdByPath, viewedFiles, viewedStorageKey]);
 
     useEffect(() => {
         setSelectedVersionIdByPath((prev) => {
@@ -1054,29 +1002,6 @@ function usePullRequestReviewPageView({
                 : { fileDiff: selectedFileDiff, readOnlyHistorical: false, selectedVersionId: undefined },
         [resolveDisplayedDiffForPath, selectedFileDiff, selectedFilePath],
     );
-    const hasRenderableSingleDiff = Boolean(selectedFileDisplayState.fileDiff) && !isSummarySelected;
-    const hasRenderableAllDiffs = allModeDiffEntries.length > 0;
-    useEffect(() => {
-        const renderKey = `${prContextKey}:${resolvedScope.mode}:${viewMode}`;
-        if (firstDiffRenderedKeyRef.current === renderKey) return;
-        if (!diffHighlighterReady) return;
-        if (showSettingsPanel) return;
-        const canMark =
-            viewMode === "single" ? hasRenderableSingleDiff : (prData ? !isSummaryCollapsedInAllMode || hasRenderableAllDiffs : false) || hasRenderableAllDiffs;
-        if (!canMark) return;
-        firstDiffRenderedKeyRef.current = renderKey;
-        markReviewPerf("first_diff_rendered");
-    }, [
-        diffHighlighterReady,
-        hasRenderableAllDiffs,
-        hasRenderableSingleDiff,
-        isSummaryCollapsedInAllMode,
-        prContextKey,
-        prData,
-        resolvedScope.mode,
-        showSettingsPanel,
-        viewMode,
-    ]);
 
     const allDiffFilePaths = useMemo(() => Array.from(selectableDiffPathSet), [selectableDiffPathSet]);
     const unviewedFileCount = useMemo(
@@ -1307,7 +1232,6 @@ function usePullRequestReviewPageView({
                 allModeLastStickyPathRef.current = null;
             }
             if (isSameActiveFile) return;
-            markReviewPerf("all_mode_scroll_update");
             revealTreePath(path);
             suppressHashSyncRef.current = true;
             setActiveFile(path);
@@ -1604,11 +1528,11 @@ function usePullRequestReviewPageView({
         inlineDraftFocusRef,
     });
 
-    if (isCriticalLoading) {
+    if (prQuery.isLoading) {
         return <ReviewPageLoadingView workspaceRef={workspaceRef} sidebarProps={sidebarProps} navbarProps={navbarProps} />;
     }
 
-    if (prQuery.error && !prData) {
+    if (prQuery.error) {
         const errorMessage = prQuery.error instanceof Error ? prQuery.error.message : "Failed to load pull request";
         const showAuthPrompt = isRateLimitedError && !auth.canWrite;
 
@@ -1710,24 +1634,16 @@ function usePullRequestReviewPageView({
                         submitThreadReply(commentId, content);
                     }}
                     onHistoryCommentNavigate={handleHistoryCommentNavigate}
-                    onToggleSummaryCollapsed={() =>
-                        startTransition(() => {
-                            setIsSummaryCollapsedInAllMode((prev) => !prev);
-                        })
-                    }
+                    onToggleSummaryCollapsed={() => setIsSummaryCollapsedInAllMode((prev) => !prev)}
                     onToggleCollapsedFile={(path, next) =>
-                        startTransition(() => {
-                            setCollapsedAllModeFiles((prev) => ({
-                                ...prev,
-                                [path]: next,
-                            }));
-                        })
+                        setCollapsedAllModeFiles((prev) => ({
+                            ...prev,
+                            [path]: next,
+                        }))
                     }
                     onOpenInlineDraftForPath={openInlineCommentDraftForPath}
                     onDiffLineEnter={handleDiffLineEnter}
                     onDiffLineLeave={handleDiffLineLeave}
-                    scrollElementRef={diffScrollRef}
-                    pendingScrollPath={allModePendingScrollPath}
                 />
             }
             mergeDialogProps={mergeDialogProps}

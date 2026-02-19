@@ -1,5 +1,5 @@
 import { Eye, EyeOff, FolderMinus, FolderPlus, PanelLeftClose } from "lucide-react";
-import { type MouseEventHandler, useCallback, useRef } from "react";
+import { type MouseEventHandler, useCallback, useEffect, useRef } from "react";
 import { FileTree } from "@/components/file-tree";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+const TREE_REVEAL_EDGE_MARGIN_PX = 50;
+
 type ReviewFileTreeSidebarProps = {
     treeWidth: number;
     treeCollapsed: boolean;
     loading: boolean;
     showSettingsPanel: boolean;
+    activeFile?: string;
     searchQuery: string;
     showUnviewedOnly: boolean;
     unviewedFileCount: number;
@@ -35,6 +38,7 @@ export function ReviewFileTreeSidebar({
     treeCollapsed,
     loading,
     showSettingsPanel,
+    activeFile,
     searchQuery,
     showUnviewedOnly,
     unviewedFileCount,
@@ -65,6 +69,49 @@ export function ReviewFileTreeSidebar({
         },
         [onFileClick],
     );
+    useEffect(() => {
+        if (loading) return;
+        if (!activeFile) return;
+        const viewport = treeViewportRef.current;
+        if (!viewport) return;
+
+        let cancelled = false;
+        let attempts = 0;
+
+        const revealWhenReady = () => {
+            if (cancelled) return;
+            const currentViewport = treeViewportRef.current;
+            if (!currentViewport) return;
+
+            const escapedPath = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(activeFile) : activeFile.replace(/["\\]/g, "\\$&");
+            const item = currentViewport.querySelector<HTMLElement>(`[data-tree-path="${escapedPath}"]`);
+
+            if (!item) {
+                attempts += 1;
+                if (attempts < 12) {
+                    requestAnimationFrame(revealWhenReady);
+                }
+                return;
+            }
+
+            const viewportRect = currentViewport.getBoundingClientRect();
+            const itemRect = item.getBoundingClientRect();
+            const topBoundary = viewportRect.top + TREE_REVEAL_EDGE_MARGIN_PX;
+            const bottomBoundary = viewportRect.bottom - TREE_REVEAL_EDGE_MARGIN_PX;
+            if (itemRect.top < topBoundary) {
+                currentViewport.scrollTop -= topBoundary - itemRect.top;
+                return;
+            }
+            if (itemRect.bottom > bottomBoundary) {
+                currentViewport.scrollTop += itemRect.bottom - bottomBoundary;
+            }
+        };
+
+        requestAnimationFrame(revealWhenReady);
+        return () => {
+            cancelled = true;
+        };
+    }, [activeFile, loading]);
 
     return (
         <aside

@@ -11,6 +11,7 @@ export function useReviewPageViewProps({
     host,
     pullRequestUrl,
     showSettingsPanel,
+    activeFile,
     searchQuery,
     showUnviewedOnly,
     unviewedFileCount,
@@ -64,6 +65,7 @@ export function useReviewPageViewProps({
     host: GitHost;
     pullRequestUrl?: string;
     showSettingsPanel: boolean;
+    activeFile?: string;
     searchQuery: string;
     showUnviewedOnly: boolean;
     unviewedFileCount: number;
@@ -118,6 +120,7 @@ export function useReviewPageViewProps({
             treeCollapsed,
             loading: false,
             showSettingsPanel,
+            activeFile,
             searchQuery,
             showUnviewedOnly,
             unviewedFileCount,
@@ -149,6 +152,7 @@ export function useReviewPageViewProps({
             searchQuery,
             showSettingsPanel,
             showUnviewedOnly,
+            activeFile,
             unviewedFileCount,
             treeCollapsed,
             treeWidth,

@@ -155,6 +155,15 @@ export interface PullRequestBundle {
     buildStatuses?: PullRequestBuildStatus[];
 }
 
+export interface PullRequestCommitRangeDiff {
+    prRef: PullRequestRef;
+    baseCommitHash: string;
+    headCommitHash: string;
+    selectedCommitHashes: string[];
+    diff: string;
+    diffstat: DiffStatEntry[];
+}
+
 export interface PullRequestFileHistoryEntry {
     versionId: string;
     commitHash: string;
@@ -242,6 +251,12 @@ export interface GitHostClient {
     ): Promise<{ ok: true }>;
     resolvePullRequestComment(data: { prRef: PullRequestRef; commentId: number; resolve: boolean }): Promise<{ ok: true }>;
     deletePullRequestComment(data: { prRef: PullRequestRef; commentId: number; hasInlineContext: boolean }): Promise<{ ok: true }>;
+    fetchPullRequestCommitRangeDiff(data: {
+        prRef: PullRequestRef;
+        baseCommitHash: string;
+        headCommitHash: string;
+        selectedCommitHashes: string[];
+    }): Promise<PullRequestCommitRangeDiff>;
     fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }): Promise<string>;
     fetchPullRequestFileHistory(data: { prRef: PullRequestRef; path: string; commits: Commit[]; limit?: number }): Promise<PullRequestFileHistory>;
 }

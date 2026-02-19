@@ -20,4 +20,14 @@ describe("review viewed version storage", () => {
 
         expect(Array.from(filtered)).toEqual(["src/b.ts::fp-b"]);
     });
+
+    test("keeps viewed states isolated per diff scope key", () => {
+        const fullKey = `test:viewed-scope:full:${Date.now()}`;
+        const rangeKey = `${fullKey}:range`;
+        writeViewedVersionIds(fullKey, new Set(["src/a.ts::fp-a"]));
+        writeViewedVersionIds(rangeKey, new Set(["src/a.ts::fp-b"]));
+
+        expect(Array.from(readViewedVersionIds(fullKey))).toEqual(["src/a.ts::fp-a"]);
+        expect(Array.from(readViewedVersionIds(rangeKey))).toEqual(["src/a.ts::fp-b"]);
+    });
 });

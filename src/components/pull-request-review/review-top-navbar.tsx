@@ -1,4 +1,5 @@
 import { Check, Copy, Github, GitMerge, GlassWater, Loader2, Menu, Minus, PanelLeftOpen, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
+import type { ReactNode } from "react";
 import {
     aggregateBuildState,
     buildRunningTime,
@@ -34,6 +35,7 @@ type ReviewTopNavbarProps = {
     isDeclinePending: boolean;
     isMarkDraftPending: boolean;
     copiedSourceBranch: boolean;
+    commitScopeSlot?: ReactNode;
     onExpandTree: () => void;
     onCopySourceBranch: (branchName: string) => void;
     onApprove: () => void;
@@ -65,6 +67,7 @@ export function ReviewTopNavbar({
     isDeclinePending,
     isMarkDraftPending,
     copiedSourceBranch,
+    commitScopeSlot,
     onExpandTree,
     onCopySourceBranch,
     onApprove,
@@ -98,6 +101,7 @@ export function ReviewTopNavbar({
                                 <PanelLeftOpen className="size-3.5" />
                             </Button>
                         ) : null}
+                        {commitScopeSlot ? <div className="shrink-0">{commitScopeSlot}</div> : null}
                         <div className="group/source relative max-w-[180px] min-w-0">
                             <span className="block truncate text-foreground">{sourceBranch}</span>
                             <Button

@@ -11,6 +11,7 @@ export function useReviewPageViewProps({
     host,
     pullRequestUrl,
     showSettingsPanel,
+    activeFile,
     searchQuery,
     showUnviewedOnly,
     unviewedFileCount,
@@ -28,6 +29,7 @@ export function useReviewPageViewProps({
     declinePending,
     markDraftPending,
     copiedSourceBranch,
+    commitScopeSlot,
     onHome,
     onToggleSettings,
     onCollapseTree,
@@ -63,6 +65,7 @@ export function useReviewPageViewProps({
     host: GitHost;
     pullRequestUrl?: string;
     showSettingsPanel: boolean;
+    activeFile?: string;
     searchQuery: string;
     showUnviewedOnly: boolean;
     unviewedFileCount: number;
@@ -80,6 +83,7 @@ export function useReviewPageViewProps({
     declinePending: boolean;
     markDraftPending: boolean;
     copiedSourceBranch: boolean;
+    commitScopeSlot?: MainViewProps["navbarProps"]["commitScopeSlot"];
     onHome: MainViewProps["sidebarProps"]["onHome"];
     onToggleSettings: MainViewProps["sidebarProps"]["onToggleSettings"];
     onCollapseTree: MainViewProps["sidebarProps"]["onCollapseTree"];
@@ -116,6 +120,7 @@ export function useReviewPageViewProps({
             treeCollapsed,
             loading: false,
             showSettingsPanel,
+            activeFile,
             searchQuery,
             showUnviewedOnly,
             unviewedFileCount,
@@ -147,6 +152,7 @@ export function useReviewPageViewProps({
             searchQuery,
             showSettingsPanel,
             showUnviewedOnly,
+            activeFile,
             unviewedFileCount,
             treeCollapsed,
             treeWidth,
@@ -177,6 +183,7 @@ export function useReviewPageViewProps({
             isDeclinePending: declinePending,
             isMarkDraftPending: markDraftPending,
             copiedSourceBranch,
+            commitScopeSlot,
             onExpandTree,
             onCopySourceBranch,
             onApprove,
@@ -194,6 +201,7 @@ export function useReviewPageViewProps({
             approvePending,
             buildStatuses,
             copiedSourceBranch,
+            commitScopeSlot,
             currentUserReviewStatus,
             declinePending,
             isRefreshing,

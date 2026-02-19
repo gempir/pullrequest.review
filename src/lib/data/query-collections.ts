@@ -15,12 +15,7 @@ const DATA_DATABASE_NAME = "pullrequestdotreview_data_v1";
 const STATE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const LEGACY_RESET_METADATA_ID = "legacy_reset_v1";
 
-const APPEARANCE_COLLECTION_NAME = "appearance_settings";
-const DIFF_OPTIONS_COLLECTION_NAME = "diff_options";
-const TREE_SETTINGS_COLLECTION_NAME = "tree_settings";
-const SHORTCUTS_COLLECTION_NAME = "shortcuts_settings";
-const HOST_PREFERENCES_COLLECTION_NAME = "host_preferences";
-const AUTH_CREDENTIALS_COLLECTION_NAME = "auth_credentials";
+const APP_PREFERENCES_COLLECTION_NAME = "app_preferences";
 const REVIEW_VIEWED_STATE_COLLECTION_NAME = "review_viewed_state";
 const REVIEW_DIRECTORY_STATE_COLLECTION_NAME = "review_directory_state";
 const REVIEW_LAYOUT_STATE_COLLECTION_NAME = "review_layout_state";
@@ -28,12 +23,7 @@ const INLINE_COMMENT_DRAFTS_COLLECTION_NAME = "inline_comment_drafts";
 const INLINE_COMMENT_ACTIVE_DRAFT_COLLECTION_NAME = "inline_comment_active_draft";
 const APP_METADATA_COLLECTION_NAME = "app_metadata";
 
-const APPEARANCE_COLLECTION_ID = "appearance-settings:rxdb";
-const DIFF_OPTIONS_COLLECTION_ID = "diff-options:rxdb";
-const TREE_SETTINGS_COLLECTION_ID = "tree-settings:rxdb";
-const SHORTCUTS_COLLECTION_ID = "shortcuts:rxdb";
-const HOST_PREFERENCES_COLLECTION_ID = "host-preferences:rxdb";
-const AUTH_CREDENTIALS_COLLECTION_ID = "auth-credentials:rxdb";
+const APP_PREFERENCES_COLLECTION_ID = "app-preferences:rxdb";
 const REVIEW_VIEWED_STATE_COLLECTION_ID = "review-viewed-state:rxdb";
 const REVIEW_DIRECTORY_STATE_COLLECTION_ID = "review-directory-state:rxdb";
 const REVIEW_LAYOUT_STATE_COLLECTION_ID = "review-layout-state:rxdb";
@@ -54,6 +44,10 @@ type BaseCollectionRecord = {
     id: string;
     updatedAt: number;
     expiresAt: number | null;
+};
+
+type AppPreferenceRecord = BaseCollectionRecord & {
+    value: Record<string, unknown>;
 };
 
 type AppearanceSettingsRecord = BaseCollectionRecord & {
@@ -143,8 +137,6 @@ type GithubAuthCredentialRecord = BaseCollectionRecord & {
     token: string;
 };
 
-type AuthCredentialRecord = BitbucketAuthCredentialRecord | GithubAuthCredentialRecord;
-
 type ReviewViewedStateRecord = BaseCollectionRecord & {
     id: string;
     viewedVersionIds: string[];
@@ -228,12 +220,7 @@ let appDataFallbackActive = false;
 let appDataPersistenceDegraded = false;
 let lastAppDataSweepAt: number | null = null;
 
-let appearanceSettingsCollection: Collection<AppearanceSettingsRecord, string> | null = null;
-let diffOptionsCollection: Collection<DiffOptionsRecord, string> | null = null;
-let treeSettingsCollection: Collection<TreeSettingsRecord, string> | null = null;
-let shortcutsCollection: Collection<ShortcutsRecord, string> | null = null;
-let hostPreferencesCollection: Collection<HostPreferencesRecord, string> | null = null;
-let authCredentialsCollection: Collection<AuthCredentialRecord, string> | null = null;
+let appPreferencesCollection: Collection<AppPreferenceRecord, string> | null = null;
 let reviewViewedStateCollection: Collection<ReviewViewedStateRecord, string> | null = null;
 let reviewDirectoryStateCollection: Collection<ReviewDirectoryStateRecord, string> | null = null;
 let reviewLayoutStateCollection: Collection<ReviewLayoutStateRecord, string> | null = null;
@@ -282,199 +269,19 @@ function createBaseSchema(maxLength = 300) {
     } as const;
 }
 
-const APPEARANCE_SETTINGS_SCHEMA = {
-    title: "pullrequestdotreview appearance settings",
-    version: 0,
-    type: "object",
-    primaryKey: "id",
-    properties: {
-        ...createBaseSchema(80),
-        appThemeMode: {
-            type: "string",
-            maxLength: 20,
-        },
-        sansFontFamily: {
-            type: "string",
-            maxLength: 120,
-        },
-        monospaceFontFamily: {
-            type: "string",
-            maxLength: 120,
-        },
-        sansFontSize: {
-            type: "number",
-        },
-        sansLineHeight: {
-            type: "number",
-        },
-        monospaceFontSize: {
-            type: "number",
-        },
-        monospaceLineHeight: {
-            type: "number",
-        },
-        treeUseCustomTypography: {
-            type: "boolean",
-        },
-        treeFontFamily: {
-            type: "string",
-            maxLength: 120,
-        },
-        treeFontSize: {
-            type: "number",
-        },
-        treeLineHeight: {
-            type: "number",
-        },
-    },
-    required: [
-        "id",
-        "updatedAt",
-        "expiresAt",
-        "appThemeMode",
-        "sansFontFamily",
-        "monospaceFontFamily",
-        "sansFontSize",
-        "sansLineHeight",
-        "monospaceFontSize",
-        "monospaceLineHeight",
-        "treeUseCustomTypography",
-        "treeFontFamily",
-        "treeFontSize",
-        "treeLineHeight",
-    ],
-    additionalProperties: false,
-} as const;
-
-const DIFF_OPTIONS_SCHEMA = {
-    title: "pullrequestdotreview diff options",
-    version: 0,
-    type: "object",
-    primaryKey: "id",
-    properties: {
-        ...createBaseSchema(80),
-        followSystemTheme: { type: "boolean" },
-        theme: { type: "string", maxLength: 80 },
-        diffUseCustomTypography: { type: "boolean" },
-        diffFontFamily: { type: "string", maxLength: 120 },
-        diffFontSize: { type: "number" },
-        diffLineHeight: { type: "number" },
-        diffStyle: { type: "string", maxLength: 20 },
-        diffIndicators: { type: "string", maxLength: 20 },
-        disableBackground: { type: "boolean" },
-        hunkSeparators: { type: "string", maxLength: 20 },
-        expandUnchanged: { type: "boolean" },
-        expansionLineCount: { type: "number" },
-        collapsedContextThreshold: { type: "number" },
-        lineDiffType: { type: "string", maxLength: 20 },
-        disableLineNumbers: { type: "boolean" },
-        overflow: { type: "string", maxLength: 20 },
-        collapseViewedFilesByDefault: { type: "boolean" },
-        autoMarkViewedFiles: { type: "boolean" },
-    },
-    required: [
-        "id",
-        "updatedAt",
-        "expiresAt",
-        "followSystemTheme",
-        "theme",
-        "diffUseCustomTypography",
-        "diffFontFamily",
-        "diffFontSize",
-        "diffLineHeight",
-        "diffStyle",
-        "diffIndicators",
-        "disableBackground",
-        "hunkSeparators",
-        "expandUnchanged",
-        "expansionLineCount",
-        "collapsedContextThreshold",
-        "lineDiffType",
-        "disableLineNumbers",
-        "overflow",
-        "collapseViewedFilesByDefault",
-        "autoMarkViewedFiles",
-    ],
-    additionalProperties: false,
-} as const;
-
-const TREE_SETTINGS_SCHEMA = {
-    title: "pullrequestdotreview tree settings",
-    version: 0,
-    type: "object",
-    primaryKey: "id",
-    properties: {
-        ...createBaseSchema(80),
-        compactSingleChildDirectories: { type: "boolean" },
-        treeIndentSize: { type: "number" },
-    },
-    required: ["id", "updatedAt", "expiresAt", "compactSingleChildDirectories", "treeIndentSize"],
-    additionalProperties: false,
-} as const;
-
-const SHORTCUTS_SCHEMA = {
-    title: "pullrequestdotreview shortcuts",
-    version: 0,
-    type: "object",
-    primaryKey: "id",
-    properties: {
-        ...createBaseSchema(80),
-        nextUnviewedFile: { type: "object", additionalProperties: true },
-        previousUnviewedFile: { type: "object", additionalProperties: true },
-        scrollDown: { type: "object", additionalProperties: true },
-        scrollUp: { type: "object", additionalProperties: true },
-        nextFile: { type: "object", additionalProperties: true },
-        previousFile: { type: "object", additionalProperties: true },
-        markFileViewed: { type: "object", additionalProperties: true },
-        markFileViewedAndFold: { type: "object", additionalProperties: true },
-        approvePullRequest: { type: "object", additionalProperties: true },
-        requestChangesPullRequest: { type: "object", additionalProperties: true },
-    },
-    required: [
-        "id",
-        "updatedAt",
-        "expiresAt",
-        "nextUnviewedFile",
-        "previousUnviewedFile",
-        "scrollDown",
-        "scrollUp",
-        "nextFile",
-        "previousFile",
-        "markFileViewed",
-        "markFileViewedAndFold",
-        "approvePullRequest",
-        "requestChangesPullRequest",
-    ],
-    additionalProperties: false,
-} as const;
-
-const HOST_PREFERENCES_SCHEMA = {
-    title: "pullrequestdotreview host preferences",
+const APP_PREFERENCES_SCHEMA = {
+    title: "pullrequestdotreview app preferences",
     version: 0,
     type: "object",
     primaryKey: "id",
     properties: {
         ...createBaseSchema(120),
-        activeHost: { type: "string", maxLength: 20 },
-        reposByHost: { type: "object", additionalProperties: true },
+        value: {
+            type: "object",
+            additionalProperties: true,
+        },
     },
-    required: ["id", "updatedAt", "expiresAt", "activeHost", "reposByHost"],
-    additionalProperties: false,
-} as const;
-
-const AUTH_CREDENTIALS_SCHEMA = {
-    title: "pullrequestdotreview auth credentials",
-    version: 0,
-    type: "object",
-    primaryKey: "id",
-    properties: {
-        ...createBaseSchema(20),
-        host: { type: "string", maxLength: 20 },
-        email: { type: "string", maxLength: 300 },
-        apiToken: { type: "string", maxLength: 300 },
-        token: { type: "string", maxLength: 300 },
-    },
-    required: ["id", "updatedAt", "expiresAt", "host"],
+    required: ["id", "updatedAt", "expiresAt", "value"],
     additionalProperties: false,
 } as const;
 
@@ -575,12 +382,7 @@ const APP_METADATA_SCHEMA = {
 
 function ensureCollectionsInitialized() {
     if (
-        appearanceSettingsCollection &&
-        diffOptionsCollection &&
-        treeSettingsCollection &&
-        shortcutsCollection &&
-        hostPreferencesCollection &&
-        authCredentialsCollection &&
+        appPreferencesCollection &&
         reviewViewedStateCollection &&
         reviewDirectoryStateCollection &&
         reviewLayoutStateCollection &&
@@ -591,44 +393,9 @@ function ensureCollectionsInitialized() {
         return;
     }
 
-    appearanceSettingsCollection = createCollection(
-        localOnlyCollectionOptions<AppearanceSettingsRecord, string>({
-            id: APPEARANCE_COLLECTION_ID,
-            getKey: (item) => item.id,
-        }),
-    );
-
-    diffOptionsCollection = createCollection(
-        localOnlyCollectionOptions<DiffOptionsRecord, string>({
-            id: DIFF_OPTIONS_COLLECTION_ID,
-            getKey: (item) => item.id,
-        }),
-    );
-
-    treeSettingsCollection = createCollection(
-        localOnlyCollectionOptions<TreeSettingsRecord, string>({
-            id: TREE_SETTINGS_COLLECTION_ID,
-            getKey: (item) => item.id,
-        }),
-    );
-
-    shortcutsCollection = createCollection(
-        localOnlyCollectionOptions<ShortcutsRecord, string>({
-            id: SHORTCUTS_COLLECTION_ID,
-            getKey: (item) => item.id,
-        }),
-    );
-
-    hostPreferencesCollection = createCollection(
-        localOnlyCollectionOptions<HostPreferencesRecord, string>({
-            id: HOST_PREFERENCES_COLLECTION_ID,
-            getKey: (item) => item.id,
-        }),
-    );
-
-    authCredentialsCollection = createCollection(
-        localOnlyCollectionOptions<AuthCredentialRecord, string>({
-            id: AUTH_CREDENTIALS_COLLECTION_ID,
+    appPreferencesCollection = createCollection(
+        localOnlyCollectionOptions<AppPreferenceRecord, string>({
+            id: APP_PREFERENCES_COLLECTION_ID,
             getKey: (item) => item.id,
         }),
     );
@@ -689,27 +456,13 @@ async function initRxdbCollections() {
         name: DATA_DATABASE_NAME,
         storage: getRxStorageDexie(),
         multiInstance: true,
+        closeDuplicates: true,
     });
     appDataDatabase = database;
 
-    const collections = await database.addCollections({
-        [APPEARANCE_COLLECTION_NAME]: {
-            schema: APPEARANCE_SETTINGS_SCHEMA,
-        },
-        [DIFF_OPTIONS_COLLECTION_NAME]: {
-            schema: DIFF_OPTIONS_SCHEMA,
-        },
-        [TREE_SETTINGS_COLLECTION_NAME]: {
-            schema: TREE_SETTINGS_SCHEMA,
-        },
-        [SHORTCUTS_COLLECTION_NAME]: {
-            schema: SHORTCUTS_SCHEMA,
-        },
-        [HOST_PREFERENCES_COLLECTION_NAME]: {
-            schema: HOST_PREFERENCES_SCHEMA,
-        },
-        [AUTH_CREDENTIALS_COLLECTION_NAME]: {
-            schema: AUTH_CREDENTIALS_SCHEMA,
+    const collectionDefinitions = {
+        [APP_PREFERENCES_COLLECTION_NAME]: {
+            schema: APP_PREFERENCES_SCHEMA,
         },
         [REVIEW_VIEWED_STATE_COLLECTION_NAME]: {
             schema: REVIEW_VIEWED_STATE_SCHEMA,
@@ -729,52 +482,32 @@ async function initRxdbCollections() {
         [APP_METADATA_COLLECTION_NAME]: {
             schema: APP_METADATA_SCHEMA,
         },
-    });
+    } as const;
 
-    appearanceSettingsCollection = createCollection(
-        rxdbCollectionOptions<AppearanceSettingsRecord>({
-            id: APPEARANCE_COLLECTION_ID,
-            rxCollection: collections[APPEARANCE_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
+    for (const [collectionName, collectionSchema] of Object.entries(collectionDefinitions)) {
+        const existingCollections = database.collections as Record<string, (typeof database.collections)[string]>;
+        if (existingCollections[collectionName]) continue;
+        try {
+            await database.addCollections({
+                [collectionName]: collectionSchema,
+            });
+        } catch (error) {
+            if (!isRxErrorCode(error, "COL23")) {
+                throw error;
+            }
+        }
+    }
 
-    diffOptionsCollection = createCollection(
-        rxdbCollectionOptions<DiffOptionsRecord>({
-            id: DIFF_OPTIONS_COLLECTION_ID,
-            rxCollection: collections[DIFF_OPTIONS_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
+    const collections = database.collections as Record<string, (typeof database.collections)[string]>;
+    const missingCollectionNames = Object.keys(collectionDefinitions).filter((name) => !collections[name]);
+    if (missingCollectionNames.length > 0) {
+        throw new Error(`Data RxDB collections unavailable after init: ${missingCollectionNames.join(", ")}`);
+    }
 
-    treeSettingsCollection = createCollection(
-        rxdbCollectionOptions<TreeSettingsRecord>({
-            id: TREE_SETTINGS_COLLECTION_ID,
-            rxCollection: collections[TREE_SETTINGS_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
-
-    shortcutsCollection = createCollection(
-        rxdbCollectionOptions<ShortcutsRecord>({
-            id: SHORTCUTS_COLLECTION_ID,
-            rxCollection: collections[SHORTCUTS_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
-
-    hostPreferencesCollection = createCollection(
-        rxdbCollectionOptions<HostPreferencesRecord>({
-            id: HOST_PREFERENCES_COLLECTION_ID,
-            rxCollection: collections[HOST_PREFERENCES_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
-
-    authCredentialsCollection = createCollection(
-        rxdbCollectionOptions<AuthCredentialRecord>({
-            id: AUTH_CREDENTIALS_COLLECTION_ID,
-            rxCollection: collections[AUTH_CREDENTIALS_COLLECTION_NAME],
+    appPreferencesCollection = createCollection(
+        rxdbCollectionOptions<AppPreferenceRecord>({
+            id: APP_PREFERENCES_COLLECTION_ID,
+            rxCollection: collections[APP_PREFERENCES_COLLECTION_NAME],
             startSync: true,
         }),
     );
@@ -828,12 +561,7 @@ async function initRxdbCollections() {
     );
 
     await Promise.all([
-        appearanceSettingsCollection.preload(),
-        diffOptionsCollection.preload(),
-        treeSettingsCollection.preload(),
-        shortcutsCollection.preload(),
-        hostPreferencesCollection.preload(),
-        authCredentialsCollection.preload(),
+        appPreferencesCollection.preload(),
         reviewViewedStateCollection.preload(),
         reviewDirectoryStateCollection.preload(),
         reviewLayoutStateCollection.preload(),
@@ -855,13 +583,46 @@ function isQuotaExceededError(error: unknown) {
     return false;
 }
 
+function isRxErrorCode(error: unknown, code: string) {
+    if (!error || typeof error !== "object") return false;
+    const value = error as { code?: string; message?: string };
+    if (value.code === code) return true;
+    return typeof value.message === "string" && value.message.includes(code);
+}
+
+function isTransientPersistenceError(error: unknown) {
+    if (!error) return false;
+    if (isRxErrorCode(error, "COL23") || isRxErrorCode(error, "DB8")) {
+        return true;
+    }
+    if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+        return (
+            message.includes("closed") ||
+            message.includes("abort") ||
+            message.includes("aborted") ||
+            message.includes("is disposed") ||
+            message.includes("is destroyed")
+        );
+    }
+    return false;
+}
+
 function markPersistenceIssue(error: unknown, context: string) {
+    if (context.startsWith("delete:viewed:")) {
+        return;
+    }
+    if (isTransientPersistenceError(error)) {
+        return;
+    }
+    const firstIssue = !appDataPersistenceDegraded;
     appDataPersistenceDegraded = true;
+    if (!firstIssue) return;
     if (isQuotaExceededError(error)) {
         console.warn(`Collection persistence quota exceeded during ${context}; keeping runtime state in memory.`, error);
         return;
     }
-    console.warn(`Collection persistence error during ${context}.`, error);
+    console.warn(`Collection persistence degraded during ${context}; continuing with in-memory state.`);
 }
 
 async function persistTransaction(persistPromise: Promise<unknown>, context: string) {
@@ -902,71 +663,64 @@ async function clearLegacyLocalStorageKeys() {
 }
 
 async function upsertRecord<T extends { id: string }>(collection: Collection<T, string>, record: T, context: string) {
-    const existing = collection.get(record.id);
-    if (!existing) {
-        const transaction = collection.insert(record);
-        await persistTransaction(transaction.isPersisted.promise, `insert:${context}`);
-        return;
-    }
+    try {
+        const existing = collection.get(record.id);
+        if (!existing) {
+            const transaction = collection.insert(record);
+            await persistTransaction(transaction.isPersisted.promise, `insert:${context}`);
+            return;
+        }
 
-    const transaction = collection.update(record.id, (draft) => {
-        Object.assign(draft as Record<string, unknown>, record);
-    });
-    await persistTransaction(transaction.isPersisted.promise, `update:${context}`);
+        const transaction = collection.update(record.id, (draft) => {
+            Object.assign(draft as Record<string, unknown>, record);
+        });
+        await persistTransaction(transaction.isPersisted.promise, `update:${context}`);
+    } catch (error) {
+        markPersistenceIssue(error, `upsert:${context}`);
+    }
 }
 
 async function deleteRecord<T extends { id: string }>(collection: Collection<T, string>, id: string, context: string) {
-    if (!collection.has(id)) return;
-    const transaction = collection.delete(id);
-    await persistTransaction(transaction.isPersisted.promise, `delete:${context}`);
+    try {
+        if (!collection.has(id)) return;
+        const transaction = collection.delete(id);
+        await persistTransaction(transaction.isPersisted.promise, `delete:${context}`);
+    } catch (error) {
+        markPersistenceIssue(error, `delete:${context}`);
+    }
 }
 
-function getAppearanceCollection() {
+function getAppPreferencesCollection() {
     ensureCollectionsInitialized();
-    if (!appearanceSettingsCollection) {
-        throw new Error("Appearance settings collection is unavailable");
+    if (!appPreferencesCollection) {
+        throw new Error("App preferences collection is unavailable");
     }
-    return appearanceSettingsCollection;
+    return appPreferencesCollection;
 }
 
-function getDiffOptionsCollection() {
-    ensureCollectionsInitialized();
-    if (!diffOptionsCollection) {
-        throw new Error("Diff options collection is unavailable");
-    }
-    return diffOptionsCollection;
+function readPermanentRecord<T extends Record<string, unknown>>(id: string): (T & BaseCollectionRecord & { id: string }) | null {
+    const record = getAppPreferencesCollection().get(id);
+    if (!record) return null;
+    return {
+        id: record.id,
+        updatedAt: record.updatedAt,
+        expiresAt: record.expiresAt,
+        ...(record.value as T),
+    };
 }
 
-function getTreeSettingsCollection() {
-    ensureCollectionsInitialized();
-    if (!treeSettingsCollection) {
-        throw new Error("Tree settings collection is unavailable");
-    }
-    return treeSettingsCollection;
-}
-
-function getShortcutsCollection() {
-    ensureCollectionsInitialized();
-    if (!shortcutsCollection) {
-        throw new Error("Shortcuts collection is unavailable");
-    }
-    return shortcutsCollection;
-}
-
-function getHostPreferencesCollection() {
-    ensureCollectionsInitialized();
-    if (!hostPreferencesCollection) {
-        throw new Error("Host preferences collection is unavailable");
-    }
-    return hostPreferencesCollection;
-}
-
-function getAuthCredentialsCollection() {
-    ensureCollectionsInitialized();
-    if (!authCredentialsCollection) {
-        throw new Error("Auth credentials collection is unavailable");
-    }
-    return authCredentialsCollection;
+function writePermanentRecord(id: string, value: Record<string, unknown>, context: string) {
+    const now = Date.now();
+    void upsertRecord(
+        getAppPreferencesCollection(),
+        {
+            id,
+            value,
+            updatedAt: now,
+            expiresAt: null,
+        },
+        context,
+    );
 }
 
 function getReviewViewedStateCollection() {
@@ -1087,98 +841,54 @@ function normalizeReposByHost(reposByHost: Record<GitHost, RepoRef[]>): Record<G
 }
 
 export function readAppearanceSettingsRecord() {
-    return getAppearanceCollection().get(APPEARANCE_RECORD_ID) ?? null;
+    return readPermanentRecord<Omit<AppearanceSettingsRecord, keyof BaseCollectionRecord | "id">>(APPEARANCE_RECORD_ID) as AppearanceSettingsRecord | null;
 }
 
 export function writeAppearanceSettingsRecord(settings: Omit<AppearanceSettingsRecord, "id" | "updatedAt" | "expiresAt">) {
-    const now = Date.now();
-    void upsertRecord(
-        getAppearanceCollection(),
-        {
-            id: APPEARANCE_RECORD_ID,
-            ...settings,
-            updatedAt: now,
-            expiresAt: null,
-        },
-        APPEARANCE_RECORD_ID,
-    );
+    writePermanentRecord(APPEARANCE_RECORD_ID, settings as Record<string, unknown>, APPEARANCE_RECORD_ID);
 }
 
 export function readDiffOptionsRecord() {
-    return getDiffOptionsCollection().get(DIFF_OPTIONS_RECORD_ID) ?? null;
+    return readPermanentRecord<Omit<DiffOptionsRecord, keyof BaseCollectionRecord | "id">>(DIFF_OPTIONS_RECORD_ID) as DiffOptionsRecord | null;
 }
 
 export function writeDiffOptionsRecord(options: Omit<DiffOptionsRecord, "id" | "updatedAt" | "expiresAt">) {
-    const now = Date.now();
-    void upsertRecord(
-        getDiffOptionsCollection(),
-        {
-            id: DIFF_OPTIONS_RECORD_ID,
-            ...options,
-            updatedAt: now,
-            expiresAt: null,
-        },
-        DIFF_OPTIONS_RECORD_ID,
-    );
+    writePermanentRecord(DIFF_OPTIONS_RECORD_ID, options as Record<string, unknown>, DIFF_OPTIONS_RECORD_ID);
 }
 
 export function readTreeSettingsRecord() {
-    return getTreeSettingsCollection().get(TREE_SETTINGS_RECORD_ID) ?? null;
+    return readPermanentRecord<Omit<TreeSettingsRecord, keyof BaseCollectionRecord | "id">>(TREE_SETTINGS_RECORD_ID) as TreeSettingsRecord | null;
 }
 
 export function writeTreeSettingsRecord(settings: Omit<TreeSettingsRecord, "id" | "updatedAt" | "expiresAt">) {
-    const now = Date.now();
-    void upsertRecord(
-        getTreeSettingsCollection(),
-        {
-            id: TREE_SETTINGS_RECORD_ID,
-            ...settings,
-            updatedAt: now,
-            expiresAt: null,
-        },
-        TREE_SETTINGS_RECORD_ID,
-    );
+    writePermanentRecord(TREE_SETTINGS_RECORD_ID, settings as Record<string, unknown>, TREE_SETTINGS_RECORD_ID);
 }
 
 export function readShortcutsRecord() {
-    return getShortcutsCollection().get(SHORTCUTS_RECORD_ID) ?? null;
+    return readPermanentRecord<Omit<ShortcutsRecord, keyof BaseCollectionRecord | "id">>(SHORTCUTS_RECORD_ID) as ShortcutsRecord | null;
 }
 
 export function writeShortcutsRecord(shortcuts: Omit<ShortcutsRecord, "id" | "updatedAt" | "expiresAt">) {
-    const now = Date.now();
-    void upsertRecord(
-        getShortcutsCollection(),
-        {
-            id: SHORTCUTS_RECORD_ID,
-            ...shortcuts,
-            updatedAt: now,
-            expiresAt: null,
-        },
-        SHORTCUTS_RECORD_ID,
-    );
+    writePermanentRecord(SHORTCUTS_RECORD_ID, shortcuts as Record<string, unknown>, SHORTCUTS_RECORD_ID);
 }
 
 export function readHostPreferencesRecord() {
-    return getHostPreferencesCollection().get(HOST_PREFERENCES_RECORD_ID) ?? null;
+    return readPermanentRecord<Omit<HostPreferencesRecord, keyof BaseCollectionRecord | "id">>(HOST_PREFERENCES_RECORD_ID) as HostPreferencesRecord | null;
 }
 
 export function writeHostPreferencesRecord(data: { activeHost: GitHost; reposByHost: Record<GitHost, RepoRef[]> }) {
-    const now = Date.now();
-    void upsertRecord(
-        getHostPreferencesCollection(),
+    writePermanentRecord(
+        HOST_PREFERENCES_RECORD_ID,
         {
-            id: HOST_PREFERENCES_RECORD_ID,
             activeHost: data.activeHost,
             reposByHost: normalizeReposByHost(data.reposByHost),
-            updatedAt: now,
-            expiresAt: null,
         },
         HOST_PREFERENCES_RECORD_ID,
     );
 }
 
 export function readBitbucketAuthCredential() {
-    const record = getAuthCredentialsCollection().get("bitbucket");
+    const record = readPermanentRecord<Omit<BitbucketAuthCredentialRecord, keyof BaseCollectionRecord | "id">>("bitbucket");
     if (!record || record.host !== "bitbucket") return null;
     if (typeof record.email !== "string" || typeof record.apiToken !== "string") return null;
     return {
@@ -1188,27 +898,23 @@ export function readBitbucketAuthCredential() {
 }
 
 export function writeBitbucketAuthCredential(data: { email: string; apiToken: string }) {
-    const now = Date.now();
-    void upsertRecord(
-        getAuthCredentialsCollection(),
+    writePermanentRecord(
+        "bitbucket",
         {
-            id: "bitbucket",
             host: "bitbucket",
             email: data.email,
             apiToken: data.apiToken,
-            updatedAt: now,
-            expiresAt: null,
         },
         "auth:bitbucket",
     );
 }
 
 export function clearBitbucketAuthCredential() {
-    void deleteRecord(getAuthCredentialsCollection(), "bitbucket", "auth:bitbucket");
+    void deleteRecord(getAppPreferencesCollection(), "bitbucket", "auth:bitbucket");
 }
 
 export function readGithubAuthCredential() {
-    const record = getAuthCredentialsCollection().get("github");
+    const record = readPermanentRecord<Omit<GithubAuthCredentialRecord, keyof BaseCollectionRecord | "id">>("github");
     if (!record || record.host !== "github") return null;
     if (typeof record.token !== "string") return null;
     return {
@@ -1217,22 +923,18 @@ export function readGithubAuthCredential() {
 }
 
 export function writeGithubAuthCredential(data: { token: string }) {
-    const now = Date.now();
-    void upsertRecord(
-        getAuthCredentialsCollection(),
+    writePermanentRecord(
+        "github",
         {
-            id: "github",
             host: "github",
             token: data.token,
-            updatedAt: now,
-            expiresAt: null,
         },
         "auth:github",
     );
 }
 
 export function clearGithubAuthCredential() {
-    void deleteRecord(getAuthCredentialsCollection(), "github", "auth:github");
+    void deleteRecord(getAppPreferencesCollection(), "github", "auth:github");
 }
 
 function readStateRecord<T extends { expiresAt: number | null; id: string }>(collection: Collection<T, string>, id: string) {
@@ -1450,12 +1152,7 @@ type AppCollectionSummary = {
 
 function getAppCollectionSummaries(): AppCollectionSummary[] {
     return [
-        { name: "appearanceSettings", tier: "permanent", collection: getAppearanceCollection() as Collection<BaseCollectionRecord, string> },
-        { name: "diffOptions", tier: "permanent", collection: getDiffOptionsCollection() as Collection<BaseCollectionRecord, string> },
-        { name: "treeSettings", tier: "permanent", collection: getTreeSettingsCollection() as Collection<BaseCollectionRecord, string> },
-        { name: "shortcuts", tier: "permanent", collection: getShortcutsCollection() as Collection<BaseCollectionRecord, string> },
-        { name: "hostPreferences", tier: "permanent", collection: getHostPreferencesCollection() as Collection<BaseCollectionRecord, string> },
-        { name: "authCredentials", tier: "permanent", collection: getAuthCredentialsCollection() as Collection<BaseCollectionRecord, string> },
+        { name: "appPreferences", tier: "permanent", collection: getAppPreferencesCollection() as Collection<BaseCollectionRecord, string> },
         { name: "reviewViewedState", tier: "state", collection: getReviewViewedStateCollection() as Collection<BaseCollectionRecord, string> },
         { name: "reviewDirectoryState", tier: "state", collection: getReviewDirectoryStateCollection() as Collection<BaseCollectionRecord, string> },
         { name: "reviewLayoutState", tier: "state", collection: getReviewLayoutStateCollection() as Collection<BaseCollectionRecord, string> },
@@ -1618,12 +1315,7 @@ async function __resetDataCollectionsForTests() {
     appDataPersistenceDegraded = false;
     lastAppDataSweepAt = null;
 
-    appearanceSettingsCollection = null;
-    diffOptionsCollection = null;
-    treeSettingsCollection = null;
-    shortcutsCollection = null;
-    hostPreferencesCollection = null;
-    authCredentialsCollection = null;
+    appPreferencesCollection = null;
     reviewViewedStateCollection = null;
     reviewDirectoryStateCollection = null;
     reviewLayoutStateCollection = null;

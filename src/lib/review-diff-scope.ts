@@ -14,7 +14,7 @@ type ResolveReviewDiffScopeArgs = {
     destinationCommitHash?: string;
 };
 
-export type ResolvedReviewDiffScope =
+type ResolvedReviewDiffScope =
     | {
           mode: "full";
           visibleCommits: Commit[];

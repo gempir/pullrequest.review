@@ -1,5 +1,5 @@
 import { useLiveQuery } from "@tanstack/react-db";
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import {
     getGitHostFetchActivitySnapshot,
     getHostDataCollectionsVersionSnapshot,
@@ -11,7 +11,8 @@ import {
 } from "@/lib/git-host/query-collections";
 import { parseSchema, pullRequestBundleSchema } from "@/lib/git-host/schemas";
 import { getCapabilitiesForHost } from "@/lib/git-host/service";
-import { type GitHost, HostApiError } from "@/lib/git-host/types";
+import { type GitHost, HostApiError, type PullRequestCriticalBundle, type PullRequestDeferredBundle } from "@/lib/git-host/types";
+import { markReviewPerf, measureReviewPerf, setCriticalLoadDuration, setDeferredLoadDuration } from "@/lib/review-performance/metrics";
 
 interface UseReviewQueryProps {
     host: GitHost;
@@ -22,6 +23,9 @@ interface UseReviewQueryProps {
     canWrite: boolean;
     onRequireAuth?: (reason: "rate_limit") => void;
 }
+
+const CRITICAL_STALE_MS = 30_000;
+const DEFERRED_STALE_MS = 2 * 60_000;
 
 export function isRateLimitedError(error: unknown) {
     if (!error) return false;
@@ -37,14 +41,16 @@ export function isRateLimitedError(error: unknown) {
 function normalizeBundleRecord(value: unknown): PullRequestBundleRecord | undefined {
     const parsed = parseSchema(pullRequestBundleSchema, value);
     if (!parsed) return undefined;
+    const raw = value as PullRequestBundleRecord;
     return {
-        ...(value as PullRequestBundleRecord),
+        ...raw,
         diffstat: Array.isArray(parsed.diffstat) ? (parsed.diffstat as PullRequestBundleRecord["diffstat"]) : [],
         commits: Array.isArray(parsed.commits) ? (parsed.commits as PullRequestBundleRecord["commits"]) : [],
         comments: Array.isArray(parsed.comments) ? (parsed.comments as PullRequestBundleRecord["comments"]) : [],
         history: Array.isArray(parsed.history) ? (parsed.history as PullRequestBundleRecord["history"]) : [],
         reviewers: Array.isArray(parsed.reviewers) ? (parsed.reviewers as PullRequestBundleRecord["reviewers"]) : [],
         buildStatuses: Array.isArray(parsed.buildStatuses) ? (parsed.buildStatuses as PullRequestBundleRecord["buildStatuses"]) : [],
+        deferredStatus: raw.deferredStatus === "ready" || raw.deferredStatus === "loading" || raw.deferredStatus === "error" ? raw.deferredStatus : "idle",
     };
 }
 
@@ -64,12 +70,17 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
         // Depend on host-data collection version so we rescope when persistence falls back.
         void hostDataCollectionsVersion;
         if (!canLoadPullRequest) return null;
-        return getPullRequestBundleCollection({
-            host,
-            workspace,
-            repo,
-            pullRequestId,
-        });
+        return getPullRequestBundleCollection(
+            {
+                host,
+                workspace,
+                repo,
+                pullRequestId,
+            },
+            {
+                staged: true,
+            },
+        );
     }, [canLoadPullRequest, host, hostDataCollectionsVersion, pullRequestId, repo, workspace]);
 
     const bundleQuery = useLiveQuery(
@@ -84,37 +95,113 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
         () => (bundleQuery.data ?? []).map(normalizeBundleRecord).find((record) => record?.id === bundleId),
         [bundleId, bundleQuery.data],
     );
+
+    const critical = useMemo<PullRequestCriticalBundle | undefined>(() => {
+        if (!queryData) return undefined;
+        return {
+            prRef: queryData.prRef,
+            pr: queryData.pr,
+            diff: queryData.diff,
+            diffstat: queryData.diffstat,
+            commits: queryData.commits,
+        };
+    }, [queryData]);
+
+    const deferred = useMemo<PullRequestDeferredBundle | undefined>(() => {
+        if (!queryData) return undefined;
+        return {
+            prRef: queryData.prRef,
+            comments: queryData.comments,
+            history: queryData.history,
+            reviewers: queryData.reviewers,
+            buildStatuses: queryData.buildStatuses,
+        };
+    }, [queryData]);
+
+    const stagedBundle = useMemo(() => {
+        if (!critical) return undefined;
+        return {
+            ...critical,
+            comments: deferred?.comments ?? [],
+            history: deferred?.history,
+            reviewers: deferred?.reviewers,
+            buildStatuses: deferred?.buildStatuses,
+        };
+    }, [critical, deferred]);
+
     const collectionError = bundleStore?.utils.lastError;
     const queryError = collectionError;
-    const queryIsLoading = canLoadPullRequest ? bundleQuery.isLoading && !queryData : false;
-    const queryIsFetching = canLoadPullRequest ? fetchActivity.activeFetches.some((fetch) => fetch.scopeId === fetchScopeId) : false;
+    const queryIsFetching = canLoadPullRequest ? fetchActivity.activeFetches.some((fetch) => fetch.scopeId.startsWith(fetchScopeId)) : false;
+    const isCriticalLoading = canLoadPullRequest ? !critical && (bundleQuery.isLoading || queryIsFetching) : false;
+    const isDeferredLoading = canLoadPullRequest ? Boolean(critical) && (!queryData?.deferredFetchedAt || queryData?.deferredStatus === "loading") : false;
     const refetchQuery = useCallback(() => bundleStore?.utils.refetch({ throwOnError: false }) ?? Promise.resolve(), [bundleStore]);
 
     const query = useMemo(
         () => ({
-            data: queryData,
+            data: stagedBundle,
             error: queryError,
-            isLoading: queryIsLoading,
+            isLoading: isCriticalLoading,
             isFetching: queryIsFetching,
             refetch: refetchQuery,
         }),
-        [queryData, queryError, queryIsLoading, queryIsFetching, refetchQuery],
+        [isCriticalLoading, queryError, queryIsFetching, refetchQuery, stagedBundle],
     );
 
-    const hasPendingBuildStatuses = queryData?.buildStatuses?.some((status) => status.state === "pending") ?? false;
+    const criticalMarkRef = useRef<string>("");
+    const deferredMarkRef = useRef<string>("");
+    useEffect(() => {
+        if (critical || criticalMarkRef.current) return;
+        criticalMarkRef.current = markReviewPerf("critical_data_start");
+    }, [critical]);
+    useEffect(() => {
+        if (!critical || !criticalMarkRef.current) return;
+        const endMark = markReviewPerf("critical_data_ready");
+        const duration = measureReviewPerf("critical_data", criticalMarkRef.current, endMark);
+        if (typeof duration === "number") {
+            setCriticalLoadDuration(duration);
+        }
+        criticalMarkRef.current = "";
+    }, [critical]);
+
+    useEffect(() => {
+        if (queryData?.deferredFetchedAt || deferredMarkRef.current) return;
+        deferredMarkRef.current = markReviewPerf("deferred_data_start");
+    }, [queryData?.deferredFetchedAt]);
+    useEffect(() => {
+        if (!queryData?.deferredFetchedAt || !deferredMarkRef.current) return;
+        const endMark = markReviewPerf("deferred_data_ready");
+        const duration = measureReviewPerf("deferred_data", deferredMarkRef.current, endMark);
+        if (typeof duration === "number") {
+            setDeferredLoadDuration(duration);
+        }
+        deferredMarkRef.current = "";
+    }, [queryData?.deferredFetchedAt]);
+
+    const hasPendingBuildStatuses = stagedBundle?.buildStatuses?.some((status) => status.state === "pending") ?? false;
 
     useEffect(() => {
         if (!bundleStore) return;
-        // Force a network refresh on mount to replace stale in-memory rows from previous runtime shape changes.
-        void bundleStore.utils.refetch({ throwOnError: false });
-    }, [bundleStore]);
+        if (queryIsFetching) return;
+
+        const now = Date.now();
+        const criticalFetchedAt = queryData?.criticalFetchedAt ?? queryData?.fetchedAt ?? 0;
+        const deferredFetchedAt = queryData?.deferredFetchedAt ?? 0;
+        const criticalStale = !criticalFetchedAt || now - criticalFetchedAt > CRITICAL_STALE_MS;
+        const deferredStale = !deferredFetchedAt || now - deferredFetchedAt > DEFERRED_STALE_MS;
+
+        if (!queryData || criticalStale || deferredStale) {
+            void bundleStore.utils.refetch({ throwOnError: false });
+        }
+    }, [bundleStore, queryData, queryIsFetching]);
 
     useEffect(() => {
         if (!hasPendingBuildStatuses) return;
-        const intervalId = window.setInterval(() => {
+        const poll = () => {
             if (queryIsFetching) return;
+            if (typeof document !== "undefined" && document.hidden) return;
             void refetchQuery();
-        }, 10_000);
+        };
+        const intervalId = window.setInterval(poll, 10_000);
         return () => {
             window.clearInterval(intervalId);
         };
@@ -127,6 +214,11 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
 
     return {
         hostCapabilities,
+        critical,
+        deferred,
+        isCriticalLoading,
+        isDeferredLoading,
+        isRefreshing: queryIsFetching,
         query,
     };
 }

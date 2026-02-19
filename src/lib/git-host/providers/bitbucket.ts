@@ -12,8 +12,6 @@ import {
     type PullRequestBuildStatus,
     type PullRequestBundle,
     type PullRequestCommitRangeDiff,
-    type PullRequestCriticalBundle,
-    type PullRequestDeferredBundle,
     type PullRequestDetails,
     type PullRequestFileHistory,
     type PullRequestFileHistoryEntry,
@@ -221,24 +219,6 @@ async function request(url: string, init: RequestInit = {}) {
         });
     }
     return response;
-}
-
-async function mapWithConcurrency<TInput, TOutput>(values: TInput[], concurrency: number, mapper: (value: TInput, index: number) => Promise<TOutput>) {
-    if (values.length === 0) return [] as TOutput[];
-    const safeConcurrency = Math.max(1, Math.min(concurrency, values.length));
-    const results = new Array<TOutput>(values.length);
-    let index = 0;
-
-    const workers = Array.from({ length: safeConcurrency }, async () => {
-        while (index < values.length) {
-            const current = index;
-            index += 1;
-            results[current] = await mapper(values[current], current);
-        }
-    });
-
-    await Promise.all(workers);
-    return results;
 }
 
 async function fetchAllDiffStat(startUrl: string): Promise<DiffStatEntry[]> {
@@ -580,69 +560,6 @@ export const bitbucketNormalization = {
     mapActivityToHistory,
 };
 
-async function fetchBitbucketPullRequestCritical(prRef: { workspace: string; repo: string; pullRequestId: string }): Promise<PullRequestCriticalBundle> {
-    const baseApi = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/pullrequests/${prRef.pullRequestId}`;
-    const [prRes, diffRes, diffstat, commits] = await Promise.all([
-        request(baseApi, { headers: { Accept: "application/json" } }),
-        request(`${baseApi}/diff`, { headers: { Accept: "text/plain" } }),
-        fetchAllDiffStat(`${baseApi}/diffstat?pagelen=100`),
-        fetchAllCommits(`${baseApi}/commits?pagelen=50`),
-    ]);
-
-    const pr = mapPullRequest((await prRes.json()) as BitbucketPullRequestRaw, null);
-    return {
-        prRef: {
-            host: "bitbucket",
-            workspace: prRef.workspace,
-            repo: prRef.repo,
-            pullRequestId: prRef.pullRequestId,
-        },
-        pr,
-        diff: await diffRes.text(),
-        diffstat,
-        commits,
-    };
-}
-
-async function fetchBitbucketPullRequestDeferred(prRef: { workspace: string; repo: string; pullRequestId: string }): Promise<PullRequestDeferredBundle> {
-    const baseApi = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/pullrequests/${prRef.pullRequestId}`;
-
-    const [prRes, comments, activity, currentUserRes, firstCommitRes] = await Promise.all([
-        request(baseApi, { headers: { Accept: "application/json" } }),
-        fetchAllComments(`${baseApi}/comments?pagelen=100&sort=created_on`),
-        fetchAllActivity(`${baseApi}/activity?pagelen=50`).catch(() => []),
-        request("https://api.bitbucket.org/2.0/user", { headers: { Accept: "application/json" } }).catch(() => null),
-        request(`${baseApi}/commits?pagelen=1`, { headers: { Accept: "application/json" } }).catch(() => null),
-    ]);
-
-    const currentUser = currentUserRes ? ((await currentUserRes.json()) as BitbucketUser) : null;
-    const pr = mapPullRequest((await prRes.json()) as BitbucketPullRequestRaw, currentUser);
-    const firstCommitPage = firstCommitRes ? ((await firstCommitRes.json()) as BitbucketCommitPage) : null;
-    const latestCommitHash = firstCommitPage?.values?.[0]?.hash?.trim();
-    const latestBuildStatuses = latestCommitHash
-        ? await fetchAllBuildStatuses(
-              `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/commit/${latestCommitHash}/statuses?pagelen=100`,
-          ).catch(() => [])
-        : [];
-
-    return {
-        prRef: {
-            host: "bitbucket",
-            workspace: prRef.workspace,
-            repo: prRef.repo,
-            pullRequestId: prRef.pullRequestId,
-        },
-        comments,
-        history: mapHistory(pr, comments, activity),
-        reviewers: mapReviewers(pr),
-        buildStatuses: mapBuildStatuses(latestBuildStatuses),
-        prPatch: {
-            currentUserReviewStatus: pr.currentUserReviewStatus,
-            currentUser: pr.currentUser,
-        },
-    };
-}
-
 export const bitbucketClient: GitHostClient = {
     host: "bitbucket",
     capabilities: {
@@ -705,56 +622,58 @@ export const bitbucketClient: GitHostClient = {
     },
     async listPullRequestsForRepos(data) {
         if (!data.repos.length) return [];
-        return mapWithConcurrency(data.repos, 4, async (repo) => {
+        const results: Array<{
+            repo: RepoRef;
+            pullRequests: PullRequestSummary[];
+        }> = [];
+
+        for (const repo of data.repos) {
             const url = `https://api.bitbucket.org/2.0/repositories/${repo.workspace}/${repo.repo}/pullrequests?pagelen=20`;
             const res = await request(url, {
                 headers: { Accept: "application/json" },
             });
             const page = (await res.json()) as BitbucketPullRequestPage;
-            return {
+            results.push({
                 repo,
                 pullRequests: (page.values ?? []).map(mapPullRequestSummary),
-            };
-        });
-    },
-    async fetchPullRequestCriticalByRef(data): Promise<PullRequestCriticalBundle> {
-        return fetchBitbucketPullRequestCritical({
-            workspace: data.prRef.workspace,
-            repo: data.prRef.repo,
-            pullRequestId: data.prRef.pullRequestId,
-        });
-    },
-    async fetchPullRequestDeferredByRef(data): Promise<PullRequestDeferredBundle> {
-        return fetchBitbucketPullRequestDeferred({
-            workspace: data.prRef.workspace,
-            repo: data.prRef.repo,
-            pullRequestId: data.prRef.pullRequestId,
-        });
+            });
+        }
+
+        return results;
     },
     async fetchPullRequestBundleByRef(data): Promise<PullRequestBundle> {
-        const [critical, deferred] = await Promise.all([
-            fetchBitbucketPullRequestCritical({
-                workspace: data.prRef.workspace,
-                repo: data.prRef.repo,
-                pullRequestId: data.prRef.pullRequestId,
-            }),
-            fetchBitbucketPullRequestDeferred({
-                workspace: data.prRef.workspace,
-                repo: data.prRef.repo,
-                pullRequestId: data.prRef.pullRequestId,
-            }),
+        const prRef = data.prRef;
+        const baseApi = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/pullrequests/${prRef.pullRequestId}`;
+
+        const [prRes, diffRes, diffstat, commits, comments, activity, currentUserRes] = await Promise.all([
+            request(baseApi, { headers: { Accept: "application/json" } }),
+            request(`${baseApi}/diff`, { headers: { Accept: "text/plain" } }),
+            fetchAllDiffStat(`${baseApi}/diffstat?pagelen=100`),
+            fetchAllCommits(`${baseApi}/commits?pagelen=50`),
+            fetchAllComments(`${baseApi}/comments?pagelen=100&sort=created_on`),
+            fetchAllActivity(`${baseApi}/activity?pagelen=50`).catch(() => []),
+            request("https://api.bitbucket.org/2.0/user", { headers: { Accept: "application/json" } }).catch(() => null),
         ]);
-        const mergedPullRequest: PullRequestDetails = {
-            ...critical.pr,
-            ...(deferred.prPatch ?? {}),
-        };
+
+        const currentUser = currentUserRes ? ((await currentUserRes.json()) as BitbucketUser) : null;
+        const pr = mapPullRequest((await prRes.json()) as BitbucketPullRequestRaw, currentUser);
+        const latestCommitHash = commits[0]?.hash;
+        const latestBuildStatuses = latestCommitHash
+            ? await fetchAllBuildStatuses(
+                  `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/commit/${latestCommitHash}/statuses?pagelen=100`,
+              ).catch(() => [])
+            : [];
+
         return {
-            ...critical,
-            pr: mergedPullRequest,
-            comments: deferred.comments,
-            history: deferred.history,
-            reviewers: deferred.reviewers,
-            buildStatuses: deferred.buildStatuses,
+            prRef,
+            pr,
+            diff: await diffRes.text(),
+            diffstat,
+            commits,
+            comments,
+            history: mapHistory(pr, comments, activity),
+            reviewers: mapReviewers(pr),
+            buildStatuses: mapBuildStatuses(latestBuildStatuses),
         };
     },
     async approvePullRequest(data) {
@@ -890,18 +809,20 @@ export const bitbucketClient: GitHostClient = {
             return { path: normalizedPath, entries: [], fetchedAt: Date.now() };
         }
 
-        const commitCandidates = commits.filter((commit) => Boolean(commit.hash?.trim()));
-        const resolved = await mapWithConcurrency<Commit, PullRequestFileHistoryEntry | null>(commitCandidates, 4, async (commit) => {
+        const entries: PullRequestFileHistoryEntry[] = [];
+        for (const commit of commits) {
+            if (entries.length >= limit) break;
             const commitHash = commit.hash?.trim();
-            if (!commitHash) return null;
+            if (!commitHash) continue;
 
             const diffRes = await request(`https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/diff/${commitHash}`, {
                 headers: { Accept: "text/plain" },
             });
             const diffText = await diffRes.text();
             const match = extractSingleFilePatchFromUnifiedDiff(diffText, normalizedPath);
-            if (!match) return null;
-            return {
+            if (!match) continue;
+
+            entries.push({
                 versionId: `${normalizedPath}:${commitHash}`,
                 commitHash,
                 commitDate: commit.date,
@@ -910,9 +831,8 @@ export const bitbucketClient: GitHostClient = {
                 filePathAtCommit: match.filePathAtCommit,
                 status: match.status,
                 patch: match.patch,
-            };
-        });
-        const entries = resolved.filter((entry): entry is PullRequestFileHistoryEntry => entry !== null).slice(0, limit);
+            });
+        }
 
         return {
             path: normalizedPath,

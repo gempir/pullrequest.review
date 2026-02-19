@@ -155,29 +155,6 @@ export interface PullRequestBundle {
     buildStatuses?: PullRequestBuildStatus[];
 }
 
-export interface PullRequestCriticalBundle {
-    prRef: PullRequestRef;
-    pr: PullRequestDetails;
-    diff: string;
-    diffstat: DiffStatEntry[];
-    commits: Commit[];
-}
-
-export interface PullRequestDeferredBundle {
-    prRef: PullRequestRef;
-    comments: Comment[];
-    history?: PullRequestHistoryEvent[];
-    reviewers?: PullRequestReviewer[];
-    buildStatuses?: PullRequestBuildStatus[];
-    prPatch?: Partial<PullRequestDetails>;
-}
-
-export interface PullRequestHydrationState {
-    criticalFetchedAt: number;
-    deferredFetchedAt?: number;
-    deferredStatus: "idle" | "loading" | "ready" | "error";
-}
-
 export interface PullRequestCommitRangeDiff {
     prRef: PullRequestRef;
     baseCommitHash: string;
@@ -260,8 +237,6 @@ export interface GitHostClient {
     logout(): Promise<AuthState>;
     listRepositories(): Promise<RepoRef[]>;
     listPullRequestsForRepos(data: { repos: RepoRef[] }): Promise<Array<{ repo: RepoRef; pullRequests: PullRequestSummary[] }>>;
-    fetchPullRequestCriticalByRef(data: { prRef: PullRequestRef }): Promise<PullRequestCriticalBundle>;
-    fetchPullRequestDeferredByRef(data: { prRef: PullRequestRef }): Promise<PullRequestDeferredBundle>;
     fetchPullRequestBundleByRef(data: { prRef: PullRequestRef }): Promise<PullRequestBundle>;
     approvePullRequest(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     removePullRequestApproval(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;

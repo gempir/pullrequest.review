@@ -40,7 +40,6 @@ const TREE_SETTINGS_RECORD_ID = "tree-settings";
 const SHORTCUTS_RECORD_ID = "shortcuts";
 const HOST_PREFERENCES_RECORD_ID = "host-preferences";
 const REVIEW_LAYOUT_RECORD_ID = "review-layout";
-const REVIEW_PERF_V2_FLAG_RECORD_ID = "review-perf-v2";
 
 const LOCAL_STORAGE_RESET_PREFIX = "pr_review_";
 
@@ -888,22 +887,6 @@ export function writeHostPreferencesRecord(data: { activeHost: GitHost; reposByH
             reposByHost: normalizeReposByHost(data.reposByHost),
         },
         HOST_PREFERENCES_RECORD_ID,
-    );
-}
-
-export function readReviewPerfV2FlagRecord() {
-    const record = readPermanentRecord<{ enabled?: boolean }>(REVIEW_PERF_V2_FLAG_RECORD_ID);
-    if (!record) return null;
-    return typeof record.enabled === "boolean" ? record.enabled : null;
-}
-
-export function writeReviewPerfV2FlagRecord(enabled: boolean) {
-    writePermanentRecord(
-        REVIEW_PERF_V2_FLAG_RECORD_ID,
-        {
-            enabled,
-        },
-        REVIEW_PERF_V2_FLAG_RECORD_ID,
     );
 }
 

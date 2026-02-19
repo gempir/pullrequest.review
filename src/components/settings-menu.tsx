@@ -29,7 +29,6 @@ import {
     MONO_FONT_FAMILY_OPTIONS,
     SANS_FONT_FAMILY_OPTIONS,
 } from "@/lib/font-options";
-import { isReviewPerfV2Enabled, setReviewPerfV2Enabled } from "@/lib/review-performance/feature-flag";
 import { getReviewPerfSnapshot, type ReviewPerfSnapshot } from "@/lib/review-performance/metrics";
 import { type ShortcutConfig, useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
@@ -509,14 +508,12 @@ function StorageTab() {
     const [state, setState] = useState<{
         snapshot: DataCollectionsDebugSnapshot | null;
         perfSnapshot: ReviewPerfSnapshot | null;
-        reviewPerfV2Enabled: boolean;
         loading: boolean;
         busyAction: "refresh" | "clear-cache" | "clear-expired" | "export" | null;
         statusMessage: string | null;
     }>({
         snapshot: null,
         perfSnapshot: null,
-        reviewPerfV2Enabled: isReviewPerfV2Enabled(),
         loading: true,
         busyAction: null,
         statusMessage: null,
@@ -531,7 +528,6 @@ function StorageTab() {
                 ...prev,
                 snapshot,
                 perfSnapshot,
-                reviewPerfV2Enabled: isReviewPerfV2Enabled(),
             }));
         } finally {
             setState((prev) => ({ ...prev, busyAction: null, loading: false }));
@@ -710,22 +706,6 @@ function StorageTab() {
             <section className="space-y-2">
                 <h3 className="text-[12px] font-medium">Actions</h3>
                 <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={state.busyAction !== null}
-                        onClick={() => {
-                            const nextEnabled = !state.reviewPerfV2Enabled;
-                            setReviewPerfV2Enabled(nextEnabled);
-                            setState((prev) => ({
-                                ...prev,
-                                reviewPerfV2Enabled: nextEnabled,
-                                statusMessage: `reviewPerfV2 ${nextEnabled ? "enabled" : "disabled"}. Refresh the page to apply.`,
-                            }));
-                        }}
-                    >
-                        reviewPerfV2: {state.reviewPerfV2Enabled ? "ON" : "OFF"}
-                    </Button>
                     <Button variant="outline" size="sm" disabled={state.busyAction !== null} onClick={() => void runClearCache()}>
                         Clear cache tier
                     </Button>

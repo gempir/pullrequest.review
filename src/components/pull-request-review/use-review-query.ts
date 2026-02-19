@@ -12,7 +12,6 @@ import {
 import { parseSchema, pullRequestBundleSchema } from "@/lib/git-host/schemas";
 import { getCapabilitiesForHost } from "@/lib/git-host/service";
 import { type GitHost, HostApiError, type PullRequestCriticalBundle, type PullRequestDeferredBundle } from "@/lib/git-host/types";
-import { isReviewPerfV2Enabled } from "@/lib/review-performance/feature-flag";
 import { markReviewPerf, measureReviewPerf, setCriticalLoadDuration, setDeferredLoadDuration } from "@/lib/review-performance/metrics";
 
 interface UseReviewQueryProps {
@@ -56,7 +55,6 @@ function normalizeBundleRecord(value: unknown): PullRequestBundleRecord | undefi
 }
 
 export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, canWrite, onRequireAuth }: UseReviewQueryProps) {
-    const perfV2Enabled = isReviewPerfV2Enabled();
     const hostCapabilities = useMemo(() => getCapabilitiesForHost(host), [host]);
     const canLoadPullRequest = canRead || hostCapabilities.publicReadSupported;
     const bundleId = useMemo(() => `${host}:${workspace}/${repo}/${pullRequestId}`, [host, pullRequestId, repo, workspace]);
@@ -80,10 +78,10 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
                 pullRequestId,
             },
             {
-                staged: perfV2Enabled,
+                staged: true,
             },
         );
-    }, [canLoadPullRequest, host, hostDataCollectionsVersion, perfV2Enabled, pullRequestId, repo, workspace]);
+    }, [canLoadPullRequest, host, hostDataCollectionsVersion, pullRequestId, repo, workspace]);
 
     const bundleQuery = useLiveQuery(
         (q) => {
@@ -183,10 +181,6 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
 
     useEffect(() => {
         if (!bundleStore) return;
-        if (!perfV2Enabled) {
-            void bundleStore.utils.refetch({ throwOnError: false });
-            return;
-        }
         if (queryIsFetching) return;
 
         const now = Date.now();
@@ -198,7 +192,7 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
         if (!queryData || criticalStale || deferredStale) {
             void bundleStore.utils.refetch({ throwOnError: false });
         }
-    }, [bundleStore, perfV2Enabled, queryData, queryIsFetching]);
+    }, [bundleStore, queryData, queryIsFetching]);
 
     useEffect(() => {
         if (!hasPendingBuildStatuses) return;

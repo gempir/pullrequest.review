@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { readHostPreferencesRecord, writeHostPreferencesRecord } from "@/lib/data/query-collections";
+import { ensureDataCollectionsReady, readHostPreferencesRecord, writeHostPreferencesRecord } from "@/lib/data/query-collections";
 import { getAuthStateForHost, loginToHost, logoutHost } from "@/lib/git-host/service";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 
@@ -74,74 +74,123 @@ function parseActiveHost(): GitHost {
 }
 
 export function PrProvider({ children }: { children: ReactNode }) {
-    const [authHydrated, setAuthHydrated] = useState(false);
-    const [authByHost, setAuthByHost] = useState<AuthByHost>(() => emptyAuthByHost());
-    const [reposByHost, setReposByHost] = useState<ReposByHost>(() => ({
-        bitbucket: parseRepos("bitbucket"),
-        github: parseRepos("github"),
-    }));
-    const [activeHost, setActiveHostState] = useState<GitHost>(() => parseActiveHost());
+    const [state, setState] = useState<{
+        authHydrated: boolean;
+        authByHost: AuthByHost;
+        reposByHost: ReposByHost;
+        activeHost: GitHost;
+    }>({
+        authHydrated: false,
+        authByHost: emptyAuthByHost(),
+        reposByHost: emptyReposByHost(),
+        activeHost: "bitbucket",
+    });
 
     const refreshAuth = useCallback(async () => {
-        const states = await Promise.all(
+        await ensureDataCollectionsReady();
+        const authStates = await Promise.all(
             HOSTS.map(async (host) => ({
                 host,
                 state: await getAuthStateForHost(host),
             })),
         );
-
-        setAuthByHost((prev) => {
-            const next = { ...prev };
-            for (const item of states) {
-                next[item.host] = Boolean(item.state.authenticated);
+        const nextAuthByHost = emptyAuthByHost();
+        for (const item of authStates) {
+            nextAuthByHost[item.host] = Boolean(item.state.authenticated);
+        }
+        setState((prev) => {
+            if (prev.authByHost.bitbucket === nextAuthByHost.bitbucket && prev.authByHost.github === nextAuthByHost.github) {
+                return prev;
             }
-            return next;
+            return {
+                ...prev,
+                authByHost: nextAuthByHost,
+            };
         });
     }, []);
 
     useEffect(() => {
-        refreshAuth().finally(() => setAuthHydrated(true));
-    }, [refreshAuth]);
+        let cancelled = false;
+
+        void (async () => {
+            await ensureDataCollectionsReady();
+            if (cancelled) return;
+
+            const nextReposByHost = {
+                bitbucket: parseRepos("bitbucket"),
+                github: parseRepos("github"),
+            };
+            const nextActiveHost = parseActiveHost();
+            const authStates = await Promise.all(
+                HOSTS.map(async (host) => ({
+                    host,
+                    state: await getAuthStateForHost(host),
+                })),
+            );
+            if (cancelled) return;
+
+            const nextAuthByHost = emptyAuthByHost();
+            for (const item of authStates) {
+                nextAuthByHost[item.host] = Boolean(item.state.authenticated);
+            }
+
+            setState({
+                authHydrated: true,
+                authByHost: nextAuthByHost,
+                reposByHost: nextReposByHost,
+                activeHost: nextActiveHost,
+            });
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
-        writeHostPreferencesRecord({ activeHost, reposByHost });
-    }, [activeHost, reposByHost]);
+        if (!state.authHydrated) return;
+        writeHostPreferencesRecord({ activeHost: state.activeHost, reposByHost: state.reposByHost });
+    }, [state.activeHost, state.authHydrated, state.reposByHost]);
 
     const setActiveHost = useCallback((host: GitHost) => {
-        setActiveHostState(host);
+        setState((prev) => (prev.activeHost === host ? prev : { ...prev, activeHost: host }));
     }, []);
 
     const setReposForHost = useCallback((host: GitHost, repos: RepoRef[]) => {
-        setReposByHost((prev) => ({
+        setState((prev) => ({
             ...prev,
-            [host]: repos
-                .filter((repo) => repo.host === host)
-                .map((repo) => {
-                    const workspace = repo.workspace.trim();
-                    const repositorySlug = repo.repo.trim();
-                    return {
-                        host,
-                        workspace,
-                        repo: repositorySlug,
-                        fullName: typeof repo.fullName === "string" && repo.fullName.trim().length ? repo.fullName.trim() : `${workspace}/${repositorySlug}`,
-                        displayName: typeof repo.displayName === "string" && repo.displayName.trim().length ? repo.displayName.trim() : repositorySlug,
-                    } satisfies RepoRef;
-                }),
+            reposByHost: {
+                ...prev.reposByHost,
+                [host]: repos
+                    .filter((repo) => repo.host === host)
+                    .map((repo) => {
+                        const workspace = repo.workspace.trim();
+                        const repositorySlug = repo.repo.trim();
+                        return {
+                            host,
+                            workspace,
+                            repo: repositorySlug,
+                            fullName:
+                                typeof repo.fullName === "string" && repo.fullName.trim().length ? repo.fullName.trim() : `${workspace}/${repositorySlug}`,
+                            displayName: typeof repo.displayName === "string" && repo.displayName.trim().length ? repo.displayName.trim() : repositorySlug,
+                        } satisfies RepoRef;
+                    }),
+            },
         }));
     }, []);
 
     const clearReposForHost = useCallback((host: GitHost) => {
-        setReposByHost((prev) => ({ ...prev, [host]: [] }));
+        setState((prev) => ({ ...prev, reposByHost: { ...prev.reposByHost, [host]: [] } }));
     }, []);
 
     const clearAllRepos = useCallback(() => {
-        setReposByHost(emptyReposByHost());
+        setState((prev) => ({ ...prev, reposByHost: emptyReposByHost() }));
     }, []);
 
     const login = useCallback<PrContextType["login"]>(
         async (data) => {
             await loginToHost(data);
-            setActiveHostState(data.host);
+            setState((prev) => ({ ...prev, activeHost: data.host }));
             await refreshAuth();
         },
         [refreshAuth],
@@ -150,23 +199,29 @@ export function PrProvider({ children }: { children: ReactNode }) {
     const logout = useCallback<PrContextType["logout"]>(async (host) => {
         if (host) {
             await logoutHost({ host });
-            setAuthByHost((prev) => ({ ...prev, [host]: false }));
-            setReposByHost((prev) => ({ ...prev, [host]: [] }));
+            setState((prev) => ({
+                ...prev,
+                authByHost: { ...prev.authByHost, [host]: false },
+                reposByHost: { ...prev.reposByHost, [host]: [] },
+            }));
             return;
         }
 
         await Promise.all(HOSTS.map((entry) => logoutHost({ host: entry })));
-        setAuthByHost(emptyAuthByHost());
-        setReposByHost(emptyReposByHost());
+        setState((prev) => ({
+            ...prev,
+            authByHost: emptyAuthByHost(),
+            reposByHost: emptyReposByHost(),
+        }));
     }, []);
 
     const value = useMemo(
         () => ({
-            isAuthenticated: HOSTS.some((host) => authByHost[host]),
-            authHydrated,
-            authByHost,
-            reposByHost,
-            activeHost,
+            isAuthenticated: HOSTS.some((host) => state.authByHost[host]),
+            authHydrated: state.authHydrated,
+            authByHost: state.authByHost,
+            reposByHost: state.reposByHost,
+            activeHost: state.activeHost,
             setActiveHost,
             setReposForHost,
             clearReposForHost,
@@ -175,7 +230,7 @@ export function PrProvider({ children }: { children: ReactNode }) {
             login,
             logout,
         }),
-        [authHydrated, authByHost, reposByHost, activeHost, setActiveHost, setReposForHost, clearReposForHost, clearAllRepos, refreshAuth, login, logout],
+        [state, setActiveHost, setReposForHost, clearReposForHost, clearAllRepos, refreshAuth, login, logout],
     );
 
     return <PrContext.Provider value={value}>{children}</PrContext.Provider>;

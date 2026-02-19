@@ -1,5 +1,5 @@
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { readTreeSettingsRecord, writeTreeSettingsRecord } from "@/lib/data/query-collections";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { ensureDataCollectionsReady, readTreeSettingsRecord, writeTreeSettingsRecord } from "@/lib/data/query-collections";
 
 export type FileNodeType = "summary" | "file" | "directory";
 export type ChangeKind = "add" | "del" | "mix";
@@ -164,19 +164,30 @@ function useFileTreeProviderValue(): FileTreeContextType {
     const [activeFile, setActiveFile] = useState<string | undefined>();
     const [compactSingleChildDirectories, setCompactSingleChildDirectories] = useState(true);
     const [treeIndentSize, setTreeIndentSizeState] = useState(DEFAULT_TREE_INDENT_SIZE);
+    const preferencesHydratedRef = useRef(false);
 
     useEffect(() => {
-        const stored = readTreeSettingsRecord();
-        if (stored) {
-            setCompactSingleChildDirectories(stored.compactSingleChildDirectories);
-            const parsedIndentSize = Number(stored.treeIndentSize);
-            if (Number.isFinite(parsedIndentSize) && parsedIndentSize >= MIN_TREE_INDENT_SIZE && parsedIndentSize <= MAX_TREE_INDENT_SIZE) {
-                setTreeIndentSizeState(parsedIndentSize);
+        let cancelled = false;
+        void (async () => {
+            await ensureDataCollectionsReady();
+            if (cancelled) return;
+            const stored = readTreeSettingsRecord();
+            if (stored) {
+                setCompactSingleChildDirectories(stored.compactSingleChildDirectories);
+                const parsedIndentSize = Number(stored.treeIndentSize);
+                if (Number.isFinite(parsedIndentSize) && parsedIndentSize >= MIN_TREE_INDENT_SIZE && parsedIndentSize <= MAX_TREE_INDENT_SIZE) {
+                    setTreeIndentSizeState(parsedIndentSize);
+                }
             }
-        }
+            preferencesHydratedRef.current = true;
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {
+        if (!preferencesHydratedRef.current) return;
         writeTreeSettingsRecord({ compactSingleChildDirectories, treeIndentSize });
     }, [compactSingleChildDirectories, treeIndentSize]);
 

@@ -1,6 +1,6 @@
 import type { BaseDiffOptions } from "@pierre/diffs";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { readDiffOptionsRecord, writeDiffOptionsRecord } from "@/lib/data/query-collections";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { ensureDataCollectionsReady, readDiffOptionsRecord, writeDiffOptionsRecord } from "@/lib/data/query-collections";
 import { registerExtendedDiffThemes } from "@/lib/diff-theme-registration";
 import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue } from "@/lib/font-options";
@@ -88,27 +88,37 @@ function parseStoredOptions(raw: Record<string, unknown> | null): DiffOptions | 
 
 export function DiffOptionsProvider({ children }: { children: ReactNode }) {
     const [options, setOptions] = useState<DiffOptions>(() => {
-        const parsed = parseStoredOptions(readDiffOptionsRecord());
-        if (parsed) return parsed;
         return {
             ...defaultOptions,
             theme: getBrowserPreferredTheme(),
         };
     });
-    const hydratedRef = useRef(false);
+    const [hydrated, setHydrated] = useState(false);
 
     useEffect(() => {
         registerExtendedDiffThemes();
     }, []);
 
     useEffect(() => {
-        hydratedRef.current = true;
+        let cancelled = false;
+        void (async () => {
+            await ensureDataCollectionsReady();
+            if (cancelled) return;
+            const parsed = parseStoredOptions(readDiffOptionsRecord());
+            if (parsed) {
+                setOptions(parsed);
+            }
+            setHydrated(true);
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {
-        if (!hydratedRef.current) return;
+        if (!hydrated) return;
         writeDiffOptionsRecord(options);
-    }, [options]);
+    }, [hydrated, options]);
 
     useEffect(() => {
         if (typeof window === "undefined" || !options.followSystemTheme) return;

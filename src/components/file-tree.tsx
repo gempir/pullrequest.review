@@ -12,6 +12,7 @@ import {
     SlidersHorizontal,
     SwatchBook,
 } from "lucide-react";
+import { memo, useMemo } from "react";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { type ChangeKind, type FileNode, useFileTree } from "@/lib/file-tree-context";
@@ -110,29 +111,29 @@ export function FileTree({
     const active = activeFile ?? tree.activeFile;
     const treeIndentSize = tree.treeIndentSize;
     const normalizedQuery = filterQuery?.trim().toLowerCase() ?? "";
-
-    const matchesNode = (node: FileNode): boolean => {
-        if (node.type === "summary") {
-            if (!normalizedQuery) return true;
-            const summarySearch = `${node.name} ${node.path}`.toLowerCase();
-            return summarySearch.includes(normalizedQuery);
-        }
-        if (node.type === "file") {
-            const queryMatch = !normalizedQuery || node.path.toLowerCase().includes(normalizedQuery);
-            const allowedMatch = !allowedFiles || allowedFiles.has(node.path);
-            return queryMatch && allowedMatch;
-        }
-        const children = tree.getChildrenForPath(node.path);
-        const host = hostFromTreePath(node.path);
-        if (host && children.length === 0) {
-            if (!normalizedQuery) return true;
-            const hostSearch = `${node.name} ${node.path}`.toLowerCase();
-            return hostSearch.includes(normalizedQuery);
-        }
-        return children.some(matchesNode);
-    };
-
-    const nodes = rawNodes.filter(matchesNode);
+    const nodes = useMemo(() => {
+        const matchesNode = (node: FileNode): boolean => {
+            if (node.type === "summary") {
+                if (!normalizedQuery) return true;
+                const summarySearch = `${node.name} ${node.path}`.toLowerCase();
+                return summarySearch.includes(normalizedQuery);
+            }
+            if (node.type === "file") {
+                const queryMatch = !normalizedQuery || node.path.toLowerCase().includes(normalizedQuery);
+                const allowedMatch = !allowedFiles || allowedFiles.has(node.path);
+                return queryMatch && allowedMatch;
+            }
+            const children = tree.getChildrenForPath(node.path);
+            const host = hostFromTreePath(node.path);
+            if (host && children.length === 0) {
+                if (!normalizedQuery) return true;
+                const hostSearch = `${node.name} ${node.path}`.toLowerCase();
+                return hostSearch.includes(normalizedQuery);
+            }
+            return children.some(matchesNode);
+        };
+        return rawNodes.filter(matchesNode);
+    }, [allowedFiles, normalizedQuery, rawNodes, tree]);
 
     return (
         <div className="flex flex-col tree-font-scope">
@@ -288,7 +289,7 @@ function DirectoryNode({
     );
 }
 
-function FileNodeRow({
+const FileNodeRow = memo(function FileNodeRow({
     node,
     level,
     treeIndentSize,
@@ -352,4 +353,40 @@ function FileNodeRow({
             <span className={cn("flex-1 min-w-0 truncate pr-2 text-foreground", isUnviewedFile ? "text-status-renamed" : "")}>{node.name}</span>
         </button>
     );
+}, areFileNodeRowPropsEqual);
+
+function areFileNodeRowPropsEqual(
+    previous: Readonly<{
+        node: FileNode;
+        level: number;
+        treeIndentSize: number;
+        kinds: ReadonlyMap<string, ChangeKind>;
+        active?: string;
+        viewed?: boolean;
+        onFileClick?: (node: FileNode) => void;
+        showUnviewedIndicator: boolean;
+    }>,
+    next: Readonly<{
+        node: FileNode;
+        level: number;
+        treeIndentSize: number;
+        kinds: ReadonlyMap<string, ChangeKind>;
+        active?: string;
+        viewed?: boolean;
+        onFileClick?: (node: FileNode) => void;
+        showUnviewedIndicator: boolean;
+    }>,
+) {
+    if (previous.node !== next.node) return false;
+    if (previous.level !== next.level) return false;
+    if (previous.treeIndentSize !== next.treeIndentSize) return false;
+    if (previous.viewed !== next.viewed) return false;
+    if (previous.onFileClick !== next.onFileClick) return false;
+    if (previous.showUnviewedIndicator !== next.showUnviewedIndicator) return false;
+    const previousWasActive = previous.active === previous.node.path;
+    const nextIsActive = next.active === next.node.path;
+    if (previousWasActive !== nextIsActive) return false;
+    const previousKind = previous.node.type === "summary" ? undefined : previous.kinds.get(previous.node.path);
+    const nextKind = next.node.type === "summary" ? undefined : next.kinds.get(next.node.path);
+    return previousKind === nextKind;
 }

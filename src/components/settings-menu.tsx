@@ -29,6 +29,8 @@ import {
     MONO_FONT_FAMILY_OPTIONS,
     SANS_FONT_FAMILY_OPTIONS,
 } from "@/lib/font-options";
+import { isReviewPerfV2Enabled, setReviewPerfV2Enabled } from "@/lib/review-performance/feature-flag";
+import { getReviewPerfSnapshot, type ReviewPerfSnapshot } from "@/lib/review-performance/metrics";
 import { type ShortcutConfig, useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
@@ -506,11 +508,15 @@ function formatTimestamp(timestamp: number | null) {
 function StorageTab() {
     const [state, setState] = useState<{
         snapshot: DataCollectionsDebugSnapshot | null;
+        perfSnapshot: ReviewPerfSnapshot | null;
+        reviewPerfV2Enabled: boolean;
         loading: boolean;
         busyAction: "refresh" | "clear-cache" | "clear-expired" | "export" | null;
         statusMessage: string | null;
     }>({
         snapshot: null,
+        perfSnapshot: null,
+        reviewPerfV2Enabled: isReviewPerfV2Enabled(),
         loading: true,
         busyAction: null,
         statusMessage: null,
@@ -520,9 +526,12 @@ function StorageTab() {
         setState((prev) => ({ ...prev, busyAction: "refresh" }));
         try {
             const snapshot = await getDataCollectionsDebugSnapshot();
+            const perfSnapshot = getReviewPerfSnapshot();
             setState((prev) => ({
                 ...prev,
                 snapshot,
+                perfSnapshot,
+                reviewPerfV2Enabled: isReviewPerfV2Enabled(),
             }));
         } finally {
             setState((prev) => ({ ...prev, busyAction: null, loading: false }));
@@ -569,10 +578,12 @@ function StorageTab() {
         setState((prev) => ({ ...prev, busyAction: "export", statusMessage: null }));
         try {
             const snapshot = await getDataCollectionsDebugSnapshot();
+            const perfSnapshot = getReviewPerfSnapshot();
             const payload = JSON.stringify(
                 {
                     generatedAt: new Date().toISOString(),
                     storage: snapshot,
+                    reviewPerformance: perfSnapshot,
                 },
                 null,
                 2,
@@ -609,6 +620,7 @@ function StorageTab() {
 
     const tierOrder: StorageTier[] = ["cache", "state", "permanent"];
     const snapshot = state.snapshot;
+    const perfSnapshot = state.perfSnapshot;
 
     if (state.loading && !snapshot) {
         return <div className="text-[12px] text-muted-foreground">Loading storage diagnostics...</div>;
@@ -628,7 +640,7 @@ function StorageTab() {
             {snapshot ? (
                 <section className="space-y-2">
                     <h3 className="text-[12px] font-medium">Storage Health</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[12px]">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[12px]">
                         <div className="border border-border p-2">
                             <div>Collections backend: {snapshot.backendMode}</div>
                             <div>Host cache backend: {snapshot.hostBackendMode}</div>
@@ -641,6 +653,12 @@ function StorageTab() {
                             <div>
                                 Quota estimate: {formatBytes(snapshot.estimatedUsageBytes)} / {formatBytes(snapshot.estimatedQuotaBytes)}
                             </div>
+                        </div>
+                        <div className="border border-border p-2">
+                            <div>Critical load ms: {perfSnapshot?.lastCriticalLoadMs ?? "n/a"}</div>
+                            <div>Deferred load ms: {perfSnapshot?.lastDeferredLoadMs ?? "n/a"}</div>
+                            <div>Long tasks: {perfSnapshot?.longTaskCount ?? 0}</div>
+                            <div>Worker queue depth: {perfSnapshot?.workerQueueDepth ?? 0}</div>
                         </div>
                     </div>
                 </section>
@@ -692,6 +710,22 @@ function StorageTab() {
             <section className="space-y-2">
                 <h3 className="text-[12px] font-medium">Actions</h3>
                 <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={state.busyAction !== null}
+                        onClick={() => {
+                            const nextEnabled = !state.reviewPerfV2Enabled;
+                            setReviewPerfV2Enabled(nextEnabled);
+                            setState((prev) => ({
+                                ...prev,
+                                reviewPerfV2Enabled: nextEnabled,
+                                statusMessage: `reviewPerfV2 ${nextEnabled ? "enabled" : "disabled"}. Refresh the page to apply.`,
+                            }));
+                        }}
+                    >
+                        reviewPerfV2: {state.reviewPerfV2Enabled ? "ON" : "OFF"}
+                    </Button>
                     <Button variant="outline" size="sm" disabled={state.busyAction !== null} onClick={() => void runClearCache()}>
                         Clear cache tier
                     </Button>

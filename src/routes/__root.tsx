@@ -3,7 +3,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createRootRoute, HeadContent, Link, Outlet, Scripts, useNavigate, useRouterState } from "@tanstack/react-router";
 import { GitPullRequest } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect } from "react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
@@ -15,7 +15,7 @@ import { getHostLabel } from "@/lib/git-host/service";
 import type { GitHost } from "@/lib/git-host/types";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
 import { appQueryClient } from "@/lib/query-client";
-import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
+import { ensureLongTaskObserver } from "@/lib/review-performance/metrics";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
 
 import "../../styles.css";
@@ -50,38 +50,25 @@ function NotFoundComponent() {
 }
 
 function RootComponent() {
-    const [storageReady, setStorageReady] = useState(false);
-
     useEffect(() => {
-        let cancelled = false;
-        ensureDataCollectionsReady().finally(() => {
-            if (cancelled) return;
-            setStorageReady(true);
-        });
-        return () => {
-            cancelled = true;
-        };
+        void ensureDataCollectionsReady();
+        ensureLongTaskObserver();
     }, []);
 
     return (
         <RootDocument>
             <QueryClientProvider client={appQueryClient}>
-                {storageReady ? (
-                    <AppearanceProvider>
-                        <PrProvider>
-                            <DiffOptionsProvider>
-                                <ShikiAppThemeSync />
-                                <FileTreeProvider>
-                                    <ShortcutsProvider>
-                                        <AppLayout />
-                                    </ShortcutsProvider>
-                                </FileTreeProvider>
-                            </DiffOptionsProvider>
-                        </PrProvider>
-                    </AppearanceProvider>
-                ) : (
-                    <div className="h-full bg-background" />
-                )}
+                <AppearanceProvider>
+                    <PrProvider>
+                        <DiffOptionsProvider>
+                            <FileTreeProvider>
+                                <ShortcutsProvider>
+                                    <AppLayout />
+                                </ShortcutsProvider>
+                            </FileTreeProvider>
+                        </DiffOptionsProvider>
+                    </PrProvider>
+                </AppearanceProvider>
             </QueryClientProvider>
         </RootDocument>
     );

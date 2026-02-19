@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { readAppearanceSettingsRecord, writeAppearanceSettingsRecord } from "@/lib/data/query-collections";
+import { ensureDataCollectionsReady, readAppearanceSettingsRecord, writeAppearanceSettingsRecord } from "@/lib/data/query-collections";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue, fontFamilyToCss } from "@/lib/font-options";
 
 type AppThemeMode = "auto" | "light" | "dark";
@@ -101,11 +101,19 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     const [hydrated, setHydrated] = useState(false);
 
     useEffect(() => {
-        const parsed = parseStoredSettings(readAppearanceSettingsRecord());
-        if (parsed) {
-            setSettings(parsed);
-        }
-        setHydrated(true);
+        let cancelled = false;
+        void (async () => {
+            await ensureDataCollectionsReady();
+            if (cancelled) return;
+            const parsed = parseStoredSettings(readAppearanceSettingsRecord());
+            if (parsed) {
+                setSettings(parsed);
+            }
+            setHydrated(true);
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {

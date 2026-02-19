@@ -1473,6 +1473,7 @@ function usePullRequestReviewPageView({
         host,
         pullRequestUrl,
         showSettingsPanel,
+        activeFile,
         searchQuery,
         showUnviewedOnly,
         unviewedFileCount,

@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { readShortcutsRecord, writeShortcutsRecord } from "@/lib/data/query-collections";
+import { ensureDataCollectionsReady, readShortcutsRecord, writeShortcutsRecord } from "@/lib/data/query-collections";
 
 export interface ShortcutConfig {
     key: string;
@@ -92,11 +92,19 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
     const [hydrated, setHydrated] = useState(false);
 
     useEffect(() => {
-        const stored = readShortcutsRecord();
-        if (stored) {
-            setShortcuts({ ...DEFAULT_SHORTCUTS, ...stored });
-        }
-        setHydrated(true);
+        let cancelled = false;
+        void (async () => {
+            await ensureDataCollectionsReady();
+            if (cancelled) return;
+            const stored = readShortcutsRecord();
+            if (stored) {
+                setShortcuts({ ...DEFAULT_SHORTCUTS, ...stored });
+            }
+            setHydrated(true);
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {

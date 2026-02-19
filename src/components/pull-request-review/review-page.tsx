@@ -336,7 +336,8 @@ function usePullRequestReviewPageView({
     const allModeLastStickyPathRef = useRef<string | null>(null);
     const suppressHashSyncRef = useRef(false);
     const pendingCommentScrollRef = useRef<number | null>(null);
-    const loadedViewedStorageKeyRef = useRef<string>("");
+    const loadedViewedStateRevisionRef = useRef<string>("");
+    const skipViewedStatePersistRevisionRef = useRef<string>("");
     const loadedHistoryRevisionRef = useRef<string>("");
     const firstDiffRenderedKeyRef = useRef<string>("");
     const { inlineComment, setInlineComment, getInlineDraftContent, setInlineDraftContent, clearInlineDraftContent, openInlineCommentDraft } =
@@ -761,6 +762,11 @@ function usePullRequestReviewPageView({
         }
         return map;
     }, [fileDiffFingerprints]);
+    const viewedStateLoadRevision = useMemo(() => {
+        if (!viewedStorageKey) return "";
+        const sortedVersionIds = Array.from(latestVersionIdByPath.values()).sort();
+        return `${viewedStorageKey}:${sortedVersionIds.length}:${hashString(sortedVersionIds.join("|"))}`;
+    }, [latestVersionIdByPath, viewedStorageKey]);
     const historyRevision = `${effectiveBaseCommitHash ?? ""}:${effectiveHeadCommitHash ?? ""}`;
 
     const resetHistoryTracking = useCallback(() => {
@@ -771,8 +777,11 @@ function usePullRequestReviewPageView({
 
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
-        if (loadedViewedStorageKeyRef.current === viewedStorageKey) return;
-        loadedViewedStorageKeyRef.current = viewedStorageKey;
+        if (prData?.diffstat.length && latestVersionIdByPath.size === 0) return;
+        if (loadedViewedStateRevisionRef.current === viewedStateLoadRevision) return;
+        loadedViewedStateRevisionRef.current = viewedStateLoadRevision;
+        // Prevent persisting stale viewedFiles from the previous scope/key during the same commit.
+        skipViewedStatePersistRevisionRef.current = viewedStateLoadRevision;
         autoMarkedViewedVersionIdsRef.current = new Set();
         const knownVersionIds = new Set(latestVersionIdByPath.values());
         const viewedIds = readViewedVersionIds(viewedStorageKey, {
@@ -787,7 +796,7 @@ function usePullRequestReviewPageView({
         }
         setViewedFiles(nextViewedFiles);
         resetHistoryTracking();
-    }, [fileDiffFingerprints, latestVersionIdByPath, resetHistoryTracking, viewedStorageKey]);
+    }, [fileDiffFingerprints, latestVersionIdByPath, prData?.diffstat.length, resetHistoryTracking, viewedStateLoadRevision, viewedStorageKey]);
 
     useEffect(() => {
         if (loadedHistoryRevisionRef.current === historyRevision) return;
@@ -798,6 +807,12 @@ function usePullRequestReviewPageView({
 
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
+        if (prData?.diffstat.length && latestVersionIdByPath.size === 0) return;
+        if (loadedViewedStateRevisionRef.current !== viewedStateLoadRevision) return;
+        if (skipViewedStatePersistRevisionRef.current === viewedStateLoadRevision) {
+            skipViewedStatePersistRevisionRef.current = "";
+            return;
+        }
         const viewedVersionIds = new Set<string>();
         for (const viewedPath of viewedFiles) {
             const latestVersionId = latestVersionIdByPath.get(viewedPath);
@@ -805,7 +820,7 @@ function usePullRequestReviewPageView({
             viewedVersionIds.add(latestVersionId);
         }
         writeViewedVersionIds(viewedStorageKey, viewedVersionIds);
-    }, [latestVersionIdByPath, viewedFiles, viewedStorageKey]);
+    }, [latestVersionIdByPath, prData?.diffstat.length, viewedFiles, viewedStateLoadRevision, viewedStorageKey]);
 
     useEffect(() => {
         setSelectedVersionIdByPath((prev) => {

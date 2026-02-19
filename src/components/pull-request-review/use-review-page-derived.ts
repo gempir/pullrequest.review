@@ -1,26 +1,41 @@
 import { type FileDiffOptions, getFiletypeFromFileName, type OnDiffLineClickProps, type OnDiffLineEnterLeaveProps, parsePatchFiles } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatNavbarDate, linesUpdated, normalizeNavbarState } from "@/components/pull-request-review/review-formatters";
 import { useDiffHighlighterState } from "@/components/pull-request-review/use-review-page-effects";
+import { readReviewDerivedCacheValue, writeReviewDerivedCacheValue } from "@/lib/data/query-collections";
 import type { FileNode } from "@/lib/file-tree-context";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
-import { collectDirectoryPaths, getCommentInlinePosition, getCommentPath, getFilePath, type SingleFileAnnotation } from "./review-page-model";
+import { useReviewComputeWorker } from "@/lib/review-performance/review-compute-worker-context";
+import {
+    buildReviewDerivedCacheKey,
+    buildReviewScopeCacheKey,
+    collectDirectoryPaths,
+    getCommentInlinePosition,
+    getCommentPath,
+    getFilePath,
+    hashString,
+    type SingleFileAnnotation,
+} from "./review-page-model";
 import type { CommentThread } from "./review-threads";
-import { buildCommentThreads, sortThreadsByCreatedAt } from "./review-threads";
+import { sortThreadsByCreatedAt } from "./review-threads";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
-function hashString(value: string) {
-    let hash1 = 0x811c9dc5;
-    let hash2 = 0x01000193;
-    for (let i = 0; i < value.length; i += 1) {
-        const char = value.charCodeAt(i);
-        hash1 = Math.imul(hash1 ^ char, 0x01000193);
-        hash2 = Math.imul(hash2 ^ (char + i), 0x01000193);
-    }
-    return `${(hash1 >>> 0).toString(16)}${(hash2 >>> 0).toString(16)}`;
-}
+type CachedReviewDerivedArtifacts = {
+    fileDiffs: FileDiffMetadata[];
+    fileDiffFingerprints: Array<[string, string]>;
+    threads: CommentThread[];
+};
+
+type WorkerDerivedState = {
+    cacheKey: string;
+    fileDiffs: FileDiffMetadata[];
+    fileDiffFingerprints: Map<string, string>;
+    threads: CommentThread[];
+};
+
+const EMPTY_COMMENTS: PullRequestBundle["comments"] = [];
 
 function buildFileDiffFingerprint(fileDiff: FileDiffMetadata) {
     const normalized = {
@@ -80,12 +95,141 @@ export function useReviewPageDerived({
     fullFileContexts: Record<string, { oldLines: string[]; newLines: string[] }>;
 }) {
     const diffText = prData?.diff ?? "";
+    const comments = prData?.comments ?? EMPTY_COMMENTS;
+    const { computeReviewDerived } = useReviewComputeWorker();
+    const [workerDerived, setWorkerDerived] = useState<WorkerDerivedState>({
+        cacheKey: "",
+        fileDiffs: [],
+        fileDiffFingerprints: new Map(),
+        threads: [],
+    });
+    const pendingDerivedCacheKeyRef = useRef<string | null>(null);
 
-    const rawFileDiffs = useMemo(() => {
-        if (!diffText) return [] as FileDiffMetadata[];
-        const patches = parsePatchFiles(diffText);
-        return patches.flatMap((patch) => patch.files);
-    }, [diffText]);
+    const applyWorkerDerived = useCallback((cacheKey: string, next: Omit<WorkerDerivedState, "cacheKey">) => {
+        pendingDerivedCacheKeyRef.current = null;
+        setWorkerDerived((prev) => {
+            if (prev.cacheKey === cacheKey) return prev;
+            return {
+                cacheKey,
+                ...next,
+            };
+        });
+    }, []);
+
+    const scopeCacheKey = useMemo(() => {
+        if (!prData?.prRef) return "review:empty";
+        return buildReviewScopeCacheKey(prData.prRef, "review-derived");
+    }, [prData?.prRef]);
+
+    const derivedCacheKey = useMemo(
+        () =>
+            buildReviewDerivedCacheKey({
+                scopeCacheKey,
+                diffText,
+                comments,
+            }),
+        [comments, diffText, scopeCacheKey],
+    );
+
+    useEffect(() => {
+        let cancelled = false;
+
+        if (workerDerived.cacheKey === derivedCacheKey) {
+            return;
+        }
+
+        if (!diffText && comments.length === 0) {
+            applyWorkerDerived(derivedCacheKey, {
+                fileDiffs: [],
+                fileDiffFingerprints: new Map(),
+                threads: [],
+            });
+            return;
+        }
+
+        const cachedArtifacts = readReviewDerivedCacheValue<CachedReviewDerivedArtifacts>(derivedCacheKey);
+        if (cachedArtifacts) {
+            applyWorkerDerived(derivedCacheKey, {
+                fileDiffs: cachedArtifacts.fileDiffs,
+                fileDiffFingerprints: new Map(cachedArtifacts.fileDiffFingerprints),
+                threads: cachedArtifacts.threads,
+            });
+            return;
+        }
+
+        if (pendingDerivedCacheKeyRef.current === derivedCacheKey) {
+            return;
+        }
+        pendingDerivedCacheKeyRef.current = derivedCacheKey;
+
+        void computeReviewDerived({
+            cacheKey: derivedCacheKey,
+            diffText,
+            comments,
+        })
+            .then((result) => {
+                if (cancelled) return;
+                if (pendingDerivedCacheKeyRef.current !== derivedCacheKey) return;
+                writeReviewDerivedCacheValue(derivedCacheKey, {
+                    fileDiffs: result.fileDiffs,
+                    fileDiffFingerprints: Array.from(result.fileDiffFingerprints.entries()),
+                    threads: result.threads,
+                } satisfies CachedReviewDerivedArtifacts);
+                applyWorkerDerived(derivedCacheKey, {
+                    fileDiffs: result.fileDiffs,
+                    fileDiffFingerprints: result.fileDiffFingerprints,
+                    threads: result.threads,
+                });
+            })
+            .catch(() => {
+                if (cancelled) return;
+                if (pendingDerivedCacheKeyRef.current !== derivedCacheKey) return;
+                // Keep UI responsive if the compute worker fails unexpectedly.
+                const parsedPatches = diffText ? parsePatchFiles(diffText) : [];
+                const fallbackDiffs = parsedPatches.flatMap((patch) => patch.files);
+                const fallbackFingerprints = new Map<string, string>();
+                fallbackDiffs.forEach((fileDiff, index) => {
+                    const path = getFilePath(fileDiff, index);
+                    if (!fallbackFingerprints.has(path)) {
+                        fallbackFingerprints.set(path, buildFileDiffFingerprint(fileDiff));
+                    }
+                });
+                const roots = comments.filter((comment) => !comment.parent?.id);
+                const repliesByParent = new Map<number, typeof comments>();
+                for (const comment of comments) {
+                    const parentId = comment.parent?.id;
+                    if (!parentId) continue;
+                    const replies = repliesByParent.get(parentId) ?? [];
+                    replies.push(comment);
+                    repliesByParent.set(parentId, replies);
+                }
+                const fallbackThreads: CommentThread[] = roots
+                    .map((root) => ({
+                        id: root.id,
+                        root,
+                        replies: [...(repliesByParent.get(root.id) ?? [])].sort(
+                            (a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime(),
+                        ),
+                    }))
+                    .sort((a, b) => new Date(a.root.createdAt ?? 0).getTime() - new Date(b.root.createdAt ?? 0).getTime());
+                writeReviewDerivedCacheValue(derivedCacheKey, {
+                    fileDiffs: fallbackDiffs,
+                    fileDiffFingerprints: Array.from(fallbackFingerprints.entries()),
+                    threads: fallbackThreads,
+                } satisfies CachedReviewDerivedArtifacts);
+                applyWorkerDerived(derivedCacheKey, {
+                    fileDiffs: fallbackDiffs,
+                    fileDiffFingerprints: fallbackFingerprints,
+                    threads: fallbackThreads,
+                });
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [applyWorkerDerived, comments, computeReviewDerived, derivedCacheKey, diffText, workerDerived.cacheKey]);
+
+    const rawFileDiffs = workerDerived.fileDiffs;
 
     const fileDiffs = useMemo(() => {
         if (!rawFileDiffs.length) return rawFileDiffs;
@@ -139,16 +283,7 @@ export function useReviewPageDerived({
         });
         return map;
     }, [fileDiffs]);
-    const fileDiffFingerprints = useMemo(() => {
-        const map = new Map<string, string>();
-        fileDiffs.forEach((fileDiff, index) => {
-            const path = getFilePath(fileDiff, index);
-            if (!map.has(path)) {
-                map.set(path, buildFileDiffFingerprint(fileDiff));
-            }
-        });
-        return map;
-    }, [fileDiffs]);
+    const fileDiffFingerprints = workerDerived.fileDiffFingerprints;
     const selectableDiffPathSet = useMemo(() => new Set(diffByPath.keys()), [diffByPath]);
 
     const visibleFilePaths = useMemo(() => {
@@ -212,8 +347,7 @@ export function useReviewPageDerived({
     }, [diffByPath, selectedFilePath]);
 
     const isSummarySelected = activeFile === PR_SUMMARY_PATH;
-    const comments = prData?.comments ?? [];
-    const threads = useMemo(() => buildCommentThreads(comments), [comments]);
+    const threads = workerDerived.threads;
     const unresolvedThreads = threads.filter((thread) => !thread.root.resolution && !thread.root.deleted);
 
     const threadsByPath = useMemo(() => {

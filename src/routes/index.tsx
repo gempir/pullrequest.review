@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 const HOSTS: GitHost[] = ["bitbucket", "github"];
 const HOST_PATH_PREFIX = "host:";
 const WORKSPACE_PATH_PREFIX = "workspace:";
-const DEFAULT_REVIEW_SCOPE_SEARCH = { scope: "full", includeMerge: "0" } as const;
+const DEFAULT_REVIEW_SCOPE_SEARCH = { scope: "full" } as const;
 
 type DiffPanel = "pull-requests" | "repositories";
 type PullRequestTreeMeta = {

@@ -14,17 +14,18 @@ const commitsWithMergeNewestFirst = [
 
 describe("review diff scope parsing", () => {
     test("canonicalizes invalid search params to full mode", () => {
-        expect(validateReviewDiffScopeSearch({ scope: "range", from: "bad", to: "bbbbbbbb" })).toEqual({
-            scope: "full",
-            includeMerge: "0",
-        });
+        expect(validateReviewDiffScopeSearch({ scope: "range", from: "bad", to: "bbbbbbbb" })).toEqual({ scope: "full" });
+    });
+
+    test("canonicalizes unsupported scope mode to full mode", () => {
+        expect(validateReviewDiffScopeSearch({ scope: "since", baseline: "bbbbbbbb", includeMerge: "1" })).toEqual({ scope: "full" });
     });
 });
 
 describe("review diff scope resolution", () => {
     test("resolves single-commit range", () => {
         const resolved = resolveReviewDiffScope({
-            search: { scope: "range", from: "bbbbbbbb", to: "bbbbbbbb", includeMerge: "0" },
+            search: { scope: "range", from: "bbbbbbbb", to: "bbbbbbbb" },
             commits: commitsNewestFirst,
             destinationCommitHash: "basebase1",
         });
@@ -38,7 +39,7 @@ describe("review diff scope resolution", () => {
 
     test("resolves contiguous multi-commit range", () => {
         const resolved = resolveReviewDiffScope({
-            search: { scope: "range", from: "bbbbbbbb", to: "cccccccc", includeMerge: "0" },
+            search: { scope: "range", from: "bbbbbbbb", to: "cccccccc" },
             commits: commitsNewestFirst,
             destinationCommitHash: "basebase1",
         });
@@ -50,38 +51,13 @@ describe("review diff scope resolution", () => {
         expect(resolved.selectedCommitHashes).toEqual(["bbbbbbbb", "cccccccc"]);
     });
 
-    test("resolves baseline-to-head incremental scope", () => {
+    test("keeps merge commits in visible commit list", () => {
         const resolved = resolveReviewDiffScope({
-            search: { scope: "since", baseline: "bbbbbbbb", includeMerge: "0" },
-            commits: commitsNewestFirst,
-            destinationCommitHash: "basebase1",
-        });
-
-        expect(resolved.mode).toBe("since");
-        if (resolved.mode !== "since") return;
-        expect(resolved.baseCommitHash).toBe("bbbbbbbb");
-        expect(resolved.headCommitHash).toBe("cccccccc");
-        expect(resolved.selectedCommitHashes).toEqual(["cccccccc"]);
-    });
-
-    test("falls back to full mode when baseline commit is missing", () => {
-        const resolved = resolveReviewDiffScope({
-            search: { scope: "since", baseline: "dddddddd", includeMerge: "0" },
-            commits: commitsNewestFirst,
-            destinationCommitHash: "basebase1",
-        });
-
-        expect(resolved.mode).toBe("full");
-        expect(resolved.fallbackReason).toBe("invalid_baseline");
-    });
-
-    test("hides merge commits by default", () => {
-        const resolved = resolveReviewDiffScope({
-            search: { scope: "full", includeMerge: "0" },
+            search: { scope: "full" },
             commits: commitsWithMergeNewestFirst,
             destinationCommitHash: "basebase1",
         });
 
-        expect(resolved.visibleCommits.map((commit) => commit.hash)).toEqual(["bbbbbbbb", "dddddddd"]);
+        expect(resolved.visibleCommits.map((commit) => commit.hash)).toEqual(["bbbbbbbb", "cccccccc", "dddddddd"]);
     });
 });

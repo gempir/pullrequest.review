@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-const DEFAULT_REVIEW_SCOPE_SEARCH = { scope: "full", includeMerge: "0" } as const;
+const DEFAULT_REVIEW_SCOPE_SEARCH = { scope: "full" } as const;
 
 export const Route = createFileRoute("/$workspace/$repo/pull-requests/$pullRequestId/diff")({
     beforeLoad: ({ location, params }) => {

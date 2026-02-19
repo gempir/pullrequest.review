@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { readViewedVersionIds, writeViewedVersionIds } from "../src/components/pull-request-review/use-review-storage";
-import { readReviewBaselineCommitHash, writeReviewBaselineCommitHash } from "../src/lib/data/query-collections";
 
 describe("review viewed version storage", () => {
     test("writes and reads viewed version ids from state collection", () => {
@@ -30,20 +29,5 @@ describe("review viewed version storage", () => {
 
         expect(Array.from(readViewedVersionIds(fullKey))).toEqual(["src/a.ts::fp-a"]);
         expect(Array.from(readViewedVersionIds(rangeKey))).toEqual(["src/a.ts::fp-b"]);
-    });
-});
-
-describe("review baseline storage", () => {
-    test("writes and reads baseline commit hash", () => {
-        const scopeId = `test:baseline:${Date.now()}`;
-        writeReviewBaselineCommitHash(scopeId, "abc12345");
-        expect(readReviewBaselineCommitHash(scopeId)).toBe("abc12345");
-    });
-
-    test("clears baseline commit hash when null is written", () => {
-        const scopeId = `test:baseline-clear:${Date.now()}`;
-        writeReviewBaselineCommitHash(scopeId, "abc12345");
-        writeReviewBaselineCommitHash(scopeId, null);
-        expect(readReviewBaselineCommitHash(scopeId)).toBeNull();
     });
 });

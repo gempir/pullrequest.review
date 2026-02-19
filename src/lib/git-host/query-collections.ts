@@ -138,7 +138,7 @@ export type GitHostDataDebugSnapshot = {
     >;
 };
 
-const HOST_DATA_DATABASE_NAME = "pullrequestdotreview_data_v1";
+const HOST_DATA_DATABASE_NAME = "pullrequestdotreview_host_data_v5";
 const REPOSITORY_RX_COLLECTION_NAME = "repositories";
 const REPO_PULL_REQUEST_RX_COLLECTION_NAME = "repo_pull_requests";
 const PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME = "pull_request_bundles";
@@ -154,6 +154,16 @@ const PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID = "pr-file-histories:rxdb
 const PULL_REQUEST_COMMIT_RANGE_DIFF_TANSTACK_COLLECTION_ID = "pr-commit-range-diffs:rxdb";
 const SCOPED_COLLECTION_CACHE_SIZE = 100;
 const HOST_DATA_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const REQUIRED_PERSISTED_COLLECTION_NAMES = [
+    REPOSITORY_RX_COLLECTION_NAME,
+    REPO_PULL_REQUEST_RX_COLLECTION_NAME,
+    PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME,
+] as const;
+const OPTIONAL_PERSISTED_COLLECTION_NAMES = [
+    PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME,
+    PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME,
+    PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME,
+] as const;
 
 const REPOSITORY_RX_SCHEMA = {
     title: "pullrequestdotreview repositories",
@@ -942,6 +952,13 @@ function isQuotaExceededError(error: unknown) {
     return false;
 }
 
+function isRxErrorCode(error: unknown, code: string) {
+    if (!error || typeof error !== "object") return false;
+    const value = error as { code?: string; message?: string };
+    if (value.code === code) return true;
+    return typeof value.message === "string" && value.message.includes(code);
+}
+
 function logQuotaExceededWarning(context: string, error: unknown) {
     console.warn(`Host data persistence quota exceeded during ${context}; continuing without storing this payload.`, error);
 }
@@ -1026,11 +1043,12 @@ async function initRxdbCollections() {
         name: HOST_DATA_DATABASE_NAME,
         storage: getRxStorageDexie(),
         multiInstance: true,
+        closeDuplicates: true,
     });
 
     hostDataDatabase = database;
 
-    const collections = await database.addCollections({
+    const collectionDefinitions = {
         [REPOSITORY_RX_COLLECTION_NAME]: {
             schema: REPOSITORY_RX_SCHEMA,
         },
@@ -1049,7 +1067,44 @@ async function initRxdbCollections() {
         [PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME]: {
             schema: PULL_REQUEST_COMMIT_RANGE_DIFF_RX_SCHEMA,
         },
-    });
+    } as const;
+
+    for (const collectionName of REQUIRED_PERSISTED_COLLECTION_NAMES) {
+        const collectionSchema = collectionDefinitions[collectionName];
+        const existingCollections = database.collections as Record<string, (typeof database.collections)[string]>;
+        if (existingCollections[collectionName]) continue;
+        try {
+            await database.addCollections({
+                [collectionName]: collectionSchema,
+            });
+        } catch (error) {
+            if (!isRxErrorCode(error, "COL23")) {
+                throw error;
+            }
+            throw new Error(`Host-data required collection could not be opened due to RxDB collection limit: ${collectionName}`);
+        }
+    }
+
+    for (const collectionName of OPTIONAL_PERSISTED_COLLECTION_NAMES) {
+        const collectionSchema = collectionDefinitions[collectionName];
+        const existingCollections = database.collections as Record<string, (typeof database.collections)[string]>;
+        if (existingCollections[collectionName]) continue;
+        try {
+            await database.addCollections({
+                [collectionName]: collectionSchema,
+            });
+        } catch (error) {
+            if (!isRxErrorCode(error, "COL23")) {
+                throw error;
+            }
+        }
+    }
+
+    const collections = database.collections as Record<string, (typeof database.collections)[string]>;
+    const missingCollectionNames = REQUIRED_PERSISTED_COLLECTION_NAMES.filter((name) => !collections[name]);
+    if (missingCollectionNames.length > 0) {
+        throw new Error(`Host-data RxDB collections unavailable after init: ${missingCollectionNames.join(", ")}`);
+    }
 
     repositoryCollection = createCollection(
         rxdbCollectionOptions<RepositoryRecord>({
@@ -1075,29 +1130,50 @@ async function initRxdbCollections() {
         }),
     );
 
-    pullRequestFileContextCollection = createCollection(
-        rxdbCollectionOptions<PullRequestFileContextRecord>({
-            id: PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID,
-            rxCollection: collections[PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
+    pullRequestFileContextCollection = collections[PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME]
+        ? createCollection(
+              rxdbCollectionOptions<PullRequestFileContextRecord>({
+                  id: PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID,
+                  rxCollection: collections[PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME],
+                  startSync: true,
+              }),
+          )
+        : createCollection(
+              localOnlyCollectionOptions<PullRequestFileContextRecord, string>({
+                  id: PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID,
+                  getKey: (item) => item.id,
+              }),
+          );
 
-    pullRequestFileHistoryCollection = createCollection(
-        rxdbCollectionOptions<PullRequestFileHistoryRecord>({
-            id: PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID,
-            rxCollection: collections[PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
+    pullRequestFileHistoryCollection = collections[PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME]
+        ? createCollection(
+              rxdbCollectionOptions<PullRequestFileHistoryRecord>({
+                  id: PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID,
+                  rxCollection: collections[PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME],
+                  startSync: true,
+              }),
+          )
+        : createCollection(
+              localOnlyCollectionOptions<PullRequestFileHistoryRecord, string>({
+                  id: PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID,
+                  getKey: (item) => item.id,
+              }),
+          );
 
-    pullRequestCommitRangeDiffCollection = createCollection(
-        rxdbCollectionOptions<PullRequestCommitRangeDiffRecord>({
-            id: PULL_REQUEST_COMMIT_RANGE_DIFF_TANSTACK_COLLECTION_ID,
-            rxCollection: collections[PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
+    pullRequestCommitRangeDiffCollection = collections[PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME]
+        ? createCollection(
+              rxdbCollectionOptions<PullRequestCommitRangeDiffRecord>({
+                  id: PULL_REQUEST_COMMIT_RANGE_DIFF_TANSTACK_COLLECTION_ID,
+                  rxCollection: collections[PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME],
+                  startSync: true,
+              }),
+          )
+        : createCollection(
+              localOnlyCollectionOptions<PullRequestCommitRangeDiffRecord, string>({
+                  id: PULL_REQUEST_COMMIT_RANGE_DIFF_TANSTACK_COLLECTION_ID,
+                  getKey: (item) => item.id,
+              }),
+          );
 
     await Promise.all([
         repositoryCollection.preload(),

@@ -101,6 +101,7 @@ export function ReviewTopNavbar({
                                 <PanelLeftOpen className="size-3.5" />
                             </Button>
                         ) : null}
+                        {commitScopeSlot ? <div className="shrink-0">{commitScopeSlot}</div> : null}
                         <div className="group/source relative max-w-[180px] min-w-0">
                             <span className="block truncate text-foreground">{sourceBranch}</span>
                             <Button
@@ -123,7 +124,6 @@ export function ReviewTopNavbar({
                         <span className="max-w-[180px] truncate text-foreground">{destinationBranch}</span>
                         <span className={cn("px-1.5 py-0.5 border uppercase text-[10px] rounded", navbarStateClass(navbarState))}>{navbarState}</span>
                         <span className="truncate">{navbarStatusDate}</span>
-                        {commitScopeSlot ? <div className="shrink-0">{commitScopeSlot}</div> : null}
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 

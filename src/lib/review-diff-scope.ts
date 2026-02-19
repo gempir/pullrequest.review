@@ -1,13 +1,11 @@
 import type { Commit } from "@/lib/git-host/types";
 
-export type ReviewDiffScopeMode = "full" | "range" | "since";
+export type ReviewDiffScopeMode = "full" | "range";
 
 export type ReviewDiffScopeSearch = {
     scope: ReviewDiffScopeMode;
-    includeMerge: "0" | "1";
     from?: string;
     to?: string;
-    baseline?: string;
 };
 
 type ResolveReviewDiffScopeArgs = {
@@ -19,7 +17,6 @@ type ResolveReviewDiffScopeArgs = {
 export type ResolvedReviewDiffScope =
     | {
           mode: "full";
-          includeMerge: boolean;
           visibleCommits: Commit[];
           allCommits: Commit[];
           selectedCommits: Commit[];
@@ -27,11 +24,10 @@ export type ResolvedReviewDiffScope =
           baseCommitHash?: undefined;
           headCommitHash?: undefined;
           normalizedSearch: ReviewDiffScopeSearch;
-          fallbackReason?: "invalid_range" | "invalid_baseline" | "missing_base_or_head";
+          fallbackReason?: "invalid_range" | "missing_base_or_head";
       }
     | {
-          mode: "range" | "since";
-          includeMerge: boolean;
+          mode: "range";
           visibleCommits: Commit[];
           allCommits: Commit[];
           selectedCommits: Commit[];
@@ -55,59 +51,84 @@ function commitMessage(commit: Commit) {
     return (commit.summary?.raw ?? commit.message ?? "").trim();
 }
 
-function isMergeLikeCommit(commit: Commit) {
-    const message = commitMessage(commit);
-    return /^merge(d)?\b/i.test(message) || /^merged develop\b/i.test(message);
+function commitTimestamp(commit: Commit) {
+    if (!commit.date) return null;
+    const parsed = Date.parse(commit.date);
+    return Number.isNaN(parsed) ? null : parsed;
+}
+
+function mergeCommitRecords(primary: Commit, candidate: Commit): Commit {
+    const primaryMessage = commitMessage(primary);
+    const candidateMessage = commitMessage(candidate);
+    const primaryTime = commitTimestamp(primary);
+    const candidateTime = commitTimestamp(candidate);
+
+    if (!primaryMessage && candidateMessage) return candidate;
+    if (primaryMessage && !candidateMessage) return primary;
+    if (primaryTime === null && candidateTime !== null) return candidate;
+    if (primaryTime !== null && candidateTime === null) return primary;
+    if (primaryTime !== null && candidateTime !== null && candidateTime < primaryTime) return candidate;
+    return primary;
 }
 
 function orderCommitsOldestFirst(commits: Commit[]) {
-    const uniqueByHash = new Map<string, Commit>();
-    for (const commit of commits) {
+    const uniqueByHash = new Map<string, { commit: Commit; firstIndex: number; timestamp: number | null }>();
+    for (const [index, commit] of commits.entries()) {
         const hash = commit.hash?.trim();
-        if (!hash || uniqueByHash.has(hash)) continue;
-        uniqueByHash.set(hash, commit);
+        if (!hash) continue;
+        const existing = uniqueByHash.get(hash);
+        const timestamp = commitTimestamp(commit);
+        if (!existing) {
+            uniqueByHash.set(hash, { commit, firstIndex: index, timestamp });
+            continue;
+        }
+        const merged = mergeCommitRecords(existing.commit, commit);
+        uniqueByHash.set(hash, {
+            commit: merged,
+            firstIndex: existing.firstIndex,
+            timestamp: commitTimestamp(merged),
+        });
     }
-    return Array.from(uniqueByHash.values()).reverse();
+    return Array.from(uniqueByHash.values())
+        .sort((a, b) => {
+            if (a.timestamp !== null && b.timestamp !== null && a.timestamp !== b.timestamp) {
+                return a.timestamp - b.timestamp;
+            }
+            if (a.timestamp !== null && b.timestamp === null) return -1;
+            if (a.timestamp === null && b.timestamp !== null) return 1;
+            // Fallback: preserve historical behavior where provider commits were usually newest->oldest.
+            return b.firstIndex - a.firstIndex;
+        })
+        .map((entry) => entry.commit);
 }
 
 export function validateReviewDiffScopeSearch(search: unknown): ReviewDiffScopeSearch {
     const raw = typeof search === "object" && search ? (search as Record<string, unknown>) : {};
-    const includeMerge = raw.includeMerge === "1" || raw.includeMerge === 1 || raw.includeMerge === true ? "1" : "0";
     const scopeRaw = typeof raw.scope === "string" ? raw.scope : "full";
-    const scope: ReviewDiffScopeMode = scopeRaw === "range" || scopeRaw === "since" ? scopeRaw : "full";
+    const scope: ReviewDiffScopeMode = scopeRaw === "range" ? scopeRaw : "full";
     if (scope === "range") {
         const from = normalizeCommitHash(raw.from);
         const to = normalizeCommitHash(raw.to);
         if (from && to) {
-            return { scope: "range", from, to, includeMerge };
+            return { scope: "range", from, to };
         }
-        return { scope: "full", includeMerge };
+        return { scope: "full" };
     }
-    if (scope === "since") {
-        const baseline = normalizeCommitHash(raw.baseline);
-        if (baseline) {
-            return { scope: "since", baseline, includeMerge };
-        }
-        return { scope: "full", includeMerge };
-    }
-    return { scope: "full", includeMerge };
+    return { scope: "full" };
 }
 
 export function resolveReviewDiffScope({ search, commits, destinationCommitHash }: ResolveReviewDiffScopeArgs): ResolvedReviewDiffScope {
     const allCommits = orderCommitsOldestFirst(commits);
-    const includeMerge = search.includeMerge === "1";
-    const nonMergeCommits = allCommits.filter((commit) => !isMergeLikeCommit(commit));
-    const visibleCommits = includeMerge || nonMergeCommits.length === 0 ? allCommits : nonMergeCommits;
+    const visibleCommits = allCommits;
     const visibleIndex = new Map(visibleCommits.map((commit, index) => [commit.hash, index] as const));
     if (search.scope === "full") {
         return {
             mode: "full",
-            includeMerge,
             allCommits,
             visibleCommits,
             selectedCommits: visibleCommits,
             selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
-            normalizedSearch: { scope: "full", includeMerge: search.includeMerge },
+            normalizedSearch: { scope: "full" },
         };
     }
 
@@ -119,12 +140,11 @@ export function resolveReviewDiffScope({ search, commits, destinationCommitHash 
         if (fromIndex === undefined || toIndex === undefined) {
             return {
                 mode: "full",
-                includeMerge,
                 allCommits,
                 visibleCommits,
                 selectedCommits: visibleCommits,
                 selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
-                normalizedSearch: { scope: "full", includeMerge: search.includeMerge },
+                normalizedSearch: { scope: "full" },
                 fallbackReason: "invalid_range",
             };
         }
@@ -137,18 +157,16 @@ export function resolveReviewDiffScope({ search, commits, destinationCommitHash 
         if (!baseCommitHash || !headCommitHash) {
             return {
                 mode: "full",
-                includeMerge,
                 allCommits,
                 visibleCommits,
                 selectedCommits: visibleCommits,
                 selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
-                normalizedSearch: { scope: "full", includeMerge: search.includeMerge },
+                normalizedSearch: { scope: "full" },
                 fallbackReason: "missing_base_or_head",
             };
         }
         return {
             mode: "range",
-            includeMerge,
             allCommits,
             visibleCommits,
             selectedCommits,
@@ -159,56 +177,17 @@ export function resolveReviewDiffScope({ search, commits, destinationCommitHash 
                 scope: "range",
                 from: visibleCommits[startIndex]?.hash,
                 to: visibleCommits[endIndex]?.hash,
-                includeMerge: search.includeMerge,
             },
         };
     }
 
-    const baselineHash = search.baseline;
-    const baselineIndex = baselineHash ? visibleIndex.get(baselineHash) : undefined;
-    if (baselineIndex === undefined) {
-        return {
-            mode: "full",
-            includeMerge,
-            allCommits,
-            visibleCommits,
-            selectedCommits: visibleCommits,
-            selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
-            normalizedSearch: { scope: "full", includeMerge: search.includeMerge },
-            fallbackReason: "invalid_baseline",
-        };
-    }
-    const selectedCommits = visibleCommits.slice(baselineIndex + 1);
-    const selectedCommitHashes = selectedCommits.map((commit) => commit.hash);
-    const headCommitHash = visibleCommits[visibleCommits.length - 1]?.hash;
-    const baseCommitHash = visibleCommits[baselineIndex]?.hash;
-    if (!baseCommitHash || !headCommitHash) {
-        return {
-            mode: "full",
-            includeMerge,
-            allCommits,
-            visibleCommits,
-            selectedCommits: visibleCommits,
-            selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
-            normalizedSearch: { scope: "full", includeMerge: search.includeMerge },
-            fallbackReason: "missing_base_or_head",
-        };
-    }
-
     return {
-        mode: "since",
-        includeMerge,
+        mode: "full",
         allCommits,
         visibleCommits,
-        selectedCommits,
-        selectedCommitHashes,
-        baseCommitHash,
-        headCommitHash,
-        normalizedSearch: {
-            scope: "since",
-            baseline: baseCommitHash,
-            includeMerge: search.includeMerge,
-        },
+        selectedCommits: visibleCommits,
+        selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
+        normalizedSearch: { scope: "full" },
     };
 }
 

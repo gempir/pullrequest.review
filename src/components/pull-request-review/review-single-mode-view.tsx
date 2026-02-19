@@ -25,7 +25,6 @@ type ReviewSingleModeViewProps = {
     currentUserDisplayName?: string;
     lineStats: { added: number; removed: number };
     isSummarySelected: boolean;
-    selectedBaselineCommitHash?: string;
     selectedFilePath?: string;
     selectedFileDiff?: FileDiffMetadata;
     selectedFileReadOnlyHistorical: boolean;
@@ -64,7 +63,6 @@ type ReviewSingleModeViewProps = {
     onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
     fileContextState: Record<string, DiffContextState>;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
-    onMarkReviewedUpToCommit: (commitHash: string) => void;
 };
 
 export function ReviewSingleModeView({
@@ -75,7 +73,6 @@ export function ReviewSingleModeView({
     currentUserDisplayName,
     lineStats,
     isSummarySelected,
-    selectedBaselineCommitHash,
     selectedFilePath,
     selectedFileDiff,
     selectedFileReadOnlyHistorical,
@@ -114,7 +111,6 @@ export function ReviewSingleModeView({
     onLoadFullFileContext,
     fileContextState,
     onHistoryCommentNavigate,
-    onMarkReviewedUpToCommit,
 }: ReviewSingleModeViewProps) {
     const hasFullContext = selectedFilePath ? fileContextState[selectedFilePath]?.status === "ready" : false;
     const isSelectedVersionViewed = selectedFileVersionId
@@ -134,8 +130,6 @@ export function ReviewSingleModeView({
                     headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
                     diffStats={lineStats}
                     onSelectComment={onHistoryCommentNavigate}
-                    selectedBaselineCommitHash={selectedBaselineCommitHash}
-                    onMarkReviewedUpToCommit={onMarkReviewedUpToCommit}
                     headerRight={
                         <div className="flex items-center gap-1">
                             <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />

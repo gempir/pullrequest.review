@@ -13,6 +13,9 @@ export type StorageTier = "cache" | "state" | "permanent";
 
 const DATA_DATABASE_NAME = "pullrequestdotreview_data_v1";
 const STATE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const REVIEW_DERIVED_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const REVIEW_DERIVED_CACHE_MAX_BYTES = 512 * 1024;
+const REVIEW_DERIVED_CACHE_MAX_RECORDS = 120;
 const LEGACY_RESET_METADATA_ID = "legacy_reset_v1";
 
 const APP_PREFERENCES_COLLECTION_NAME = "app_preferences";
@@ -885,6 +888,59 @@ export function writeHostPreferencesRecord(data: { activeHost: GitHost; reposByH
         },
         HOST_PREFERENCES_RECORD_ID,
     );
+}
+
+function reviewDerivedCacheRecordId(cacheKey: string) {
+    return `review-derived:${cacheKey}`;
+}
+
+export function readReviewDerivedCacheValue<T>(cacheKey: string): T | null {
+    const id = reviewDerivedCacheRecordId(cacheKey);
+    const record = getAppMetadataCollection().get(id);
+    if (!record) return null;
+    if (isExpiredRecord(record, Date.now())) {
+        void deleteRecord(getAppMetadataCollection(), id, id);
+        return null;
+    }
+    try {
+        return JSON.parse(record.value) as T;
+    } catch {
+        return null;
+    }
+}
+
+export function writeReviewDerivedCacheValue(cacheKey: string, payload: unknown) {
+    const id = reviewDerivedCacheRecordId(cacheKey);
+    const serializedPayload = JSON.stringify(payload);
+    if (new TextEncoder().encode(serializedPayload).length > REVIEW_DERIVED_CACHE_MAX_BYTES) {
+        return;
+    }
+    const now = Date.now();
+    const metadataCollection = getAppMetadataCollection();
+    const derivedRecords = Array.from(metadataCollection.values())
+        .filter((record) => record.id.startsWith("review-derived:"))
+        .sort((left, right) => left.updatedAt - right.updatedAt);
+
+    void (async () => {
+        const overflow = derivedRecords.length - REVIEW_DERIVED_CACHE_MAX_RECORDS;
+        if (overflow >= 0) {
+            for (let index = 0; index <= overflow; index += 1) {
+                const evicted = derivedRecords[index];
+                if (!evicted || evicted.id === id) continue;
+                await deleteRecord(metadataCollection, evicted.id, evicted.id);
+            }
+        }
+        await upsertRecord(
+            metadataCollection,
+            {
+                id,
+                value: serializedPayload,
+                updatedAt: now,
+                expiresAt: now + REVIEW_DERIVED_CACHE_TTL_MS,
+            },
+            id,
+        );
+    })();
 }
 
 export function readBitbucketAuthCredential() {

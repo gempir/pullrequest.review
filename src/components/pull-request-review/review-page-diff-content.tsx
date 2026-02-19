@@ -1,6 +1,6 @@
 import type { FileDiffOptions } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, RefObject } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { ReviewAllModeView } from "@/components/pull-request-review/review-all-mode-view";
@@ -80,6 +80,8 @@ type ReviewPageDiffContentProps = {
     onDiffLineEnter: NonNullable<FileDiffOptions<undefined>["onLineEnter"]>;
     onDiffLineLeave: NonNullable<FileDiffOptions<undefined>["onLineLeave"]>;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
+    scrollElementRef: RefObject<HTMLDivElement | null>;
+    pendingScrollPath: string | null;
 };
 
 export function ReviewPageDiffContent({
@@ -146,6 +148,8 @@ export function ReviewPageDiffContent({
     onDiffLineEnter,
     onDiffLineLeave,
     onHistoryCommentNavigate,
+    scrollElementRef,
+    pendingScrollPath,
 }: ReviewPageDiffContentProps) {
     const openDiffSettings = () => {
         onActiveFileChange(settingsPathForTab("diff"));
@@ -284,6 +288,8 @@ export function ReviewPageDiffContent({
             onOpenDiffSettings={openDiffSettings}
             onLoadFullFileContext={onLoadFullFileContext}
             fileContextState={fileContextState}
+            scrollElementRef={scrollElementRef}
+            pendingScrollPath={pendingScrollPath}
         />
     );
 }

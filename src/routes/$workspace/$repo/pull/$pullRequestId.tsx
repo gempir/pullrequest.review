@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { PullRequestReviewPage } from "@/components/pull-request-review-page";
 import { usePrContext } from "@/lib/pr-context";
 import { type ReviewDiffScopeSearch, validateReviewDiffScopeSearch } from "@/lib/review-diff-scope";
+import { markReviewPerf } from "@/lib/review-performance/metrics";
 
 export const Route = createFileRoute("/$workspace/$repo/pull/$pullRequestId")({
     validateSearch: validateReviewDiffScopeSearch,
@@ -17,6 +18,10 @@ function GithubPullRequestRoute() {
     const { authByHost } = usePrContext();
     const [authPromptVisible, setAuthPromptVisible] = useState(false);
     const [renderKey, setRenderKey] = useState(0);
+
+    useEffect(() => {
+        markReviewPerf("route_enter");
+    }, []);
 
     return (
         <PullRequestReviewPage

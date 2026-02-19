@@ -1,9 +1,7 @@
 import type { FileDiffOptions, OnDiffLineClickProps, OnDiffLineEnterLeaveProps } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { Check, CheckCheck, ChevronDown, ChevronRight, Copy, ScrollText } from "lucide-react";
-import type { CSSProperties, RefObject } from "react";
-import { useEffect, useMemo } from "react";
+import type { CSSProperties } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
 import { DiffContextButton, type DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import { FileVersionSelect, type FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
@@ -76,8 +74,6 @@ type ReviewAllModeViewProps = {
     onOpenDiffSettings: () => void;
     onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
     fileContextState: Record<string, DiffContextState>;
-    scrollElementRef: RefObject<HTMLDivElement | null>;
-    pendingScrollPath: string | null;
 };
 
 export function ReviewAllModeView({
@@ -134,28 +130,8 @@ export function ReviewAllModeView({
     onOpenDiffSettings,
     onLoadFullFileContext,
     fileContextState,
-    scrollElementRef,
-    pendingScrollPath,
 }: ReviewAllModeViewProps) {
     const diffListBottomPadding = "max(420px, 90vh)";
-    const filePathsInOrder = useMemo(() => allModeDiffEntries.map((entry) => entry.filePath), [allModeDiffEntries]);
-    const rowVirtualizer = useVirtualizer({
-        count: allModeDiffEntries.length,
-        getScrollElement: () => scrollElementRef.current,
-        estimateSize: () => 420,
-        overscan: 4,
-    });
-    const virtualRows = rowVirtualizer.getVirtualItems();
-    const paddingTop = virtualRows.length > 0 ? (virtualRows[0]?.start ?? 0) : 0;
-    const paddingBottom =
-        virtualRows.length > 0 ? Math.max(0, rowVirtualizer.getTotalSize() - (virtualRows[virtualRows.length - 1]?.end ?? 0)) : rowVirtualizer.getTotalSize();
-
-    useEffect(() => {
-        if (!pendingScrollPath) return;
-        const index = filePathsInOrder.indexOf(pendingScrollPath);
-        if (index < 0) return;
-        rowVirtualizer.scrollToIndex(index, { align: "start" });
-    }, [filePathsInOrder, pendingScrollPath, rowVirtualizer]);
     return (
         <div className="w-full max-w-full" data-component="diff-list-view" style={{ paddingBottom: diffListBottomPadding }}>
             {prData ? (
@@ -214,11 +190,7 @@ export function ReviewAllModeView({
                 </div>
             ) : null}
 
-            {paddingTop > 0 ? <div style={{ height: paddingTop }} /> : null}
-            {virtualRows.map((virtualRow) => {
-                const entry = allModeDiffEntries[virtualRow.index];
-                if (!entry) return null;
-                const { fileDiff, filePath } = entry;
+            {allModeDiffEntries.map(({ fileDiff, filePath }, index) => {
                 const fileUnresolvedCount = (threadsByPath.get(filePath) ?? []).filter((thread) => !thread.root.resolution && !thread.root.deleted).length;
                 const fileStats = fileLineStats.get(filePath) ?? { added: 0, removed: 0 };
                 const fileName = filePath.split("/").pop() || filePath;
@@ -239,138 +211,132 @@ export function ReviewAllModeView({
                         : compactDiffOptions;
 
                 return (
-                    <div key={filePath} ref={rowVirtualizer.measureElement} data-index={virtualRow.index}>
+                    <div
+                        key={filePath}
+                        id={fileAnchorId(filePath)}
+                        className={cn("w-full max-w-full border border-l-0 border-t-0 border-border bg-card", isCollapsed && "border-b-0")}
+                        style={index === 0 && !prData ? { borderTopWidth: 0 } : undefined}
+                    >
                         <div
-                            id={fileAnchorId(filePath)}
-                            className={cn("w-full max-w-full border border-l-0 border-t-0 border-border bg-card", isCollapsed && "border-b-0")}
-                            style={virtualRow.index === 0 && !prData ? { borderTopWidth: 0 } : undefined}
+                            className={cn(
+                                "group sticky top-0 z-20 h-10 min-w-0 border-b border-border bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]",
+                            )}
                         >
-                            <div
-                                className={cn(
-                                    "group sticky top-0 z-20 h-10 min-w-0 border-b border-border bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]",
-                                )}
-                            >
-                                <div className="min-w-0 flex flex-1 items-center gap-2">
-                                    <button
-                                        type="button"
-                                        className="h-full min-w-0 flex items-center gap-2 overflow-hidden text-left"
-                                        onClick={() => onToggleCollapsedFile(filePath, !isCollapsed)}
-                                    >
-                                        <span className="size-4 flex items-center justify-center shrink-0">
-                                            <RepositoryFileIcon fileName={fileName} className="size-3.5" />
-                                        </span>
-                                        <span className="min-w-0 flex-1 truncate font-mono">{filePath}</span>
-                                    </button>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 w-7 p-0 shrink-0"
-                                        onClick={() => onCopyPath(filePath)}
-                                        aria-label="Copy file path"
-                                    >
-                                        {copiedPath === filePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                                    </Button>
-                                    <FileVersionSelect
-                                        value={selectedVersionId ?? ""}
-                                        options={fileVersionOptions}
-                                        onValueChange={(versionId) => onSelectVersionForPath(filePath, versionId)}
-                                        onOpenChange={(open) => {
-                                            if (!open) return;
-                                            onOpenVersionMenuForPath(filePath);
-                                        }}
-                                    />
-                                    <DiffContextButton
-                                        state={fileContextState[filePath]}
-                                        onClick={() => onLoadFullFileContext(filePath, fileDiff)}
-                                        disabled={readOnlyHistorical}
-                                    />
-                                </div>
-                                <div className="ml-auto flex shrink-0 items-center gap-2 text-[12px]">
-                                    <span className="select-none text-status-added">+{fileStats.added}</span>
-                                    <span className="select-none text-status-removed">-{fileStats.removed}</span>
-                                    {fileUnresolvedCount > 0 ? <span className="text-muted-foreground">{fileUnresolvedCount} unresolved</span> : null}
-                                    <ReviewDiffSettingsMenu
-                                        viewMode={viewMode}
-                                        onViewModeChange={onWorkspaceModeChange}
-                                        onOpenDiffSettings={onOpenDiffSettings}
-                                    />
-                                    <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(filePath)}>
-                                        <span
-                                            className={
-                                                selectedVersionUnread
-                                                    ? "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
-                                                    : isSelectedVersionViewed
-                                                      ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                                      : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
-                                            }
-                                        >
-                                            <Check className="size-3" />
-                                        </span>
-                                    </button>
-                                </div>
-                                <span
-                                    className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
-                                    aria-hidden
+                            <div className="min-w-0 flex flex-1 items-center gap-2">
+                                <button
+                                    type="button"
+                                    className="h-full min-w-0 flex items-center gap-2 overflow-hidden text-left"
+                                    onClick={() => onToggleCollapsedFile(filePath, !isCollapsed)}
                                 >
-                                    {isCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-                                </span>
+                                    <span className="size-4 flex items-center justify-center shrink-0">
+                                        <RepositoryFileIcon fileName={fileName} className="size-3.5" />
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate font-mono">{filePath}</span>
+                                </button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 shrink-0"
+                                    onClick={() => onCopyPath(filePath)}
+                                    aria-label="Copy file path"
+                                >
+                                    {copiedPath === filePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                                </Button>
+                                <FileVersionSelect
+                                    value={selectedVersionId ?? ""}
+                                    options={fileVersionOptions}
+                                    onValueChange={(versionId) => onSelectVersionForPath(filePath, versionId)}
+                                    onOpenChange={(open) => {
+                                        if (!open) return;
+                                        onOpenVersionMenuForPath(filePath);
+                                    }}
+                                />
+                                <DiffContextButton
+                                    state={fileContextState[filePath]}
+                                    onClick={() => onLoadFullFileContext(filePath, fileDiff)}
+                                    disabled={readOnlyHistorical}
+                                />
                             </div>
-                            {!isCollapsed ? (
-                                <div className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">
-                                    {diffHighlighterReady && displayedFileDiff ? (
-                                        <FileDiff
-                                            fileDiff={toRenderableFileDiff(displayedFileDiff)}
-                                            options={{
-                                                ...fileDiffOptions,
-                                                onLineClick: (props) => {
-                                                    if (readOnlyHistorical) return;
-                                                    onOpenInlineDraftForPath(filePath, props);
-                                                },
-                                                onLineNumberClick: (props) => {
-                                                    if (readOnlyHistorical) return;
-                                                    onOpenInlineDraftForPath(filePath, props);
-                                                },
-                                                onLineEnter: onDiffLineEnter,
-                                                onLineLeave: onDiffLineLeave,
-                                            }}
-                                            className="compact-diff commentable-diff pr-diff-font"
-                                            style={diffTypographyStyle}
-                                            lineAnnotations={readOnlyHistorical ? [] : buildFileAnnotations(filePath)}
-                                            renderAnnotation={(annotation) => (
-                                                <InlineDiffAnnotation
-                                                    annotation={annotation as SingleFileAnnotation}
-                                                    workspace={workspace}
-                                                    repo={repo}
-                                                    pullRequestId={pullRequestId}
-                                                    createCommentPending={createCommentPending}
-                                                    canCommentInline={canCommentInline && !readOnlyHistorical}
-                                                    canResolveThread={canResolveThread}
-                                                    resolveCommentPending={resolveCommentPending}
-                                                    getInlineDraftContent={getInlineDraftContent}
-                                                    setInlineDraftContent={setInlineDraftContent}
-                                                    onSubmitInlineComment={onSubmitInlineComment}
-                                                    onInlineDraftReady={onInlineDraftReady}
-                                                    onCancelInlineDraft={onCancelInlineDraft}
-                                                    currentUserDisplayName={currentUserDisplayName}
-                                                    onDeleteComment={onDeleteComment}
-                                                    onResolveThread={onResolveThread}
-                                                    onReplyToThread={onReplyToThread}
-                                                />
-                                            )}
-                                        />
-                                    ) : (
-                                        <div className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">
-                                            Loading syntax highlighting...
-                                        </div>
-                                    )}
-                                </div>
-                            ) : null}
+                            <div className="ml-auto flex shrink-0 items-center gap-2 text-[12px]">
+                                <span className="select-none text-status-added">+{fileStats.added}</span>
+                                <span className="select-none text-status-removed">-{fileStats.removed}</span>
+                                {fileUnresolvedCount > 0 ? <span className="text-muted-foreground">{fileUnresolvedCount} unresolved</span> : null}
+                                <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
+                                <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(filePath)}>
+                                    <span
+                                        className={
+                                            selectedVersionUnread
+                                                ? "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                                                : isSelectedVersionViewed
+                                                  ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                                  : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                                        }
+                                    >
+                                        <Check className="size-3" />
+                                    </span>
+                                </button>
+                            </div>
+                            <span
+                                className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
+                                aria-hidden
+                            >
+                                {isCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                            </span>
                         </div>
+                        {!isCollapsed ? (
+                            <div className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">
+                                {diffHighlighterReady && displayedFileDiff ? (
+                                    <FileDiff
+                                        fileDiff={toRenderableFileDiff(displayedFileDiff)}
+                                        options={{
+                                            ...fileDiffOptions,
+                                            onLineClick: (props) => {
+                                                if (readOnlyHistorical) return;
+                                                onOpenInlineDraftForPath(filePath, props);
+                                            },
+                                            onLineNumberClick: (props) => {
+                                                if (readOnlyHistorical) return;
+                                                onOpenInlineDraftForPath(filePath, props);
+                                            },
+                                            onLineEnter: onDiffLineEnter,
+                                            onLineLeave: onDiffLineLeave,
+                                        }}
+                                        className="compact-diff commentable-diff pr-diff-font"
+                                        style={diffTypographyStyle}
+                                        lineAnnotations={readOnlyHistorical ? [] : buildFileAnnotations(filePath)}
+                                        renderAnnotation={(annotation) => (
+                                            <InlineDiffAnnotation
+                                                annotation={annotation as SingleFileAnnotation}
+                                                workspace={workspace}
+                                                repo={repo}
+                                                pullRequestId={pullRequestId}
+                                                createCommentPending={createCommentPending}
+                                                canCommentInline={canCommentInline && !readOnlyHistorical}
+                                                canResolveThread={canResolveThread}
+                                                resolveCommentPending={resolveCommentPending}
+                                                getInlineDraftContent={getInlineDraftContent}
+                                                setInlineDraftContent={setInlineDraftContent}
+                                                onSubmitInlineComment={onSubmitInlineComment}
+                                                onInlineDraftReady={onInlineDraftReady}
+                                                onCancelInlineDraft={onCancelInlineDraft}
+                                                currentUserDisplayName={currentUserDisplayName}
+                                                onDeleteComment={onDeleteComment}
+                                                onResolveThread={onResolveThread}
+                                                onReplyToThread={onReplyToThread}
+                                            />
+                                        )}
+                                    />
+                                ) : (
+                                    <div className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">
+                                        Loading syntax highlighting...
+                                    </div>
+                                )}
+                            </div>
+                        ) : null}
                     </div>
                 );
             })}
-            {paddingBottom > 0 ? <div style={{ height: paddingBottom }} /> : null}
 
             {allModeDiffEntries.length === 0 ? (
                 <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">No files match the current search.</div>

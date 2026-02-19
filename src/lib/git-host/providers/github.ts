@@ -13,14 +13,13 @@ import {
     type PullRequestBuildStatus,
     type PullRequestBundle,
     type PullRequestCommitRangeDiff,
-    type PullRequestCriticalBundle,
-    type PullRequestDeferredBundle,
     type PullRequestDetails,
     type PullRequestFileHistory,
     type PullRequestFileHistoryEntry,
     type PullRequestHistoryEvent,
     type PullRequestReviewer,
     type PullRequestSummary,
+    type RepoRef,
 } from "@/lib/git-host/types";
 
 const API_BASE = "https://api.github.com";
@@ -264,50 +263,11 @@ async function listPaginated<T>(path: string) {
     });
 }
 
-async function mapWithConcurrency<TInput, TOutput>(values: TInput[], concurrency: number, mapper: (value: TInput, index: number) => Promise<TOutput>) {
-    if (values.length === 0) return [] as TOutput[];
-    const safeConcurrency = Math.max(1, Math.min(concurrency, values.length));
-    const results = new Array<TOutput>(values.length);
-    let index = 0;
-
-    const workers = Array.from({ length: safeConcurrency }, async () => {
-        while (index < values.length) {
-            const current = index;
-            index += 1;
-            results[current] = await mapper(values[current], current);
-        }
-    });
-
-    await Promise.all(workers);
-    return results;
-}
-
 function mapFileStatus(status: string): DiffStatEntry["status"] {
     if (status === "added") return "added";
     if (status === "removed") return "removed";
     if (status === "renamed") return "renamed";
     return "modified";
-}
-
-function resolveCurrentUserReviewStatus(reviews: GithubReview[], currentLogin?: string): PullRequestDetails["currentUserReviewStatus"] {
-    if (!currentLogin) return "none";
-    let currentUserReviewStatus: PullRequestDetails["currentUserReviewStatus"] = "none";
-    for (let i = reviews.length - 1; i >= 0; i -= 1) {
-        const review = reviews[i];
-        if (review.user?.login !== currentLogin) continue;
-        const state = (review.state ?? "").toUpperCase();
-        if (state === "APPROVED") {
-            currentUserReviewStatus = "approved";
-        }
-        if (state === "CHANGES_REQUESTED") {
-            currentUserReviewStatus = "changesRequested";
-        }
-        if (state === "APPROVED" || state === "CHANGES_REQUESTED" || state === "DISMISSED") {
-            if (state === "DISMISSED") currentUserReviewStatus = "none";
-            break;
-        }
-    }
-    return currentUserReviewStatus;
 }
 
 function matchGithubCommitFileForPath(file: GithubCommitFile, targetPath: string) {
@@ -738,98 +698,6 @@ export const githubNormalization = {
     mapReviewStateToStatus,
 };
 
-async function fetchGithubPullRequestCritical(prRef: { workspace: string; repo: string; pullRequestId: string }): Promise<PullRequestCriticalBundle> {
-    const basePath = `/repos/${prRef.workspace}/${prRef.repo}/pulls/${prRef.pullRequestId}`;
-    const [prRes, diffRes, files, commits] = await Promise.all([
-        request(basePath),
-        request(basePath, {
-            headers: { Accept: "application/vnd.github.v3.diff" },
-        }),
-        listPaginated<GithubFile>(`${basePath}/files`),
-        listPaginated<GithubCommit>(`${basePath}/commits`),
-    ]);
-    const pr = (await prRes.json()) as GithubPull;
-    const diffstat: DiffStatEntry[] = files.map((file) => ({
-        status: mapFileStatus(file.status),
-        new: { path: file.filename },
-        old: { path: file.previous_filename ?? file.filename },
-        linesAdded: file.additions,
-        linesRemoved: file.deletions,
-    }));
-    return {
-        prRef: {
-            host: "github",
-            workspace: prRef.workspace,
-            repo: prRef.repo,
-            pullRequestId: prRef.pullRequestId,
-        },
-        pr: mapPullRequestDetails(pr, "none"),
-        diff: await diffRes.text(),
-        diffstat,
-        commits: commits.map(mapCommit),
-    };
-}
-
-async function fetchGithubPullRequestDeferred(prRef: { workspace: string; repo: string; pullRequestId: string }): Promise<PullRequestDeferredBundle> {
-    const basePath = `/repos/${prRef.workspace}/${prRef.repo}/pulls/${prRef.pullRequestId}`;
-    const isAuthenticated = Boolean(authHeader());
-    const [prRes, issueComments, reviewComments, reviews, issueEvents] = await Promise.all([
-        request(basePath),
-        listPaginated<GithubIssueComment>(`/repos/${prRef.workspace}/${prRef.repo}/issues/${prRef.pullRequestId}/comments`),
-        listPaginated<GithubReviewComment>(`${basePath}/comments`),
-        listPaginated<GithubReview>(`${basePath}/reviews`),
-        listPaginated<GithubIssueEvent>(`/repos/${prRef.workspace}/${prRef.repo}/issues/${prRef.pullRequestId}/events`).catch(() => []),
-    ]);
-
-    let currentLogin: string | undefined;
-    let currentAvatarUrl: string | undefined;
-    if (isAuthenticated) {
-        const currentUserRes = await request("/user");
-        const currentUser = (await currentUserRes.json()) as GithubUser;
-        currentLogin = currentUser.login;
-        currentAvatarUrl = currentUser.avatar_url;
-    }
-
-    const pr = (await prRes.json()) as GithubPull;
-    const headSha = pr.head?.sha;
-    const [checks, combinedStatus] = await Promise.all([
-        headSha
-            ? request(`/repos/${prRef.workspace}/${prRef.repo}/commits/${headSha}/check-runs`)
-                  .then((res) => res.json() as Promise<GithubCheckRunsResponse>)
-                  .catch(() => null)
-            : Promise.resolve(null),
-        headSha
-            ? request(`/repos/${prRef.workspace}/${prRef.repo}/commits/${headSha}/status`)
-                  .then((res) => res.json() as Promise<GithubCombinedStatusResponse>)
-                  .catch(() => null)
-            : Promise.resolve(null),
-    ]);
-
-    const currentUserReviewStatus = resolveCurrentUserReviewStatus(reviews, currentLogin);
-
-    return {
-        prRef: {
-            host: "github",
-            workspace: prRef.workspace,
-            repo: prRef.repo,
-            pullRequestId: prRef.pullRequestId,
-        },
-        comments: mergeIssueAndReviewComments(issueComments, reviewComments),
-        history: mapHistory(pr, issueComments, reviews, issueEvents),
-        reviewers: mapReviewers(pr, reviews),
-        buildStatuses: mapBuildStatuses(checks, combinedStatus),
-        prPatch: {
-            currentUserReviewStatus,
-            currentUser: currentLogin
-                ? {
-                      displayName: currentLogin,
-                      avatarUrl: currentAvatarUrl,
-                  }
-                : undefined,
-        },
-    };
-}
-
 export const githubClient: GitHostClient = {
     host: "github",
     capabilities: {
@@ -893,52 +761,101 @@ export const githubClient: GitHostClient = {
     },
     async listPullRequestsForRepos(data) {
         if (!data.repos.length) return [];
-        return mapWithConcurrency(data.repos, 4, async (repo) => {
+        const results: Array<{
+            repo: RepoRef;
+            pullRequests: PullRequestSummary[];
+        }> = [];
+
+        for (const repo of data.repos) {
             const pulls = await listPaginated<GithubPull>(`/repos/${repo.workspace}/${repo.repo}/pulls?state=open`);
-            return {
+            results.push({
                 repo,
                 pullRequests: pulls.map(mapPullRequestSummary),
-            };
-        });
-    },
-    async fetchPullRequestCriticalByRef(data): Promise<PullRequestCriticalBundle> {
-        return fetchGithubPullRequestCritical({
-            workspace: data.prRef.workspace,
-            repo: data.prRef.repo,
-            pullRequestId: data.prRef.pullRequestId,
-        });
-    },
-    async fetchPullRequestDeferredByRef(data): Promise<PullRequestDeferredBundle> {
-        return fetchGithubPullRequestDeferred({
-            workspace: data.prRef.workspace,
-            repo: data.prRef.repo,
-            pullRequestId: data.prRef.pullRequestId,
-        });
+            });
+        }
+
+        return results;
     },
     async fetchPullRequestBundleByRef(data): Promise<PullRequestBundle> {
-        const [critical, deferred] = await Promise.all([
-            fetchGithubPullRequestCritical({
-                workspace: data.prRef.workspace,
-                repo: data.prRef.repo,
-                pullRequestId: data.prRef.pullRequestId,
+        const prRef = data.prRef;
+        const basePath = `/repos/${prRef.workspace}/${prRef.repo}/pulls/${prRef.pullRequestId}`;
+        const isAuthenticated = Boolean(authHeader());
+        const [prRes, diffRes, files, commits, issueComments, reviewComments, reviews] = await Promise.all([
+            request(basePath),
+            request(`${basePath}`, {
+                headers: { Accept: "application/vnd.github.v3.diff" },
             }),
-            fetchGithubPullRequestDeferred({
-                workspace: data.prRef.workspace,
-                repo: data.prRef.repo,
-                pullRequestId: data.prRef.pullRequestId,
-            }),
+            listPaginated<GithubFile>(`${basePath}/files`),
+            listPaginated<GithubCommit>(`${basePath}/commits`),
+            listPaginated<GithubIssueComment>(`/repos/${prRef.workspace}/${prRef.repo}/issues/${prRef.pullRequestId}/comments`),
+            listPaginated<GithubReviewComment>(`${basePath}/comments`),
+            listPaginated<GithubReview>(`${basePath}/reviews`),
         ]);
-        const mergedPullRequest: PullRequestDetails = {
-            ...critical.pr,
-            ...(deferred.prPatch ?? {}),
-        };
+
+        let currentLogin: string | undefined;
+        let currentAvatarUrl: string | undefined;
+        if (isAuthenticated) {
+            const currentUserRes = await request("/user");
+            const currentUser = (await currentUserRes.json()) as GithubUser;
+            currentLogin = currentUser.login;
+            currentAvatarUrl = currentUser.avatar_url;
+        }
+        const pr = (await prRes.json()) as GithubPull;
+        const issueEvents = await listPaginated<GithubIssueEvent>(`/repos/${prRef.workspace}/${prRef.repo}/issues/${prRef.pullRequestId}/events`).catch(
+            () => [],
+        );
+
+        const headSha = pr.head?.sha;
+        const [checks, combinedStatus] = await Promise.all([
+            headSha
+                ? request(`/repos/${prRef.workspace}/${prRef.repo}/commits/${headSha}/check-runs`)
+                      .then((res) => res.json() as Promise<GithubCheckRunsResponse>)
+                      .catch(() => null)
+                : Promise.resolve(null),
+            headSha
+                ? request(`/repos/${prRef.workspace}/${prRef.repo}/commits/${headSha}/status`)
+                      .then((res) => res.json() as Promise<GithubCombinedStatusResponse>)
+                      .catch(() => null)
+                : Promise.resolve(null),
+        ]);
+
+        let currentUserReviewStatus: PullRequestDetails["currentUserReviewStatus"] = "none";
+        if (currentLogin) {
+            for (let i = reviews.length - 1; i >= 0; i -= 1) {
+                const review = reviews[i];
+                if (review.user?.login !== currentLogin) continue;
+                const state = (review.state ?? "").toUpperCase();
+                if (state === "APPROVED") {
+                    currentUserReviewStatus = "approved";
+                }
+                if (state === "CHANGES_REQUESTED") {
+                    currentUserReviewStatus = "changesRequested";
+                }
+                if (state === "APPROVED" || state === "CHANGES_REQUESTED" || state === "DISMISSED") {
+                    if (state === "DISMISSED") currentUserReviewStatus = "none";
+                    break;
+                }
+            }
+        }
+
+        const diffstat: DiffStatEntry[] = files.map((file) => ({
+            status: mapFileStatus(file.status),
+            new: { path: file.filename },
+            old: { path: file.previous_filename ?? file.filename },
+            linesAdded: file.additions,
+            linesRemoved: file.deletions,
+        }));
+
         return {
-            ...critical,
-            pr: mergedPullRequest,
-            comments: deferred.comments,
-            history: deferred.history,
-            reviewers: deferred.reviewers,
-            buildStatuses: deferred.buildStatuses,
+            prRef,
+            pr: mapPullRequestDetails(pr, currentUserReviewStatus, currentLogin, currentAvatarUrl),
+            diff: await diffRes.text(),
+            diffstat,
+            commits: commits.map(mapCommit),
+            comments: mergeIssueAndReviewComments(issueComments, reviewComments),
+            history: mapHistory(pr, issueComments, reviews, issueEvents),
+            reviewers: mapReviewers(pr, reviews),
+            buildStatuses: mapBuildStatuses(checks, combinedStatus),
         };
     },
     async approvePullRequest(data) {
@@ -1179,15 +1096,16 @@ export const githubClient: GitHostClient = {
             return { path: normalizedPath, entries: [], fetchedAt: Date.now() };
         }
 
-        const commitCandidates = commits.filter((commit) => Boolean(commit.hash?.trim()));
-        const resolved = await mapWithConcurrency<Commit, PullRequestFileHistoryEntry | null>(commitCandidates, 4, async (commit) => {
+        const entries: PullRequestFileHistoryEntry[] = [];
+        for (const commit of commits) {
+            if (entries.length >= limit) break;
             const commitHash = commit.hash?.trim();
-            if (!commitHash) return null;
+            if (!commitHash) continue;
 
             const commitRes = await request(`/repos/${prRef.workspace}/${prRef.repo}/commits/${commitHash}`);
             const commitDetails = (await commitRes.json()) as GithubCommitDetails;
             const matchingFile = (commitDetails.files ?? []).find((file) => matchGithubCommitFileForPath(file, normalizedPath));
-            if (!matchingFile) return null;
+            if (!matchingFile) continue;
 
             let patch = buildGithubSingleFilePatch(matchingFile);
             if (!patch) {
@@ -1197,11 +1115,11 @@ export const githubClient: GitHostClient = {
                 const diffText = await diffRes.text();
                 patch = extractSingleFilePatchFromUnifiedDiff(diffText, normalizedPath);
             }
-            if (!patch) return null;
+            if (!patch) continue;
 
             const filePathAtCommit = matchingFile.filename?.trim() || matchingFile.previous_filename?.trim() || normalizedPath;
             const status = mapFileStatus((matchingFile.status ?? "modified").toLowerCase());
-            return {
+            entries.push({
                 versionId: `${normalizedPath}:${commitHash}`,
                 commitHash,
                 commitDate: commit.date,
@@ -1210,9 +1128,8 @@ export const githubClient: GitHostClient = {
                 filePathAtCommit,
                 status,
                 patch,
-            };
-        });
-        const entries = resolved.filter((entry): entry is PullRequestFileHistoryEntry => entry !== null).slice(0, limit);
+            });
+        }
 
         return {
             path: normalizedPath,

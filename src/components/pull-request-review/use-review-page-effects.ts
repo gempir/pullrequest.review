@@ -1,5 +1,4 @@
-import type { FileDiffMetadata } from "@pierre/diffs";
-import { useWorkerPool } from "@pierre/diffs/react";
+import { type FileDiffMetadata, preloadHighlighter } from "@pierre/diffs";
 import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import { readReviewDirectoryState, writeReviewDirectoryState } from "@/lib/data/query-collections";
 import { fileAnchorId } from "@/lib/file-anchors";
@@ -85,8 +84,16 @@ export function useDirectoryStateStorage({
     }, [dirState, dirStateHydrated, directoryStateStorageKey]);
 }
 
-export function useDiffHighlighterState({ fileDiffs, theme, preloadLanguages }: { fileDiffs: FileDiffMetadata[]; theme: string; preloadLanguages: string[] }) {
-    const workerPool = useWorkerPool();
+export function useDiffHighlighterState({
+    fileDiffs,
+    theme,
+    preloadLanguages,
+}: {
+    fileDiffs: FileDiffMetadata[];
+    theme: Parameters<typeof preloadHighlighter>[0]["themes"][number];
+    preloadLanguages: string[];
+}) {
+    const [diffHighlighterReady, setDiffHighlighterReady] = useState(false);
     const [diffPlainTextFallback, setDiffPlainTextFallback] = useState(false);
     const preloadLanguagesKey = useMemo(() => [...new Set(preloadLanguages)].sort().join(","), [preloadLanguages]);
     const languagesForPreload = useMemo(() => {
@@ -96,33 +103,32 @@ export function useDiffHighlighterState({ fileDiffs, theme, preloadLanguages }: 
 
     useEffect(() => {
         if (fileDiffs.length === 0) {
+            setDiffHighlighterReady(true);
             setDiffPlainTextFallback(false);
             return;
         }
-
-        setDiffPlainTextFallback(false);
-        if (!workerPool || !workerPool.isWorkingPool()) {
-            setDiffPlainTextFallback(true);
-            return;
-        }
-
         let cancelled = false;
-        void workerPool
-            .setRenderOptions({
-                theme,
+        setDiffHighlighterReady(false);
+        setDiffPlainTextFallback(false);
+        void preloadHighlighter({
+            themes: [theme],
+            langs: languagesForPreload as Parameters<typeof preloadHighlighter>[0]["langs"],
+        })
+            .then(() => {
+                if (cancelled) return;
+                setDiffHighlighterReady(true);
             })
-            .then(() => workerPool.initialize(languagesForPreload as Parameters<typeof workerPool.initialize>[0]))
             .catch(() => {
                 if (cancelled) return;
                 setDiffPlainTextFallback(true);
+                setDiffHighlighterReady(true);
             });
-
         return () => {
             cancelled = true;
         };
-    }, [fileDiffs.length, languagesForPreload, theme, workerPool]);
+    }, [fileDiffs.length, languagesForPreload, theme]);
 
-    return { diffHighlighterReady: true, diffPlainTextFallback };
+    return { diffHighlighterReady, diffPlainTextFallback };
 }
 
 export function useReviewTreeModelSync({

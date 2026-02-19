@@ -1,5 +1,5 @@
 import { Eye, EyeOff, FolderMinus, FolderPlus, PanelLeftClose } from "lucide-react";
-import type { MouseEventHandler } from "react";
+import { type MouseEventHandler, useCallback, useRef } from "react";
 import { FileTree } from "@/components/file-tree";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,20 @@ export function ReviewFileTreeSidebar({
     onFileClick,
     onStartTreeResize,
 }: ReviewFileTreeSidebarProps) {
+    const treeViewportRef = useRef<HTMLDivElement>(null);
     const badgeValue = unviewedFileCount > 999 ? "999+" : unviewedFileCount.toString();
+    const handleFileClick = useCallback(
+        (path: string) => {
+            const previousScrollTop = treeViewportRef.current?.scrollTop ?? null;
+            onFileClick(path);
+            if (previousScrollTop === null) return;
+            requestAnimationFrame(() => {
+                if (!treeViewportRef.current) return;
+                treeViewportRef.current.scrollTop = previousScrollTop;
+            });
+        },
+        [onFileClick],
+    );
 
     return (
         <aside
@@ -137,7 +150,7 @@ export function ReviewFileTreeSidebar({
                     {loading ? (
                         <div className="flex-1 min-h-0 px-2 py-3 text-[12px] text-muted-foreground">Loading file tree...</div>
                     ) : (
-                        <ScrollArea className="flex-1 min-h-0" viewportClassName="tree-font-scope pb-2">
+                        <ScrollArea className="flex-1 min-h-0" viewportClassName="tree-font-scope pb-2" viewportRef={treeViewportRef}>
                             <div data-component="tree">
                                 <FileTree
                                     path=""
@@ -145,7 +158,7 @@ export function ReviewFileTreeSidebar({
                                     allowedFiles={allowedPathSet}
                                     viewedFiles={viewedFiles}
                                     onToggleViewed={onToggleViewed}
-                                    onFileClick={(node) => onFileClick(node.path)}
+                                    onFileClick={(node) => handleFileClick(node.path)}
                                 />
                             </div>
                         </ScrollArea>

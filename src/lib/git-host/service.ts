@@ -26,6 +26,14 @@ export async function fetchPullRequestBundleByRef(data: { prRef: PullRequestRef 
     return getHostClient(data.prRef.host).fetchPullRequestBundleByRef(data);
 }
 
+export async function fetchPullRequestCriticalByRef(data: { prRef: PullRequestRef }) {
+    return getHostClient(data.prRef.host).fetchPullRequestCriticalByRef(data);
+}
+
+export async function fetchPullRequestDeferredByRef(data: { prRef: PullRequestRef }) {
+    return getHostClient(data.prRef.host).fetchPullRequestDeferredByRef(data);
+}
+
 export async function approvePullRequest(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).approvePullRequest(data);
 }

@@ -22,7 +22,6 @@ type ReviewPageDiffContentProps = {
     currentUserDisplayName?: string;
     lineStats: { added: number; removed: number };
     isSummarySelected: boolean;
-    selectedBaselineCommitHash?: string;
     selectedFilePath?: string;
     selectedFileDiff?: FileDiffMetadata;
     selectedFileReadOnlyHistorical: boolean;
@@ -81,7 +80,6 @@ type ReviewPageDiffContentProps = {
     onDiffLineEnter: NonNullable<FileDiffOptions<undefined>["onLineEnter"]>;
     onDiffLineLeave: NonNullable<FileDiffOptions<undefined>["onLineLeave"]>;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
-    onMarkReviewedUpToCommit: (commitHash: string) => void;
 };
 
 export function ReviewPageDiffContent({
@@ -93,7 +91,6 @@ export function ReviewPageDiffContent({
     currentUserDisplayName,
     lineStats,
     isSummarySelected,
-    selectedBaselineCommitHash,
     selectedFilePath,
     selectedFileDiff,
     selectedFileReadOnlyHistorical,
@@ -149,7 +146,6 @@ export function ReviewPageDiffContent({
     onDiffLineEnter,
     onDiffLineLeave,
     onHistoryCommentNavigate,
-    onMarkReviewedUpToCommit,
 }: ReviewPageDiffContentProps) {
     const openDiffSettings = () => {
         onActiveFileChange(settingsPathForTab("diff"));
@@ -185,7 +181,6 @@ export function ReviewPageDiffContent({
                 currentUserDisplayName={currentUserDisplayName}
                 lineStats={lineStats}
                 isSummarySelected={isSummarySelected}
-                selectedBaselineCommitHash={selectedBaselineCommitHash}
                 selectedFilePath={selectedFilePath}
                 selectedFileDiff={selectedFileDiff}
                 selectedFileReadOnlyHistorical={selectedFileReadOnlyHistorical}
@@ -227,7 +222,6 @@ export function ReviewPageDiffContent({
                 onResolveThread={onResolveThread}
                 onReplyToThread={onReplyToThread}
                 onHistoryCommentNavigate={onHistoryCommentNavigate}
-                onMarkReviewedUpToCommit={onMarkReviewedUpToCommit}
                 onOpenDiffSettings={openDiffSettings}
                 onLoadFullFileContext={onLoadFullFileContext}
                 fileContextState={fileContextState}
@@ -242,7 +236,6 @@ export function ReviewPageDiffContent({
             pullRequestTitle={pullRequestTitle || PR_SUMMARY_NAME}
             prData={prData}
             lineStats={lineStats}
-            selectedBaselineCommitHash={selectedBaselineCommitHash}
             currentUserDisplayName={currentUserDisplayName}
             isSummaryCollapsedInAllMode={isSummaryCollapsedInAllMode}
             onToggleSummaryCollapsed={onToggleSummaryCollapsed}
@@ -284,7 +277,6 @@ export function ReviewPageDiffContent({
             onResolveThread={onResolveThread}
             onReplyToThread={onReplyToThread}
             onHistoryCommentNavigate={onHistoryCommentNavigate}
-            onMarkReviewedUpToCommit={onMarkReviewedUpToCommit}
             onDiffLineEnter={onDiffLineEnter}
             onDiffLineLeave={onDiffLineLeave}
             diffTypographyStyle={diffTypographyStyle}

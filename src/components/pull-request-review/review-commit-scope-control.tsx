@@ -1,114 +1,106 @@
-import { Filter } from "lucide-react";
+import { GitCompare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { ReviewDiffScopeMode } from "@/lib/review-diff-scope";
 import { cn } from "@/lib/utils";
 
 type CommitOption = {
     hash: string;
     label: string;
+    timestamp: string;
     message?: string;
 };
 
-function shortHash(hash?: string) {
-    if (!hash) return "";
-    return hash.slice(0, 8);
-}
-
 export function ReviewCommitScopeControl({
     mode,
-    includeMerge,
     commitOptions,
-    fromCommitHash,
-    toCommitHash,
-    baselineCommitHash,
-    hasBaseline,
+    selectedCommitHashes,
     isFetching,
     notice,
-    onModeChange,
-    onFromCommitChange,
-    onToCommitChange,
-    onIncludeMergeChange,
+    onSetFullScope,
+    onToggleCommitSelection,
 }: {
     mode: ReviewDiffScopeMode;
-    includeMerge: boolean;
     commitOptions: CommitOption[];
-    fromCommitHash?: string;
-    toCommitHash?: string;
-    baselineCommitHash?: string | null;
-    hasBaseline: boolean;
+    selectedCommitHashes: string[];
     isFetching: boolean;
     notice?: string | null;
-    onModeChange: (mode: ReviewDiffScopeMode) => void;
-    onFromCommitChange: (hash: string) => void;
-    onToCommitChange: (hash: string) => void;
-    onIncludeMergeChange: (value: boolean) => void;
+    onSetFullScope: () => void;
+    onToggleCommitSelection: (hash: string) => void;
 }) {
-    const firstHash = commitOptions[0]?.hash;
-    const lastHash = commitOptions[commitOptions.length - 1]?.hash;
-    const effectiveFrom = fromCommitHash ?? firstHash ?? "";
-    const effectiveTo = toCommitHash ?? lastHash ?? "";
-    const baselineText = baselineCommitHash ? shortHash(baselineCommitHash) : "none";
+    const selectedSet = new Set(selectedCommitHashes);
+    const selectedCount = selectedSet.size;
+    const scopeLabel = mode === "full" ? "All Changes" : `Range (${selectedCount})`;
+    const selectedIndices = commitOptions
+        .map((option, index) => (selectedSet.has(option.hash) ? index : -1))
+        .filter((index) => index >= 0)
+        .sort((a, b) => a - b);
+    const rangeStart = selectedIndices[0] ?? -1;
+    const rangeEnd = selectedIndices[selectedIndices.length - 1] ?? -1;
 
     return (
         <div className="flex min-w-0 items-center gap-1">
-            <Select value={mode} onValueChange={(value) => onModeChange(value as ReviewDiffScopeMode)}>
-                <SelectTrigger size="sm" className="h-7 min-w-[102px] border-border bg-background px-2 text-[11px]">
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="start">
-                    <SelectItem value="full">Full PR</SelectItem>
-                    <SelectItem value="range">Commit Range</SelectItem>
-                    <SelectItem value="since" disabled={!hasBaseline}>
-                        Since Baseline
-                    </SelectItem>
-                </SelectContent>
-            </Select>
-
-            {mode === "range" ? (
-                <>
-                    <Select value={effectiveFrom} onValueChange={onFromCommitChange}>
-                        <SelectTrigger size="sm" className="h-7 min-w-[88px] border-border bg-background px-2 text-[11px] font-mono">
-                            <SelectValue placeholder="From" />
-                        </SelectTrigger>
-                        <SelectContent align="start">
-                            {commitOptions.map((option) => (
-                                <SelectItem key={`from-${option.hash}`} value={option.hash}>
-                                    <span className="font-mono">{option.label}</span>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                    <Select value={effectiveTo} onValueChange={onToCommitChange}>
-                        <SelectTrigger size="sm" className="h-7 min-w-[88px] border-border bg-background px-2 text-[11px] font-mono">
-                            <SelectValue placeholder="To" />
-                        </SelectTrigger>
-                        <SelectContent align="start">
-                            {commitOptions.map((option) => (
-                                <SelectItem key={`to-${option.hash}`} value={option.hash}>
-                                    <span className="font-mono">{option.label}</span>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </>
-            ) : null}
-
-            {mode === "since" ? <span className="truncate text-[10px] text-muted-foreground">baseline {baselineText}</span> : null}
-            {!hasBaseline && mode !== "since" ? <span className="truncate text-[10px] text-muted-foreground">set a baseline in Commits</span> : null}
-
-            <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className={cn("h-7 px-2 text-[10px]", includeMerge ? "text-foreground" : "text-muted-foreground")}
-                onClick={() => onIncludeMergeChange(!includeMerge)}
-                aria-label={includeMerge ? "Hide merge commits" : "Include merge commits"}
-                title={includeMerge ? "Hide merge commits" : "Include merge commits"}
-            >
-                <Filter className="mr-1 size-3" />
-                merge
-            </Button>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 min-w-[80px] justify-between border border-border bg-background px-2 text-[11px] focus-visible:ring-0 focus-visible:border-border"
+                    >
+                        <span className="truncate">{scopeLabel}</span>
+                        <GitCompare className="ml-1 size-3" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[430px] p-0">
+                    <DropdownMenuItem
+                        className={cn(
+                            "rounded-none px-2 py-2 border-t border-border/30 first:border-t-0 cursor-pointer",
+                            mode === "full" ? "bg-status-renamed/20 focus:bg-status-renamed/25" : "",
+                        )}
+                        onSelect={(event) => {
+                            event.preventDefault();
+                            onSetFullScope();
+                        }}
+                    >
+                        <div className="min-w-0 w-full text-[11px]">All Changes</div>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="my-0" />
+                    {commitOptions.length > 0 ? (
+                        <div className="max-h-[60vh] min-h-0 overflow-y-auto">
+                            <div className="space-y-0">
+                                {commitOptions.map((option, index) => {
+                                    const selected = selectedSet.has(option.hash);
+                                    const inRange = rangeStart >= 0 && rangeEnd >= 0 && index >= rangeStart && index <= rangeEnd;
+                                    return (
+                                        <DropdownMenuItem
+                                            key={option.hash}
+                                            className={cn(
+                                                "items-start gap-2 px-2 py-1 rounded-none border-t border-border/30 first:border-t-0 cursor-crosshair",
+                                                selected ? "bg-status-renamed/20 focus:bg-status-renamed/25" : inRange ? "bg-muted/35 focus:bg-muted/45" : "",
+                                            )}
+                                            onSelect={(event) => {
+                                                event.preventDefault();
+                                                onToggleCommitSelection(option.hash);
+                                            }}
+                                        >
+                                            <div className="min-w-0 space-y-0.5">
+                                                <div className="flex items-center gap-2 text-[11px]">
+                                                    <span className={cn("font-mono", selected ? "text-foreground" : "text-foreground/90")}>{option.label}</span>
+                                                    <span className="text-muted-foreground">{option.timestamp}</span>
+                                                </div>
+                                                <div className="truncate text-[11px] text-muted-foreground">{option.message || "(no message)"}</div>
+                                            </div>
+                                        </DropdownMenuItem>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="px-2 py-1.5 text-[11px] text-muted-foreground">No commits available.</div>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
 
             {isFetching ? <span className="text-[10px] text-muted-foreground">loading...</span> : null}
             {notice ? <span className="max-w-[220px] truncate text-[10px] text-muted-foreground">{notice}</span> : null}

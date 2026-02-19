@@ -37,7 +37,6 @@ import { isRateLimitedError as isRateLimitedQueryError, useReviewQuery } from "@
 import { readViewedVersionIds, useViewedStorageKey, writeViewedVersionIds } from "@/components/pull-request-review/use-review-storage";
 import { getSettingsTreeItems } from "@/components/settings-navigation";
 import { useAppearance } from "@/lib/appearance-context";
-import { readReviewBaselineCommitHash, writeReviewBaselineCommitHash } from "@/lib/data/query-collections";
 import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
 import { commentAnchorId, fileAnchorId } from "@/lib/file-anchors";
 import { useFileTree } from "@/lib/file-tree-context";
@@ -128,7 +127,19 @@ function parentDirectories(path: string): string[] {
 }
 
 function sameScopeSearch(a: ReviewDiffScopeSearch, b: ReviewDiffScopeSearch) {
-    return a.scope === b.scope && a.includeMerge === b.includeMerge && a.from === b.from && a.to === b.to && a.baseline === b.baseline;
+    return a.scope === b.scope && a.from === b.from && a.to === b.to;
+}
+
+function formatCommitScopeTimestamp(value?: string) {
+    if (!value) return "unknown";
+    const timestamp = Date.parse(value);
+    if (Number.isNaN(timestamp)) return "unknown";
+    return new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+    }).format(timestamp);
 }
 
 function usePullRequestReviewPageView({
@@ -284,7 +295,6 @@ function usePullRequestReviewPageView({
     const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [scopeNotice, setScopeNotice] = useState<string | null>(null);
-    const [persistedBaselineCommitHash, setPersistedBaselineCommitHash] = useState<string | null>(null);
     const [fileContexts, setFileContexts] = useState<Record<string, FullFileContextEntry>>({});
     const [dirStateHydrated, setDirStateHydrated] = useState(false);
     const [pendingCommentTick, setPendingCommentTick] = useState(0);
@@ -320,7 +330,7 @@ function usePullRequestReviewPageView({
     });
 
     const basePrData = prQuery.data;
-    const diffScopeSearch: ReviewDiffScopeSearch = reviewDiffScopeSearch ?? { scope: "full", includeMerge: "0" };
+    const diffScopeSearch: ReviewDiffScopeSearch = reviewDiffScopeSearch ?? { scope: "full" };
     const pullRequest = basePrData?.pr;
     const pullRequestUrl = pullRequest?.links?.html?.href;
     const pullRequestTitle = pullRequest?.title?.trim();
@@ -332,7 +342,6 @@ function usePullRequestReviewPageView({
     const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
     const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
     const prContextKey = `${host}:${workspace}/${repo}/${pullRequestId}`;
-    const baselineStorageKey = prContextKey;
     const resolvedScope = useMemo(
         () =>
             resolveReviewDiffScope({
@@ -457,10 +466,6 @@ function usePullRequestReviewPageView({
     const prData = effectivePrData;
 
     useEffect(() => {
-        setPersistedBaselineCommitHash(readReviewBaselineCommitHash(baselineStorageKey));
-    }, [baselineStorageKey]);
-
-    useEffect(() => {
         if (!onReviewDiffScopeSearchChange) return;
         if (sameScopeSearch(diffScopeSearch, resolvedScope.normalizedSearch)) return;
         onReviewDiffScopeSearchChange(resolvedScope.normalizedSearch);
@@ -469,19 +474,13 @@ function usePullRequestReviewPageView({
     useEffect(() => {
         if (!onReviewDiffScopeSearchChange) return;
         if (resolvedScope.mode !== "full" || !resolvedScope.fallbackReason || diffScopeSearch.scope === "full") return;
-        let notice: string;
-        if (resolvedScope.fallbackReason === "invalid_baseline") {
-            writeReviewBaselineCommitHash(baselineStorageKey, null);
-            setPersistedBaselineCommitHash(null);
-            notice = "Baseline commit was removed from this PR. Switched to full diff.";
-        } else if (resolvedScope.fallbackReason === "invalid_range") {
-            notice = "Selected commit range is unavailable. Switched to full diff.";
-        } else {
-            notice = "Commit range base/head could not be resolved. Switched to full diff.";
-        }
+        const notice =
+            resolvedScope.fallbackReason === "invalid_range"
+                ? "Selected commit range is unavailable. Switched to full diff."
+                : "Commit range base/head could not be resolved. Switched to full diff.";
         setScopeNotice(notice);
-        onReviewDiffScopeSearchChange({ scope: "full", includeMerge: diffScopeSearch.includeMerge });
-    }, [baselineStorageKey, diffScopeSearch.includeMerge, diffScopeSearch.scope, onReviewDiffScopeSearchChange, resolvedScope]);
+        onReviewDiffScopeSearchChange({ scope: "full" });
+    }, [diffScopeSearch.scope, onReviewDiffScopeSearchChange, resolvedScope]);
 
     useEffect(() => {
         if (!commitRangeScopedCollection) return;
@@ -494,12 +493,12 @@ function usePullRequestReviewPageView({
             if (!maybeError) return;
             const message = maybeError instanceof Error ? maybeError.message : "Failed to load commit range diff.";
             setScopeNotice(message);
-            onReviewDiffScopeSearchChange?.({ scope: "full", includeMerge: diffScopeSearch.includeMerge });
+            onReviewDiffScopeSearchChange?.({ scope: "full" });
         })();
         return () => {
             cancelled = true;
         };
-    }, [commitRangeScopedCollection, diffScopeSearch.includeMerge, onReviewDiffScopeSearchChange]);
+    }, [commitRangeScopedCollection, onReviewDiffScopeSearchChange]);
 
     useEffect(() => {
         if (resolvedScope.mode === "full") return;
@@ -1380,146 +1379,92 @@ function usePullRequestReviewPageView({
 
     const commitScopeOptions = useMemo(
         () =>
-            resolvedScope.visibleCommits.map((commit) => ({
+            [...resolvedScope.visibleCommits].reverse().map((commit) => ({
                 hash: commit.hash,
                 label: commit.hash.slice(0, 8),
+                timestamp: formatCommitScopeTimestamp(commit.date),
+                message: commit.summary?.raw?.trim() || commit.message?.trim() || "(no message)",
             })),
         [resolvedScope.visibleCommits],
     );
-    const hasPersistedBaseline = useMemo(
-        () => Boolean(persistedBaselineCommitHash && resolvedScope.visibleCommits.some((commit) => commit.hash === persistedBaselineCommitHash)),
-        [persistedBaselineCommitHash, resolvedScope.visibleCommits],
+    const visibleCommitIndexByHash = useMemo(
+        () => new Map(resolvedScope.visibleCommits.map((commit, index) => [commit.hash, index] as const)),
+        [resolvedScope.visibleCommits],
     );
-    const commitScopeLoading = resolvedScope.mode !== "full" && resolvedScope.selectedCommitHashes.length > 0 && !scopedRangeDiffRecord;
-    const handleScopeModeChange = useCallback(
-        (mode: "full" | "range" | "since") => {
+    const selectedRangeCommitHashes = useMemo(
+        () => (resolvedScope.mode === "range" ? resolvedScope.selectedCommitHashes : []),
+        [resolvedScope.mode, resolvedScope.selectedCommitHashes],
+    );
+    const commitScopeLoading = resolvedScope.mode === "range" && resolvedScope.selectedCommitHashes.length > 0 && !scopedRangeDiffRecord;
+    const handleSetFullScope = useCallback(() => {
+        if (!onReviewDiffScopeSearchChange) return;
+        setScopeNotice(null);
+        onReviewDiffScopeSearchChange({ scope: "full" });
+    }, [onReviewDiffScopeSearchChange]);
+    const applyRangeFromSelectedHashes = useCallback(
+        (selectedHashes: Set<string>) => {
             if (!onReviewDiffScopeSearchChange) return;
-            if (mode === "full") {
+            if (selectedHashes.size === 0) {
                 setScopeNotice(null);
-                onReviewDiffScopeSearchChange({ scope: "full", includeMerge: diffScopeSearch.includeMerge });
+                onReviewDiffScopeSearchChange({ scope: "full" });
                 return;
             }
-            if (mode === "range") {
-                const first = commitScopeOptions[0]?.hash;
-                const last = commitScopeOptions[commitScopeOptions.length - 1]?.hash;
-                if (!first || !last) return;
-                onReviewDiffScopeSearchChange({
-                    scope: "range",
-                    from: first,
-                    to: last,
-                    includeMerge: diffScopeSearch.includeMerge,
-                });
+            const indexes = Array.from(selectedHashes)
+                .map((hash) => visibleCommitIndexByHash.get(hash))
+                .filter((index): index is number => index !== undefined)
+                .sort((a, b) => a - b);
+            if (indexes.length === 0) {
+                setScopeNotice("Selected commits are unavailable. Switched to full diff.");
+                onReviewDiffScopeSearchChange({ scope: "full" });
                 return;
             }
-            const baseline = persistedBaselineCommitHash?.trim();
-            if (!baseline) return;
+            const startIndex = indexes[0];
+            const endIndex = indexes[indexes.length - 1];
+            const from = resolvedScope.visibleCommits[startIndex]?.hash;
+            const to = resolvedScope.visibleCommits[endIndex]?.hash;
+            if (!from || !to) {
+                onReviewDiffScopeSearchChange({ scope: "full" });
+                return;
+            }
+            const contiguousSize = endIndex - startIndex + 1;
+            if (contiguousSize !== indexes.length) {
+                setScopeNotice("Expanded to a contiguous commit range.");
+            } else {
+                setScopeNotice(null);
+            }
             onReviewDiffScopeSearchChange({
-                scope: "since",
-                baseline,
-                includeMerge: diffScopeSearch.includeMerge,
+                scope: "range",
+                from,
+                to,
             });
         },
-        [commitScopeOptions, diffScopeSearch.includeMerge, onReviewDiffScopeSearchChange, persistedBaselineCommitHash],
+        [onReviewDiffScopeSearchChange, resolvedScope.visibleCommits, visibleCommitIndexByHash],
     );
-    const handleFromCommitChange = useCallback(
-        (from: string) => {
-            if (!onReviewDiffScopeSearchChange) return;
-            const to = diffScopeSearch.scope === "range" ? diffScopeSearch.to : commitScopeOptions[commitScopeOptions.length - 1]?.hash;
-            if (!to) return;
-            onReviewDiffScopeSearchChange({ scope: "range", from, to, includeMerge: diffScopeSearch.includeMerge });
-        },
-        [commitScopeOptions, diffScopeSearch.includeMerge, diffScopeSearch.scope, diffScopeSearch.to, onReviewDiffScopeSearchChange],
-    );
-    const handleToCommitChange = useCallback(
-        (to: string) => {
-            if (!onReviewDiffScopeSearchChange) return;
-            const from = diffScopeSearch.scope === "range" ? diffScopeSearch.from : commitScopeOptions[0]?.hash;
-            if (!from) return;
-            onReviewDiffScopeSearchChange({ scope: "range", from, to, includeMerge: diffScopeSearch.includeMerge });
-        },
-        [commitScopeOptions, diffScopeSearch.from, diffScopeSearch.includeMerge, diffScopeSearch.scope, onReviewDiffScopeSearchChange],
-    );
-    const handleIncludeMergeToggle = useCallback(
-        (includeMerge: boolean) => {
-            if (!onReviewDiffScopeSearchChange) return;
-            const nextIncludeMerge = includeMerge ? "1" : "0";
-            if (diffScopeSearch.scope === "range") {
-                if (!diffScopeSearch.from || !diffScopeSearch.to) {
-                    onReviewDiffScopeSearchChange({ scope: "full", includeMerge: nextIncludeMerge });
-                    return;
-                }
-                onReviewDiffScopeSearchChange({
-                    scope: "range",
-                    from: diffScopeSearch.from,
-                    to: diffScopeSearch.to,
-                    includeMerge: nextIncludeMerge,
-                });
-                return;
+    const handleToggleCommitSelection = useCallback(
+        (hash: string) => {
+            const nextSelected = new Set(selectedRangeCommitHashes);
+            if (nextSelected.has(hash)) {
+                nextSelected.delete(hash);
+            } else {
+                nextSelected.add(hash);
             }
-            if (diffScopeSearch.scope === "since") {
-                if (!diffScopeSearch.baseline) {
-                    onReviewDiffScopeSearchChange({ scope: "full", includeMerge: nextIncludeMerge });
-                    return;
-                }
-                onReviewDiffScopeSearchChange({
-                    scope: "since",
-                    baseline: diffScopeSearch.baseline,
-                    includeMerge: nextIncludeMerge,
-                });
-                return;
-            }
-            onReviewDiffScopeSearchChange({ scope: "full", includeMerge: nextIncludeMerge });
+            applyRangeFromSelectedHashes(nextSelected);
         },
-        [diffScopeSearch, onReviewDiffScopeSearchChange],
-    );
-    const handleMarkReviewedUpToCommit = useCallback(
-        (commitHash: string) => {
-            const normalized = commitHash.trim();
-            if (!normalized) return;
-            writeReviewBaselineCommitHash(baselineStorageKey, normalized);
-            setPersistedBaselineCommitHash(normalized);
-            onReviewDiffScopeSearchChange?.({
-                scope: "since",
-                baseline: normalized,
-                includeMerge: diffScopeSearch.includeMerge,
-            });
-            setScopeNotice(`Showing commits since ${normalized.slice(0, 8)}.`);
-        },
-        [baselineStorageKey, diffScopeSearch.includeMerge, onReviewDiffScopeSearchChange],
+        [applyRangeFromSelectedHashes, selectedRangeCommitHashes],
     );
     const commitScopeSlot = useMemo(
         () => (
             <ReviewCommitScopeControl
                 mode={resolvedScope.mode}
-                includeMerge={diffScopeSearch.includeMerge === "1"}
                 commitOptions={commitScopeOptions}
-                fromCommitHash={resolvedScope.mode === "range" ? resolvedScope.normalizedSearch.from : undefined}
-                toCommitHash={resolvedScope.mode === "range" ? resolvedScope.normalizedSearch.to : undefined}
-                baselineCommitHash={persistedBaselineCommitHash}
-                hasBaseline={hasPersistedBaseline}
+                selectedCommitHashes={selectedRangeCommitHashes}
                 isFetching={commitScopeLoading}
                 notice={scopeNotice}
-                onModeChange={handleScopeModeChange}
-                onFromCommitChange={handleFromCommitChange}
-                onToCommitChange={handleToCommitChange}
-                onIncludeMergeChange={handleIncludeMergeToggle}
+                onSetFullScope={handleSetFullScope}
+                onToggleCommitSelection={handleToggleCommitSelection}
             />
         ),
-        [
-            commitScopeLoading,
-            commitScopeOptions,
-            diffScopeSearch.includeMerge,
-            handleFromCommitChange,
-            handleIncludeMergeToggle,
-            handleScopeModeChange,
-            handleToCommitChange,
-            hasPersistedBaseline,
-            persistedBaselineCommitHash,
-            resolvedScope.mode,
-            resolvedScope.normalizedSearch.from,
-            resolvedScope.normalizedSearch.to,
-            scopeNotice,
-        ],
+        [commitScopeLoading, commitScopeOptions, handleSetFullScope, handleToggleCommitSelection, resolvedScope.mode, selectedRangeCommitHashes, scopeNotice],
     );
 
     const { sidebarProps, navbarProps, mergeDialogProps } = useReviewPageViewProps({
@@ -1627,7 +1572,6 @@ function usePullRequestReviewPageView({
                     currentUserDisplayName={pullRequest?.currentUser?.displayName}
                     lineStats={lineStats}
                     isSummarySelected={isSummarySelected}
-                    selectedBaselineCommitHash={persistedBaselineCommitHash ?? undefined}
                     selectedFilePath={selectedFilePath}
                     selectedFileDiff={selectedFileDisplayState.fileDiff}
                     selectedFileReadOnlyHistorical={selectedFileDisplayState.readOnlyHistorical}
@@ -1689,7 +1633,6 @@ function usePullRequestReviewPageView({
                         submitThreadReply(commentId, content);
                     }}
                     onHistoryCommentNavigate={handleHistoryCommentNavigate}
-                    onMarkReviewedUpToCommit={handleMarkReviewedUpToCommit}
                     onToggleSummaryCollapsed={() => setIsSummaryCollapsedInAllMode((prev) => !prev)}
                     onToggleCollapsedFile={(path, next) =>
                         setCollapsedAllModeFiles((prev) => ({

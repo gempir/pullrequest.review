@@ -501,6 +501,8 @@ function usePullRequestReviewPageView({
         };
     }, [basePrData, resolvedScope, scopedRangeDiffRecord]);
     const prData = effectivePrData;
+    const commitScopeLoading = resolvedScope.mode === "range" && resolvedScope.selectedCommitHashes.length > 0 && !scopedRangeDiffRecord;
+    const treeLoading = isCriticalLoading || commitScopeLoading;
 
     useEffect(() => {
         if (!onReviewDiffScopeSearchChange) return;
@@ -1118,6 +1120,7 @@ function usePullRequestReviewPageView({
         prData,
         setTree,
         setKinds,
+        isTreePending: treeLoading,
     });
     useReviewTreeReset({
         setTree,
@@ -1471,7 +1474,6 @@ function usePullRequestReviewPageView({
         () => (resolvedScope.mode === "range" ? resolvedScope.selectedCommitHashes : []),
         [resolvedScope.mode, resolvedScope.selectedCommitHashes],
     );
-    const commitScopeLoading = resolvedScope.mode === "range" && resolvedScope.selectedCommitHashes.length > 0 && !scopedRangeDiffRecord;
     const handleSetFullScope = useCallback(() => {
         if (!onReviewDiffScopeSearchChange) return;
         setScopeNotice(null);
@@ -1546,6 +1548,7 @@ function usePullRequestReviewPageView({
     const { sidebarProps, navbarProps, mergeDialogProps } = useReviewPageViewProps({
         treeWidth,
         treeCollapsed,
+        treeLoading,
         host,
         pullRequestUrl,
         showSettingsPanel,

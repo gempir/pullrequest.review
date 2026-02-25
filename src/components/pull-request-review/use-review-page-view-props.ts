@@ -8,6 +8,7 @@ type MainViewProps = ComponentProps<typeof ReviewPageMainView>;
 export function useReviewPageViewProps({
     treeWidth,
     treeCollapsed,
+    treeLoading,
     host,
     pullRequestUrl,
     showSettingsPanel,
@@ -62,6 +63,7 @@ export function useReviewPageViewProps({
 }: {
     treeWidth: number;
     treeCollapsed: boolean;
+    treeLoading: boolean;
     host: GitHost;
     pullRequestUrl?: string;
     showSettingsPanel: boolean;
@@ -118,7 +120,7 @@ export function useReviewPageViewProps({
         () => ({
             treeWidth,
             treeCollapsed,
-            loading: false,
+            loading: treeLoading,
             showSettingsPanel,
             activeFile,
             searchQuery,
@@ -157,6 +159,7 @@ export function useReviewPageViewProps({
             treeCollapsed,
             treeWidth,
             viewedFiles,
+            treeLoading,
         ],
     );
 

@@ -131,12 +131,14 @@ export function useReviewTreeModelSync({
     prData,
     setTree,
     setKinds,
+    isTreePending,
 }: {
     showSettingsPanel: boolean;
     settingsTreeItems: Array<{ name: string; path: string }>;
     prData: PullRequestBundle | undefined;
     setTree: (nodes: FileNode[]) => void;
     setKinds: (next: ReadonlyMap<string, ChangeKind>) => void;
+    isTreePending: boolean;
 }) {
     useEffect(() => {
         if (showSettingsPanel) {
@@ -150,6 +152,10 @@ export function useReviewTreeModelSync({
             return;
         }
         if (!prData) return;
+        if (isTreePending && (prData.diffstat?.length ?? 0) === 0) {
+            // Keep the previous tree visible while the next diff scope loads.
+            return;
+        }
 
         const paths = prData.diffstat.map((entry) => entry.new?.path ?? entry.old?.path).filter((path): path is string => Boolean(path));
         const tree = buildTreeFromPaths(paths);
@@ -180,7 +186,7 @@ export function useReviewTreeModelSync({
 
         setTree(treeWithSummary);
         setKinds(buildKindMapForTree(treeWithSummary, fileKinds));
-    }, [prData, setKinds, setTree, settingsTreeItems, showSettingsPanel]);
+    }, [isTreePending, prData, setKinds, setTree, settingsTreeItems, showSettingsPanel]);
 }
 
 export function useReviewTreeReset({

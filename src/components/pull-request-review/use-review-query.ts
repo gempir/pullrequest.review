@@ -179,6 +179,7 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
 
     const hasPendingBuildStatuses = stagedBundle?.buildStatuses?.some((status) => status.state === "pending") ?? false;
 
+    const lastBundleRefetchTokenRef = useRef<string>("");
     useEffect(() => {
         if (!bundleStore) return;
         if (queryIsFetching) return;
@@ -188,10 +189,19 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
         const deferredFetchedAt = queryData?.deferredFetchedAt ?? 0;
         const criticalStale = !criticalFetchedAt || now - criticalFetchedAt > CRITICAL_STALE_MS;
         const deferredStale = !deferredFetchedAt || now - deferredFetchedAt > DEFERRED_STALE_MS;
+        const needsRefetch = !queryData || criticalStale || deferredStale;
 
-        if (!queryData || criticalStale || deferredStale) {
-            void bundleStore.utils.refetch({ throwOnError: false });
+        if (!needsRefetch) {
+            lastBundleRefetchTokenRef.current = "";
+            return;
         }
+
+        const refetchToken = queryData ? `${queryData.id}:${criticalFetchedAt}:${deferredFetchedAt}` : `no-data:${Math.floor(now / 5000)}`;
+        if (lastBundleRefetchTokenRef.current === refetchToken) {
+            return;
+        }
+        lastBundleRefetchTokenRef.current = refetchToken;
+        void bundleStore.utils.refetch({ throwOnError: false });
     }, [bundleStore, queryData, queryIsFetching]);
 
     useEffect(() => {

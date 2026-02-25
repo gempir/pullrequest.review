@@ -340,6 +340,8 @@ function usePullRequestReviewPageView({
     const skipViewedStatePersistRevisionRef = useRef<string>("");
     const loadedHistoryRevisionRef = useRef<string>("");
     const firstDiffRenderedKeyRef = useRef<string>("");
+    const commitRangeFetchKeyRef = useRef<string>("");
+    const [manualRangeDiffRecord, setManualRangeDiffRecord] = useState<PullRequestCommitRangeDiffRecord | null>(null);
     const { inlineComment, setInlineComment, getInlineDraftContent, setInlineDraftContent, clearInlineDraftContent, openInlineCommentDraft } =
         useInlineCommentDrafts({
             workspace,
@@ -461,8 +463,9 @@ function usePullRequestReviewPageView({
     const scopedRangeDiffRecord = useMemo(() => {
         if (resolvedScope.mode === "full") return undefined;
         if (!resolvedScope.baseCommitHash || !resolvedScope.headCommitHash) return undefined;
-        return persistedCommitRangeDiffs[`${resolvedScope.baseCommitHash}..${resolvedScope.headCommitHash}`];
-    }, [persistedCommitRangeDiffs, resolvedScope]);
+        const persisted = persistedCommitRangeDiffs[`${resolvedScope.baseCommitHash}..${resolvedScope.headCommitHash}`];
+        return manualRangeDiffRecord ?? persisted;
+    }, [manualRangeDiffRecord, persistedCommitRangeDiffs, resolvedScope]);
     const commitRangeScopedCollection = useMemo(() => {
         if (!basePrData || resolvedScope.mode === "full") return null;
         if (!resolvedScope.baseCommitHash || !resolvedScope.headCommitHash) return null;
@@ -474,30 +477,39 @@ function usePullRequestReviewPageView({
             selectedCommitHashes: resolvedScope.selectedCommitHashes,
         });
     }, [basePrData, prRef, resolvedScope]);
+    const resolvedSelectedHashesKey = useMemo(() => resolvedScope.selectedCommitHashes.join(","), [resolvedScope.selectedCommitHashes]);
+    const resolvedRangeFetchKey = useMemo(() => {
+        if (resolvedScope.mode !== "range") return "";
+        const base = resolvedScope.baseCommitHash ?? "";
+        const head = resolvedScope.headCommitHash ?? "";
+        return `${base}:${head}:${resolvedSelectedHashesKey}`;
+    }, [resolvedScope.baseCommitHash, resolvedScope.headCommitHash, resolvedScope.mode, resolvedSelectedHashesKey]);
+    const rangeRecordId = useMemo(() => {
+        if (resolvedScope.mode !== "range") return null;
+        if (!resolvedScope.baseCommitHash || !resolvedScope.headCommitHash) return null;
+        return `${prContextKey}:range:${resolvedScope.baseCommitHash}..${resolvedScope.headCommitHash}`;
+    }, [prContextKey, resolvedScope.baseCommitHash, resolvedScope.headCommitHash, resolvedScope.mode]);
     const effectivePrData = useMemo(() => {
         if (!basePrData) return undefined;
         if (resolvedScope.mode === "full") return basePrData;
+        const scopedBase = {
+            ...basePrData,
+            commits: resolvedScope.selectedCommits,
+        };
         if (resolvedScope.selectedCommitHashes.length === 0) {
             return {
-                ...basePrData,
+                ...scopedBase,
                 diff: "",
                 diffstat: [],
-                commits: resolvedScope.selectedCommits,
             };
         }
         if (!scopedRangeDiffRecord) {
-            return {
-                ...basePrData,
-                diff: "",
-                diffstat: [],
-                commits: resolvedScope.selectedCommits,
-            };
+            return scopedBase;
         }
         return {
-            ...basePrData,
+            ...scopedBase,
             diff: scopedRangeDiffRecord.diff,
             diffstat: scopedRangeDiffRecord.diffstat,
-            commits: resolvedScope.selectedCommits,
         };
     }, [basePrData, resolvedScope, scopedRangeDiffRecord]);
     const prData = effectivePrData;
@@ -522,12 +534,31 @@ function usePullRequestReviewPageView({
     }, [diffScopeSearch.scope, onReviewDiffScopeSearchChange, resolvedScope]);
 
     useEffect(() => {
-        if (!commitRangeScopedCollection) return;
+        if (resolvedScope.mode !== "range") {
+            commitRangeFetchKeyRef.current = "";
+            setManualRangeDiffRecord(null);
+            return;
+        }
+        if (!commitRangeScopedCollection || !resolvedRangeFetchKey || !rangeRecordId) {
+            if (!resolvedRangeFetchKey) {
+                commitRangeFetchKeyRef.current = "";
+            }
+            return;
+        }
+        if (commitRangeFetchKeyRef.current === resolvedRangeFetchKey) {
+            return;
+        }
+        commitRangeFetchKeyRef.current = resolvedRangeFetchKey;
+        setManualRangeDiffRecord(null);
         let cancelled = false;
         setScopeNotice(null);
         void (async () => {
             await commitRangeScopedCollection.utils.refetch({ throwOnError: false });
             if (cancelled) return;
+            const directRecord = commitRangeDiffCollectionData.get(rangeRecordId);
+            if (directRecord) {
+                setManualRangeDiffRecord(directRecord);
+            }
             const maybeError = commitRangeScopedCollection.utils.lastError;
             if (!maybeError) return;
             const message = maybeError instanceof Error ? maybeError.message : "Failed to load commit range diff.";
@@ -537,7 +568,7 @@ function usePullRequestReviewPageView({
         return () => {
             cancelled = true;
         };
-    }, [commitRangeScopedCollection, onReviewDiffScopeSearchChange]);
+    }, [commitRangeDiffCollectionData, commitRangeScopedCollection, onReviewDiffScopeSearchChange, rangeRecordId, resolvedRangeFetchKey, resolvedScope.mode]);
 
     useEffect(() => {
         if (resolvedScope.mode === "full") return;
@@ -1137,6 +1168,7 @@ function usePullRequestReviewPageView({
         visiblePathSet,
         viewedFiles,
         setActiveFile,
+        isTreePending: treeLoading,
     });
     useAutoMarkActiveFileViewed({
         viewMode,

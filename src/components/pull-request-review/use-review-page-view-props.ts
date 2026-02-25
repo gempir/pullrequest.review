@@ -71,7 +71,7 @@ export function useReviewPageViewProps({
     searchQuery: string;
     showUnviewedOnly: boolean;
     unviewedFileCount: number;
-    allowedPathSet: Set<string>;
+    allowedPathSet?: Set<string>;
     viewedFiles: Set<string>;
     pullRequest: { source?: { branch?: { name?: string } }; destination?: { branch?: { name?: string } } };
     isRefreshing: boolean;
@@ -126,7 +126,7 @@ export function useReviewPageViewProps({
             searchQuery,
             showUnviewedOnly,
             unviewedFileCount,
-            allowedPathSet,
+            allowedPathSet: treeLoading ? undefined : allowedPathSet,
             viewedFiles,
             onHome,
             onToggleSettings,

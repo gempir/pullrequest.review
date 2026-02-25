@@ -1,6 +1,7 @@
-import type { FileDiffMetadata } from "@pierre/diffs";
+import { type FileDiffMetadata, parsePatchFiles } from "@pierre/diffs";
 import { useWorkerPool } from "@pierre/diffs/react";
 import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
+import { getFilePath } from "@/components/pull-request-review/review-page-model";
 import { readReviewDirectoryState, writeReviewDirectoryState } from "@/lib/data/query-collections";
 import { fileAnchorId } from "@/lib/file-anchors";
 import { buildKindMapForTree, buildTreeFromPaths, type ChangeKind, type FileNode } from "@/lib/file-tree-context";
@@ -140,6 +141,31 @@ export function useReviewTreeModelSync({
     setKinds: (next: ReadonlyMap<string, ChangeKind>) => void;
     isTreePending: boolean;
 }) {
+    const fallbackRangeDiffEntries = useMemo(() => {
+        if (showSettingsPanel) return [];
+        if (!prData?.diff) return [];
+        if ((prData.diffstat?.length ?? 0) > 0) return [];
+        const parsedPatches = parsePatchFiles(prData.diff);
+        const entries: Array<{ path: string; kind: ChangeKind }> = [];
+        let fileIndex = 0;
+        for (const patch of parsedPatches) {
+            for (const file of patch.files) {
+                const path = getFilePath(file, fileIndex);
+                fileIndex += 1;
+                if (!path) continue;
+                let kind: ChangeKind = "mix";
+                const diffType = String(file.type ?? "").toLowerCase();
+                if (diffType === "add" || diffType === "new" || diffType === "added") {
+                    kind = "add";
+                } else if (diffType === "del" || diffType === "delete" || diffType === "removed") {
+                    kind = "del";
+                }
+                entries.push({ path, kind });
+            }
+        }
+        return entries;
+    }, [prData?.diff, prData?.diffstat?.length, showSettingsPanel]);
+
     useEffect(() => {
         if (showSettingsPanel) {
             const settingsNodes: FileNode[] = settingsTreeItems.map((item) => ({
@@ -157,8 +183,9 @@ export function useReviewTreeModelSync({
             return;
         }
 
-        const paths = prData.diffstat.map((entry) => entry.new?.path ?? entry.old?.path).filter((path): path is string => Boolean(path));
-        const tree = buildTreeFromPaths(paths);
+        const diffstatPaths = prData.diffstat.map((entry) => entry.new?.path ?? entry.old?.path).filter((path): path is string => Boolean(path));
+        const sourcePaths = diffstatPaths.length > 0 ? diffstatPaths : fallbackRangeDiffEntries.map((entry) => entry.path);
+        const tree = buildTreeFromPaths(sourcePaths);
         const summaryNode: FileNode = {
             name: PR_SUMMARY_NAME,
             path: PR_SUMMARY_PATH,
@@ -167,26 +194,33 @@ export function useReviewTreeModelSync({
         const treeWithSummary = [summaryNode, ...tree];
         const fileKinds = new Map<string, ChangeKind>();
 
-        for (const entry of prData.diffstat) {
-            const path = entry.new?.path ?? entry.old?.path;
-            if (!path) continue;
-            switch (entry.status) {
-                case "added":
-                    fileKinds.set(path, "add");
-                    break;
-                case "removed":
-                    fileKinds.set(path, "del");
-                    break;
-                case "modified":
-                case "renamed":
-                    fileKinds.set(path, "mix");
-                    break;
+        if (diffstatPaths.length > 0) {
+            for (const entry of prData.diffstat) {
+                const path = entry.new?.path ?? entry.old?.path;
+                if (!path) continue;
+                switch (entry.status) {
+                    case "added":
+                        fileKinds.set(path, "add");
+                        break;
+                    case "removed":
+                        fileKinds.set(path, "del");
+                        break;
+                    case "modified":
+                    case "renamed":
+                        fileKinds.set(path, "mix");
+                        break;
+                }
+            }
+        } else {
+            for (const entry of fallbackRangeDiffEntries) {
+                if (!entry.path) continue;
+                fileKinds.set(entry.path, entry.kind);
             }
         }
 
         setTree(treeWithSummary);
         setKinds(buildKindMapForTree(treeWithSummary, fileKinds));
-    }, [isTreePending, prData, setKinds, setTree, settingsTreeItems, showSettingsPanel]);
+    }, [fallbackRangeDiffEntries, isTreePending, prData, setKinds, setTree, settingsTreeItems, showSettingsPanel]);
 }
 
 export function useReviewTreeReset({
@@ -217,6 +251,7 @@ export function useReviewActiveFileSync({
     visiblePathSet,
     viewedFiles,
     setActiveFile,
+    isTreePending,
 }: {
     showSettingsPanel: boolean;
     settingsTreeItems: Array<{ path: string }>;
@@ -226,8 +261,10 @@ export function useReviewActiveFileSync({
     visiblePathSet: Set<string>;
     viewedFiles: Set<string>;
     setActiveFile: (next: string | undefined) => void;
+    isTreePending: boolean;
 }) {
     useEffect(() => {
+        if (isTreePending) return;
         if (showSettingsPanel) {
             const firstSettingsPath = settingsTreeItems[0]?.path;
             if (!firstSettingsPath) return;
@@ -247,7 +284,7 @@ export function useReviewActiveFileSync({
             const firstUnviewed = treeOrderedVisiblePaths.find((path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path)) ?? treeOrderedVisiblePaths[0];
             setActiveFile(firstUnviewed);
         }
-    }, [activeFile, settingsPathSet, settingsTreeItems, setActiveFile, showSettingsPanel, treeOrderedVisiblePaths, viewedFiles, visiblePathSet]);
+    }, [activeFile, isTreePending, settingsPathSet, settingsTreeItems, setActiveFile, showSettingsPanel, treeOrderedVisiblePaths, viewedFiles, visiblePathSet]);
 }
 
 export function useReviewFileHashSelection({

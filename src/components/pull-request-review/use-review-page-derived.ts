@@ -300,7 +300,11 @@ export function useReviewPageDerived({
 
     const settingsPathSet = useMemo(() => new Set(settingsTreeItems.map((item) => item.path)), [settingsTreeItems]);
     const visiblePathSet = useMemo(() => new Set([PR_SUMMARY_PATH, ...visibleFilePaths]), [visibleFilePaths]);
-    const allowedPathSet = useMemo(() => (showSettingsPanel ? settingsPathSet : visiblePathSet), [settingsPathSet, showSettingsPanel, visiblePathSet]);
+    const hasVisibleDiffFiles = visibleFilePaths.length > 0;
+    const allowedPathSet = useMemo(() => {
+        if (showSettingsPanel) return settingsPathSet;
+        return hasVisibleDiffFiles ? visiblePathSet : undefined;
+    }, [hasVisibleDiffFiles, settingsPathSet, showSettingsPanel, visiblePathSet]);
 
     const treeFilePaths = useMemo(() => allFiles().map((file) => file.path), [allFiles]);
     const directoryPaths = useMemo(() => collectDirectoryPaths(root), [root]);

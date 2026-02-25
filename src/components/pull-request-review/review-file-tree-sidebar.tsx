@@ -19,7 +19,7 @@ type ReviewFileTreeSidebarProps = {
     searchQuery: string;
     showUnviewedOnly: boolean;
     unviewedFileCount: number;
-    allowedPathSet: Set<string>;
+    allowedPathSet?: Set<string>;
     viewedFiles: Set<string>;
     onHome: () => void;
     onToggleSettings: () => void;
@@ -194,11 +194,10 @@ export function ReviewFileTreeSidebar({
                             </>
                         ) : null}
                     </div>
-                    {loading ? (
-                        <div className="flex-1 min-h-0 px-2 py-3 text-[12px] text-muted-foreground">Loading file tree...</div>
-                    ) : (
+                    <div className="relative flex-1 min-h-0">
+                        {loading ? <div className="absolute inset-x-0 top-0 z-10 px-2 py-1 text-[11px] text-muted-foreground">Loading file tree…</div> : null}
                         <ScrollArea className="flex-1 min-h-0" viewportClassName="tree-font-scope pb-2" viewportRef={treeViewportRef}>
-                            <div data-component="tree">
+                            <div data-component="tree" className={cn(loading ? "opacity-70" : "")}>
                                 <FileTree
                                     path=""
                                     filterQuery={searchQuery}
@@ -209,7 +208,7 @@ export function ReviewFileTreeSidebar({
                                 />
                             </div>
                         </ScrollArea>
-                    )}
+                    </div>
                     <button
                         type="button"
                         className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-border/30"

@@ -868,19 +868,22 @@ export const bitbucketClient: GitHostClient = {
         if (!normalizedBase || !normalizedHead) {
             throw new Error("Both base and head commit hashes are required.");
         }
-        const rangeSpec = `${encodeURIComponent(normalizedBase)}..${encodeURIComponent(normalizedHead)}`;
-        const apiBase = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}`;
+        const prApiBase = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/pullrequests/${prRef.pullRequestId}`;
+        const rangeParams = new URLSearchParams({ from: normalizedBase, to: normalizedHead });
+        const diffQuery = rangeParams.toString();
+        const diffstatParams = new URLSearchParams({ from: normalizedBase, to: normalizedHead, pagelen: "100" });
         const [diffRes, diffstat] = await Promise.all([
-            request(`${apiBase}/diff/${rangeSpec}`, { headers: { Accept: "text/plain" } }),
-            fetchAllDiffStat(`${apiBase}/diffstat/${rangeSpec}?pagelen=100`),
+            request(`${prApiBase}/diff?${diffQuery}`, { headers: { Accept: "text/plain" } }),
+            fetchAllDiffStat(`${prApiBase}/diffstat?${diffstatParams.toString()}`),
         ]);
+        const diffText = await diffRes.text();
 
         return {
             prRef,
             baseCommitHash: normalizedBase,
             headCommitHash: normalizedHead,
             selectedCommitHashes: selectedCommitHashes.map((hash) => hash.trim()).filter(Boolean),
-            diff: await diffRes.text(),
+            diff: diffText,
             diffstat,
         };
     },
@@ -932,24 +935,81 @@ function encodeBitbucketPath(path: string) {
 }
 
 function splitUnifiedDiffByFile(diffText: string) {
-    const sections = diffText.split(/^diff --git /m);
+    const normalizedText = diffText.replace(/^\ufeff/, "");
     const patches: string[] = [];
-    for (const section of sections) {
-        const trimmed = section.trim();
-        if (!trimmed) continue;
-        patches.push(`diff --git ${trimmed}`);
+    const lines = normalizedText.split("\n");
+    let current: string[] = [];
+    for (const rawLine of lines) {
+        const line = rawLine.replace(/\r$/, "");
+        if (line.startsWith("diff --git ") || line.startsWith("diff --cc ")) {
+            if (current.length > 0) {
+                patches.push(current.join("\n"));
+            }
+            current = [line];
+            continue;
+        }
+        if (current.length === 0) continue;
+        current.push(line);
+    }
+    if (current.length > 0) {
+        patches.push(current.join("\n"));
     }
     return patches;
 }
 
-function extractPathPairFromPatch(patch: string) {
+function extractPathPairFromPatch(patch: string): { oldPath: string; newPath: string } | null {
     const firstLine = patch.split("\n", 1)[0] ?? "";
-    const match = firstLine.match(/^diff --git a\/(.+?) b\/(.+)$/);
-    if (!match) return null;
+    const pathTokens = parseDiffHeaderPaths(firstLine);
+    if (pathTokens.length === 0) return null;
+    if (pathTokens.length === 1) {
+        const normalized = normalizeDiffHeaderPath(pathTokens[0]);
+        return normalized ? { oldPath: normalized, newPath: normalized } : null;
+    }
+    const oldPath = normalizeDiffHeaderPath(pathTokens[0]);
+    const newPath = normalizeDiffHeaderPath(pathTokens[1]);
+    if (!oldPath && !newPath) return null;
+    const resolvedOld = oldPath ?? newPath;
+    if (!resolvedOld) return null;
+    const resolvedNew = newPath ?? oldPath;
+    if (!resolvedNew) return null;
     return {
-        oldPath: match[1],
-        newPath: match[2],
+        oldPath: resolvedOld,
+        newPath: resolvedNew,
     };
+}
+
+function parseDiffHeaderPaths(firstLine: string) {
+    if (!firstLine.startsWith("diff --git ") && !firstLine.startsWith("diff --cc ")) {
+        return [];
+    }
+    const rest = firstLine.replace(/^diff --(?:git|cc) /, "");
+    const tokens: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (const char of rest) {
+        if (char === '"') {
+            inQuotes = !inQuotes;
+            continue;
+        }
+        if (char === " " && !inQuotes) {
+            if (current) {
+                tokens.push(current);
+                current = "";
+            }
+            continue;
+        }
+        current += char;
+    }
+    if (current) tokens.push(current);
+    return tokens;
+}
+
+function normalizeDiffHeaderPath(token: string) {
+    if (!token) return undefined;
+    if (token.startsWith("a/") || token.startsWith("b/") || token.startsWith("c/")) {
+        return token.slice(2);
+    }
+    return token;
 }
 
 function inferBitbucketPatchStatus(patch: string): DiffStatEntry["status"] {

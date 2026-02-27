@@ -3,7 +3,6 @@ import type { Commit } from "@/lib/git-host/types";
 export type ReviewDiffScopeMode = "full" | "range";
 
 export type ReviewDiffScopeSearch = {
-    scope: ReviewDiffScopeMode;
     from?: string;
     to?: string;
 };
@@ -104,90 +103,74 @@ function orderCommitsOldestFirst(commits: Commit[]) {
 
 export function validateReviewDiffScopeSearch(search: unknown): ReviewDiffScopeSearch {
     const raw = typeof search === "object" && search ? (search as Record<string, unknown>) : {};
-    const scopeRaw = typeof raw.scope === "string" ? raw.scope : "full";
-    const scope: ReviewDiffScopeMode = scopeRaw === "range" ? scopeRaw : "full";
-    if (scope === "range") {
-        const from = normalizeCommitHash(raw.from);
-        const to = normalizeCommitHash(raw.to);
-        if (from && to) {
-            return { scope: "range", from, to };
-        }
-        return { scope: "full" };
+    const from = normalizeCommitHash(raw.from);
+    const to = normalizeCommitHash(raw.to);
+    if (from && to) {
+        return { from, to };
     }
-    return { scope: "full" };
+    return {};
 }
 
 export function resolveReviewDiffScope({ search, commits, destinationCommitHash }: ResolveReviewDiffScopeArgs): ResolvedReviewDiffScope {
     const allCommits = orderCommitsOldestFirst(commits);
     const visibleCommits = allCommits;
     const visibleIndex = new Map(visibleCommits.map((commit, index) => [commit.hash, index] as const));
-    if (search.scope === "full") {
+    const hasRangeSelection = Boolean(search.from && search.to);
+    if (!hasRangeSelection) {
         return {
             mode: "full",
             allCommits,
             visibleCommits,
             selectedCommits: visibleCommits,
             selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
-            normalizedSearch: { scope: "full" },
+            normalizedSearch: {},
         };
     }
 
-    if (search.scope === "range") {
-        const fromHash = search.from;
-        const toHash = search.to;
-        const fromIndex = fromHash ? visibleIndex.get(fromHash) : undefined;
-        const toIndex = toHash ? visibleIndex.get(toHash) : undefined;
-        if (fromIndex === undefined || toIndex === undefined) {
-            return {
-                mode: "full",
-                allCommits,
-                visibleCommits,
-                selectedCommits: visibleCommits,
-                selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
-                normalizedSearch: { scope: "full" },
-                fallbackReason: "invalid_range",
-            };
-        }
-        const startIndex = Math.min(fromIndex, toIndex);
-        const endIndex = Math.max(fromIndex, toIndex);
-        const selectedCommits = visibleCommits.slice(startIndex, endIndex + 1);
-        const selectedCommitHashes = selectedCommits.map((commit) => commit.hash);
-        const headCommitHash = selectedCommits[selectedCommits.length - 1]?.hash;
-        const baseCommitHash = startIndex > 0 ? visibleCommits[startIndex - 1]?.hash : destinationCommitHash?.trim();
-        if (!baseCommitHash || !headCommitHash) {
-            return {
-                mode: "full",
-                allCommits,
-                visibleCommits,
-                selectedCommits: visibleCommits,
-                selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
-                normalizedSearch: { scope: "full" },
-                fallbackReason: "missing_base_or_head",
-            };
-        }
+    const fromHash = search.from;
+    const toHash = search.to;
+    const fromIndex = fromHash ? visibleIndex.get(fromHash) : undefined;
+    const toIndex = toHash ? visibleIndex.get(toHash) : undefined;
+    if (fromIndex === undefined || toIndex === undefined) {
         return {
-            mode: "range",
+            mode: "full",
             allCommits,
             visibleCommits,
-            selectedCommits,
-            selectedCommitHashes,
-            baseCommitHash,
-            headCommitHash,
-            normalizedSearch: {
-                scope: "range",
-                from: visibleCommits[startIndex]?.hash,
-                to: visibleCommits[endIndex]?.hash,
-            },
+            selectedCommits: visibleCommits,
+            selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
+            normalizedSearch: {},
+            fallbackReason: "invalid_range",
         };
     }
-
+    const startIndex = Math.min(fromIndex, toIndex);
+    const endIndex = Math.max(fromIndex, toIndex);
+    const selectedCommits = visibleCommits.slice(startIndex, endIndex + 1);
+    const selectedCommitHashes = selectedCommits.map((commit) => commit.hash);
+    const headCommitHash = selectedCommits[selectedCommits.length - 1]?.hash;
+    const baseCommitHash = startIndex > 0 ? visibleCommits[startIndex - 1]?.hash : destinationCommitHash?.trim();
+    if (!baseCommitHash || !headCommitHash) {
+        return {
+            mode: "full",
+            allCommits,
+            visibleCommits,
+            selectedCommits: visibleCommits,
+            selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
+            normalizedSearch: {},
+            fallbackReason: "missing_base_or_head",
+        };
+    }
     return {
-        mode: "full",
+        mode: "range",
         allCommits,
         visibleCommits,
-        selectedCommits: visibleCommits,
-        selectedCommitHashes: visibleCommits.map((commit) => commit.hash),
-        normalizedSearch: { scope: "full" },
+        selectedCommits,
+        selectedCommitHashes,
+        baseCommitHash,
+        headCommitHash,
+        normalizedSearch: {
+            from: visibleCommits[startIndex]?.hash,
+            to: visibleCommits[endIndex]?.hash,
+        },
     };
 }
 

@@ -66,15 +66,13 @@ describe("commit range diff providers", () => {
         ]);
     });
 
-    test("Bitbucket revspec endpoints map diff and diffstat using pull request scoped endpoints", async () => {
+    test("Bitbucket revspec endpoints map diff and diffstat for selected range", async () => {
         writeBitbucketAuthCredential({ email: "user@example.com", apiToken: "token" });
         const calls = [];
         globalThis.fetch = async (input) => {
             const url = String(input);
             calls.push(url);
-            if (url.includes("/pullrequests/1/diffstat?")) {
-                expect(url).toContain("from=aaa11111");
-                expect(url).toContain("to=bbb22222");
+            if (url.includes("/diffstat/bbb22222..aaa11111?")) {
                 return Response.json({
                     values: [
                         {
@@ -87,9 +85,7 @@ describe("commit range diff providers", () => {
                     ],
                 });
             }
-            if (url.includes("/pullrequests/1/diff?")) {
-                expect(url).toContain("from=aaa11111");
-                expect(url).toContain("to=bbb22222");
+            if (url.includes("/diff/bbb22222..aaa11111")) {
                 return new Response("diff --git a/src/a.ts b/src/a.ts\n", { status: 200 });
             }
             return new Response("Not found", { status: 404 });
@@ -102,8 +98,8 @@ describe("commit range diff providers", () => {
             selectedCommitHashes: ["bbb22222"],
         });
 
-        expect(calls.some((url) => url.includes("/pullrequests/1/diff?from=aaa11111"))).toBeTrue();
-        expect(calls.some((url) => url.includes("/pullrequests/1/diffstat?"))).toBeTrue();
+        expect(calls.some((url) => url.includes("/diff/bbb22222..aaa11111"))).toBeTrue();
+        expect(calls.some((url) => url.includes("/diffstat/bbb22222..aaa11111?pagelen=100"))).toBeTrue();
         expect(result.diffstat).toEqual([
             {
                 status: "modified",

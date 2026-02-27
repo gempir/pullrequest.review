@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 const HOSTS: GitHost[] = ["bitbucket", "github"];
 const HOST_PATH_PREFIX = "host:";
 const WORKSPACE_PATH_PREFIX = "workspace:";
-const DEFAULT_REVIEW_SCOPE_SEARCH = { scope: "full" } as const;
+const DEFAULT_REVIEW_SCOPE_SEARCH = {} as const;
 
 type DiffPanel = "pull-requests" | "repositories";
 type PullRequestTreeMeta = {
@@ -212,6 +212,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
 
     const [showSettingsPanel, setShowSettingsPanel] = useState(false);
     const [diffPanel, setDiffPanel] = useState<DiffPanel>(initialDiffPanel);
+    const [autoRefetchRepoPrScopeKey, setAutoRefetchRepoPrScopeKey] = useState<string | null>(null);
     const showRepositoryPanel = diffPanel === "repositories";
     const [searchQuery, setSearchQuery] = useState("");
     const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
@@ -224,6 +225,19 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
     }, [initialHost, setActiveHost]);
 
     const hostsWithSelectedRepos = useMemo(() => HOSTS.filter((host) => reposByHost[host].length > 0), [reposByHost]);
+    const repoPullRequestScopeKey = useMemo(
+        () =>
+            HOSTS.map(
+                (host) =>
+                    `${host}:${reposByHost[host]
+                        .map((repo) => repo.fullName)
+                        .sort()
+                        .join(",")}`,
+            )
+                .join("|")
+                .trim(),
+        [reposByHost],
+    );
 
     const repoPullRequestCollection = useMemo(
         () =>
@@ -241,9 +255,13 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
 
     useEffect(() => {
         if (hostsWithSelectedRepos.length === 0) return;
+        if (repoPullRequestCollection.utils.isFetching) return;
+        if (repoPullRequestCollection.utils.lastError) return;
+        if (autoRefetchRepoPrScopeKey === repoPullRequestScopeKey) return;
+        setAutoRefetchRepoPrScopeKey(repoPullRequestScopeKey);
         // Keep landing PR data hot when selected repositories/auth state changes.
         void repoPullRequestCollection.utils.refetch({ throwOnError: false });
-    }, [hostsWithSelectedRepos.length, repoPullRequestCollection]);
+    }, [autoRefetchRepoPrScopeKey, hostsWithSelectedRepos.length, repoPullRequestCollection, repoPullRequestScopeKey]);
 
     const groupedPullRequests = useMemo(() => {
         const selectedRepoKeys = new Set<string>();

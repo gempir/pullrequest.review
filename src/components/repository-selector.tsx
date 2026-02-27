@@ -1,6 +1,6 @@
 import { useLiveQuery } from "@tanstack/react-db";
 import { AlertCircle, FolderGit, Loader2, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getRepositoryCollection } from "@/lib/git-host/query-collections";
@@ -21,6 +21,7 @@ export function RepositorySelector({
 }) {
     const [query, setQuery] = useState("");
     const [selected, setSelected] = useState<Set<string>>(new Set());
+    const autoRefetchHostRef = useRef<GitHost | null>(null);
 
     const initialSelection = useMemo(() => [...initialSelected.map((repo) => repo.fullName)].sort(), [initialSelected]);
     const initialSelectionKey = initialSelection.join("|");
@@ -37,8 +38,12 @@ export function RepositorySelector({
     );
 
     useEffect(() => {
+        if (repositoryCollection.utils.isFetching) return;
+        if (repositoryCollection.utils.lastError) return;
+        if (autoRefetchHostRef.current === host) return;
+        autoRefetchHostRef.current = host;
         void repositoryCollection.utils.refetch({ throwOnError: false });
-    }, [repositoryCollection]);
+    }, [host, repositoryCollection]);
 
     const entries = useMemo(() => (repositoriesQuery.data ?? []).filter((repo) => repo.host === host), [host, repositoriesQuery.data]);
     const repositoryError = repositoryCollection.utils.lastError;

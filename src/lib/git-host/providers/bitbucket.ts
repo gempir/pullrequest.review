@@ -868,13 +868,13 @@ export const bitbucketClient: GitHostClient = {
         if (!normalizedBase || !normalizedHead) {
             throw new Error("Both base and head commit hashes are required.");
         }
-        const prApiBase = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/pullrequests/${prRef.pullRequestId}`;
-        const rangeParams = new URLSearchParams({ from: normalizedBase, to: normalizedHead });
-        const diffQuery = rangeParams.toString();
-        const diffstatParams = new URLSearchParams({ from: normalizedBase, to: normalizedHead, pagelen: "100" });
+        // Bitbucket commit-range spec order is opposite of git diff: "<source>..<destination>".
+        // To preview selected PR changes from base -> head, we must request head..base.
+        const rangeSpec = `${encodeURIComponent(normalizedHead)}..${encodeURIComponent(normalizedBase)}`;
+        const apiBase = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}`;
         const [diffRes, diffstat] = await Promise.all([
-            request(`${prApiBase}/diff?${diffQuery}`, { headers: { Accept: "text/plain" } }),
-            fetchAllDiffStat(`${prApiBase}/diffstat?${diffstatParams.toString()}`),
+            request(`${apiBase}/diff/${rangeSpec}`, { headers: { Accept: "text/plain" } }),
+            fetchAllDiffStat(`${apiBase}/diffstat/${rangeSpec}?pagelen=100`),
         ]);
         const diffText = await diffRes.text();
 

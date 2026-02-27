@@ -149,6 +149,7 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
 
     const criticalMarkRef = useRef<string>("");
     const deferredMarkRef = useRef<string>("");
+    const autoRefetchAttemptScopeRef = useRef<string>("");
     useEffect(() => {
         if (critical || criticalMarkRef.current) return;
         criticalMarkRef.current = markReviewPerf("critical_data_start");
@@ -182,6 +183,8 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
     useEffect(() => {
         if (!bundleStore) return;
         if (queryIsFetching) return;
+        if (queryError) return;
+        if (autoRefetchAttemptScopeRef.current === fetchScopeId) return;
 
         const now = Date.now();
         const criticalFetchedAt = queryData?.criticalFetchedAt ?? queryData?.fetchedAt ?? 0;
@@ -190,14 +193,17 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
         const deferredStale = !deferredFetchedAt || now - deferredFetchedAt > DEFERRED_STALE_MS;
 
         if (!queryData || criticalStale || deferredStale) {
+            autoRefetchAttemptScopeRef.current = fetchScopeId;
             void bundleStore.utils.refetch({ throwOnError: false });
         }
-    }, [bundleStore, queryData, queryIsFetching]);
+    }, [bundleStore, fetchScopeId, queryData, queryError, queryIsFetching]);
 
     useEffect(() => {
         if (!hasPendingBuildStatuses) return;
+        if (queryError) return;
         const poll = () => {
             if (queryIsFetching) return;
+            if (queryError) return;
             if (typeof document !== "undefined" && document.hidden) return;
             void refetchQuery();
         };
@@ -205,7 +211,7 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
         return () => {
             window.clearInterval(intervalId);
         };
-    }, [hasPendingBuildStatuses, queryIsFetching, refetchQuery]);
+    }, [hasPendingBuildStatuses, queryError, queryIsFetching, refetchQuery]);
 
     useEffect(() => {
         if (!queryError || canWrite || !isRateLimitedError(queryError)) return;

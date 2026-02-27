@@ -152,7 +152,7 @@ function parentDirectories(path: string): string[] {
 }
 
 function sameScopeSearch(a: ReviewDiffScopeSearch, b: ReviewDiffScopeSearch) {
-    return a.scope === b.scope && a.from === b.from && a.to === b.to;
+    return a.from === b.from && a.to === b.to;
 }
 
 function formatCommitScopeTimestamp(value?: string) {
@@ -367,7 +367,7 @@ function usePullRequestReviewPageView({
     });
 
     const basePrData = prQuery.data;
-    const diffScopeSearch: ReviewDiffScopeSearch = reviewDiffScopeSearch ?? { scope: "full" };
+    const diffScopeSearch: ReviewDiffScopeSearch = reviewDiffScopeSearch ?? {};
     const pullRequest = basePrData?.pr;
     const pullRequestUrl = pullRequest?.links?.html?.href;
     const pullRequestTitle = pullRequest?.title?.trim();
@@ -512,14 +512,14 @@ function usePullRequestReviewPageView({
 
     useEffect(() => {
         if (!onReviewDiffScopeSearchChange) return;
-        if (resolvedScope.mode !== "full" || !resolvedScope.fallbackReason || diffScopeSearch.scope === "full") return;
+        if (resolvedScope.mode !== "full" || !resolvedScope.fallbackReason || !diffScopeSearch.from || !diffScopeSearch.to) return;
         const notice =
             resolvedScope.fallbackReason === "invalid_range"
                 ? "Selected commit range is unavailable. Switched to full diff."
                 : "Commit range base/head could not be resolved. Switched to full diff.";
         setScopeNotice(notice);
-        onReviewDiffScopeSearchChange({ scope: "full" });
-    }, [diffScopeSearch.scope, onReviewDiffScopeSearchChange, resolvedScope]);
+        onReviewDiffScopeSearchChange({});
+    }, [diffScopeSearch.from, diffScopeSearch.to, onReviewDiffScopeSearchChange, resolvedScope]);
 
     useEffect(() => {
         if (!commitRangeScopedCollection) return;
@@ -532,7 +532,7 @@ function usePullRequestReviewPageView({
             if (!maybeError) return;
             const message = maybeError instanceof Error ? maybeError.message : "Failed to load commit range diff.";
             setScopeNotice(message);
-            onReviewDiffScopeSearchChange?.({ scope: "full" });
+            onReviewDiffScopeSearchChange?.({});
         })();
         return () => {
             cancelled = true;
@@ -1477,14 +1477,14 @@ function usePullRequestReviewPageView({
     const handleSetFullScope = useCallback(() => {
         if (!onReviewDiffScopeSearchChange) return;
         setScopeNotice(null);
-        onReviewDiffScopeSearchChange({ scope: "full" });
+        onReviewDiffScopeSearchChange({});
     }, [onReviewDiffScopeSearchChange]);
     const applyRangeFromSelectedHashes = useCallback(
         (selectedHashes: Set<string>) => {
             if (!onReviewDiffScopeSearchChange) return;
             if (selectedHashes.size === 0) {
                 setScopeNotice(null);
-                onReviewDiffScopeSearchChange({ scope: "full" });
+                onReviewDiffScopeSearchChange({});
                 return;
             }
             const indexes = Array.from(selectedHashes)
@@ -1493,7 +1493,7 @@ function usePullRequestReviewPageView({
                 .sort((a, b) => a - b);
             if (indexes.length === 0) {
                 setScopeNotice("Selected commits are unavailable. Switched to full diff.");
-                onReviewDiffScopeSearchChange({ scope: "full" });
+                onReviewDiffScopeSearchChange({});
                 return;
             }
             const startIndex = indexes[0];
@@ -1501,7 +1501,7 @@ function usePullRequestReviewPageView({
             const from = resolvedScope.visibleCommits[startIndex]?.hash;
             const to = resolvedScope.visibleCommits[endIndex]?.hash;
             if (!from || !to) {
-                onReviewDiffScopeSearchChange({ scope: "full" });
+                onReviewDiffScopeSearchChange({});
                 return;
             }
             const contiguousSize = endIndex - startIndex + 1;
@@ -1510,11 +1510,7 @@ function usePullRequestReviewPageView({
             } else {
                 setScopeNotice(null);
             }
-            onReviewDiffScopeSearchChange({
-                scope: "range",
-                from,
-                to,
-            });
+            onReviewDiffScopeSearchChange({ from, to });
         },
         [onReviewDiffScopeSearchChange, resolvedScope.visibleCommits, visibleCommitIndexByHash],
     );

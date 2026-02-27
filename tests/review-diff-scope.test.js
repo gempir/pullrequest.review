@@ -14,18 +14,18 @@ const commitsWithMergeNewestFirst = [
 
 describe("review diff scope parsing", () => {
     test("canonicalizes invalid search params to full mode", () => {
-        expect(validateReviewDiffScopeSearch({ scope: "range", from: "bad", to: "bbbbbbbb" })).toEqual({ scope: "full" });
+        expect(validateReviewDiffScopeSearch({ scope: "range", from: "bad", to: "bbbbbbbb" })).toEqual({});
     });
 
     test("canonicalizes unsupported scope mode to full mode", () => {
-        expect(validateReviewDiffScopeSearch({ scope: "since", baseline: "bbbbbbbb", includeMerge: "1" })).toEqual({ scope: "full" });
+        expect(validateReviewDiffScopeSearch({ scope: "since", baseline: "bbbbbbbb", includeMerge: "1" })).toEqual({});
     });
 });
 
 describe("review diff scope resolution", () => {
     test("resolves single-commit range", () => {
         const resolved = resolveReviewDiffScope({
-            search: { scope: "range", from: "bbbbbbbb", to: "bbbbbbbb" },
+            search: { from: "bbbbbbbb", to: "bbbbbbbb" },
             commits: commitsNewestFirst,
             destinationCommitHash: "basebase1",
         });
@@ -39,7 +39,7 @@ describe("review diff scope resolution", () => {
 
     test("resolves contiguous multi-commit range", () => {
         const resolved = resolveReviewDiffScope({
-            search: { scope: "range", from: "bbbbbbbb", to: "cccccccc" },
+            search: { from: "bbbbbbbb", to: "cccccccc" },
             commits: commitsNewestFirst,
             destinationCommitHash: "basebase1",
         });
@@ -53,7 +53,7 @@ describe("review diff scope resolution", () => {
 
     test("keeps merge commits in visible commit list", () => {
         const resolved = resolveReviewDiffScope({
-            search: { scope: "full" },
+            search: {},
             commits: commitsWithMergeNewestFirst,
             destinationCommitHash: "basebase1",
         });

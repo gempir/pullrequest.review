@@ -1,6 +1,6 @@
 import { parsePatchFiles } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
-import { buildCommentThreads, type CommentThread } from "@/components/pull-request-review/review-threads";
+import { buildCommentThreads, type CommentThread } from "../../components/pull-request-review/review-threads";
 import type { Comment as PullRequestComment } from "@/lib/git-host/types";
 
 type ComputeReviewDerivedRequest = {

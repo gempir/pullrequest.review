@@ -46,7 +46,7 @@ export function ReviewCommitScopeControl({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 min-w-[80px] justify-between border border-border bg-background px-2 text-[11px] focus-visible:ring-0 focus-visible:border-border"
+                        className="h-7 min-w-[80px] justify-between border-0 bg-background px-2 text-[11px] focus-visible:ring-0"
                     >
                         <span className="truncate">{scopeLabel}</span>
                         <GitCompare className="ml-1 size-3" />

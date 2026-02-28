@@ -116,10 +116,7 @@ export function ReviewFileTreeSidebar({
     }, [activeFile, loading]);
 
     return (
-        <aside
-            className={cn("relative shrink-0 bg-background flex flex-col overflow-hidden", treeCollapsed ? "border-r-0" : "border-r border-border")}
-            style={{ width: treeCollapsed ? 0 : treeWidth }}
-        >
+        <aside className={cn("relative shrink-0 bg-background flex flex-col overflow-hidden")} style={{ width: treeCollapsed ? 0 : treeWidth }}>
             {!treeCollapsed ? (
                 <>
                     <SidebarTopControls
@@ -134,9 +131,9 @@ export function ReviewFileTreeSidebar({
                             </Button>
                         }
                     />
-                    <div className="h-10 border-b border-border bg-chrome flex items-center" data-component="search-sidebar">
+                    <div className="h-10 bg-chrome flex items-center" data-component="search-sidebar">
                         <Input
-                            className="h-full text-[12px] flex-1 min-w-0 border-0 border-r border-border rounded-none focus-visible:border-0 focus-visible:border-r focus-visible:border-border focus-visible:ring-0"
+                            className="h-full text-[12px] flex-1 min-w-0 border-0 rounded-none focus-visible:border-0 focus-visible:ring-0"
                             placeholder="search files"
                             value={searchQuery}
                             onChange={(e) => onSearchQueryChange(e.target.value)}

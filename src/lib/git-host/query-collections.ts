@@ -592,19 +592,6 @@ export function subscribeHostDataCollectionsVersion(listener: () => void) {
     };
 }
 
-export async function refetchAllGitHostData(opts?: { throwOnError?: boolean }) {
-    const refetchers = Array.from(refetchRegistry.values());
-    if (refetchers.length === 0) return;
-
-    const settled = await Promise.allSettled(refetchers.map((entry) => entry.refetch({ throwOnError: opts?.throwOnError ?? false })));
-    if (!opts?.throwOnError) return;
-
-    const firstFailure = settled.find((result): result is PromiseRejectedResult => result.status === "rejected");
-    if (firstFailure) {
-        throw firstFailure.reason;
-    }
-}
-
 function createCollectionUtils(refetch: (opts?: { throwOnError?: boolean }) => Promise<void>): CollectionUtils {
     let lastError: unknown;
     let isFetching = false;

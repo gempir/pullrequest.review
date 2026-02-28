@@ -75,7 +75,7 @@ function RootComponent() {
 }
 
 function OnboardingScreen() {
-    const { setActiveHost, activeHost } = usePrContext();
+    const { setActiveHost, activeHost, refreshAuth } = usePrContext();
     const navigate = useNavigate();
 
     return (
@@ -85,6 +85,7 @@ function OnboardingScreen() {
                     onHome={() => {
                         navigate({ to: "/" });
                     }}
+                    onRefresh={() => refreshAuth()}
                     onSettings={() => {
                         navigate({ to: "/settings" });
                     }}

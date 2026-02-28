@@ -134,6 +134,7 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
     const queryIsFetching = canLoadPullRequest ? fetchActivity.activeFetches.some((fetch) => fetch.scopeId.startsWith(fetchScopeId)) : false;
     const isCriticalLoading = canLoadPullRequest ? !critical && (bundleQuery.isLoading || queryIsFetching) : false;
     const isDeferredLoading = canLoadPullRequest ? Boolean(critical) && (!queryData?.deferredFetchedAt || queryData?.deferredStatus === "loading") : false;
+    // Keep auto/manual review refresh scoped to the active PR fetch scope only.
     const refetchQuery = useCallback(() => bundleStore?.utils.refetch({ throwOnError: false }) ?? Promise.resolve(), [bundleStore]);
 
     const query = useMemo(

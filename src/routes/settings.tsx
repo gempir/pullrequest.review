@@ -43,6 +43,7 @@ function SettingsRoute() {
                     onHome={() => {
                         navigate({ to: "/" });
                     }}
+                    onRefresh={() => Promise.resolve()}
                     settingsActive
                 />
 

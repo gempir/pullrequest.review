@@ -1,4 +1,4 @@
-import { type FileDiffOptions, getFiletypeFromFileName, type OnDiffLineClickProps, type OnDiffLineEnterLeaveProps, parsePatchFiles } from "@pierre/diffs";
+import { type FileDiffOptions, getFiletypeFromFileName, type OnDiffLineEnterLeaveProps, parsePatchFiles } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatNavbarDate, linesUpdated, normalizeNavbarState } from "@/components/pull-request-review/review-formatters";
@@ -16,6 +16,7 @@ import {
     getCommentPath,
     getFilePath,
     hashString,
+    type InlineCommentLineTarget,
     type SingleFileAnnotation,
 } from "./review-page-model";
 import type { CommentThread } from "./review-threads";
@@ -36,6 +37,9 @@ type WorkerDerivedState = {
 };
 
 const EMPTY_COMMENTS: PullRequestBundle["comments"] = [];
+const INLINE_COMMENT_TRIGGER_ATTR = "data-inline-comment-trigger";
+const INLINE_COMMENT_TRIGGER_ID_ATTR = "data-inline-comment-trigger-id";
+const INLINE_COMMENT_TRIGGER_LABEL = "Add line comment";
 
 function buildFileDiffFingerprint(fileDiff: FileDiffMetadata) {
     const normalized = {
@@ -91,7 +95,7 @@ export function useReviewPageDerived({
     inlineComment: InlineCommentDraft | null;
     theme: Parameters<typeof useDiffHighlighterState>[0]["theme"];
     compactDiffOptions: FileDiffOptions<undefined>;
-    onOpenInlineCommentDraft: (path: string, props: OnDiffLineClickProps) => void;
+    onOpenInlineCommentDraft: (path: string, target: InlineCommentLineTarget) => void;
     fullFileContexts: Record<string, { oldLines: string[]; newLines: string[] }>;
 }) {
     const diffText = prData?.diff ?? "";
@@ -374,20 +378,72 @@ export function useReviewPageDerived({
         return map;
     }, [prData?.diffstat]);
 
-    const handleDiffLineEnter = useCallback((props: OnDiffLineEnterLeaveProps) => {
-        props.lineElement.style.cursor = "copy";
-        if (props.numberElement) props.numberElement.style.cursor = "copy";
+    const removeInlineCommentTriggerButton = useCallback((props: OnDiffLineEnterLeaveProps) => {
+        const numberElement = props.numberElement;
+        if (!numberElement) return;
+        const button = numberElement.querySelector<HTMLElement>(`[${INLINE_COMMENT_TRIGGER_ATTR}="true"]`);
+        if (button) {
+            button.remove();
+        }
     }, []);
 
-    const handleDiffLineLeave = useCallback((props: OnDiffLineEnterLeaveProps) => {
-        props.lineElement.style.cursor = "";
-        if (props.numberElement) props.numberElement.style.cursor = "";
-    }, []);
+    const handleDiffLineEnter = useCallback(
+        (props: OnDiffLineEnterLeaveProps, onOpenInlineDraft?: (target: InlineCommentLineTarget) => void) => {
+            props.lineElement.style.cursor = "";
+            const numberElement = props.numberElement;
+            if (!numberElement) return;
+            numberElement.style.cursor = onOpenInlineDraft ? "pointer" : "";
+            removeInlineCommentTriggerButton(props);
+            if (!onOpenInlineDraft) return;
 
-    const handleSingleDiffLineClick = useCallback(
-        (props: OnDiffLineClickProps) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className =
+                "inline-flex h-4 w-4 items-center justify-center rounded border border-status-added/80 bg-status-added/20 text-status-added shadow-sm";
+            button.title = INLINE_COMMENT_TRIGGER_LABEL;
+            button.setAttribute("aria-label", INLINE_COMMENT_TRIGGER_LABEL);
+            button.setAttribute(INLINE_COMMENT_TRIGGER_ATTR, "true");
+            button.setAttribute(INLINE_COMMENT_TRIGGER_ID_ATTR, `${props.annotationSide}:${props.lineNumber}`);
+            button.innerHTML =
+                '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>';
+            button.style.position = "absolute";
+            button.style.right = "2px";
+            button.style.top = "50%";
+            button.style.transform = "translateY(-50%)";
+            button.style.cursor = "pointer";
+            button.style.zIndex = "2";
+            button.addEventListener("pointerdown", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+            });
+            button.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onOpenInlineDraft({
+                    lineNumber: props.lineNumber,
+                    annotationSide: props.annotationSide,
+                });
+            });
+            numberElement.style.position = "relative";
+            numberElement.style.cursor = "pointer";
+            numberElement.appendChild(button);
+        },
+        [removeInlineCommentTriggerButton],
+    );
+
+    const handleDiffLineLeave = useCallback(
+        (props: OnDiffLineEnterLeaveProps) => {
+            props.lineElement.style.cursor = "";
+            if (props.numberElement) props.numberElement.style.cursor = "";
+            removeInlineCommentTriggerButton(props);
+        },
+        [removeInlineCommentTriggerButton],
+    );
+
+    const openInlineDraftForSelectedPath = useCallback(
+        (target: InlineCommentLineTarget) => {
             if (!selectedFilePath) return;
-            onOpenInlineCommentDraft(selectedFilePath, props);
+            onOpenInlineCommentDraft(selectedFilePath, target);
         },
         [onOpenInlineCommentDraft, selectedFilePath],
     );
@@ -430,12 +486,12 @@ export function useReviewPageDerived({
     const singleFileDiffOptions = useMemo<FileDiffOptions<undefined>>(
         () => ({
             ...compactDiffOptions,
-            onLineClick: handleSingleDiffLineClick,
-            onLineNumberClick: handleSingleDiffLineClick,
-            onLineEnter: handleDiffLineEnter,
+            onLineClick: undefined,
+            onLineNumberClick: undefined,
+            onLineEnter: (props) => handleDiffLineEnter(props, openInlineDraftForSelectedPath),
             onLineLeave: handleDiffLineLeave,
         }),
-        [compactDiffOptions, handleDiffLineEnter, handleDiffLineLeave, handleSingleDiffLineClick],
+        [compactDiffOptions, handleDiffLineEnter, handleDiffLineLeave, openInlineDraftForSelectedPath],
     );
 
     return {

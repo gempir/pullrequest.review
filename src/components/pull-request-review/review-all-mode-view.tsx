@@ -1,4 +1,4 @@
-import type { FileDiffOptions, OnDiffLineClickProps, OnDiffLineEnterLeaveProps } from "@pierre/diffs";
+import type { FileDiffOptions, OnDiffLineEnterLeaveProps } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Check, CheckCheck, ChevronDown, ChevronRight, Copy, ScrollText } from "lucide-react";
@@ -9,7 +9,7 @@ import { DiffContextButton, type DiffContextState } from "@/components/pull-requ
 import { FileVersionSelect, type FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { InlineDiffAnnotation } from "@/components/pull-request-review/inline-diff-annotation";
 import { ReviewDiffSettingsMenu } from "@/components/pull-request-review/review-diff-settings-menu";
-import type { SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
+import type { InlineCommentLineTarget, SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Button } from "@/components/ui/button";
 import { fileAnchorId } from "@/lib/file-anchors";
@@ -64,12 +64,12 @@ type ReviewAllModeViewProps = {
     onSubmitInlineComment: () => void;
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
-    onOpenInlineDraftForPath: (path: string, props: OnDiffLineClickProps) => void;
+    onOpenInlineDraftForPath: (path: string, target: InlineCommentLineTarget) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     onReplyToThread: (commentId: number, content: string) => void;
-    onDiffLineEnter: (props: OnDiffLineEnterLeaveProps) => void;
+    onDiffLineEnter: (props: OnDiffLineEnterLeaveProps, onOpenInlineDraft?: (target: InlineCommentLineTarget) => void) => void;
     onDiffLineLeave: (props: OnDiffLineEnterLeaveProps) => void;
     diffTypographyStyle: CSSProperties;
     buildFileAnnotations: (filePath: string) => SingleFileAnnotation[];
@@ -325,15 +325,15 @@ export function ReviewAllModeView({
                                             fileDiff={toRenderableFileDiff(displayedFileDiff)}
                                             options={{
                                                 ...fileDiffOptions,
-                                                onLineClick: (props) => {
-                                                    if (readOnlyHistorical) return;
-                                                    onOpenInlineDraftForPath(filePath, props);
-                                                },
-                                                onLineNumberClick: (props) => {
-                                                    if (readOnlyHistorical) return;
-                                                    onOpenInlineDraftForPath(filePath, props);
-                                                },
-                                                onLineEnter: onDiffLineEnter,
+                                                onLineClick: undefined,
+                                                onLineNumberClick: undefined,
+                                                onLineEnter: (props) =>
+                                                    onDiffLineEnter(
+                                                        props,
+                                                        readOnlyHistorical || !canCommentInline
+                                                            ? undefined
+                                                            : (target) => onOpenInlineDraftForPath(filePath, target),
+                                                    ),
                                                 onLineLeave: onDiffLineLeave,
                                             }}
                                             className="compact-diff commentable-diff pr-diff-font"

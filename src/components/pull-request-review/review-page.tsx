@@ -1,4 +1,4 @@
-import { type FileDiffOptions, type OnDiffLineClickProps, parsePatchFiles } from "@pierre/diffs";
+import { type FileDiffOptions, parsePatchFiles } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useNavigate } from "@tanstack/react-router";
@@ -22,7 +22,7 @@ import { ReviewPageDiffContent } from "@/components/pull-request-review/review-p
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
 import { ReviewPageLoadingView } from "@/components/pull-request-review/review-page-loading-view";
 import { ReviewPageMainView } from "@/components/pull-request-review/review-page-main-view";
-import { hashString, type SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
+import { hashString, type InlineCommentLineTarget, type SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
 import { useInlineCommentDrafts } from "@/components/pull-request-review/use-inline-comment-drafts";
 import { useReviewLayoutPreferences } from "@/components/pull-request-review/use-review-layout-preferences";
 import { useReviewPageActions } from "@/components/pull-request-review/use-review-page-actions";
@@ -65,7 +65,7 @@ import {
 } from "@/lib/git-host/query-collections";
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import { fetchPullRequestFileContents } from "@/lib/git-host/service";
-import type { GitHost } from "@/lib/git-host/types";
+import type { GitHost, Comment as PullRequestComment } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { diffScopeStorageSegment, type ReviewDiffScopeSearch, resolveReviewDiffScope } from "@/lib/review-diff-scope";
 import { markReviewPerf } from "@/lib/review-performance/metrics";
@@ -165,6 +165,23 @@ function formatCommitScopeTimestamp(value?: string) {
         hour: "2-digit",
         minute: "2-digit",
     }).format(timestamp);
+}
+
+type CreateCommentPayload = {
+    path?: string;
+    content: string;
+    line?: number;
+    side?: "additions" | "deletions";
+    parentId?: number;
+};
+
+function commentMatchKey(comment: Pick<PullRequestComment, "content" | "inline" | "parent">) {
+    const parentId = comment.parent?.id ?? 0;
+    const path = comment.inline?.path ?? "";
+    const line = comment.inline?.to ?? comment.inline?.from ?? 0;
+    const side = comment.inline?.from ? "deletions" : "additions";
+    const content = comment.content?.raw?.trim() ?? "";
+    return `${parentId}|${path}|${line}|${side}|${content}`;
 }
 
 function usePullRequestReviewPageView({
@@ -325,6 +342,7 @@ function usePullRequestReviewPageView({
     const [actionError, setActionError] = useState<string | null>(null);
     const [scopeNotice, setScopeNotice] = useState<string | null>(null);
     const [fileContexts, setFileContexts] = useState<Record<string, FullFileContextEntry>>({});
+    const [optimisticComments, setOptimisticComments] = useState<PullRequestComment[]>([]);
     const [dirStateHydrated, setDirStateHydrated] = useState(false);
     const [pendingCommentTick, setPendingCommentTick] = useState(0);
     const autoMarkedViewedVersionIdsRef = useRef<Set<string>>(new Set());
@@ -339,6 +357,7 @@ function usePullRequestReviewPageView({
     const loadedViewedStateRevisionRef = useRef<string>("");
     const skipViewedStatePersistRevisionRef = useRef<string>("");
     const loadedHistoryRevisionRef = useRef<string>("");
+    const optimisticCommentIdRef = useRef(-1);
     const firstDiffRenderedKeyRef = useRef<string>("");
     const { inlineComment, setInlineComment, getInlineDraftContent, setInlineDraftContent, clearInlineDraftContent, openInlineCommentDraft } =
         useInlineCommentDrafts({
@@ -500,7 +519,116 @@ function usePullRequestReviewPageView({
             commits: resolvedScope.selectedCommits,
         };
     }, [basePrData, resolvedScope, scopedRangeDiffRecord]);
-    const prData = effectivePrData;
+    const removeMatchedOptimisticComments = useCallback((serverComments: PullRequestComment[]) => {
+        const serverKeyCounts = new Map<string, number>();
+        for (const comment of serverComments) {
+            const key = commentMatchKey(comment);
+            serverKeyCounts.set(key, (serverKeyCounts.get(key) ?? 0) + 1);
+        }
+        setOptimisticComments((prev) => {
+            let changed = false;
+            const next: PullRequestComment[] = [];
+            const remainingCounts = new Map(serverKeyCounts);
+            for (const optimisticComment of prev) {
+                const key = commentMatchKey(optimisticComment);
+                const matchedCount = remainingCounts.get(key) ?? 0;
+                if (matchedCount > 0) {
+                    changed = true;
+                    remainingCounts.set(key, matchedCount - 1);
+                    continue;
+                }
+                next.push(optimisticComment);
+            }
+            return changed ? next : prev;
+        });
+    }, []);
+    const createOptimisticComment = useCallback(
+        (payload: CreateCommentPayload) => {
+            if (!effectivePrData) return null;
+            const optimisticCommentId = optimisticCommentIdRef.current;
+            optimisticCommentIdRef.current -= 1;
+            const now = new Date().toISOString();
+            const nextComment: PullRequestComment = {
+                id: optimisticCommentId,
+                createdAt: now,
+                updatedAt: now,
+                deleted: false,
+                pending: true,
+                content: { raw: payload.content },
+                user: {
+                    displayName: pullRequest?.currentUser?.displayName ?? "You",
+                    avatarUrl: pullRequest?.currentUser?.avatarUrl,
+                },
+                inline: payload.path
+                    ? {
+                          path: payload.path,
+                          to: payload.side === "deletions" ? undefined : payload.line,
+                          from: payload.side === "deletions" ? payload.line : undefined,
+                      }
+                    : undefined,
+                parent: payload.parentId ? { id: payload.parentId } : undefined,
+            };
+            setOptimisticComments((prev) => [...prev, nextComment]);
+            return optimisticCommentId;
+        },
+        [effectivePrData, pullRequest?.currentUser?.avatarUrl, pullRequest?.currentUser?.displayName],
+    );
+    const updateOptimisticCommentPending = useCallback((commentId: number, pending: boolean) => {
+        setOptimisticComments((prev) => {
+            let changed = false;
+            const next = prev.map((comment) => {
+                if (comment.id !== commentId) return comment;
+                if (comment.pending === pending) return comment;
+                changed = true;
+                return {
+                    ...comment,
+                    pending,
+                    updatedAt: new Date().toISOString(),
+                };
+            });
+            return changed ? next : prev;
+        });
+    }, []);
+    const removeOptimisticComment = useCallback((commentId: number) => {
+        setOptimisticComments((prev) => prev.filter((comment) => comment.id !== commentId));
+    }, []);
+    useEffect(() => {
+        if (!effectivePrData?.comments?.length) return;
+        if (optimisticComments.length === 0) return;
+        removeMatchedOptimisticComments(effectivePrData.comments);
+    }, [effectivePrData?.comments, optimisticComments.length, removeMatchedOptimisticComments]);
+    useEffect(() => {
+        if (!prContextKey) return;
+        setOptimisticComments([]);
+    }, [prContextKey]);
+    const prData = useMemo(() => {
+        if (!effectivePrData) return undefined;
+        if (optimisticComments.length === 0) return effectivePrData;
+        const serverComments = effectivePrData.comments ?? [];
+        const serverKeyCounts = new Map<string, number>();
+        for (const comment of serverComments) {
+            const key = commentMatchKey(comment);
+            serverKeyCounts.set(key, (serverKeyCounts.get(key) ?? 0) + 1);
+        }
+
+        const unmatchedOptimisticComments: PullRequestComment[] = [];
+        const remainingCounts = new Map(serverKeyCounts);
+        for (const comment of optimisticComments) {
+            const key = commentMatchKey(comment);
+            const matchedCount = remainingCounts.get(key) ?? 0;
+            if (matchedCount > 0) {
+                remainingCounts.set(key, matchedCount - 1);
+                continue;
+            }
+            unmatchedOptimisticComments.push(comment);
+        }
+
+        if (unmatchedOptimisticComments.length === 0) return effectivePrData;
+        return {
+            ...effectivePrData,
+            comments: [...serverComments, ...unmatchedOptimisticComments],
+        };
+    }, [effectivePrData, optimisticComments]);
     const commitScopeLoading = resolvedScope.mode === "range" && resolvedScope.selectedCommitHashes.length > 0 && !scopedRangeDiffRecord;
     const treeLoading = isCriticalLoading || commitScopeLoading;
 
@@ -647,7 +775,7 @@ function usePullRequestReviewPageView({
     );
 
     const openInlineCommentDraftForPath = useCallback(
-        (path: string, props: OnDiffLineClickProps) => {
+        (path: string, props: InlineCommentLineTarget) => {
             if (resolvedScope.mode !== "full") return;
             markReviewPerf("inline_comment_open");
             openInlineCommentDraft({
@@ -1241,6 +1369,9 @@ function usePullRequestReviewPageView({
         copySourceBranchResetTimeoutRef,
         setCopiedPath,
         setCopiedSourceBranch,
+        onOptimisticCommentCreate: createOptimisticComment,
+        onOptimisticCommentUpdate: updateOptimisticCommentPending,
+        onOptimisticCommentRemove: removeOptimisticComment,
     });
     const clearAllModePendingScrollPath = useCallback(() => {
         setAllModePendingScrollPath(null);

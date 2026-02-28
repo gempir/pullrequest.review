@@ -497,6 +497,7 @@ export function useEnsureSummarySelection({
         if (!prData) return;
         if (isSummarySelected) return;
         if (selectedFileDiff) return;
+        if ((prData.diffstat?.length ?? 0) > 0) return;
         setActiveFile(PR_SUMMARY_PATH);
     }, [isSummarySelected, prData, selectedFileDiff, setActiveFile, showSettingsPanel, viewMode]);
 }

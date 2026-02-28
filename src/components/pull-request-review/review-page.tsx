@@ -177,11 +177,16 @@ type CreateCommentPayload = {
 
 function commentMatchKey(comment: Pick<PullRequestComment, "content" | "inline" | "parent">) {
     const parentId = comment.parent?.id ?? 0;
+    const content = comment.content?.raw?.trim() ?? "";
+    // Replies can arrive with host-populated inline coordinates even when local optimistic
+    // payloads omit them, so prefer matching by parent + content for reply dedupe.
+    if (parentId > 0) {
+        return `reply:${parentId}|${content}`;
+    }
     const path = comment.inline?.path ?? "";
     const line = comment.inline?.to ?? comment.inline?.from ?? 0;
     const side = comment.inline?.from ? "deletions" : "additions";
-    const content = comment.content?.raw?.trim() ?? "";
-    return `${parentId}|${path}|${line}|${side}|${content}`;
+    return `root:${path}|${line}|${side}|${content}`;
 }
 
 function usePullRequestReviewPageView({

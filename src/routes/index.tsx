@@ -11,7 +11,7 @@ import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type FileNode, useFileTree } from "@/lib/file-tree-context";
-import { getRepoPullRequestCollection } from "@/lib/git-host/query-collections";
+import { getRepoPullRequestCollection, getRepositoryCollection } from "@/lib/git-host/query-collections";
 import { getHostLabel } from "@/lib/git-host/service";
 import type { GitHost, PullRequestSummary, RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
@@ -214,6 +214,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
     const [diffPanel, setDiffPanel] = useState<DiffPanel>(initialDiffPanel);
     const [autoRefetchRepoPrScopeKey, setAutoRefetchRepoPrScopeKey] = useState<string | null>(null);
     const showRepositoryPanel = diffPanel === "repositories";
+    const showPullRequestPanel = diffPanel === "pull-requests";
     const [searchQuery, setSearchQuery] = useState("");
     const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
     const settingsPathSet = useMemo(() => new Set(settingsTreeItems.map((item) => item.path)), [settingsTreeItems]);
@@ -247,6 +248,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
             }),
         [hostsWithSelectedRepos, reposByHost],
     );
+    const activeHostRepositoryCollection = useMemo(() => getRepositoryCollection(activeHost), [activeHost]);
 
     const repoPullRequestsQuery = useLiveQuery(
         (q) => q.from({ repoPullRequest: repoPullRequestCollection.collection }).select(({ repoPullRequest }) => ({ ...repoPullRequest })),
@@ -254,6 +256,8 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
     );
 
     useEffect(() => {
+        if (showSettingsPanel) return;
+        if (!showPullRequestPanel) return;
         if (hostsWithSelectedRepos.length === 0) return;
         if (repoPullRequestCollection.utils.isFetching) return;
         if (repoPullRequestCollection.utils.lastError) return;
@@ -261,7 +265,17 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
         setAutoRefetchRepoPrScopeKey(repoPullRequestScopeKey);
         // Keep landing PR data hot when selected repositories/auth state changes.
         void repoPullRequestCollection.utils.refetch({ throwOnError: false });
-    }, [autoRefetchRepoPrScopeKey, hostsWithSelectedRepos.length, repoPullRequestCollection, repoPullRequestScopeKey]);
+    }, [autoRefetchRepoPrScopeKey, hostsWithSelectedRepos.length, repoPullRequestCollection, repoPullRequestScopeKey, showPullRequestPanel, showSettingsPanel]);
+
+    const refreshCurrentView = useCallback(async () => {
+        if (showSettingsPanel) return;
+        if (showRepositoryPanel) {
+            await activeHostRepositoryCollection.utils.refetch({ throwOnError: false });
+            return;
+        }
+        if (!showPullRequestPanel) return;
+        await repoPullRequestCollection.utils.refetch({ throwOnError: false });
+    }, [activeHostRepositoryCollection, repoPullRequestCollection, showPullRequestPanel, showRepositoryPanel, showSettingsPanel]);
 
     const groupedPullRequests = useMemo(() => {
         const selectedRepoKeys = new Set<string>();
@@ -369,6 +383,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                         setActiveFile(undefined);
                         navigate({ to: "/" });
                     }}
+                    onRefresh={refreshCurrentView}
                     onSettings={() => {
                         setShowSettingsPanel((prev) => !prev);
                     }}

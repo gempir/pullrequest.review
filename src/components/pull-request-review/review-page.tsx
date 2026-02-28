@@ -945,6 +945,29 @@ function usePullRequestReviewPageView({
         },
         [fetchRemoteFileHistory, historyRequestedPaths],
     );
+    const refreshCurrentReviewView = useCallback(async () => {
+        if (showSettingsPanel) return;
+
+        await refetchPrQuery();
+
+        if (commitRangeScopedCollection && resolvedScope.mode !== "full") {
+            await commitRangeScopedCollection.utils.refetch({ throwOnError: false });
+        }
+
+        if (!prData || historyRequestedPaths.size === 0) return;
+        const requestedPaths = Array.from(historyRequestedPaths.values());
+        await Promise.all(
+            requestedPaths.map(async (path) => {
+                const scopedHistory = getPullRequestFileHistoryCollection({
+                    prRef,
+                    path,
+                    commits: prData.commits ?? [],
+                    limit: 20,
+                });
+                await scopedHistory.utils.refetch({ throwOnError: false });
+            }),
+        );
+    }, [commitRangeScopedCollection, historyRequestedPaths, prData, prRef, refetchPrQuery, resolvedScope.mode, showSettingsPanel]);
 
     const getVersionOptionsForPath = useCallback(
         (path: string) => {
@@ -1568,6 +1591,7 @@ function usePullRequestReviewPageView({
         copiedSourceBranch,
         commitScopeSlot,
         onHome: () => navigate({ to: "/" }),
+        onRefresh: refreshCurrentReviewView,
         onToggleSettings: handleToggleSettingsPanel,
         onCollapseTree: () => setTreeCollapsed(true),
         onExpandTree: () => setTreeCollapsed(false),

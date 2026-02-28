@@ -32,6 +32,7 @@ export function useReviewPageViewProps({
     copiedSourceBranch,
     commitScopeSlot,
     onHome,
+    onRefresh,
     onToggleSettings,
     onCollapseTree,
     onExpandTree,
@@ -87,6 +88,7 @@ export function useReviewPageViewProps({
     copiedSourceBranch: boolean;
     commitScopeSlot?: MainViewProps["navbarProps"]["commitScopeSlot"];
     onHome: MainViewProps["sidebarProps"]["onHome"];
+    onRefresh: MainViewProps["sidebarProps"]["onRefresh"];
     onToggleSettings: MainViewProps["sidebarProps"]["onToggleSettings"];
     onCollapseTree: MainViewProps["sidebarProps"]["onCollapseTree"];
     onExpandTree: MainViewProps["navbarProps"]["onExpandTree"];
@@ -129,6 +131,7 @@ export function useReviewPageViewProps({
             allowedPathSet,
             viewedFiles,
             onHome,
+            onRefresh,
             onToggleSettings,
             onCollapseTree,
             onSearchQueryChange,
@@ -146,6 +149,7 @@ export function useReviewPageViewProps({
             onExpandAllDirectories,
             onFileClick,
             onHome,
+            onRefresh,
             onSearchQueryChange,
             onStartTreeResize,
             onToggleSettings,

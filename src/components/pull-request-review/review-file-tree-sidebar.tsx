@@ -22,6 +22,7 @@ type ReviewFileTreeSidebarProps = {
     allowedPathSet: Set<string>;
     viewedFiles: Set<string>;
     onHome: () => void;
+    onRefresh: () => Promise<void> | void;
     onToggleSettings: () => void;
     onCollapseTree: () => void;
     onSearchQueryChange: (value: string) => void;
@@ -45,6 +46,7 @@ export function ReviewFileTreeSidebar({
     allowedPathSet,
     viewedFiles,
     onHome,
+    onRefresh,
     onToggleSettings,
     onCollapseTree,
     onSearchQueryChange,
@@ -122,6 +124,7 @@ export function ReviewFileTreeSidebar({
                 <>
                     <SidebarTopControls
                         onHome={onHome}
+                        onRefresh={onRefresh}
                         onSettings={onToggleSettings}
                         settingsActive={showSettingsPanel}
                         settingsAriaLabel={showSettingsPanel ? "Close settings" : "Open settings"}

@@ -3,11 +3,13 @@ import type { ReactNode } from "react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { getGitHostFetchActivitySnapshot, refetchAllGitHostData, subscribeGitHostFetchActivity } from "@/lib/git-host/query-collections";
+import { getGitHostFetchActivitySnapshot, subscribeGitHostFetchActivity } from "@/lib/git-host/query-collections";
 import { cn } from "@/lib/utils";
 
 type SidebarTopControlsProps = {
     onHome: () => void;
+    onRefresh: () => Promise<void> | void;
+    refreshAriaLabel?: string;
     onSettings?: () => void;
     settingsActive?: boolean;
     settingsAriaLabel?: string;
@@ -17,6 +19,8 @@ type SidebarTopControlsProps = {
 
 export function SidebarTopControls({
     onHome,
+    onRefresh,
+    refreshAriaLabel = "Refresh current view data",
     onSettings,
     settingsActive = false,
     settingsAriaLabel = "Settings",
@@ -69,11 +73,11 @@ export function SidebarTopControls({
                         onClick={() => {
                             if (manualRefreshInFlight) return;
                             setManualRefreshInFlight(true);
-                            void refetchAllGitHostData({ throwOnError: false }).finally(() => {
+                            Promise.resolve(onRefresh()).finally(() => {
                                 setManualRefreshInFlight(false);
                             });
                         }}
-                        aria-label="Refresh all host data"
+                        aria-label={refreshAriaLabel}
                     >
                         <RefreshCw className={cn("size-3.5", shouldSpin ? "animate-spin" : undefined)} />
                     </Button>

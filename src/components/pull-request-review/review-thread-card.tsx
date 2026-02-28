@@ -6,7 +6,7 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
 import { formatDate } from "@/components/pull-request-review/review-formatters";
-import type { CommentThread } from "@/components/pull-request-review/review-threads";
+import { type CommentThread, type CommentThreadNode, threadCommentCount } from "@/components/pull-request-review/review-threads";
 import { Button } from "@/components/ui/button";
 import { commentAnchorId } from "@/lib/file-anchors";
 
@@ -94,12 +94,13 @@ export function ThreadCard({
     onResolveThread,
     onReplyToThread,
 }: ThreadCardProps) {
+    const rootComment = thread.root.comment;
     const [isReplying, setIsReplying] = useState(false);
     const [replyValue, setReplyValue] = useState("");
     const replyFocusRef = useRef<(() => void) | null>(null);
-    const isResolved = Boolean(thread.root.resolution);
+    const isResolved = Boolean(rootComment.resolution);
     const [collapsed, setCollapsed] = useState(() => isResolved);
-    const prevResolutionRef = useRef(thread.root.resolution);
+    const prevResolutionRef = useRef(rootComment.resolution);
     const normalizedCurrentUser = normalizeName(currentUserDisplayName);
     const isSameUser = (name?: string) => {
         if (!normalizedCurrentUser) return false;
@@ -113,11 +114,11 @@ export function ThreadCard({
     );
 
     useEffect(() => {
-        if (thread.root.resolution !== prevResolutionRef.current) {
-            prevResolutionRef.current = thread.root.resolution;
-            setCollapsed(Boolean(thread.root.resolution));
+        if (rootComment.resolution !== prevResolutionRef.current) {
+            prevResolutionRef.current = rootComment.resolution;
+            setCollapsed(Boolean(rootComment.resolution));
         }
-    }, [thread.root.resolution]);
+    }, [rootComment.resolution]);
     useEffect(() => {
         if (collapsed && isReplying) {
             setIsReplying(false);
@@ -141,26 +142,47 @@ export function ThreadCard({
     const handleSubmitReply = () => {
         const trimmed = replyValue.trim();
         if (!trimmed) return;
-        onReplyToThread(thread.root.id, trimmed);
+        onReplyToThread(rootComment.id, trimmed);
         setReplyValue("");
         setIsReplying(false);
     };
-    const rootIsOwn = isSameUser(thread.root.user?.displayName);
-    const commentCount = thread.replies.length + 1;
+    const rootIsOwn = isSameUser(rootComment.user?.displayName);
+    const commentCount = threadCommentCount(thread);
     const toggleCollapsed = () => {
         if (!isResolved) return;
         setCollapsed((prev) => !prev);
+    };
+    const renderReplyNode = (node: CommentThreadNode, depth: number) => {
+        const reply = node.comment;
+        return (
+            <div key={reply.id} className="space-y-1.5" style={{ marginLeft: `${Math.min(depth, 8) * 12}px` }}>
+                <div id={commentAnchorId(reply.id)} className="flex gap-2 rounded border border-border/50 bg-muted/20 p-1.5">
+                    <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="size-5" />
+                    <div className="flex-1 space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-[11px]">
+                            <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
+                            <span>{formatDate(reply.createdAt)}</span>
+                        </div>
+                        <CommentMarkdown text={reply.content?.html ?? reply.content?.raw ?? ""} />
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            {isSameUser(reply.user?.displayName) ? renderDeleteButton(reply.id, Boolean(reply.inline?.path)) : null}
+                        </div>
+                    </div>
+                </div>
+                {node.children.map((child) => renderReplyNode(child, depth + 1))}
+            </div>
+        );
     };
 
     return (
         <div className="p-0.5 text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
             <div className="flex flex-col gap-1.5">
-                <div id={commentAnchorId(thread.root.id)} className="flex items-start gap-2 rounded border border-border/60 bg-muted/40 p-1.5">
-                    <CommentAvatar name={thread.root.user?.displayName ?? "Unknown"} url={thread.root.user?.avatarUrl} />
+                <div id={commentAnchorId(rootComment.id)} className="flex items-start gap-2 rounded border border-border/60 bg-muted/40 p-1.5">
+                    <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} />
                     <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
-                            <span className="font-medium text-foreground text-[12px]">{thread.root.user?.displayName ?? "Unknown"}</span>
-                            <span>{formatDate(thread.root.createdAt)}</span>
+                            <span className="font-medium text-foreground text-[12px]">{rootComment.user?.displayName ?? "Unknown"}</span>
+                            <span>{formatDate(rootComment.createdAt)}</span>
                             <span className="ml-auto text-[10px] uppercase tracking-wide">{isResolved ? "Resolved" : "Unresolved"}</span>
                             {isResolved ? (
                                 <button
@@ -177,7 +199,7 @@ export function ThreadCard({
                         </div>
                         {!collapsed ? (
                             <>
-                                <CommentMarkdown text={thread.root.content?.html ?? thread.root.content?.raw ?? ""} />
+                                <CommentMarkdown text={rootComment.content?.html ?? rootComment.content?.raw ?? ""} />
                                 {isReplying ? (
                                     <CommentEditor
                                         value={replyValue}
@@ -194,7 +216,7 @@ export function ThreadCard({
                                     />
                                 ) : null}
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                    {rootIsOwn ? renderDeleteButton(thread.root.id, Boolean(thread.root.inline?.path)) : null}
+                                    {rootIsOwn ? renderDeleteButton(rootComment.id, Boolean(rootComment.inline?.path)) : null}
                                     {isReplying ? (
                                         <>
                                             <Button
@@ -235,10 +257,10 @@ export function ThreadCard({
                                         size="sm"
                                         className="h-7 gap-1.5"
                                         disabled={resolveCommentPending || !canResolveThread}
-                                        onClick={() => onResolveThread(thread.root.id, !thread.root.resolution)}
+                                        onClick={() => onResolveThread(rootComment.id, !rootComment.resolution)}
                                     >
                                         <Check className="size-3.5" />
-                                        {thread.root.resolution ? "Unresolve" : "Resolve"}
+                                        {rootComment.resolution ? "Unresolve" : "Resolve"}
                                     </Button>
                                 </div>
                             </>
@@ -258,23 +280,7 @@ export function ThreadCard({
                         )}
                     </div>
                 </div>
-                {!collapsed
-                    ? thread.replies.map((reply) => (
-                          <div key={reply.id} id={commentAnchorId(reply.id)} className="flex gap-2 rounded border border-border/50 bg-muted/20 p-1.5">
-                              <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="size-5" />
-                              <div className="flex-1 space-y-0.5">
-                                  <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-[11px]">
-                                      <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
-                                      <span>{formatDate(reply.createdAt)}</span>
-                                  </div>
-                                  <CommentMarkdown text={reply.content?.html ?? reply.content?.raw ?? ""} />
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                      {isSameUser(reply.user?.displayName) ? renderDeleteButton(reply.id, Boolean(reply.inline?.path)) : null}
-                                  </div>
-                              </div>
-                          </div>
-                      ))
-                    : null}
+                {!collapsed ? thread.root.children.map((reply) => renderReplyNode(reply, 1)) : null}
             </div>
         </div>
     );

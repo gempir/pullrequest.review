@@ -1834,6 +1834,7 @@ function usePullRequestReviewPageView({
             diffContent={
                 <ReviewPageDiffContent
                     showSettingsPanel={showSettingsPanel}
+                    allowNestedReplies={host === "bitbucket"}
                     viewMode={viewMode}
                     activeFile={activeFile}
                     prData={prData}

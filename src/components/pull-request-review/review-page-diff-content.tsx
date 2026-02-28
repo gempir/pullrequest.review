@@ -15,6 +15,7 @@ import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 type ReviewPageDiffContentProps = {
     showSettingsPanel: boolean;
+    allowNestedReplies: boolean;
     viewMode: "single" | "all";
     activeFile: string | undefined;
     prData: PullRequestBundle;
@@ -91,6 +92,7 @@ type ReviewPageDiffContentProps = {
 
 export function ReviewPageDiffContent({
     showSettingsPanel,
+    allowNestedReplies,
     viewMode,
     activeFile,
     prData,
@@ -186,6 +188,7 @@ export function ReviewPageDiffContent({
         return (
             <ReviewSingleModeView
                 viewMode={viewMode}
+                allowNestedReplies={allowNestedReplies}
                 onWorkspaceModeChange={onWorkspaceModeChange}
                 prData={prData}
                 pullRequestTitle={pullRequestTitle}
@@ -245,6 +248,7 @@ export function ReviewPageDiffContent({
     return (
         <ReviewAllModeView
             viewMode={viewMode}
+            allowNestedReplies={allowNestedReplies}
             onWorkspaceModeChange={onWorkspaceModeChange}
             pullRequestTitle={pullRequestTitle || PR_SUMMARY_NAME}
             prData={prData}

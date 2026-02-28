@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 
 type InlineDiffAnnotationProps = {
     annotation: SingleFileAnnotation;
+    allowNestedReplies: boolean;
     workspace: string;
     repo: string;
     pullRequestId: string;
@@ -30,6 +31,7 @@ type InlineDiffAnnotationProps = {
 
 export function InlineDiffAnnotation({
     annotation,
+    allowNestedReplies,
     workspace,
     repo,
     pullRequestId,
@@ -85,6 +87,7 @@ export function InlineDiffAnnotation({
             ) : (
                 <ThreadCard
                     thread={metadata.thread}
+                    allowNestedReplies={allowNestedReplies}
                     canResolveThread={canResolveThread}
                     canCommentInline={canCommentInline}
                     createCommentPending={createCommentPending}

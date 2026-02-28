@@ -19,6 +19,7 @@ import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 type ReviewSingleModeViewProps = {
     viewMode: "single" | "all";
+    allowNestedReplies: boolean;
     onWorkspaceModeChange: (mode: "single" | "all") => void;
     prData: PullRequestBundle;
     pullRequestTitle?: string;
@@ -69,6 +70,7 @@ type ReviewSingleModeViewProps = {
 
 export function ReviewSingleModeView({
     viewMode,
+    allowNestedReplies,
     onWorkspaceModeChange,
     prData,
     pullRequestTitle,
@@ -229,6 +231,7 @@ export function ReviewSingleModeView({
                         renderAnnotation={(annotation) => (
                             <InlineDiffAnnotation
                                 annotation={annotation as SingleFileAnnotation}
+                                allowNestedReplies={allowNestedReplies}
                                 workspace={workspace}
                                 repo={repo}
                                 pullRequestId={pullRequestId}
@@ -261,6 +264,7 @@ export function ReviewSingleModeView({
                         <ThreadCard
                             key={thread.id}
                             thread={thread}
+                            allowNestedReplies={allowNestedReplies}
                             canResolveThread={canResolveThread}
                             canCommentInline={canCommentInline}
                             createCommentPending={createCommentPending}

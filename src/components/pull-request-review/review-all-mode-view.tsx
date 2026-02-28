@@ -21,6 +21,7 @@ import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 type ReviewAllModeViewProps = {
     viewMode: "single" | "all";
+    allowNestedReplies: boolean;
     onWorkspaceModeChange: (mode: "single" | "all") => void;
     pullRequestTitle: string;
     prData: PullRequestBundle | null;
@@ -84,6 +85,7 @@ type ReviewAllModeViewProps = {
 
 export function ReviewAllModeView({
     viewMode,
+    allowNestedReplies,
     onWorkspaceModeChange,
     pullRequestTitle,
     prData,
@@ -163,7 +165,7 @@ export function ReviewAllModeView({
     return (
         <div className="w-full max-w-full" data-component="diff-list-view" style={{ paddingBottom: diffListBottomPadding }}>
             {prData ? (
-                <div id={fileAnchorId(PR_SUMMARY_PATH)} className={cn("w-full max-w-full border-b border-border", isSummaryCollapsedInAllMode && "border-b-0")}>
+                <div id={fileAnchorId(PR_SUMMARY_PATH)} className={cn("w-full max-w-full", isSummaryCollapsedInAllMode && "border-b-0")}>
                     <div className={cn("group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
                         <button type="button" className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden text-left" onClick={onToggleSummaryCollapsed}>
                             <span className="size-4 flex items-center justify-center shrink-0">
@@ -318,6 +320,7 @@ export function ReviewAllModeView({
                                             renderAnnotation={(annotation) => (
                                                 <InlineDiffAnnotation
                                                     annotation={annotation as SingleFileAnnotation}
+                                                    allowNestedReplies={allowNestedReplies}
                                                     workspace={workspace}
                                                     repo={repo}
                                                     pullRequestId={pullRequestId}

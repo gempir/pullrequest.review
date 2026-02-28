@@ -105,6 +105,7 @@ interface GithubIssueComment {
 
 interface GithubReviewComment {
     id: number;
+    node_id?: string;
     created_at?: string;
     updated_at?: string;
     body?: string;
@@ -722,8 +723,38 @@ function mapReviewComment(comment: GithubReviewComment): Comment {
     };
 }
 
+function normalizeGithubReviewCommentParents(reviewComments: GithubReviewComment[]) {
+    const byId = new Map<number, GithubReviewComment>();
+    for (const comment of reviewComments) {
+        byId.set(comment.id, comment);
+    }
+
+    return reviewComments.map((comment) => {
+        const directParentId = comment.in_reply_to_id;
+        if (!directParentId) return comment;
+
+        let resolvedParentId = directParentId;
+        const visited = new Set<number>([comment.id]);
+        while (true) {
+            if (visited.has(resolvedParentId)) break;
+            visited.add(resolvedParentId);
+            const parent = byId.get(resolvedParentId);
+            const nextParentId = parent?.in_reply_to_id;
+            if (!nextParentId) break;
+            resolvedParentId = nextParentId;
+        }
+
+        if (resolvedParentId === directParentId) return comment;
+        return {
+            ...comment,
+            in_reply_to_id: resolvedParentId,
+        };
+    });
+}
+
 function mergeIssueAndReviewComments(issue: GithubIssueComment[], review: GithubReviewComment[]) {
-    const all: Comment[] = [...issue.map(mapIssueComment), ...review.map(mapReviewComment)];
+    const normalizedReviewComments = normalizeGithubReviewCommentParents(review);
+    const all: Comment[] = [...issue.map(mapIssueComment), ...normalizedReviewComments.map(mapReviewComment)];
 
     all.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
 
@@ -834,7 +865,7 @@ export const githubClient: GitHostClient = {
     host: "github",
     capabilities: {
         publicReadSupported: true,
-        supportsThreadResolution: false,
+        supportsThreadResolution: true,
         requestChangesAvailable: true,
         removeApprovalAvailable: false,
         mergeStrategies: ["merge", "squash", "rebase"],
@@ -1115,8 +1146,105 @@ export const githubClient: GitHostClient = {
         );
         return { ok: true as const };
     },
-    async resolvePullRequestComment() {
-        throw new Error("GitHub thread resolution is not yet supported in this app.");
+    async resolvePullRequestComment(data) {
+        const repoBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}`;
+        const commentResponse = await request(`${repoBase}/pulls/comments/${data.commentId}`, {}, { requireAuth: true });
+        const comment = (await commentResponse.json()) as GithubReviewComment;
+        const commentNodeId = comment.node_id?.trim();
+        if (!commentNodeId) {
+            throw new Error("GitHub comment node id is unavailable");
+        }
+
+        const threadLookupResponse = await request(
+            "/graphql",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    query: `
+                        query ReviewThreadByComment($commentId: ID!) {
+                            node(id: $commentId) {
+                                ... on PullRequestReviewComment {
+                                    pullRequestReviewThread {
+                                        id
+                                        isResolved
+                                    }
+                                }
+                            }
+                        }
+                    `,
+                    variables: { commentId: commentNodeId },
+                }),
+            },
+            { requireAuth: true },
+        );
+        const threadLookupPayload = (await threadLookupResponse.json()) as {
+            errors?: Array<{ message?: string }>;
+            data?: {
+                node?: {
+                    pullRequestReviewThread?: {
+                        id?: string;
+                        isResolved?: boolean;
+                    };
+                };
+            };
+        };
+        const threadLookupError = threadLookupPayload.errors?.[0]?.message;
+        if (threadLookupError) {
+            throw new Error(threadLookupError);
+        }
+        const thread = threadLookupPayload.data?.node?.pullRequestReviewThread;
+        const threadId = thread?.id?.trim();
+        if (!threadId) {
+            throw new Error("GitHub review thread id is unavailable for this comment");
+        }
+
+        const threadResolved = thread?.isResolved;
+        if (typeof threadResolved === "boolean" && threadResolved === data.resolve) {
+            return { ok: true as const };
+        }
+
+        const mutation = data.resolve
+            ? `
+                mutation ResolveReviewThread($threadId: ID!) {
+                    resolveReviewThread(input: { threadId: $threadId }) {
+                        thread {
+                            id
+                            isResolved
+                        }
+                    }
+                }
+            `
+            : `
+                mutation UnresolveReviewThread($threadId: ID!) {
+                    unresolveReviewThread(input: { threadId: $threadId }) {
+                        thread {
+                            id
+                            isResolved
+                        }
+                    }
+                }
+            `;
+        const mutationResponse = await request(
+            "/graphql",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    query: mutation,
+                    variables: { threadId },
+                }),
+            },
+            { requireAuth: true },
+        );
+        const mutationPayload = (await mutationResponse.json()) as {
+            errors?: Array<{ message?: string }>;
+        };
+        const mutationError = mutationPayload.errors?.[0]?.message;
+        if (mutationError) {
+            throw new Error(mutationError);
+        }
+        return { ok: true as const };
     },
     async deletePullRequestComment(data) {
         const prBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}`;

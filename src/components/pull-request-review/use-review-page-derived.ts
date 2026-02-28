@@ -58,6 +58,15 @@ function buildFileDiffFingerprint(fileDiff: FileDiffMetadata) {
     return hashString(JSON.stringify(normalized));
 }
 
+function normalizeDiffSelectionPath(path: string) {
+    const trimmed = path.trim();
+    if (!trimmed || trimmed === "/dev/null") return "";
+    if (trimmed.startsWith("a/") || trimmed.startsWith("b/") || trimmed.startsWith("c/")) {
+        return trimmed.slice(2);
+    }
+    return trimmed;
+}
+
 export function useReviewPageDerived({
     prData,
     pullRequest,
@@ -243,8 +252,25 @@ export function useReviewPageDerived({
         });
         return map;
     }, [fileDiffs]);
+    const diffByNormalizedPath = useMemo(() => {
+        const map = new Map<string, FileDiffMetadata>();
+        for (const [path, fileDiff] of diffByPath.entries()) {
+            const normalizedPath = normalizeDiffSelectionPath(path);
+            if (!normalizedPath || map.has(normalizedPath)) continue;
+            map.set(normalizedPath, fileDiff);
+        }
+        return map;
+    }, [diffByPath]);
     const fileDiffFingerprints = workerDerived.fileDiffFingerprints;
-    const selectableDiffPathSet = useMemo(() => new Set(diffByPath.keys()), [diffByPath]);
+    const selectableDiffPathSet = useMemo(() => {
+        const paths = new Set<string>();
+        for (const path of diffByPath.keys()) {
+            paths.add(path);
+            const normalizedPath = normalizeDiffSelectionPath(path);
+            if (normalizedPath) paths.add(normalizedPath);
+        }
+        return paths;
+    }, [diffByPath]);
 
     const visibleFilePaths = useMemo(() => {
         const seen = new Set<string>();
@@ -315,14 +341,18 @@ export function useReviewPageDerived({
 
     const selectedFilePath = useMemo(() => {
         if (!activeFile) return undefined;
-        if (!diffByPath.has(activeFile)) return undefined;
+        if (!selectableDiffPathSet.has(activeFile)) return undefined;
         return activeFile;
-    }, [activeFile, diffByPath]);
+    }, [activeFile, selectableDiffPathSet]);
 
     const selectedFileDiff = useMemo(() => {
         if (!selectedFilePath) return undefined;
-        return diffByPath.get(selectedFilePath);
-    }, [diffByPath, selectedFilePath]);
+        const exactMatch = diffByPath.get(selectedFilePath);
+        if (exactMatch) return exactMatch;
+        const normalizedPath = normalizeDiffSelectionPath(selectedFilePath);
+        if (!normalizedPath) return undefined;
+        return diffByNormalizedPath.get(normalizedPath);
+    }, [diffByNormalizedPath, diffByPath, selectedFilePath]);
 
     const isSummarySelected = activeFile === PR_SUMMARY_PATH;
     const threads = useMemo(() => normalizeCommentThreads(workerDerived.threads), [workerDerived.threads]);

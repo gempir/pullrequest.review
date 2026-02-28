@@ -364,6 +364,11 @@ function usePullRequestReviewPageView({
     const loadedHistoryRevisionRef = useRef<string>("");
     const optimisticCommentIdRef = useRef(-1);
     const firstDiffRenderedKeyRef = useRef<string>("");
+    const missingDiffRecoveryRef = useRef<{ contextKey: string; attempts: number; lastRecoverySignature: string }>({
+        contextKey: "",
+        attempts: 0,
+        lastRecoverySignature: "",
+    });
     const { inlineComment, setInlineComment, getInlineDraftContent, setInlineDraftContent, clearInlineDraftContent, openInlineCommentDraft } =
         useInlineCommentDrafts({
             workspace,
@@ -897,6 +902,41 @@ function usePullRequestReviewPageView({
         }
         return map;
     }, [fileDiffFingerprints]);
+
+    useEffect(() => {
+        if (!prData) return;
+        if (resolvedScope.mode !== "full") return;
+        if (isPrQueryFetching) return;
+
+        const contextKey = `${prContextKey}:${resolvedScope.mode}`;
+        if (missingDiffRecoveryRef.current.contextKey !== contextKey) {
+            missingDiffRecoveryRef.current = {
+                contextKey,
+                attempts: 0,
+                lastRecoverySignature: "",
+            };
+        }
+
+        const diffstatCount = prData.diffstat?.length ?? 0;
+        if (diffstatCount === 0) return;
+
+        const hasDiffText = prData.diff.trim().length > 0;
+        const hasSelectableDiffPaths = selectableDiffPathSet.size > 0;
+        const needsRecovery = !hasDiffText || !hasSelectableDiffPaths;
+        if (!needsRecovery) return;
+
+        if (missingDiffRecoveryRef.current.attempts >= 2) return;
+        const recoverySignature = `${diffstatCount}:${selectableDiffPathSet.size}:${hasDiffText ? hashString(prData.diff) : "none"}`;
+        if (missingDiffRecoveryRef.current.lastRecoverySignature === recoverySignature) return;
+
+        missingDiffRecoveryRef.current = {
+            ...missingDiffRecoveryRef.current,
+            attempts: missingDiffRecoveryRef.current.attempts + 1,
+            lastRecoverySignature: recoverySignature,
+        };
+        void refetchPrQuery();
+    }, [isPrQueryFetching, prContextKey, prData, refetchPrQuery, resolvedScope.mode, selectableDiffPathSet.size]);
+
     const viewedStateLoadRevision = useMemo(() => {
         if (!viewedStorageKey) return "";
         const sortedVersionIds = Array.from(latestVersionIdByPath.values()).sort();

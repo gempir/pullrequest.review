@@ -49,7 +49,7 @@ export function InlineDiffAnnotation({
     if (!metadata) return null;
 
     return (
-        <div className="px-2 py-1.5 border-y border-border bg-background/70">
+        <div className="px-2 py-1.5 bg-background/70">
             {metadata.kind === "draft" ? (
                 <div className="space-y-2">
                     <CommentEditor

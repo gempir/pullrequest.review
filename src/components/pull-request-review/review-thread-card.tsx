@@ -27,13 +27,10 @@ function initials(value?: string) {
 function CommentAvatar({ name, url, sizeClass = "size-6" }: { name?: string; url?: string; sizeClass?: string }) {
     const size = sizeClass ?? "size-6";
     if (url) {
-        return <img src={url} alt={name ?? "avatar"} className={`${size} rounded-full border border-border object-cover shrink-0`} />;
+        return <img src={url} alt={name ?? "avatar"} className={`${size} rounded-full object-cover shrink-0`} />;
     }
     return (
-        <span
-            className={`${size} rounded-full border border-border bg-secondary text-[10px] text-muted-foreground flex items-center justify-center shrink-0`}
-            aria-hidden
-        >
+        <span className={`${size} rounded-full bg-secondary text-[10px] text-muted-foreground flex items-center justify-center shrink-0`} aria-hidden>
             {initials(name)}
         </span>
     );
@@ -51,13 +48,11 @@ function CommentMarkdown({ text }: { text: string }) {
                     ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc pl-5 space-y-1" />,
                     ol: ({ node: _node, ...props }) => <ol {...props} className="list-decimal pl-5 space-y-1" />,
                     table: ({ node: _node, ...props }) => <table {...props} className="w-full border-collapse" />,
-                    th: ({ node: _node, ...props }) => <th {...props} className="border border-border p-2 text-left" />,
-                    td: ({ node: _node, ...props }) => <td {...props} className="border border-border p-2" />,
-                    blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l border-border pl-3 text-muted-foreground" />,
+                    th: ({ node: _node, ...props }) => <th {...props} className="p-2 text-left" />,
+                    td: ({ node: _node, ...props }) => <td {...props} className="p-2" />,
+                    blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="pl-3 text-muted-foreground" />,
                     code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-secondary px-1 py-0.5 text-[11px]" />,
-                    pre: ({ node: _node, ...props }) => (
-                        <pre {...props} className="overflow-x-auto rounded border border-border bg-background p-2 text-[11px]" />
-                    ),
+                    pre: ({ node: _node, ...props }) => <pre {...props} className="overflow-x-auto rounded bg-background p-2 text-[11px]" />,
                     img: ({ node: _node, ...props }) => <img {...props} className="inline align-middle" alt={props.alt ?? ""} />,
                 }}
             >
@@ -107,9 +102,15 @@ export function ThreadCard({
         return normalizeName(name) === normalizedCurrentUser;
     };
     const renderDeleteButton = (commentId: number, hasInlineContext: boolean) => (
-        <Button variant="outline" size="sm" className="h-7 gap-1.5" onClick={() => onDeleteComment(commentId, hasInlineContext)}>
+        <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+            onClick={() => onDeleteComment(commentId, hasInlineContext)}
+            aria-label="Delete comment"
+            title="Delete comment"
+        >
             <Trash2 className="size-3.5" />
-            Delete
         </Button>
     );
 
@@ -156,18 +157,16 @@ export function ThreadCard({
         const reply = node.comment;
         return (
             <div key={reply.id} className="space-y-1.5" style={{ marginLeft: `${Math.min(depth, 8) * 12}px` }}>
-                <div id={commentAnchorId(reply.id)} className="flex gap-2 rounded border border-border/50 bg-muted/20 p-1.5">
+                <div id={commentAnchorId(reply.id)} className="flex gap-2 rounded bg-muted/20 p-1.5">
                     <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="size-5" />
                     <div className="flex-1 space-y-0.5">
-                        <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-[11px]">
+                        <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
                             <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
                             <span>{formatDate(reply.createdAt)}</span>
                             {reply.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
-                        </div>
-                        <CommentMarkdown text={reply.content?.html ?? reply.content?.raw ?? ""} />
-                        <div className="flex flex-wrap items-center gap-1.5">
                             {isSameUser(reply.user?.displayName) ? renderDeleteButton(reply.id, Boolean(reply.inline?.path)) : null}
                         </div>
+                        <CommentMarkdown text={reply.content?.html ?? reply.content?.raw ?? ""} />
                     </div>
                 </div>
                 {node.children.map((child) => renderReplyNode(child, depth + 1))}
@@ -178,26 +177,29 @@ export function ThreadCard({
     return (
         <div className="p-0.5 text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
             <div className="flex flex-col gap-1.5">
-                <div id={commentAnchorId(rootComment.id)} className="flex items-start gap-2 rounded border border-border/60 bg-muted/40 p-1.5">
+                <div id={commentAnchorId(rootComment.id)} className="flex items-start gap-2 rounded bg-muted/40 p-1.5">
                     <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} />
                     <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
                             <span className="font-medium text-foreground text-[12px]">{rootComment.user?.displayName ?? "Unknown"}</span>
                             <span>{formatDate(rootComment.createdAt)}</span>
                             {rootComment.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
-                            <span className="ml-auto text-[10px] uppercase tracking-wide">{isResolved ? "Resolved" : "Unresolved"}</span>
-                            {isResolved ? (
-                                <button
-                                    type="button"
-                                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors text-[10px] uppercase tracking-wide"
-                                    onClick={toggleCollapsed}
-                                    aria-expanded={!collapsed}
-                                    aria-label={collapsed ? "Expand resolved thread" : "Collapse resolved thread"}
-                                >
-                                    {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
-                                    <span>{collapsed ? "Expand" : "Collapse"}</span>
-                                </button>
-                            ) : null}
+                            <div className="ml-auto flex items-center gap-2">
+                                <span className="text-[10px] uppercase tracking-wide">{isResolved ? "Resolved" : "Unresolved"}</span>
+                                {isResolved ? (
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors text-[10px] uppercase tracking-wide"
+                                        onClick={toggleCollapsed}
+                                        aria-expanded={!collapsed}
+                                        aria-label={collapsed ? "Expand resolved thread" : "Collapse resolved thread"}
+                                    >
+                                        {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
+                                        <span>{collapsed ? "Expand" : "Collapse"}</span>
+                                    </button>
+                                ) : null}
+                                {rootIsOwn ? renderDeleteButton(rootComment.id, Boolean(rootComment.inline?.path)) : null}
+                            </div>
                         </div>
                         {!collapsed ? (
                             <>
@@ -218,7 +220,6 @@ export function ThreadCard({
                                     />
                                 ) : null}
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                    {rootIsOwn ? renderDeleteButton(rootComment.id, Boolean(rootComment.inline?.path)) : null}
                                     {isReplying ? (
                                         <>
                                             <Button
@@ -269,7 +270,7 @@ export function ThreadCard({
                         ) : (
                             <button
                                 type="button"
-                                className="w-full rounded border border-dashed border-border/70 bg-muted/20 px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground hover:border-border flex items-center gap-1"
+                                className="w-full rounded bg-muted/20 px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
                                 onClick={() => setCollapsed(false)}
                                 aria-label="Expand resolved thread"
                             >

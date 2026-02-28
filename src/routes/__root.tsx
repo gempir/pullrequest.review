@@ -16,6 +16,7 @@ import type { GitHost } from "@/lib/git-host/types";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
 import { appQueryClient } from "@/lib/query-client";
 import { ensureLongTaskObserver } from "@/lib/review-performance/metrics";
+import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
 
 import "../../styles.css";
@@ -32,14 +33,14 @@ function NotFoundComponent() {
     return (
         <div className="h-full overflow-auto bg-background">
             <div className="min-h-full flex items-center justify-center p-4">
-                <div className="border border-border bg-card p-6 max-w-md">
-                    <div className="border-b border-border pb-3 mb-4">
+                <div className="bg-card p-6 max-w-md">
+                    <div className="pb-3 mb-4">
                         <h1 className="text-lg font-semibold">[ERROR] 404</h1>
                     </div>
                     <p className="text-muted-foreground mb-4">Page not found.</p>
                     <Link
                         to="/"
-                        className="inline-flex items-center gap-2 h-8 px-4 bg-foreground text-background border border-foreground hover:bg-background hover:text-foreground transition-colors text-[13px]"
+                        className="inline-flex items-center gap-2 h-8 px-4 bg-foreground text-background hover:bg-background hover:text-foreground transition-colors text-[13px]"
                     >
                         cd ~
                     </Link>
@@ -61,6 +62,7 @@ function RootComponent() {
                 <AppearanceProvider>
                     <PrProvider>
                         <DiffOptionsProvider>
+                            <ShikiAppThemeSync />
                             <FileTreeProvider>
                                 <ShortcutsProvider>
                                     <AppLayout />

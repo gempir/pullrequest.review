@@ -1,11 +1,11 @@
-import { Check, ChevronDown, ChevronRight, Reply, SendHorizontal, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, PenSquare, Reply, SendHorizontal, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
-import { formatDate } from "@/components/pull-request-review/review-formatters";
+import { formatCommentTimestamp } from "@/components/pull-request-review/review-formatters";
 import { type CommentThread, type CommentThreadNode, threadCommentCount } from "@/components/pull-request-review/review-threads";
 import { Button } from "@/components/ui/button";
 import { commentAnchorId } from "@/lib/file-anchors";
@@ -66,6 +66,15 @@ function normalizeName(value?: string) {
     return value?.trim().toLowerCase() ?? "";
 }
 
+function findCommentById(node: CommentThreadNode, commentId: number): CommentThreadNode | null {
+    if (node.comment.id === commentId) return node;
+    for (const child of node.children) {
+        const candidate = findCommentById(child, commentId);
+        if (candidate) return candidate;
+    }
+    return null;
+}
+
 type ThreadCardProps = {
     thread: CommentThread;
     canResolveThread: boolean;
@@ -76,7 +85,139 @@ type ThreadCardProps = {
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onReplyToThread: (commentId: number, content: string) => void;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    updateCommentPending: boolean;
 };
+
+type ThreadActionsProps = {
+    commentId: number;
+    hasInlineContext: boolean;
+    rootCommentId: number;
+    isResolved: boolean;
+    canEdit: boolean;
+    canDelete: boolean;
+    canResolveThread: boolean;
+    canCommentInline: boolean;
+    createCommentPending: boolean;
+    resolveCommentPending: boolean;
+    updateCommentPending: boolean;
+    replyTargetCommentId: number | null;
+    editTargetCommentId: number | null;
+    onStartReply: (commentId: number) => void;
+    onSubmitReply: () => void;
+    onCancelReply: () => void;
+    onStartEdit: (commentId: number, hasInlineContext: boolean) => void;
+    onSubmitEdit: (commentId: number, hasInlineContext: boolean) => void;
+    onCancelEdit: () => void;
+    onResolveThread: (commentId: number, resolve: boolean) => void;
+    onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
+};
+
+function ThreadActions({
+    commentId,
+    hasInlineContext,
+    rootCommentId,
+    isResolved,
+    canEdit,
+    canDelete,
+    canResolveThread,
+    canCommentInline,
+    createCommentPending,
+    resolveCommentPending,
+    updateCommentPending,
+    replyTargetCommentId,
+    editTargetCommentId,
+    onStartReply,
+    onSubmitReply,
+    onCancelReply,
+    onStartEdit,
+    onSubmitEdit,
+    onCancelEdit,
+    onResolveThread,
+    onDeleteComment,
+}: ThreadActionsProps) {
+    const actionButtonClass = "h-5 gap-1 px-1.5 text-[10px] leading-none";
+    const actionIconClass = "size-2";
+    return (
+        <div className="flex flex-wrap items-center gap-1.5">
+            {editTargetCommentId === commentId ? (
+                <>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1.5"
+                        disabled={updateCommentPending}
+                        onClick={() => onSubmitEdit(commentId, hasInlineContext)}
+                    >
+                        <Check className="size-3.5" />
+                        Save
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={updateCommentPending} onClick={onCancelEdit}>
+                        <X className="size-3.5" />
+                        Cancel
+                    </Button>
+                </>
+            ) : replyTargetCommentId === commentId ? (
+                <>
+                    <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={createCommentPending || !canCommentInline} onClick={onSubmitReply}>
+                        <SendHorizontal className="size-3.5" />
+                        Comment
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={createCommentPending} onClick={onCancelReply}>
+                        <X className="size-3.5" />
+                        Cancel
+                    </Button>
+                </>
+            ) : (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className={actionButtonClass}
+                    disabled={createCommentPending || !canCommentInline}
+                    onClick={() => onStartReply(commentId)}
+                >
+                    <Reply className={actionIconClass} />
+                    Reply
+                </Button>
+            )}
+            {canEdit && editTargetCommentId !== commentId ? (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className={actionButtonClass}
+                    disabled={updateCommentPending}
+                    onClick={() => onStartEdit(commentId, hasInlineContext)}
+                >
+                    <PenSquare className={actionIconClass} />
+                    Edit
+                </Button>
+            ) : null}
+            <Button
+                variant="outline"
+                size="sm"
+                className={actionButtonClass}
+                disabled={resolveCommentPending || !canResolveThread}
+                onClick={() => onResolveThread(rootCommentId, !isResolved)}
+            >
+                <Check className={actionIconClass} />
+                {isResolved ? "Unresolve" : "Resolve"}
+            </Button>
+            {canDelete ? (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className={actionButtonClass}
+                    onClick={() => onDeleteComment(commentId, hasInlineContext)}
+                    aria-label="Delete comment"
+                    title="Delete comment"
+                >
+                    <Trash2 className={actionIconClass} />
+                    Delete
+                </Button>
+            ) : null}
+        </div>
+    );
+}
 
 export function ThreadCard({
     thread,
@@ -88,11 +229,18 @@ export function ThreadCard({
     onDeleteComment,
     onResolveThread,
     onReplyToThread,
+    onEditComment,
+    updateCommentPending,
 }: ThreadCardProps) {
     const rootComment = thread.root.comment;
-    const [isReplying, setIsReplying] = useState(false);
-    const [replyValue, setReplyValue] = useState("");
+    const [editorState, setEditorState] = useState({
+        replyTargetCommentId: null as number | null,
+        replyValue: "",
+        editTargetCommentId: null as number | null,
+        editValue: "",
+    });
     const replyFocusRef = useRef<(() => void) | null>(null);
+    const editFocusRef = useRef<(() => void) | null>(null);
     const isResolved = Boolean(rootComment.resolution);
     const [collapsed, setCollapsed] = useState(() => isResolved);
     const prevResolutionRef = useRef(rootComment.resolution);
@@ -101,19 +249,6 @@ export function ThreadCard({
         if (!normalizedCurrentUser) return false;
         return normalizeName(name) === normalizedCurrentUser;
     };
-    const renderDeleteButton = (commentId: number, hasInlineContext: boolean) => (
-        <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-            onClick={() => onDeleteComment(commentId, hasInlineContext)}
-            aria-label="Delete comment"
-            title="Delete comment"
-        >
-            <Trash2 className="size-3.5" />
-        </Button>
-    );
-
     useEffect(() => {
         if (rootComment.resolution !== prevResolutionRef.current) {
             prevResolutionRef.current = rootComment.resolution;
@@ -121,14 +256,24 @@ export function ThreadCard({
         }
     }, [rootComment.resolution]);
     useEffect(() => {
-        if (collapsed && isReplying) {
-            setIsReplying(false);
+        if (collapsed && editorState.replyTargetCommentId !== null) {
+            setEditorState((prev) => ({ ...prev, replyTargetCommentId: null }));
         }
-    }, [collapsed, isReplying]);
+    }, [collapsed, editorState.replyTargetCommentId]);
+    useEffect(() => {
+        if (collapsed && editorState.editTargetCommentId !== null) {
+            setEditorState((prev) => ({ ...prev, editTargetCommentId: null, editValue: "" }));
+        }
+    }, [collapsed, editorState.editTargetCommentId]);
 
-    const handleStartReply = () => {
+    const handleStartReply = (commentId: number) => {
         if (!canCommentInline || createCommentPending) return;
-        setIsReplying(true);
+        setEditorState((prev) => ({
+            ...prev,
+            editTargetCommentId: null,
+            editValue: "",
+            replyTargetCommentId: commentId,
+        }));
         window.requestAnimationFrame(() => {
             replyFocusRef.current?.();
         });
@@ -136,16 +281,41 @@ export function ThreadCard({
 
     const handleCancelReply = () => {
         if (createCommentPending) return;
-        setReplyValue("");
-        setIsReplying(false);
+        setEditorState((prev) => ({ ...prev, replyValue: "", replyTargetCommentId: null }));
+    };
+    const handleStartEdit = (commentId: number, _hasInlineContext: boolean) => {
+        if (updateCommentPending) return;
+        const commentNode = findCommentById(thread.root, commentId);
+        const currentContent = commentNode?.comment.content?.raw ?? "";
+        setEditorState((prev) => ({
+            ...prev,
+            replyTargetCommentId: null,
+            replyValue: "",
+            editTargetCommentId: commentId,
+            editValue: currentContent,
+        }));
+        window.requestAnimationFrame(() => {
+            editFocusRef.current?.();
+        });
+    };
+    const handleCancelEdit = () => {
+        if (updateCommentPending) return;
+        setEditorState((prev) => ({ ...prev, editTargetCommentId: null, editValue: "" }));
     };
 
     const handleSubmitReply = () => {
-        const trimmed = replyValue.trim();
+        if (editorState.replyTargetCommentId === null) return;
+        const trimmed = editorState.replyValue.trim();
         if (!trimmed) return;
-        onReplyToThread(rootComment.id, trimmed);
-        setReplyValue("");
-        setIsReplying(false);
+        onReplyToThread(editorState.replyTargetCommentId, trimmed);
+        setEditorState((prev) => ({ ...prev, replyValue: "", replyTargetCommentId: null }));
+    };
+    const handleSubmitEdit = (commentId: number, hasInlineContext: boolean) => {
+        if (editorState.editTargetCommentId !== commentId) return;
+        const trimmed = editorState.editValue.trim();
+        if (!trimmed) return;
+        onEditComment(commentId, trimmed, hasInlineContext);
+        setEditorState((prev) => ({ ...prev, editTargetCommentId: null, editValue: "" }));
     };
     const rootIsOwn = isSameUser(rootComment.user?.displayName);
     const commentCount = threadCommentCount(thread);
@@ -155,6 +325,10 @@ export function ThreadCard({
     };
     const renderReplyNode = (node: CommentThreadNode, depth: number) => {
         const reply = node.comment;
+        const isReplyingOnNode = editorState.replyTargetCommentId === reply.id;
+        const isEditingOnNode = editorState.editTargetCommentId === reply.id;
+        const canEditNode = isSameUser(reply.user?.displayName);
+        const replyHasInlineContext = Boolean(reply.inline?.path);
         return (
             <div key={reply.id} className="space-y-1.5" style={{ marginLeft: `${Math.min(depth, 8) * 12}px` }}>
                 <div id={commentAnchorId(reply.id)} className="flex gap-2 rounded bg-muted/20 p-1.5">
@@ -162,11 +336,64 @@ export function ThreadCard({
                     <div className="flex-1 space-y-0.5">
                         <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
                             <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
-                            <span>{formatDate(reply.createdAt)}</span>
+                            <span>{formatCommentTimestamp(reply.createdAt)}</span>
                             {reply.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
-                            {isSameUser(reply.user?.displayName) ? renderDeleteButton(reply.id, Boolean(reply.inline?.path)) : null}
                         </div>
-                        <CommentMarkdown text={reply.content?.html ?? reply.content?.raw ?? ""} />
+                        {isEditingOnNode ? (
+                            <CommentEditor
+                                value={editorState.editValue}
+                                placeholder="Edit comment"
+                                disabled={updateCommentPending}
+                                onReady={(focus) => {
+                                    editFocusRef.current = focus;
+                                    if (isEditingOnNode) {
+                                        focus();
+                                    }
+                                }}
+                                onChange={(nextValue) => setEditorState((prev) => ({ ...prev, editValue: nextValue }))}
+                                onSubmit={() => handleSubmitEdit(reply.id, replyHasInlineContext)}
+                            />
+                        ) : (
+                            <CommentMarkdown text={reply.content?.html ?? reply.content?.raw ?? ""} />
+                        )}
+                        {isReplyingOnNode ? (
+                            <CommentEditor
+                                value={editorState.replyValue}
+                                placeholder="Reply to this thread"
+                                disabled={createCommentPending || !canCommentInline}
+                                onReady={(focus) => {
+                                    replyFocusRef.current = focus;
+                                    if (isReplyingOnNode) {
+                                        focus();
+                                    }
+                                }}
+                                onChange={(nextValue) => setEditorState((prev) => ({ ...prev, replyValue: nextValue }))}
+                                onSubmit={handleSubmitReply}
+                            />
+                        ) : null}
+                        <ThreadActions
+                            commentId={reply.id}
+                            hasInlineContext={replyHasInlineContext}
+                            rootCommentId={rootComment.id}
+                            isResolved={isResolved}
+                            canEdit={canEditNode}
+                            canDelete={canEditNode}
+                            canResolveThread={canResolveThread}
+                            canCommentInline={canCommentInline}
+                            createCommentPending={createCommentPending}
+                            resolveCommentPending={resolveCommentPending}
+                            updateCommentPending={updateCommentPending}
+                            replyTargetCommentId={editorState.replyTargetCommentId}
+                            editTargetCommentId={editorState.editTargetCommentId}
+                            onStartReply={handleStartReply}
+                            onSubmitReply={handleSubmitReply}
+                            onCancelReply={handleCancelReply}
+                            onStartEdit={handleStartEdit}
+                            onSubmitEdit={handleSubmitEdit}
+                            onCancelEdit={handleCancelEdit}
+                            onResolveThread={onResolveThread}
+                            onDeleteComment={onDeleteComment}
+                        />
                     </div>
                 </div>
                 {node.children.map((child) => renderReplyNode(child, depth + 1))}
@@ -182,7 +409,7 @@ export function ThreadCard({
                     <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
                             <span className="font-medium text-foreground text-[12px]">{rootComment.user?.displayName ?? "Unknown"}</span>
-                            <span>{formatDate(rootComment.createdAt)}</span>
+                            <span>{formatCommentTimestamp(rootComment.createdAt)}</span>
                             {rootComment.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                             <div className="ml-auto flex items-center gap-2">
                                 <span className="text-[10px] uppercase tracking-wide">{isResolved ? "Resolved" : "Unresolved"}</span>
@@ -198,74 +425,65 @@ export function ThreadCard({
                                         <span>{collapsed ? "Expand" : "Collapse"}</span>
                                     </button>
                                 ) : null}
-                                {rootIsOwn ? renderDeleteButton(rootComment.id, Boolean(rootComment.inline?.path)) : null}
                             </div>
                         </div>
                         {!collapsed ? (
                             <>
-                                <CommentMarkdown text={rootComment.content?.html ?? rootComment.content?.raw ?? ""} />
-                                {isReplying ? (
+                                {editorState.editTargetCommentId === rootComment.id ? (
                                     <CommentEditor
-                                        value={replyValue}
+                                        value={editorState.editValue}
+                                        placeholder="Edit comment"
+                                        disabled={updateCommentPending}
+                                        onReady={(focus) => {
+                                            editFocusRef.current = focus;
+                                            if (editorState.editTargetCommentId === rootComment.id) {
+                                                focus();
+                                            }
+                                        }}
+                                        onChange={(nextValue) => setEditorState((prev) => ({ ...prev, editValue: nextValue }))}
+                                        onSubmit={() => handleSubmitEdit(rootComment.id, Boolean(rootComment.inline?.path))}
+                                    />
+                                ) : (
+                                    <CommentMarkdown text={rootComment.content?.html ?? rootComment.content?.raw ?? ""} />
+                                )}
+                                {editorState.replyTargetCommentId === rootComment.id ? (
+                                    <CommentEditor
+                                        value={editorState.replyValue}
                                         placeholder="Reply to this thread"
                                         disabled={createCommentPending || !canCommentInline}
                                         onReady={(focus) => {
                                             replyFocusRef.current = focus;
-                                            if (isReplying) {
+                                            if (editorState.replyTargetCommentId === rootComment.id) {
                                                 focus();
                                             }
                                         }}
-                                        onChange={setReplyValue}
+                                        onChange={(nextValue) => setEditorState((prev) => ({ ...prev, replyValue: nextValue }))}
                                         onSubmit={handleSubmitReply}
                                     />
                                 ) : null}
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                    {isReplying ? (
-                                        <>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-7 gap-1.5"
-                                                disabled={createCommentPending || !canCommentInline}
-                                                onClick={handleSubmitReply}
-                                            >
-                                                <SendHorizontal className="size-3.5" />
-                                                Comment
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-7 gap-1.5"
-                                                disabled={createCommentPending}
-                                                onClick={handleCancelReply}
-                                            >
-                                                <X className="size-3.5" />
-                                                Cancel
-                                            </Button>
-                                        </>
-                                    ) : (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-7 gap-1.5"
-                                            disabled={createCommentPending || !canCommentInline}
-                                            onClick={handleStartReply}
-                                        >
-                                            <Reply className="size-3.5" />
-                                            Reply
-                                        </Button>
-                                    )}
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 gap-1.5"
-                                        disabled={resolveCommentPending || !canResolveThread}
-                                        onClick={() => onResolveThread(rootComment.id, !rootComment.resolution)}
-                                    >
-                                        <Check className="size-3.5" />
-                                        {rootComment.resolution ? "Unresolve" : "Resolve"}
-                                    </Button>
-                                </div>
+                                <ThreadActions
+                                    commentId={rootComment.id}
+                                    hasInlineContext={Boolean(rootComment.inline?.path)}
+                                    rootCommentId={rootComment.id}
+                                    isResolved={isResolved}
+                                    canEdit={rootIsOwn}
+                                    canDelete={rootIsOwn}
+                                    canResolveThread={canResolveThread}
+                                    canCommentInline={canCommentInline}
+                                    createCommentPending={createCommentPending}
+                                    resolveCommentPending={resolveCommentPending}
+                                    updateCommentPending={updateCommentPending}
+                                    replyTargetCommentId={editorState.replyTargetCommentId}
+                                    editTargetCommentId={editorState.editTargetCommentId}
+                                    onStartReply={handleStartReply}
+                                    onSubmitReply={handleSubmitReply}
+                                    onCancelReply={handleCancelReply}
+                                    onStartEdit={handleStartEdit}
+                                    onSubmitEdit={handleSubmitEdit}
+                                    onCancelEdit={handleCancelEdit}
+                                    onResolveThread={onResolveThread}
+                                    onDeleteComment={onDeleteComment}
+                                />
                             </>
                         ) : (
                             <button

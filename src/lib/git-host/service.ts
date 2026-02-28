@@ -67,6 +67,10 @@ export async function createPullRequestComment(data: {
     return getHostClient(data.prRef.host).createPullRequestComment(data);
 }
 
+export async function updatePullRequestComment(data: { prRef: PullRequestRef; commentId: number; content: string; hasInlineContext: boolean }) {
+    return getHostClient(data.prRef.host).updatePullRequestComment(data);
+}
+
 export async function resolvePullRequestComment(data: { prRef: PullRequestRef; commentId: number; resolve: boolean }) {
     return getHostClient(data.prRef.host).resolvePullRequestComment(data);
 }

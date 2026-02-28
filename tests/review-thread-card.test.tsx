@@ -55,6 +55,8 @@ describe("thread card", () => {
                 onDeleteComment={() => {}}
                 onResolveThread={() => {}}
                 onReplyToThread={() => {}}
+                onEditComment={() => {}}
+                updateCommentPending={false}
             />,
         );
 
@@ -84,6 +86,8 @@ describe("thread card", () => {
                 onDeleteComment={() => {}}
                 onResolveThread={() => {}}
                 onReplyToThread={() => {}}
+                onEditComment={() => {}}
+                updateCommentPending={false}
             />,
         );
 

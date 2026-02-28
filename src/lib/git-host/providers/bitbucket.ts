@@ -830,6 +830,20 @@ export const bitbucketClient: GitHostClient = {
 
         return { ok: true as const };
     },
+    async updatePullRequestComment(data) {
+        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}`;
+        await request(url, {
+            method: "PUT",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                content: { raw: data.content },
+            }),
+        });
+        return { ok: true as const };
+    },
     async resolvePullRequestComment(data) {
         const action = data.resolve ? "resolve" : "unresolve";
         const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}/${action}`;

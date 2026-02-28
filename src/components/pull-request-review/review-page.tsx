@@ -17,6 +17,7 @@ import {
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { ReviewCommitScopeControl } from "@/components/pull-request-review/review-commit-scope-control";
+import { formatRecentTimestamp } from "@/components/pull-request-review/review-formatters";
 import { createReviewPageUiStore, useReviewPageUiValue } from "@/components/pull-request-review/review-page.store";
 import { ReviewPageDiffContent } from "@/components/pull-request-review/review-page-diff-content";
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
@@ -153,18 +154,6 @@ function parentDirectories(path: string): string[] {
 
 function sameScopeSearch(a: ReviewDiffScopeSearch, b: ReviewDiffScopeSearch) {
     return a.from === b.from && a.to === b.to;
-}
-
-function formatCommitScopeTimestamp(value?: string) {
-    if (!value) return "unknown";
-    const timestamp = Date.parse(value);
-    if (Number.isNaN(timestamp)) return "unknown";
-    return new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-    }).format(timestamp);
 }
 
 type CreateCommentPayload = {
@@ -1384,6 +1373,7 @@ function usePullRequestReviewPageView({
         mergeMutation,
         createCommentMutation,
         resolveCommentMutation,
+        updateCommentMutation,
         deleteCommentMutation,
         handleApprovePullRequest,
         handleRequestChangesPullRequest,
@@ -1391,6 +1381,7 @@ function usePullRequestReviewPageView({
         handleMarkPullRequestAsDraft,
         submitInlineComment,
         submitThreadReply,
+        submitCommentEdit,
         handleCopyPath,
         handleCopySourceBranch,
     } = useReviewPageActions({
@@ -1662,7 +1653,7 @@ function usePullRequestReviewPageView({
             [...resolvedScope.visibleCommits].reverse().map((commit) => ({
                 hash: commit.hash,
                 label: commit.hash.slice(0, 8),
-                timestamp: formatCommitScopeTimestamp(commit.date),
+                timestamp: formatRecentTimestamp(commit.date),
                 message: commit.summary?.raw?.trim() || commit.message?.trim() || "(no message)",
             })),
         [resolvedScope.visibleCommits],
@@ -1870,6 +1861,7 @@ function usePullRequestReviewPageView({
                     canCommentInline={actionPolicy.canCommentInline && resolvedScope.mode === "full"}
                     canResolveThread={actionPolicy.canResolveThread}
                     resolveCommentPending={resolveCommentMutation.isPending}
+                    updateCommentPending={updateCommentMutation.isPending}
                     toRenderableFileDiff={toRenderableFileDiff}
                     allModeDiffEntries={allModeDiffEntries}
                     getSelectedVersionIdForPath={getSelectedVersionIdForPath}
@@ -1909,6 +1901,9 @@ function usePullRequestReviewPageView({
                     }}
                     onReplyToThread={(commentId, content) => {
                         submitThreadReply(commentId, content);
+                    }}
+                    onEditComment={(commentId, content, hasInlineContext) => {
+                        submitCommentEdit(commentId, content, hasInlineContext);
                     }}
                     onHistoryCommentNavigate={handleHistoryCommentNavigate}
                     onToggleSummaryCollapsed={() =>

@@ -1101,6 +1101,20 @@ export const githubClient: GitHostClient = {
 
         return { ok: true as const };
     },
+    async updatePullRequestComment(data) {
+        const repoBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}`;
+        const path = data.hasInlineContext ? `${repoBase}/pulls/comments/${data.commentId}` : `${repoBase}/issues/comments/${data.commentId}`;
+        await request(
+            path,
+            {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ body: data.content }),
+            },
+            { requireAuth: true },
+        );
+        return { ok: true as const };
+    },
     async resolvePullRequestComment() {
         throw new Error("GitHub thread resolution is not yet supported in this app.");
     },

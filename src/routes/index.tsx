@@ -437,6 +437,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                             pullRequestId: meta.pullRequestId,
                                         },
                                         search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                        hash: "",
                                     });
                                     return;
                                 }
@@ -448,6 +449,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                         pullRequestId: meta.pullRequestId,
                                     },
                                     search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                    hash: "",
                                 });
                             }}
                             onDirectoryClick={(node) => {
@@ -606,6 +608,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                                                         pullRequestId: String(pr.id),
                                                                     },
                                                                     search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                                                    hash: "",
                                                                 });
                                                                 return;
                                                             }
@@ -617,6 +620,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                                                     pullRequestId: String(pr.id),
                                                                 },
                                                                 search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                                                hash: "",
                                                             });
                                                         }}
                                                     >

@@ -140,6 +140,8 @@ export function useReviewTreeModelSync({
     setKinds: (next: ReadonlyMap<string, ChangeKind>) => void;
     isTreePending: boolean;
 }) {
+    const diffstatSyncKey = prData?.diffstat.map((entry) => `${entry.status}:${entry.new?.path ?? ""}:${entry.old?.path ?? ""}`).join("|") ?? "";
+
     useEffect(() => {
         if (showSettingsPanel) {
             const settingsNodes: FileNode[] = settingsTreeItems.map((item) => ({
@@ -152,12 +154,14 @@ export function useReviewTreeModelSync({
             return;
         }
         if (!prData) return;
-        if (isTreePending && (prData.diffstat?.length ?? 0) === 0) {
+        const hasDiffEntries = diffstatSyncKey.length > 0;
+        if (isTreePending && !hasDiffEntries) {
             // Keep the previous tree visible while the next diff scope loads.
             return;
         }
 
-        const paths = prData.diffstat.map((entry) => entry.new?.path ?? entry.old?.path).filter((path): path is string => Boolean(path));
+        const diffEntries = hasDiffEntries ? prData.diffstat : [];
+        const paths = diffEntries.map((entry) => entry.new?.path ?? entry.old?.path).filter((path): path is string => Boolean(path));
         const tree = buildTreeFromPaths(paths);
         const summaryNode: FileNode = {
             name: PR_SUMMARY_NAME,
@@ -167,7 +171,7 @@ export function useReviewTreeModelSync({
         const treeWithSummary = [summaryNode, ...tree];
         const fileKinds = new Map<string, ChangeKind>();
 
-        for (const entry of prData.diffstat) {
+        for (const entry of diffEntries) {
             const path = entry.new?.path ?? entry.old?.path;
             if (!path) continue;
             switch (entry.status) {
@@ -186,7 +190,7 @@ export function useReviewTreeModelSync({
 
         setTree(treeWithSummary);
         setKinds(buildKindMapForTree(treeWithSummary, fileKinds));
-    }, [isTreePending, prData, setKinds, setTree, settingsTreeItems, showSettingsPanel]);
+    }, [diffstatSyncKey, isTreePending, prData, setKinds, setTree, settingsTreeItems, showSettingsPanel]);
 }
 
 export function useReviewTreeReset({
@@ -297,6 +301,9 @@ export function useReviewFileHashSync({
             return;
         }
         if (!showSettingsPanel && !activeFile) return;
+        if (!showSettingsPanel && activeFile && activeFile !== PR_SUMMARY_PATH && !selectableFilePaths.has(activeFile)) {
+            return;
+        }
 
         const hashPath = parsePrFileHash(window.location.hash);
         if (!showSettingsPanel && hashPath) {

@@ -45,7 +45,7 @@ export function SidebarTopControls({
     );
 
     return (
-        <div data-component="top-sidebar" className="h-11 px-2 border-b border-border bg-chrome flex items-center gap-1">
+        <div data-component="top-sidebar" className="h-11 px-2 bg-chrome flex items-center gap-1">
             <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onHome} aria-label="Home">
                 <House className="size-3.5" />
             </Button>

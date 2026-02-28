@@ -47,7 +47,7 @@ export function FileVersionSelect({
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    className="h-7 min-w-[110px] max-w-[190px] border border-input bg-background px-2 text-[11px] font-mono flex items-center gap-1.5 outline-none focus-visible:ring-0"
+                    className="h-7 min-w-[110px] max-w-[190px] border-0 bg-background px-2 text-[11px] font-mono flex items-center gap-1.5 outline-none transition-colors hover:bg-secondary data-[state=open]:bg-secondary focus-visible:ring-0"
                     aria-label="Select file version"
                 >
                     {isLoadingHistory ? <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" /> : null}

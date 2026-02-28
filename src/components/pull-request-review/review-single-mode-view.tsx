@@ -165,7 +165,7 @@ export function ReviewSingleModeView({
 
     return (
         <div id={fileAnchorId(selectedFilePath)} data-component="diff-file-view" className="h-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
-            <div className="h-10 min-w-0 border-b border-border bg-chrome px-3 flex items-center gap-2 overflow-hidden">
+            <div className="h-10 min-w-0 bg-chrome px-3 flex items-center gap-2 overflow-hidden">
                 <span className="size-4 flex items-center justify-center shrink-0">
                     <RepositoryFileIcon fileName={selectedFilePath.split("/").pop() || selectedFilePath} className="size-3.5" />
                 </span>

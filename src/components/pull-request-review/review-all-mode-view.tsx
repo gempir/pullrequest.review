@@ -1,7 +1,7 @@
 import type { FileDiffOptions, OnDiffLineEnterLeaveProps } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, CheckCheck, ChevronDown, ChevronRight, Copy, ScrollText } from "lucide-react";
+import { Check, CheckCheck, Copy, ScrollText } from "lucide-react";
 import type { CSSProperties, RefObject } from "react";
 import { useEffect, useMemo } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
@@ -159,16 +159,8 @@ export function ReviewAllModeView({
     return (
         <div className="w-full max-w-full" data-component="diff-list-view" style={{ paddingBottom: diffListBottomPadding }}>
             {prData ? (
-                <div
-                    id={fileAnchorId(PR_SUMMARY_PATH)}
-                    className={cn("w-full max-w-full border border-l-0 border-t-0 border-border", isSummaryCollapsedInAllMode && "border-b-0")}
-                    style={{ borderTopWidth: 0 }}
-                >
-                    <div
-                        className={cn(
-                            "group sticky top-0 z-20 h-10 min-w-0 border-b border-border bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]",
-                        )}
-                    >
+                <div id={fileAnchorId(PR_SUMMARY_PATH)} className={cn("w-full max-w-full border-b border-border", isSummaryCollapsedInAllMode && "border-b-0")}>
+                    <div className={cn("group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
                         <button type="button" className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden text-left" onClick={onToggleSummaryCollapsed}>
                             <span className="size-4 flex items-center justify-center shrink-0">
                                 <ScrollText className="size-3.5" />
@@ -201,12 +193,6 @@ export function ReviewAllModeView({
                                 </span>
                             </Button>
                         </div>
-                        <span
-                            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
-                            aria-hidden
-                        >
-                            {isSummaryCollapsedInAllMode ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-                        </span>
                     </div>
                     {!isSummaryCollapsedInAllMode && (
                         <PullRequestSummaryPanel bundle={prData} diffStats={lineStats} onSelectComment={onHistoryCommentNavigate} />
@@ -242,16 +228,8 @@ export function ReviewAllModeView({
 
                 return (
                     <div key={filePath} ref={rowVirtualizer.measureElement} data-index={virtualRow.index}>
-                        <div
-                            id={fileAnchorId(filePath)}
-                            className={cn("w-full max-w-full border border-l-0 border-t-0 border-border bg-card", isCollapsed && "border-b-0")}
-                            style={virtualRow.index === 0 && !prData ? { borderTopWidth: 0 } : undefined}
-                        >
-                            <div
-                                className={cn(
-                                    "group sticky top-0 z-20 h-10 min-w-0 border-b border-border bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]",
-                                )}
-                            >
+                        <div id={fileAnchorId(filePath)} className={cn("w-full max-w-full bg-card", isCollapsed && "border-b-0")}>
+                            <div className={cn("group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
                                 <div className="min-w-0 flex flex-1 items-center gap-2">
                                     <button
                                         type="button"
@@ -303,20 +281,14 @@ export function ReviewAllModeView({
                                                 selectedVersionUnread
                                                     ? "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
                                                     : isSelectedVersionViewed
-                                                      ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                                      : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                                                        ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                                        : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
                                             }
                                         >
                                             <Check className="size-3" />
                                         </span>
                                     </button>
                                 </div>
-                                <span
-                                    className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
-                                    aria-hidden
-                                >
-                                    {isCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-                                </span>
                             </div>
                             {!isCollapsed ? (
                                 <div className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">

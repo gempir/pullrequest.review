@@ -257,9 +257,27 @@ export function useReviewPageDerived({
         });
         return values;
     }, [filteredDiffs]);
+    const fallbackVisibleFilePaths = useMemo(() => {
+        const diffstatEntries = prData?.diffstat ?? [];
+        const seen = new Set<string>();
+        const values: string[] = [];
+        for (const entry of diffstatEntries) {
+            const path = entry.new?.path ?? entry.old?.path;
+            if (!path || seen.has(path)) continue;
+            const normalizedPath = path.toLowerCase();
+            const matchesSearch = !normalizedSearch || normalizedPath.includes(normalizedSearch);
+            const forcedVisiblePath = showUnviewedOnly ? activeFile : undefined;
+            const matchesViewedFilter = !showUnviewedOnly || forcedVisiblePath === path || !viewedFiles.has(path);
+            if (!matchesSearch || !matchesViewedFilter) continue;
+            seen.add(path);
+            values.push(path);
+        }
+        return values;
+    }, [activeFile, normalizedSearch, prData?.diffstat, showUnviewedOnly, viewedFiles]);
+    const effectiveVisibleFilePaths = visibleFilePaths.length > 0 ? visibleFilePaths : fallbackVisibleFilePaths;
 
     const settingsPathSet = useMemo(() => new Set(settingsTreeItems.map((item) => item.path)), [settingsTreeItems]);
-    const visiblePathSet = useMemo(() => new Set([PR_SUMMARY_PATH, ...visibleFilePaths]), [visibleFilePaths]);
+    const visiblePathSet = useMemo(() => new Set([PR_SUMMARY_PATH, ...effectiveVisibleFilePaths]), [effectiveVisibleFilePaths]);
     const allowedPathSet = useMemo(() => (showSettingsPanel ? settingsPathSet : visiblePathSet), [settingsPathSet, showSettingsPanel, visiblePathSet]);
 
     const treeFilePaths = useMemo(() => allFiles().map((file) => file.path), [allFiles]);

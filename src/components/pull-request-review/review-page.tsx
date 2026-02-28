@@ -1270,6 +1270,12 @@ function usePullRequestReviewPageView({
         [allModeSectionPaths],
     );
 
+    useReviewTreeReset({
+        setTree,
+        setKinds,
+        setActiveFile,
+        setSearchQuery,
+    });
     useReviewTreeModelSync({
         showSettingsPanel,
         settingsTreeItems,
@@ -1277,12 +1283,6 @@ function usePullRequestReviewPageView({
         setTree,
         setKinds,
         isTreePending: treeLoading,
-    });
-    useReviewTreeReset({
-        setTree,
-        setKinds,
-        setActiveFile,
-        setSearchQuery,
     });
     useReviewActiveFileSync({
         showSettingsPanel,

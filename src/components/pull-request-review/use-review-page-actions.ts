@@ -48,6 +48,9 @@ type UseReviewPageActionsProps = {
     copySourceBranchResetTimeoutRef: MutableRefObject<number | null>;
     setCopiedPath: (path: string | null | ((current: string | null) => string | null)) => void;
     setCopiedSourceBranch: (next: boolean) => void;
+    onOptimisticCommentCreate: (payload: { path?: string; content: string; line?: number; side?: CommentLineSide; parentId?: number }) => number | null;
+    onOptimisticCommentUpdate: (commentId: number, pending: boolean) => void;
+    onOptimisticCommentRemove: (commentId: number) => void;
 };
 
 export function useReviewPageActions({
@@ -71,6 +74,9 @@ export function useReviewPageActions({
     copySourceBranchResetTimeoutRef,
     setCopiedPath,
     setCopiedSourceBranch,
+    onOptimisticCommentCreate,
+    onOptimisticCommentUpdate,
+    onOptimisticCommentRemove,
 }: UseReviewPageActionsProps) {
     const refreshPullRequest = useCallback(async () => {
         await refetchPullRequest();
@@ -198,7 +204,14 @@ export function useReviewPageActions({
                     : { path: payload.path },
             });
         },
-        onSuccess: async (_, vars) => {
+        onMutate: (vars) => {
+            const optimisticCommentId = onOptimisticCommentCreate(vars);
+            return { optimisticCommentId };
+        },
+        onSuccess: async (_, vars, context) => {
+            if (typeof context?.optimisticCommentId === "number") {
+                onOptimisticCommentUpdate(context.optimisticCommentId, false);
+            }
             if (vars.line && vars.side && vars.path) {
                 clearInlineDraftContent({
                     path: vars.path,
@@ -215,7 +228,10 @@ export function useReviewPageActions({
             });
             await refreshPullRequest();
         },
-        onError: (error) => {
+        onError: (error, _vars, context) => {
+            if (typeof context?.optimisticCommentId === "number") {
+                onOptimisticCommentRemove(context.optimisticCommentId);
+            }
             setActionError(error instanceof Error ? error.message : "Failed to create comment");
         },
     });

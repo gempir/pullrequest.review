@@ -162,6 +162,7 @@ export function ThreadCard({
                         <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-[11px]">
                             <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
                             <span>{formatDate(reply.createdAt)}</span>
+                            {reply.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                         </div>
                         <CommentMarkdown text={reply.content?.html ?? reply.content?.raw ?? ""} />
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -183,6 +184,7 @@ export function ThreadCard({
                         <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
                             <span className="font-medium text-foreground text-[12px]">{rootComment.user?.displayName ?? "Unknown"}</span>
                             <span>{formatDate(rootComment.createdAt)}</span>
+                            {rootComment.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                             <span className="ml-auto text-[10px] uppercase tracking-wide">{isResolved ? "Resolved" : "Unresolved"}</span>
                             {isResolved ? (
                                 <button

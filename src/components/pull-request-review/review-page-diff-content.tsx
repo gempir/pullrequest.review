@@ -4,7 +4,7 @@ import type { CSSProperties, RefObject } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { ReviewAllModeView } from "@/components/pull-request-review/review-all-mode-view";
-import type { SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
+import type { InlineCommentLineTarget, SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
 import { ReviewSingleModeView } from "@/components/pull-request-review/review-single-mode-view";
 import { SettingsPanelContentOnly } from "@/components/settings-menu";
 import { settingsPathForTab, settingsTabFromPath } from "@/components/settings-navigation";
@@ -76,8 +76,11 @@ type ReviewPageDiffContentProps = {
     onReplyToThread: (commentId: number, content: string) => void;
     onToggleSummaryCollapsed: () => void;
     onToggleCollapsedFile: (path: string, next: boolean) => void;
-    onOpenInlineDraftForPath: (path: string, props: Parameters<NonNullable<FileDiffOptions<undefined>["onLineClick"]>>[0]) => void;
-    onDiffLineEnter: NonNullable<FileDiffOptions<undefined>["onLineEnter"]>;
+    onOpenInlineDraftForPath: (path: string, target: InlineCommentLineTarget) => void;
+    onDiffLineEnter: (
+        props: Parameters<NonNullable<FileDiffOptions<undefined>["onLineEnter"]>>[0],
+        onOpenInlineDraft?: (target: InlineCommentLineTarget) => void,
+    ) => void;
     onDiffLineLeave: NonNullable<FileDiffOptions<undefined>["onLineLeave"]>;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     scrollElementRef: RefObject<HTMLDivElement | null>;

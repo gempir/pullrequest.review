@@ -1,8 +1,13 @@
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 import type { DiffStatEntry, PullRequestBuildStatus } from "@/lib/git-host/types";
 
 const RELATIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000;
+const COMMENT_RELATIVE_THRESHOLD_HOURS = 24;
 
-export function formatDate(value?: string) {
+dayjs.extend(relativeTime);
+
+function formatDate(value?: string) {
     if (!value) return "Unknown";
     try {
         return new Intl.DateTimeFormat("en-US", {
@@ -15,6 +20,30 @@ export function formatDate(value?: string) {
     } catch {
         return value;
     }
+}
+
+export function formatRecentTimestamp(value?: string) {
+    if (!value) return "Unknown";
+    const parsed = dayjs(value);
+    if (!parsed.isValid()) return value;
+    const now = dayjs();
+    const ageHours = Math.abs(now.diff(parsed, "hour", true));
+    if (ageHours >= 1 && ageHours < 12) {
+        const diffMinutes = parsed.diff(now, "minute");
+        const absMinutes = Math.abs(diffMinutes);
+        const hours = Math.floor(absMinutes / 60);
+        const minutes = absMinutes % 60;
+        const compact = `${hours}h ${minutes}m`;
+        return diffMinutes < 0 ? `${compact} ago` : `in ${compact}`;
+    }
+    if (ageHours < COMMENT_RELATIVE_THRESHOLD_HOURS) {
+        return parsed.fromNow();
+    }
+    return parsed.format("MMM DD, YYYY HH:mm");
+}
+
+export function formatCommentTimestamp(value?: string) {
+    return formatRecentTimestamp(value);
 }
 
 function formatRelative(value: Date, now: Date) {

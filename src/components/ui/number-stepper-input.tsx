@@ -51,7 +51,7 @@ export function NumberStepperInput({ value, onValueChange, min, max, step = 1, c
                 step={step}
                 className="h-9 w-full pr-9 text-[12px]"
             />
-            <div className="absolute inset-y-0 right-0 flex w-9 flex-col border-l border-border divide-y divide-border">
+            <div className="absolute inset-y-0 right-0 flex w-9 flex-col">
                 <Button
                     type="button"
                     variant="ghost"

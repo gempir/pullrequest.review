@@ -38,15 +38,16 @@ function SettingsRoute() {
 
     return (
         <div className="h-full min-h-0 flex bg-background">
-            <aside data-component="sidebar" className="w-[300px] shrink-0 border-r border-border bg-background flex flex-col">
+            <aside data-component="sidebar" className="w-[300px] shrink-0 bg-background flex flex-col">
                 <SidebarTopControls
                     onHome={() => {
                         navigate({ to: "/" });
                     }}
+                    onRefresh={() => Promise.resolve()}
                     settingsActive
                 />
 
-                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 border-b border-border bg-chrome flex items-center gap-2">
+                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-chrome flex items-center gap-2">
                     <Input
                         className="h-7 text-[12px] border-0 focus-visible:ring-0"
                         placeholder="search settings"
@@ -70,7 +71,7 @@ function SettingsRoute() {
             </aside>
 
             <section className="flex-1 min-w-0 min-h-0 flex flex-col">
-                <header data-component="navbar" className="h-11 border-b border-border bg-chrome px-3 flex items-center gap-2 text-[12px]">
+                <header data-component="navbar" className="h-11 bg-chrome px-3 flex items-center gap-2 text-[12px]">
                     <span className="text-muted-foreground">Settings</span>
                 </header>
 

@@ -11,7 +11,7 @@ import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type FileNode, useFileTree } from "@/lib/file-tree-context";
-import { getRepoPullRequestCollection } from "@/lib/git-host/query-collections";
+import { getRepoPullRequestCollection, getRepositoryCollection } from "@/lib/git-host/query-collections";
 import { getHostLabel } from "@/lib/git-host/service";
 import type { GitHost, PullRequestSummary, RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
@@ -214,6 +214,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
     const [diffPanel, setDiffPanel] = useState<DiffPanel>(initialDiffPanel);
     const [autoRefetchRepoPrScopeKey, setAutoRefetchRepoPrScopeKey] = useState<string | null>(null);
     const showRepositoryPanel = diffPanel === "repositories";
+    const showPullRequestPanel = diffPanel === "pull-requests";
     const [searchQuery, setSearchQuery] = useState("");
     const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
     const settingsPathSet = useMemo(() => new Set(settingsTreeItems.map((item) => item.path)), [settingsTreeItems]);
@@ -247,6 +248,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
             }),
         [hostsWithSelectedRepos, reposByHost],
     );
+    const activeHostRepositoryCollection = useMemo(() => getRepositoryCollection(activeHost), [activeHost]);
 
     const repoPullRequestsQuery = useLiveQuery(
         (q) => q.from({ repoPullRequest: repoPullRequestCollection.collection }).select(({ repoPullRequest }) => ({ ...repoPullRequest })),
@@ -254,6 +256,8 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
     );
 
     useEffect(() => {
+        if (showSettingsPanel) return;
+        if (!showPullRequestPanel) return;
         if (hostsWithSelectedRepos.length === 0) return;
         if (repoPullRequestCollection.utils.isFetching) return;
         if (repoPullRequestCollection.utils.lastError) return;
@@ -261,7 +265,17 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
         setAutoRefetchRepoPrScopeKey(repoPullRequestScopeKey);
         // Keep landing PR data hot when selected repositories/auth state changes.
         void repoPullRequestCollection.utils.refetch({ throwOnError: false });
-    }, [autoRefetchRepoPrScopeKey, hostsWithSelectedRepos.length, repoPullRequestCollection, repoPullRequestScopeKey]);
+    }, [autoRefetchRepoPrScopeKey, hostsWithSelectedRepos.length, repoPullRequestCollection, repoPullRequestScopeKey, showPullRequestPanel, showSettingsPanel]);
+
+    const refreshCurrentView = useCallback(async () => {
+        if (showSettingsPanel) return;
+        if (showRepositoryPanel) {
+            await activeHostRepositoryCollection.utils.refetch({ throwOnError: false });
+            return;
+        }
+        if (!showPullRequestPanel) return;
+        await repoPullRequestCollection.utils.refetch({ throwOnError: false });
+    }, [activeHostRepositoryCollection, repoPullRequestCollection, showPullRequestPanel, showRepositoryPanel, showSettingsPanel]);
 
     const groupedPullRequests = useMemo(() => {
         const selectedRepoKeys = new Set<string>();
@@ -360,7 +374,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
 
     return (
         <div className="h-full min-h-0 flex bg-background">
-            <aside data-component="sidebar" className="w-[300px] shrink-0 border-r border-border bg-background flex flex-col">
+            <aside data-component="sidebar" className="w-[300px] shrink-0 bg-background flex flex-col">
                 <SidebarTopControls
                     onHome={() => {
                         setShowSettingsPanel(false);
@@ -369,13 +383,14 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                         setActiveFile(undefined);
                         navigate({ to: "/" });
                     }}
+                    onRefresh={refreshCurrentView}
                     onSettings={() => {
                         setShowSettingsPanel((prev) => !prev);
                     }}
                     settingsActive={showSettingsPanel}
                 />
 
-                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 border-b border-border bg-chrome flex items-center gap-2">
+                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-chrome flex items-center gap-2">
                     <Input
                         className="h-7 text-[12px] border-0 focus-visible:ring-0"
                         placeholder={showSettingsPanel ? "search settings" : "search repos or pull requests"}
@@ -422,6 +437,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                             pullRequestId: meta.pullRequestId,
                                         },
                                         search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                        hash: "",
                                     });
                                     return;
                                 }
@@ -433,6 +449,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                         pullRequestId: meta.pullRequestId,
                                     },
                                     search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                    hash: "",
                                 });
                             }}
                             onDirectoryClick={(node) => {
@@ -453,7 +470,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
             </aside>
 
             <section className="flex-1 min-w-0 min-h-0 flex flex-col">
-                <header data-component="navbar" className="h-11 border-b border-border bg-chrome px-3 flex items-center gap-2 text-[12px]">
+                <header data-component="navbar" className="h-11 bg-chrome px-3 flex items-center gap-2 text-[12px]">
                     <span className="text-muted-foreground">
                         {showSettingsPanel ? "Settings" : showRepositoryPanel ? "Repository Selection" : "Open Pull Requests"}
                     </span>
@@ -498,11 +515,11 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                             Clear {getHostLabel(activeHost)} repositories
                                         </Button>
                                     </div>
-                                    <div className="border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+                                    <div className="bg-destructive/5 p-3 space-y-2">
                                         <div className="text-[12px] text-muted-foreground">Danger zone</div>
                                         <Button
                                             variant="outline"
-                                            className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                                            className="text-destructive hover:bg-destructive/10"
                                             onClick={() => {
                                                 if (!window.confirm(`Disconnect ${getHostLabel(activeHost)} and clear its repositories?`)) {
                                                     return;
@@ -521,7 +538,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                             )}
                         </div>
                     ) : selectedRepoCount === 0 ? (
-                        <div className="border border-border bg-card p-8 text-center space-y-3 max-w-2xl">
+                        <div className="bg-card p-8 text-center space-y-3 max-w-2xl">
                             <div className="flex items-center justify-center gap-2 text-muted-foreground">
                                 <GitPullRequest className="size-4" />
                                 <span className="text-[13px]">No repositories selected.</span>
@@ -543,14 +560,14 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                             <span>Loading pull requests...</span>
                         </div>
                     ) : repoPullRequestError ? (
-                        <div className="border border-destructive bg-destructive/10 p-4 text-destructive text-[13px] max-w-2xl">
+                        <div className="bg-destructive/10 p-4 text-destructive text-[13px] max-w-2xl">
                             <div className="flex items-center gap-2">
                                 <AlertCircle className="size-4" />
                                 <span>[ERROR] {repoPullRequestError instanceof Error ? repoPullRequestError.message : "Failed to load pull requests"}</span>
                             </div>
                         </div>
                     ) : groupedPullRequests.every((entry) => entry.pullRequests.length === 0) ? (
-                        <div className="border border-border bg-card p-8 text-center space-y-3 max-w-2xl">
+                        <div className="bg-card p-8 text-center space-y-3 max-w-2xl">
                             <p className="text-[13px] text-muted-foreground">No pull requests in selected repositories.</p>
                             <Button
                                 variant="outline"
@@ -565,14 +582,14 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                             </Button>
                         </div>
                     ) : (
-                        <div className="border border-border bg-card max-w-4xl">
-                            <div className="divide-y divide-border">
+                        <div className="bg-card max-w-4xl">
+                            <div>
                                 {groupedPullRequests
                                     .filter((entry) => entry.pullRequests.length > 0)
                                     .map(({ host, repo, pullRequests }) => (
                                         <div key={`${host}:${repo.fullName}`} className="p-3">
                                             <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 flex items-center gap-2">
-                                                <span className="px-1 py-0.5 border border-border bg-secondary">{getHostLabel(host)}</span>
+                                                <span className="px-1 py-0.5 bg-secondary">{getHostLabel(host)}</span>
                                                 <span className="font-mono">{repo.fullName}</span>
                                             </div>
                                             <div className="space-y-1">
@@ -580,7 +597,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                                     <button
                                                         type="button"
                                                         key={`${host}:${repo.fullName}-${pr.id}`}
-                                                        className="w-full text-left border border-border px-3 py-2 text-[13px] hover:bg-accent transition-colors bg-background"
+                                                        className="w-full text-left px-3 py-2 text-[13px] hover:bg-accent transition-colors bg-background"
                                                         onClick={() => {
                                                             if (repo.host === "github") {
                                                                 navigate({
@@ -591,6 +608,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                                                         pullRequestId: String(pr.id),
                                                                     },
                                                                     search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                                                    hash: "",
                                                                 });
                                                                 return;
                                                             }
@@ -602,6 +620,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                                                     pullRequestId: String(pr.id),
                                                                 },
                                                                 search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                                                hash: "",
                                                             });
                                                         }}
                                                     >

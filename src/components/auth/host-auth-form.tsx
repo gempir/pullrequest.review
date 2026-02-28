@@ -80,11 +80,11 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
             </p>
 
             {isBitbucket ? (
-                <div className={`border border-border bg-card p-3 ${mode === "onboarding" ? "text-[13px]" : "text-[12px]"} space-y-2`}>
+                <div className={`bg-card p-3 ${mode === "onboarding" ? "text-[13px]" : "text-[12px]"} space-y-2`}>
                     <div className="text-muted-foreground">Required scopes</div>
                     <div className={mode === "onboarding" ? "leading-relaxed break-words" : "break-words"}>{bitbucketScopeText}</div>
                     {mode === "onboarding" ? (
-                        <div className="border border-status-modified/50 bg-status-modified/15 text-status-modified px-2 py-1.5 text-[12px]">
+                        <div className="bg-status-modified/15 text-status-modified px-2 py-1.5 text-[12px]">
                             Hint: Paste these scopes into "Search by scope name" while creating the token
                         </div>
                     ) : null}
@@ -161,7 +161,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
                 {isSubmitting ? "Authenticating..." : ctaLabel}
             </Button>
 
-            {error ? <div className="border border-destructive bg-destructive/10 p-3 text-destructive text-[13px]">[AUTH ERROR] {error}</div> : null}
+            {error ? <div className="bg-destructive/10 p-3 text-destructive text-[13px]">[AUTH ERROR] {error}</div> : null}
             <p className="text-[12px] text-muted-foreground">Credentials are stored in the local app database.</p>
         </form>
     );

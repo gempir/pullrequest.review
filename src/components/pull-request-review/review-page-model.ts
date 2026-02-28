@@ -5,6 +5,10 @@ import type { Comment as PullRequestComment, PullRequestRef } from "@/lib/git-ho
 import type { CommentThread } from "./review-threads";
 
 export type CommentLineSide = "additions" | "deletions";
+export type InlineCommentLineTarget = {
+    lineNumber: number;
+    annotationSide: CommentLineSide;
+};
 
 type ExistingThreadAnnotation = {
     kind: "thread";

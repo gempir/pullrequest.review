@@ -1,5 +1,4 @@
 import { type Collection, createCollection, localOnlyCollectionOptions } from "@tanstack/db";
-import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
 import {
     fetchPullRequestBundleByRef,
     fetchPullRequestCommitRangeDiff,
@@ -27,7 +26,6 @@ import { LruCache } from "@/lib/utils/lru";
 export type PullRequestBundleRecord = PullRequestBundle & {
     id: string;
     fetchedAt: number;
-    expiresAt: number;
     criticalFetchedAt?: number;
     deferredFetchedAt?: number;
     deferredStatus?: PullRequestHydrationState["deferredStatus"];
@@ -42,7 +40,6 @@ type PullRequestFileContextRecord = {
     oldLines: string[];
     newLines: string[];
     fetchedAt: number;
-    expiresAt: number;
 };
 
 type PullRequestFileHistoryRecord = {
@@ -51,14 +48,12 @@ type PullRequestFileHistoryRecord = {
     path: string;
     entries: PullRequestFileHistoryEntry[];
     fetchedAt: number;
-    expiresAt: number;
 };
 
 export type PullRequestCommitRangeDiffRecord = PullRequestCommitRangeDiff & {
     id: string;
     prKey: string;
     fetchedAt: number;
-    expiresAt: number;
 };
 
 type PersistedRepoPullRequestRecord = {
@@ -68,13 +63,11 @@ type PersistedRepoPullRequestRecord = {
     repo: RepoRef;
     pullRequest: PullRequestSummary;
     fetchedAt: number;
-    expiresAt: number;
 };
 
 type RepositoryRecord = RepoRef & {
     id: string;
     fetchedAt: number;
-    expiresAt: number;
 };
 
 type ReposByHost = Record<GitHost, RepoRef[]>;
@@ -126,361 +119,13 @@ type GitHostFetchActivitySnapshot = {
     trackedScopeCount: number;
 };
 
-export type GitHostDataDebugSnapshot = {
-    backendMode: "indexeddb" | "memory";
-    cacheTtlMs: number;
-    totalRecords: number;
-    totalBytes: number;
-    lastSweepAt: number | null;
-    collections: Record<
-        HostDataCollectionKey,
-        {
-            count: number;
-            approxBytes: number;
-            oldestFetchedAt: number | null;
-            newestFetchedAt: number | null;
-            oldestExpiresAt: number | null;
-            newestExpiresAt: number | null;
-            expiredCount: number;
-        }
-    >;
-};
-
-const HOST_DATA_DATABASE_NAME = "pullrequestdotreview_host_data_v6";
-const REPOSITORY_RX_COLLECTION_NAME = "repositories";
-const REPO_PULL_REQUEST_RX_COLLECTION_NAME = "repo_pull_requests";
-const PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME = "pull_request_bundles";
-const PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME = "pull_request_file_contexts";
-const PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME = "pull_request_file_histories";
-const PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME = "pull_request_commit_range_diffs";
-
-const REPOSITORY_TANSTACK_COLLECTION_ID = "repos:rxdb";
-const REPO_PULL_REQUEST_TANSTACK_COLLECTION_ID = "repo-prs:rxdb";
-const PULL_REQUEST_BUNDLE_TANSTACK_COLLECTION_ID = "pr-bundle:rxdb";
-const PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID = "pr-file-contexts:rxdb";
-const PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID = "pr-file-histories:rxdb";
-const PULL_REQUEST_COMMIT_RANGE_DIFF_TANSTACK_COLLECTION_ID = "pr-commit-range-diffs:rxdb";
+const REPOSITORY_TANSTACK_COLLECTION_ID = "repos:memory";
+const REPO_PULL_REQUEST_TANSTACK_COLLECTION_ID = "repo-prs:memory";
+const PULL_REQUEST_BUNDLE_TANSTACK_COLLECTION_ID = "pr-bundle:memory";
+const PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID = "pr-file-contexts:memory";
+const PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID = "pr-file-histories:memory";
+const PULL_REQUEST_COMMIT_RANGE_DIFF_TANSTACK_COLLECTION_ID = "pr-commit-range-diffs:memory";
 const SCOPED_COLLECTION_CACHE_SIZE = 100;
-const HOST_DATA_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const REQUIRED_PERSISTED_COLLECTION_NAMES = [
-    REPOSITORY_RX_COLLECTION_NAME,
-    REPO_PULL_REQUEST_RX_COLLECTION_NAME,
-    PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME,
-] as const;
-const OPTIONAL_PERSISTED_COLLECTION_NAMES = [
-    PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME,
-    PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME,
-    PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME,
-] as const;
-
-const REPOSITORY_RX_SCHEMA = {
-    title: "pullrequestdotreview repositories",
-    version: 0,
-    type: "object",
-    primaryKey: "id",
-    properties: {
-        id: {
-            type: "string",
-            maxLength: 400,
-        },
-        host: {
-            type: "string",
-            maxLength: 20,
-        },
-        workspace: {
-            type: "string",
-            maxLength: 200,
-        },
-        repo: {
-            type: "string",
-            maxLength: 200,
-        },
-        fullName: {
-            type: "string",
-            maxLength: 500,
-        },
-        displayName: {
-            type: "string",
-            maxLength: 500,
-        },
-        fetchedAt: {
-            type: "number",
-            minimum: 0,
-        },
-        expiresAt: {
-            type: "number",
-            minimum: 0,
-        },
-    },
-    required: ["id", "host", "workspace", "repo", "fullName", "displayName", "fetchedAt", "expiresAt"],
-    additionalProperties: false,
-} as const;
-
-const REPO_PULL_REQUEST_RX_SCHEMA = {
-    title: "pullrequestdotreview repository pull requests",
-    version: 0,
-    type: "object",
-    primaryKey: "id",
-    properties: {
-        id: {
-            type: "string",
-            maxLength: 800,
-        },
-        repoKey: {
-            type: "string",
-            maxLength: 600,
-        },
-        host: {
-            type: "string",
-            maxLength: 20,
-        },
-        repo: {
-            type: "object",
-            additionalProperties: true,
-        },
-        pullRequest: {
-            type: "object",
-            additionalProperties: true,
-        },
-        fetchedAt: {
-            type: "number",
-            minimum: 0,
-        },
-        expiresAt: {
-            type: "number",
-            minimum: 0,
-        },
-    },
-    required: ["id", "repoKey", "host", "repo", "pullRequest", "fetchedAt", "expiresAt"],
-    additionalProperties: false,
-} as const;
-
-const PULL_REQUEST_BUNDLE_RX_SCHEMA = {
-    title: "pullrequestdotreview pull request bundles",
-    version: 0,
-    type: "object",
-    primaryKey: "id",
-    properties: {
-        id: {
-            type: "string",
-            maxLength: 800,
-        },
-        prRef: {
-            type: "object",
-            additionalProperties: true,
-        },
-        pr: {
-            type: "object",
-            additionalProperties: true,
-        },
-        diff: {
-            type: "string",
-        },
-        diffstat: {
-            type: "array",
-            items: {
-                type: "object",
-                additionalProperties: true,
-            },
-        },
-        commits: {
-            type: "array",
-            items: {
-                type: "object",
-                additionalProperties: true,
-            },
-        },
-        comments: {
-            type: "array",
-            items: {
-                type: "object",
-                additionalProperties: true,
-            },
-        },
-        history: {
-            type: "array",
-            items: {
-                type: "object",
-                additionalProperties: true,
-            },
-        },
-        reviewers: {
-            type: "array",
-            items: {
-                type: "object",
-                additionalProperties: true,
-            },
-        },
-        buildStatuses: {
-            type: "array",
-            items: {
-                type: "object",
-                additionalProperties: true,
-            },
-        },
-        fetchedAt: {
-            type: "number",
-            minimum: 0,
-        },
-        expiresAt: {
-            type: "number",
-            minimum: 0,
-        },
-        criticalFetchedAt: {
-            type: ["number", "null"],
-        },
-        deferredFetchedAt: {
-            type: ["number", "null"],
-        },
-        deferredStatus: {
-            type: "string",
-            maxLength: 20,
-        },
-    },
-    required: ["id", "prRef", "pr", "diff", "diffstat", "commits", "comments", "fetchedAt", "expiresAt"],
-    additionalProperties: false,
-} as const;
-
-const PULL_REQUEST_FILE_CONTEXT_RX_SCHEMA = {
-    title: "pullrequestdotreview pull request file contexts",
-    version: 0,
-    type: "object",
-    primaryKey: "id",
-    properties: {
-        id: {
-            type: "string",
-            maxLength: 1300,
-        },
-        prKey: {
-            type: "string",
-            maxLength: 800,
-        },
-        path: {
-            type: "string",
-            maxLength: 1000,
-        },
-        oldLines: {
-            type: "array",
-            items: {
-                type: "string",
-            },
-        },
-        newLines: {
-            type: "array",
-            items: {
-                type: "string",
-            },
-        },
-        fetchedAt: {
-            type: "number",
-            minimum: 0,
-        },
-        expiresAt: {
-            type: "number",
-            minimum: 0,
-        },
-    },
-    required: ["id", "prKey", "path", "oldLines", "newLines", "fetchedAt", "expiresAt"],
-    additionalProperties: false,
-} as const;
-
-const PULL_REQUEST_FILE_HISTORY_RX_SCHEMA = {
-    title: "pullrequestdotreview pull request file histories",
-    version: 0,
-    type: "object",
-    primaryKey: "id",
-    properties: {
-        id: {
-            type: "string",
-            maxLength: 1500,
-        },
-        prKey: {
-            type: "string",
-            maxLength: 800,
-        },
-        path: {
-            type: "string",
-            maxLength: 1000,
-        },
-        entries: {
-            type: "array",
-            items: {
-                type: "object",
-                additionalProperties: true,
-            },
-        },
-        fetchedAt: {
-            type: "number",
-            minimum: 0,
-        },
-        expiresAt: {
-            type: "number",
-            minimum: 0,
-        },
-    },
-    required: ["id", "prKey", "path", "entries", "fetchedAt", "expiresAt"],
-    additionalProperties: false,
-} as const;
-
-const PULL_REQUEST_COMMIT_RANGE_DIFF_RX_SCHEMA = {
-    title: "pullrequestdotreview pull request commit range diffs",
-    version: 0,
-    type: "object",
-    primaryKey: "id",
-    properties: {
-        id: {
-            type: "string",
-            maxLength: 1400,
-        },
-        prKey: {
-            type: "string",
-            maxLength: 800,
-        },
-        prRef: {
-            type: "object",
-            additionalProperties: true,
-        },
-        baseCommitHash: {
-            type: "string",
-            maxLength: 80,
-        },
-        headCommitHash: {
-            type: "string",
-            maxLength: 80,
-        },
-        selectedCommitHashes: {
-            type: "array",
-            items: {
-                type: "string",
-            },
-        },
-        diff: {
-            type: "string",
-        },
-        diffstat: {
-            type: "array",
-            items: {
-                type: "object",
-                additionalProperties: true,
-            },
-        },
-        fetchedAt: {
-            type: "number",
-            minimum: 0,
-        },
-        expiresAt: {
-            type: "number",
-            minimum: 0,
-        },
-    },
-    required: ["id", "prKey", "prRef", "baseCommitHash", "headCommitHash", "selectedCommitHashes", "diff", "diffstat", "fetchedAt", "expiresAt"],
-    additionalProperties: false,
-} as const;
-
-let hostDataReadyPromise: Promise<void> | null = null;
-let hostDataDatabase: { close: () => Promise<boolean> } | null = null;
-let hostDataFallbackActive = false;
-let hostDataFallbackPromise: Promise<void> | null = null;
 
 let repositoryCollection: Collection<RepositoryRecord, string> | null = null;
 let repoPullRequestCollection: Collection<PersistedRepoPullRequestRecord, string> | null = null;
@@ -497,7 +142,6 @@ const pullRequestCommitRangeDiffScopedCollections = new LruCache<string, ScopedC
 const fetchActivityListeners = new Set<() => void>();
 const activeFetchesByScope = new Map<string, FetchActivity>();
 const refetchRegistry = new LruCache<string, RefetchRegistryEntry>(SCOPED_COLLECTION_CACHE_SIZE);
-const hostDataCollectionsVersionListeners = new Set<() => void>();
 let fetchActivityVersion = 0;
 let cachedFetchActivitySnapshotVersion = -1;
 let cachedFetchActivitySnapshot: GitHostFetchActivitySnapshot = {
@@ -505,8 +149,6 @@ let cachedFetchActivitySnapshot: GitHostFetchActivitySnapshot = {
     activeFetchCount: 0,
     trackedScopeCount: 0,
 };
-let hostDataCollectionsVersion = 0;
-let lastHostDataSweepAt: number | null = null;
 
 function notifyFetchActivityListeners() {
     fetchActivityVersion += 1;
@@ -529,13 +171,6 @@ function setFetchActivity(scopeId: string, label: string, fetching: boolean) {
     notifyFetchActivityListeners();
 }
 
-function notifyHostDataCollectionsVersionListeners() {
-    hostDataCollectionsVersion += 1;
-    for (const listener of hostDataCollectionsVersionListeners) {
-        listener();
-    }
-}
-
 function registerRefetchScope(scopeId: string, label: string, refetch: (opts?: { throwOnError?: boolean }) => Promise<void>) {
     const existing = refetchRegistry.get(scopeId);
     if (existing?.label === label && existing.refetch === refetch) {
@@ -549,7 +184,6 @@ function registerRefetchScope(scopeId: string, label: string, refetch: (opts?: {
         activeFetchesByScope.delete(evicted.key);
         notifyFetchActivityListeners();
     }
-    // Do not notify during render-time scope registration; listeners update on fetch transitions.
 }
 
 function unregisterScope(scopeId: string) {
@@ -582,27 +216,11 @@ export function getGitHostFetchActivitySnapshot(): GitHostFetchActivitySnapshot 
 }
 
 export function getHostDataCollectionsVersionSnapshot() {
-    return hostDataCollectionsVersion;
+    return 0;
 }
 
-export function subscribeHostDataCollectionsVersion(listener: () => void) {
-    hostDataCollectionsVersionListeners.add(listener);
-    return () => {
-        hostDataCollectionsVersionListeners.delete(listener);
-    };
-}
-
-export async function refetchAllGitHostData(opts?: { throwOnError?: boolean }) {
-    const refetchers = Array.from(refetchRegistry.values());
-    if (refetchers.length === 0) return;
-
-    const settled = await Promise.allSettled(refetchers.map((entry) => entry.refetch({ throwOnError: opts?.throwOnError ?? false })));
-    if (!opts?.throwOnError) return;
-
-    const firstFailure = settled.find((result): result is PromiseRejectedResult => result.status === "rejected");
-    if (firstFailure) {
-        throw firstFailure.reason;
-    }
+export function subscribeHostDataCollectionsVersion(_listener: () => void) {
+    return () => undefined;
 }
 
 function createCollectionUtils(refetch: (opts?: { throwOnError?: boolean }) => Promise<void>): CollectionUtils {
@@ -699,19 +317,6 @@ function stringifyCollectionRepos(reposByHost: ReposByHost) {
     });
 }
 
-function cacheExpiresAt(from: number) {
-    return from + HOST_DATA_CACHE_TTL_MS;
-}
-
-function isExpiredRecord(record: { expiresAt?: number }, now: number) {
-    if (typeof record.expiresAt !== "number") return false;
-    return record.expiresAt <= now;
-}
-
-function approxRecordBytes(record: object) {
-    return new TextEncoder().encode(JSON.stringify(record)).length;
-}
-
 function serializePullRequestCriticalBundle(
     critical: PullRequestCriticalBundle,
     existing: PersistedPullRequestBundleRecord | undefined,
@@ -732,7 +337,6 @@ function serializePullRequestCriticalBundle(
         reviewers: existing?.reviewers ?? [],
         buildStatuses: existing?.buildStatuses ?? [],
         fetchedAt,
-        expiresAt: cacheExpiresAt(fetchedAt),
         criticalFetchedAt: fetchedAt,
         deferredFetchedAt: existing?.deferredFetchedAt,
         deferredStatus: "loading",
@@ -749,7 +353,6 @@ function mergePullRequestDeferredBundle(record: PersistedPullRequestBundleRecord
         reviewers: deferred.reviewers ?? [],
         buildStatuses: deferred.buildStatuses ?? [],
         fetchedAt,
-        expiresAt: cacheExpiresAt(fetchedAt),
         criticalFetchedAt: record.criticalFetchedAt ?? fetchedAt,
         deferredFetchedAt: fetchedAt,
         deferredStatus: "ready",
@@ -761,7 +364,6 @@ function markPullRequestDeferredError(record: PersistedPullRequestBundleRecord):
     return {
         ...record,
         fetchedAt: now,
-        expiresAt: cacheExpiresAt(now),
         deferredFetchedAt: now,
         deferredStatus: "error",
     };
@@ -780,7 +382,6 @@ function serializeRepoPullRequestRecord(repo: RepoRef, pullRequest: PullRequestS
         repo: normalizedRepo,
         pullRequest: normalizedPullRequest,
         fetchedAt,
-        expiresAt: cacheExpiresAt(fetchedAt),
     };
 }
 
@@ -804,7 +405,6 @@ function serializePullRequestFileContextRecord({
         oldLines,
         newLines,
         fetchedAt,
-        expiresAt: cacheExpiresAt(fetchedAt),
     };
 }
 
@@ -825,7 +425,6 @@ function serializePullRequestFileHistoryRecord({
         path,
         entries,
         fetchedAt,
-        expiresAt: cacheExpiresAt(fetchedAt),
     };
 }
 
@@ -836,7 +435,6 @@ function serializePullRequestCommitRangeDiffRecord(diff: PullRequestCommitRangeD
         id: pullRequestCommitRangeDiffId(diff.prRef, diff.baseCommitHash, diff.headCommitHash),
         prKey: pullRequestBundleId(diff.prRef),
         fetchedAt,
-        expiresAt: cacheExpiresAt(fetchedAt),
     };
 }
 
@@ -916,129 +514,6 @@ function getHostDataCollection<K extends HostDataCollectionKey>(key: K): HostDat
     }
 }
 
-function captureCollectionSnapshot<T extends { id: string }>(collection: Collection<T, string> | null) {
-    if (!collection) return [];
-    return Array.from(collection.values());
-}
-
-function hydrateCollectionRecords<T extends { id: string }>(collection: Collection<T, string> | null, records: T[]) {
-    if (!collection || records.length === 0) return;
-    for (const record of records) {
-        const transaction = collection.insert(record);
-        transaction.isPersisted.promise.catch(() => undefined);
-    }
-}
-
-async function fallbackToInMemoryHostDataCollections() {
-    if (hostDataFallbackActive) return;
-    if (hostDataFallbackPromise) {
-        await hostDataFallbackPromise;
-        return;
-    }
-
-    hostDataFallbackPromise = (async () => {
-        const repositoryRecords = captureCollectionSnapshot(repositoryCollection);
-        const repoPullRequestRecords = captureCollectionSnapshot(repoPullRequestCollection);
-        const pullRequestBundleRecords = captureCollectionSnapshot(pullRequestBundleCollection);
-        const pullRequestFileContextRecords = captureCollectionSnapshot(pullRequestFileContextCollection);
-        const pullRequestFileHistoryRecords = captureCollectionSnapshot(pullRequestFileHistoryCollection);
-        const pullRequestCommitRangeDiffRecords = captureCollectionSnapshot(pullRequestCommitRangeDiffCollection);
-
-        if (hostDataDatabase) {
-            try {
-                await hostDataDatabase.close();
-            } catch (error) {
-                console.warn("Failed to close host-data database during fallback.", error);
-            }
-        }
-
-        hostDataDatabase = null;
-        hostDataReadyPromise = Promise.resolve();
-
-        repositoryCollection = null;
-        repoPullRequestCollection = null;
-        pullRequestBundleCollection = null;
-        pullRequestFileContextCollection = null;
-        pullRequestFileHistoryCollection = null;
-        pullRequestCommitRangeDiffCollection = null;
-
-        ensureCollectionsInitialized();
-
-        hydrateCollectionRecords(repositoryCollection, repositoryRecords);
-        hydrateCollectionRecords(repoPullRequestCollection, repoPullRequestRecords);
-        hydrateCollectionRecords(pullRequestBundleCollection, pullRequestBundleRecords);
-        hydrateCollectionRecords(pullRequestFileContextCollection, pullRequestFileContextRecords);
-        hydrateCollectionRecords(pullRequestFileHistoryCollection, pullRequestFileHistoryRecords);
-        hydrateCollectionRecords(pullRequestCommitRangeDiffCollection, pullRequestCommitRangeDiffRecords);
-
-        const nextRepositoryCollection = getHostDataCollection("repositories");
-        const nextRepoPullRequestCollection = getHostDataCollection("repoPullRequests");
-        const nextPullRequestBundleCollection = getHostDataCollection("pullRequestBundles");
-        const nextPullRequestFileHistoryCollection = getHostDataCollection("pullRequestFileHistories");
-        const nextPullRequestCommitRangeDiffCollection = getHostDataCollection("pullRequestCommitRangeDiffs");
-
-        repositoryScopedCollections.forEach((scoped) => {
-            scoped.collection = nextRepositoryCollection;
-        });
-        for (const scoped of repoPullRequestScopedCollections.values()) {
-            scoped.collection = nextRepoPullRequestCollection;
-        }
-        for (const scoped of pullRequestBundleScopedCollections.values()) {
-            scoped.collection = nextPullRequestBundleCollection;
-        }
-        for (const scoped of pullRequestFileHistoryScopedCollections.values()) {
-            scoped.collection = nextPullRequestFileHistoryCollection;
-        }
-        for (const scoped of pullRequestCommitRangeDiffScopedCollections.values()) {
-            scoped.collection = nextPullRequestCommitRangeDiffCollection;
-        }
-
-        console.warn("Host-data collections switched to in-memory mode after storage quota errors.");
-        hostDataFallbackActive = true;
-        notifyHostDataCollectionsVersionListeners();
-    })().finally(() => {
-        hostDataFallbackPromise = null;
-    });
-
-    await hostDataFallbackPromise;
-}
-
-function isQuotaExceededError(error: unknown) {
-    if (!error) return false;
-    if (typeof DOMException !== "undefined" && error instanceof DOMException) {
-        return error.name === "QuotaExceededError" || error.code === 22 || error.code === 1014;
-    }
-    if (error instanceof Error) {
-        const message = error.message.toLowerCase();
-        return message.includes("quota") && message.includes("exceeded");
-    }
-    return false;
-}
-
-function isRxErrorCode(error: unknown, code: string) {
-    if (!error || typeof error !== "object") return false;
-    const value = error as { code?: string; message?: string };
-    if (value.code === code) return true;
-    return typeof value.message === "string" && value.message.includes(code);
-}
-
-function logQuotaExceededWarning(context: string, error: unknown) {
-    console.warn(`Host data persistence quota exceeded during ${context}; continuing without storing this payload.`, error);
-}
-
-async function persistCollectionTransaction(persistPromise: Promise<unknown>, context: string) {
-    try {
-        await persistPromise;
-        return true;
-    } catch (error) {
-        if (isQuotaExceededError(error)) {
-            logQuotaExceededWarning(context, error);
-            return false;
-        }
-        throw error;
-    }
-}
-
 function ensureCollectionsInitialized() {
     if (
         repositoryCollection &&
@@ -1094,314 +569,23 @@ function ensureCollectionsInitialized() {
     );
 }
 
-async function initRxdbCollections() {
-    if (typeof window === "undefined") {
-        ensureCollectionsInitialized();
-        return;
-    }
-
-    const [{ createRxDatabase }, { getRxStorageDexie }] = await Promise.all([import("rxdb/plugins/core"), import("rxdb/plugins/storage-dexie")]);
-
-    const database = await createRxDatabase({
-        name: HOST_DATA_DATABASE_NAME,
-        storage: getRxStorageDexie(),
-        multiInstance: true,
-        closeDuplicates: true,
-    });
-
-    hostDataDatabase = database;
-
-    const collectionDefinitions = {
-        [REPOSITORY_RX_COLLECTION_NAME]: {
-            schema: REPOSITORY_RX_SCHEMA,
-        },
-        [REPO_PULL_REQUEST_RX_COLLECTION_NAME]: {
-            schema: REPO_PULL_REQUEST_RX_SCHEMA,
-        },
-        [PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME]: {
-            schema: PULL_REQUEST_BUNDLE_RX_SCHEMA,
-        },
-        [PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME]: {
-            schema: PULL_REQUEST_FILE_CONTEXT_RX_SCHEMA,
-        },
-        [PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME]: {
-            schema: PULL_REQUEST_FILE_HISTORY_RX_SCHEMA,
-        },
-        [PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME]: {
-            schema: PULL_REQUEST_COMMIT_RANGE_DIFF_RX_SCHEMA,
-        },
-    } as const;
-
-    for (const collectionName of REQUIRED_PERSISTED_COLLECTION_NAMES) {
-        const collectionSchema = collectionDefinitions[collectionName];
-        const existingCollections = database.collections as Record<string, (typeof database.collections)[string]>;
-        if (existingCollections[collectionName]) continue;
-        try {
-            await database.addCollections({
-                [collectionName]: collectionSchema,
-            });
-        } catch (error) {
-            if (!isRxErrorCode(error, "COL23")) {
-                throw error;
-            }
-            throw new Error(`Host-data required collection could not be opened due to RxDB collection limit: ${collectionName}`);
-        }
-    }
-
-    for (const collectionName of OPTIONAL_PERSISTED_COLLECTION_NAMES) {
-        const collectionSchema = collectionDefinitions[collectionName];
-        const existingCollections = database.collections as Record<string, (typeof database.collections)[string]>;
-        if (existingCollections[collectionName]) continue;
-        try {
-            await database.addCollections({
-                [collectionName]: collectionSchema,
-            });
-        } catch (error) {
-            if (!isRxErrorCode(error, "COL23")) {
-                throw error;
-            }
-        }
-    }
-
-    const collections = database.collections as Record<string, (typeof database.collections)[string]>;
-    const missingCollectionNames = REQUIRED_PERSISTED_COLLECTION_NAMES.filter((name) => !collections[name]);
-    if (missingCollectionNames.length > 0) {
-        throw new Error(`Host-data RxDB collections unavailable after init: ${missingCollectionNames.join(", ")}`);
-    }
-
-    repositoryCollection = createCollection(
-        rxdbCollectionOptions<RepositoryRecord>({
-            id: REPOSITORY_TANSTACK_COLLECTION_ID,
-            rxCollection: collections[REPOSITORY_RX_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
-
-    repoPullRequestCollection = createCollection(
-        rxdbCollectionOptions<PersistedRepoPullRequestRecord>({
-            id: REPO_PULL_REQUEST_TANSTACK_COLLECTION_ID,
-            rxCollection: collections[REPO_PULL_REQUEST_RX_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
-
-    pullRequestBundleCollection = createCollection(
-        rxdbCollectionOptions<PersistedPullRequestBundleRecord>({
-            id: PULL_REQUEST_BUNDLE_TANSTACK_COLLECTION_ID,
-            rxCollection: collections[PULL_REQUEST_BUNDLE_RX_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
-
-    pullRequestFileContextCollection = collections[PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME]
-        ? createCollection(
-              rxdbCollectionOptions<PullRequestFileContextRecord>({
-                  id: PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID,
-                  rxCollection: collections[PULL_REQUEST_FILE_CONTEXT_RX_COLLECTION_NAME],
-                  startSync: true,
-              }),
-          )
-        : createCollection(
-              localOnlyCollectionOptions<PullRequestFileContextRecord, string>({
-                  id: PULL_REQUEST_FILE_CONTEXT_TANSTACK_COLLECTION_ID,
-                  getKey: (item) => item.id,
-              }),
-          );
-
-    pullRequestFileHistoryCollection = collections[PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME]
-        ? createCollection(
-              rxdbCollectionOptions<PullRequestFileHistoryRecord>({
-                  id: PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID,
-                  rxCollection: collections[PULL_REQUEST_FILE_HISTORY_RX_COLLECTION_NAME],
-                  startSync: true,
-              }),
-          )
-        : createCollection(
-              localOnlyCollectionOptions<PullRequestFileHistoryRecord, string>({
-                  id: PULL_REQUEST_FILE_HISTORY_TANSTACK_COLLECTION_ID,
-                  getKey: (item) => item.id,
-              }),
-          );
-
-    pullRequestCommitRangeDiffCollection = collections[PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME]
-        ? createCollection(
-              rxdbCollectionOptions<PullRequestCommitRangeDiffRecord>({
-                  id: PULL_REQUEST_COMMIT_RANGE_DIFF_TANSTACK_COLLECTION_ID,
-                  rxCollection: collections[PULL_REQUEST_COMMIT_RANGE_DIFF_RX_COLLECTION_NAME],
-                  startSync: true,
-              }),
-          )
-        : createCollection(
-              localOnlyCollectionOptions<PullRequestCommitRangeDiffRecord, string>({
-                  id: PULL_REQUEST_COMMIT_RANGE_DIFF_TANSTACK_COLLECTION_ID,
-                  getKey: (item) => item.id,
-              }),
-          );
-
-    await Promise.all([
-        repositoryCollection.preload(),
-        repoPullRequestCollection.preload(),
-        pullRequestBundleCollection.preload(),
-        pullRequestFileContextCollection.preload(),
-        pullRequestFileHistoryCollection.preload(),
-        pullRequestCommitRangeDiffCollection.preload(),
-    ]);
-}
-
-export function ensureGitHostDataReady() {
-    if (!hostDataReadyPromise) {
-        hostDataReadyPromise = initRxdbCollections().catch((error) => {
-            console.error("Failed to initialize RxDB host-data collections, falling back to in-memory collections.", error);
-            ensureCollectionsInitialized();
-        });
-        hostDataReadyPromise = hostDataReadyPromise.then(async () => {
-            await sweepExpiredGitHostData();
-        });
-    }
-    return hostDataReadyPromise;
-}
-
 async function upsertRecord<K extends HostDataCollectionKey>(collectionKey: K, record: HostDataRecordForKey<K>): Promise<void> {
-    if (
-        collectionKey === "pullRequestBundles" ||
-        collectionKey === "pullRequestFileContexts" ||
-        collectionKey === "pullRequestFileHistories" ||
-        collectionKey === "pullRequestCommitRangeDiffs"
-    ) {
-        const now = Date.now();
-        if (!lastHostDataSweepAt || now - lastHostDataSweepAt > 60 * 1000) {
-            await sweepExpiredGitHostData(now);
-        }
-    }
     const collection = getHostDataCollection(collectionKey);
     const existing = collection.get(record.id);
     if (!existing) {
-        const transaction = collection.insert(record);
-        const persisted = await persistCollectionTransaction(transaction.isPersisted.promise, `insert:${record.id}`);
-        if (!persisted) {
-            await fallbackToInMemoryHostDataCollections();
-            await upsertRecord(collectionKey, record);
-        }
+        collection.insert(record);
         return;
     }
 
-    const transaction = collection.update(record.id, (draft) => {
+    collection.update(record.id, (draft) => {
         Object.assign(draft as Record<string, unknown>, record);
     });
-    const persisted = await persistCollectionTransaction(transaction.isPersisted.promise, `update:${record.id}`);
-    if (!persisted) {
-        await fallbackToInMemoryHostDataCollections();
-        await upsertRecord(collectionKey, record);
-    }
 }
 
 async function deleteRecord<K extends HostDataCollectionKey>(collectionKey: K, id: string): Promise<void> {
     const collection = getHostDataCollection(collectionKey);
     if (!collection.has(id)) return;
-    const transaction = collection.delete(id);
-    const persisted = await persistCollectionTransaction(transaction.isPersisted.promise, `delete:${id}`);
-    if (!persisted) {
-        await fallbackToInMemoryHostDataCollections();
-        await deleteRecord(collectionKey, id);
-    }
-}
-
-const HOST_DATA_COLLECTION_KEYS: HostDataCollectionKey[] = [
-    "repositories",
-    "repoPullRequests",
-    "pullRequestBundles",
-    "pullRequestFileContexts",
-    "pullRequestFileHistories",
-    "pullRequestCommitRangeDiffs",
-];
-
-async function sweepExpiredCollection<K extends HostDataCollectionKey>(collectionKey: K, now: number) {
-    const collection = getHostDataCollection(collectionKey);
-    let removed = 0;
-    for (const record of collection.values()) {
-        if (!isExpiredRecord(record as { expiresAt?: number }, now)) continue;
-        await deleteRecord(collectionKey, record.id);
-        removed += 1;
-    }
-    return removed;
-}
-
-export async function sweepExpiredGitHostData(now = Date.now()) {
-    ensureCollectionsInitialized();
-    let removed = 0;
-    for (const collectionKey of HOST_DATA_COLLECTION_KEYS) {
-        removed += await sweepExpiredCollection(collectionKey, now);
-    }
-    lastHostDataSweepAt = now;
-    return { removed };
-}
-
-export async function clearGitHostCacheTierData() {
-    ensureCollectionsInitialized();
-    let removed = 0;
-    for (const collectionKey of HOST_DATA_COLLECTION_KEYS) {
-        const collection = getHostDataCollection(collectionKey);
-        for (const record of collection.values()) {
-            await deleteRecord(collectionKey, record.id);
-            removed += 1;
-        }
-    }
-    lastHostDataSweepAt = Date.now();
-    return { removed };
-}
-
-export async function getGitHostDataDebugSnapshot(now = Date.now()): Promise<GitHostDataDebugSnapshot> {
-    ensureCollectionsInitialized();
-    const collections = {} as GitHostDataDebugSnapshot["collections"];
-    let totalRecords = 0;
-    let totalBytes = 0;
-
-    for (const collectionKey of HOST_DATA_COLLECTION_KEYS) {
-        const collection = getHostDataCollection(collectionKey);
-        const summary: GitHostDataDebugSnapshot["collections"][HostDataCollectionKey] = {
-            count: 0,
-            approxBytes: 0,
-            oldestFetchedAt: null,
-            newestFetchedAt: null,
-            oldestExpiresAt: null,
-            newestExpiresAt: null,
-            expiredCount: 0,
-        };
-
-        for (const record of collection.values()) {
-            summary.count += 1;
-            const bytes = approxRecordBytes(record);
-            summary.approxBytes += bytes;
-            totalBytes += bytes;
-
-            const fetchedAt = (record as { fetchedAt?: number }).fetchedAt;
-            if (typeof fetchedAt === "number") {
-                summary.oldestFetchedAt = summary.oldestFetchedAt === null ? fetchedAt : Math.min(summary.oldestFetchedAt, fetchedAt);
-                summary.newestFetchedAt = summary.newestFetchedAt === null ? fetchedAt : Math.max(summary.newestFetchedAt, fetchedAt);
-            }
-
-            const expiresAt = (record as { expiresAt?: number }).expiresAt;
-            if (typeof expiresAt === "number") {
-                summary.oldestExpiresAt = summary.oldestExpiresAt === null ? expiresAt : Math.min(summary.oldestExpiresAt, expiresAt);
-                summary.newestExpiresAt = summary.newestExpiresAt === null ? expiresAt : Math.max(summary.newestExpiresAt, expiresAt);
-                if (expiresAt <= now) {
-                    summary.expiredCount += 1;
-                }
-            }
-        }
-
-        totalRecords += summary.count;
-        collections[collectionKey] = summary;
-    }
-
-    return {
-        backendMode: hostDataFallbackActive ? "memory" : "indexeddb",
-        cacheTtlMs: HOST_DATA_CACHE_TTL_MS,
-        totalRecords,
-        totalBytes,
-        lastSweepAt: lastHostDataSweepAt,
-        collections,
-    };
+    collection.delete(id);
 }
 
 export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: { staged?: boolean }) {
@@ -1422,13 +606,13 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: 
             if (!staged) {
                 const bundle = await fetchPullRequestBundleByRef({ prRef });
                 if (requestId !== requestSerial) return;
+                const fetchedAt = Date.now();
                 const legacyRecord = {
                     ...bundle,
                     id: pullRequestBundleId(bundle.prRef),
-                    fetchedAt: Date.now(),
-                    expiresAt: cacheExpiresAt(Date.now()),
-                    criticalFetchedAt: Date.now(),
-                    deferredFetchedAt: Date.now(),
+                    fetchedAt,
+                    criticalFetchedAt: fetchedAt,
+                    deferredFetchedAt: fetchedAt,
                     deferredStatus: "ready" as const,
                 };
                 await upsertRecord("pullRequestBundles", legacyRecord);
@@ -1763,7 +947,6 @@ export function getRepositoryCollection(host: GitHost) {
                 ...repository,
                 id: `${repository.host}:${repository.fullName}`,
                 fetchedAt: timestamp,
-                expiresAt: cacheExpiresAt(timestamp),
             }));
             const nextIds = new Set(nextRecords.map((record) => record.id));
 

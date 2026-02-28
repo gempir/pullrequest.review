@@ -4,7 +4,7 @@ import type { CSSProperties, RefObject } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { ReviewAllModeView } from "@/components/pull-request-review/review-all-mode-view";
-import type { SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
+import type { InlineCommentLineTarget, SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
 import { ReviewSingleModeView } from "@/components/pull-request-review/review-single-mode-view";
 import { SettingsPanelContentOnly } from "@/components/settings-menu";
 import { settingsPathForTab, settingsTabFromPath } from "@/components/settings-navigation";
@@ -15,6 +15,7 @@ import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 type ReviewPageDiffContentProps = {
     showSettingsPanel: boolean;
+    allowNestedReplies: boolean;
     viewMode: "single" | "all";
     activeFile: string | undefined;
     prData: PullRequestBundle;
@@ -42,6 +43,7 @@ type ReviewPageDiffContentProps = {
     canCommentInline: boolean;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
+    updateCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     allModeDiffEntries: Array<{ filePath: string; fileDiff: FileDiffMetadata }>;
     getSelectedVersionIdForPath: (path: string) => string | undefined;
@@ -74,10 +76,14 @@ type ReviewPageDiffContentProps = {
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onReplyToThread: (commentId: number, content: string) => void;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
     onToggleSummaryCollapsed: () => void;
     onToggleCollapsedFile: (path: string, next: boolean) => void;
-    onOpenInlineDraftForPath: (path: string, props: Parameters<NonNullable<FileDiffOptions<undefined>["onLineClick"]>>[0]) => void;
-    onDiffLineEnter: NonNullable<FileDiffOptions<undefined>["onLineEnter"]>;
+    onOpenInlineDraftForPath: (path: string, target: InlineCommentLineTarget) => void;
+    onDiffLineEnter: (
+        props: Parameters<NonNullable<FileDiffOptions<undefined>["onLineEnter"]>>[0],
+        onOpenInlineDraft?: (target: InlineCommentLineTarget) => void,
+    ) => void;
     onDiffLineLeave: NonNullable<FileDiffOptions<undefined>["onLineLeave"]>;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     scrollElementRef: RefObject<HTMLDivElement | null>;
@@ -86,6 +92,7 @@ type ReviewPageDiffContentProps = {
 
 export function ReviewPageDiffContent({
     showSettingsPanel,
+    allowNestedReplies,
     viewMode,
     activeFile,
     prData,
@@ -113,6 +120,7 @@ export function ReviewPageDiffContent({
     canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    updateCommentPending,
     toRenderableFileDiff,
     allModeDiffEntries,
     getSelectedVersionIdForPath,
@@ -142,6 +150,7 @@ export function ReviewPageDiffContent({
     onDeleteComment,
     onResolveThread,
     onReplyToThread,
+    onEditComment,
     onToggleSummaryCollapsed,
     onToggleCollapsedFile,
     onOpenInlineDraftForPath,
@@ -179,6 +188,7 @@ export function ReviewPageDiffContent({
         return (
             <ReviewSingleModeView
                 viewMode={viewMode}
+                allowNestedReplies={allowNestedReplies}
                 onWorkspaceModeChange={onWorkspaceModeChange}
                 prData={prData}
                 pullRequestTitle={pullRequestTitle}
@@ -204,6 +214,7 @@ export function ReviewPageDiffContent({
                 canCommentInline={canCommentInline}
                 canResolveThread={canResolveThread}
                 resolveCommentPending={resolveCommentPending}
+                updateCommentPending={updateCommentPending}
                 toRenderableFileDiff={toRenderableFileDiff}
                 onCopyPath={onCopyPath}
                 areAllFilesViewed={areAllFilesViewed}
@@ -225,6 +236,7 @@ export function ReviewPageDiffContent({
                 onDeleteComment={onDeleteComment}
                 onResolveThread={onResolveThread}
                 onReplyToThread={onReplyToThread}
+                onEditComment={onEditComment}
                 onHistoryCommentNavigate={onHistoryCommentNavigate}
                 onOpenDiffSettings={openDiffSettings}
                 onLoadFullFileContext={onLoadFullFileContext}
@@ -236,6 +248,7 @@ export function ReviewPageDiffContent({
     return (
         <ReviewAllModeView
             viewMode={viewMode}
+            allowNestedReplies={allowNestedReplies}
             onWorkspaceModeChange={onWorkspaceModeChange}
             pullRequestTitle={pullRequestTitle || PR_SUMMARY_NAME}
             prData={prData}
@@ -269,6 +282,7 @@ export function ReviewPageDiffContent({
             canCommentInline={canCommentInline}
             canResolveThread={canResolveThread}
             resolveCommentPending={resolveCommentPending}
+            updateCommentPending={updateCommentPending}
             toRenderableFileDiff={toRenderableFileDiff}
             compactDiffOptions={singleFileDiffOptions}
             getInlineDraftContent={getInlineDraftContent}
@@ -280,6 +294,7 @@ export function ReviewPageDiffContent({
             onDeleteComment={onDeleteComment}
             onResolveThread={onResolveThread}
             onReplyToThread={onReplyToThread}
+            onEditComment={onEditComment}
             onHistoryCommentNavigate={onHistoryCommentNavigate}
             onDiffLineEnter={onDiffLineEnter}
             onDiffLineLeave={onDiffLineLeave}

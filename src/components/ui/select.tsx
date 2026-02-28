@@ -29,9 +29,9 @@ function SelectTrigger({
             data-slot="select-trigger"
             data-size={size}
             className={cn(
-                "flex w-fit items-center justify-between gap-2 border border-input bg-background px-3 py-1 text-[13px] whitespace-nowrap transition-colors outline-none",
+                "flex w-fit items-center justify-between gap-2 border-0 bg-background px-3 py-1 text-[13px] whitespace-nowrap transition-colors outline-none",
                 "data-[placeholder]:text-muted-foreground",
-                "focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring",
+                "focus-visible:ring-1 focus-visible:ring-ring",
                 "disabled:cursor-not-allowed disabled:opacity-50",
                 "data-[size=default]:h-8 data-[size=sm]:h-7",
                 "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-muted-foreground",
@@ -54,7 +54,7 @@ function SelectContent({ className, children, position = "item-aligned", align =
             <SelectPrimitive.Content
                 data-slot="select-content"
                 className={cn(
-                    "bg-popover text-popover-foreground border relative z-50 max-h-[var(--radix-select-content-available-height)] min-w-[8rem] overflow-x-hidden overflow-y-auto",
+                    "bg-popover text-popover-foreground border-0 relative z-50 max-h-[var(--radix-select-content-available-height)] min-w-[8rem] overflow-x-hidden overflow-y-auto",
                     "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
                     "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
                     "origin-[var(--radix-select-content-transform-origin)]",
@@ -110,7 +110,7 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
 }
 
 function SelectSeparator({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.Separator>) {
-    return <SelectPrimitive.Separator data-slot="select-separator" className={cn("bg-border pointer-events-none -mx-1 my-1 h-px", className)} {...props} />;
+    return <SelectPrimitive.Separator data-slot="select-separator" className={cn("pointer-events-none -mx-1 my-1 h-0", className)} {...props} />;
 }
 
 function SelectScrollUpButton({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>) {

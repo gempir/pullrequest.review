@@ -19,6 +19,7 @@ import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 type ReviewSingleModeViewProps = {
     viewMode: "single" | "all";
+    allowNestedReplies: boolean;
     onWorkspaceModeChange: (mode: "single" | "all") => void;
     prData: PullRequestBundle;
     pullRequestTitle?: string;
@@ -44,6 +45,7 @@ type ReviewSingleModeViewProps = {
     canCommentInline: boolean;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
+    updateCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     onCopyPath: (path: string) => void;
     areAllFilesViewed: boolean;
@@ -59,6 +61,7 @@ type ReviewSingleModeViewProps = {
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onReplyToThread: (commentId: number, content: string) => void;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
     onOpenDiffSettings: () => void;
     onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
     fileContextState: Record<string, DiffContextState>;
@@ -67,6 +70,7 @@ type ReviewSingleModeViewProps = {
 
 export function ReviewSingleModeView({
     viewMode,
+    allowNestedReplies,
     onWorkspaceModeChange,
     prData,
     pullRequestTitle,
@@ -92,6 +96,7 @@ export function ReviewSingleModeView({
     canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    updateCommentPending,
     toRenderableFileDiff,
     onCopyPath,
     areAllFilesViewed,
@@ -107,6 +112,7 @@ export function ReviewSingleModeView({
     onDeleteComment,
     onResolveThread,
     onReplyToThread,
+    onEditComment,
     onOpenDiffSettings,
     onLoadFullFileContext,
     fileContextState,
@@ -165,7 +171,7 @@ export function ReviewSingleModeView({
 
     return (
         <div id={fileAnchorId(selectedFilePath)} data-component="diff-file-view" className="h-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
-            <div className="h-10 min-w-0 border-b border-border bg-chrome px-3 flex items-center gap-2 overflow-hidden">
+            <div className="h-10 min-w-0 bg-chrome px-3 flex items-center gap-2 overflow-hidden">
                 <span className="size-4 flex items-center justify-center shrink-0">
                     <RepositoryFileIcon fileName={selectedFilePath.split("/").pop() || selectedFilePath} className="size-3.5" />
                 </span>
@@ -225,6 +231,7 @@ export function ReviewSingleModeView({
                         renderAnnotation={(annotation) => (
                             <InlineDiffAnnotation
                                 annotation={annotation as SingleFileAnnotation}
+                                allowNestedReplies={allowNestedReplies}
                                 workspace={workspace}
                                 repo={repo}
                                 pullRequestId={pullRequestId}
@@ -232,6 +239,7 @@ export function ReviewSingleModeView({
                                 canCommentInline={canCommentInline && !selectedFileReadOnlyHistorical}
                                 canResolveThread={canResolveThread}
                                 resolveCommentPending={resolveCommentPending}
+                                updateCommentPending={updateCommentPending}
                                 getInlineDraftContent={getInlineDraftContent}
                                 setInlineDraftContent={setInlineDraftContent}
                                 onSubmitInlineComment={onSubmitInlineComment}
@@ -241,6 +249,7 @@ export function ReviewSingleModeView({
                                 onDeleteComment={onDeleteComment}
                                 onResolveThread={onResolveThread}
                                 onReplyToThread={onReplyToThread}
+                                onEditComment={onEditComment}
                             />
                         )}
                     />
@@ -255,14 +264,17 @@ export function ReviewSingleModeView({
                         <ThreadCard
                             key={thread.id}
                             thread={thread}
+                            allowNestedReplies={allowNestedReplies}
                             canResolveThread={canResolveThread}
                             canCommentInline={canCommentInline}
                             createCommentPending={createCommentPending}
                             resolveCommentPending={resolveCommentPending}
+                            updateCommentPending={updateCommentPending}
                             currentUserDisplayName={currentUserDisplayName}
                             onDeleteComment={onDeleteComment}
                             onResolveThread={onResolveThread}
                             onReplyToThread={onReplyToThread}
+                            onEditComment={onEditComment}
                         />
                     ))}
                 </div>

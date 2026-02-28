@@ -79,11 +79,7 @@ export function ReviewTopNavbar({
     const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
 
     return (
-        <div
-            className="h-11 border-b border-border bg-chrome px-1.5 flex items-center gap-3"
-            style={{ fontFamily: "var(--comment-font-family)" }}
-            data-component="navbar"
-        >
+        <div className="h-11 bg-chrome px-1.5 flex items-center gap-3" style={{ fontFamily: "var(--comment-font-family)" }} data-component="navbar">
             {loading ? (
                 <>
                     {treeCollapsed ? (
@@ -127,7 +123,7 @@ export function ReviewTopNavbar({
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 
-                    <div className="ml-2 -mr-1.5 flex h-full shrink-0 border-l border-border">
+                    <div className="ml-2 -mr-1.5 flex h-full shrink-0">
                         {pullRequestUrl ? (
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -135,7 +131,7 @@ export function ReviewTopNavbar({
                                         asChild
                                         variant="ghost"
                                         size="sm"
-                                        className="h-full w-10 rounded-none border-0 border-r border-border px-0 bg-chrome text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-0"
+                                        className="h-full w-10 rounded-none border-0 px-0 bg-chrome text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-0"
                                     >
                                         <a
                                             href={pullRequestUrl}

@@ -216,6 +216,12 @@ export interface CommentPayload {
     parentId?: number;
 }
 
+export interface CommentUpdatePayload {
+    commentId: number;
+    content: string;
+    hasInlineContext: boolean;
+}
+
 export interface HostCapabilities {
     publicReadSupported: boolean;
     supportsThreadResolution: boolean;
@@ -273,6 +279,11 @@ export interface GitHostClient {
         data: {
             prRef: PullRequestRef;
         } & CommentPayload,
+    ): Promise<{ ok: true }>;
+    updatePullRequestComment(
+        data: {
+            prRef: PullRequestRef;
+        } & CommentUpdatePayload,
     ): Promise<{ ok: true }>;
     resolvePullRequestComment(data: { prRef: PullRequestRef; commentId: number; resolve: boolean }): Promise<{ ok: true }>;
     deletePullRequestComment(data: { prRef: PullRequestRef; commentId: number; hasInlineContext: boolean }): Promise<{ ok: true }>;

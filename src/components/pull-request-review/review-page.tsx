@@ -1612,6 +1612,8 @@ function usePullRequestReviewPageView({
         activeFile,
         showSettingsPanel,
         settingsPathSet,
+        selectableFilePaths: selectableDiffPathSet,
+        isFileSelectionReady: treeOrderedVisiblePaths.length > 0,
         suppressHashSyncRef,
     });
 

@@ -3,7 +3,6 @@ import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatNavbarDate, linesUpdated, normalizeNavbarState } from "@/components/pull-request-review/review-formatters";
 import { useDiffHighlighterState } from "@/components/pull-request-review/use-review-page-effects";
-import { readReviewDerivedCacheValue, writeReviewDerivedCacheValue } from "@/lib/data/query-collections";
 import type { FileNode } from "@/lib/file-tree-context";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
@@ -22,12 +21,6 @@ import {
 import type { CommentThread } from "./review-threads";
 import { buildCommentThreads, normalizeCommentThreads, sortThreadsByCreatedAt } from "./review-threads";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
-
-type CachedReviewDerivedArtifacts = {
-    fileDiffs: FileDiffMetadata[];
-    fileDiffFingerprints: Array<[string, string]>;
-    threads: CommentThread[];
-};
 
 type WorkerDerivedState = {
     cacheKey: string;
@@ -151,16 +144,6 @@ export function useReviewPageDerived({
             return;
         }
 
-        const cachedArtifacts = readReviewDerivedCacheValue<CachedReviewDerivedArtifacts>(derivedCacheKey);
-        if (cachedArtifacts) {
-            applyWorkerDerived(derivedCacheKey, {
-                fileDiffs: cachedArtifacts.fileDiffs,
-                fileDiffFingerprints: new Map(cachedArtifacts.fileDiffFingerprints),
-                threads: normalizeCommentThreads(cachedArtifacts.threads),
-            });
-            return;
-        }
-
         if (pendingDerivedCacheKeyRef.current === derivedCacheKey) {
             return;
         }
@@ -174,11 +157,6 @@ export function useReviewPageDerived({
             .then((result) => {
                 if (cancelled) return;
                 if (pendingDerivedCacheKeyRef.current !== derivedCacheKey) return;
-                writeReviewDerivedCacheValue(derivedCacheKey, {
-                    fileDiffs: result.fileDiffs,
-                    fileDiffFingerprints: Array.from(result.fileDiffFingerprints.entries()),
-                    threads: result.threads,
-                } satisfies CachedReviewDerivedArtifacts);
                 applyWorkerDerived(derivedCacheKey, {
                     fileDiffs: result.fileDiffs,
                     fileDiffFingerprints: result.fileDiffFingerprints,
@@ -199,11 +177,6 @@ export function useReviewPageDerived({
                     }
                 });
                 const fallbackThreads = buildCommentThreads(comments);
-                writeReviewDerivedCacheValue(derivedCacheKey, {
-                    fileDiffs: fallbackDiffs,
-                    fileDiffFingerprints: Array.from(fallbackFingerprints.entries()),
-                    threads: fallbackThreads,
-                } satisfies CachedReviewDerivedArtifacts);
                 applyWorkerDerived(derivedCacheKey, {
                     fileDiffs: fallbackDiffs,
                     fileDiffFingerprints: fallbackFingerprints,

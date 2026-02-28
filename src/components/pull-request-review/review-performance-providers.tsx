@@ -4,7 +4,6 @@ import { type ReactNode, useEffect, useMemo } from "react";
 import { useDiffOptions } from "@/lib/diff-options-context";
 import { ensureLongTaskObserver, setWorkerQueueDepth } from "@/lib/review-performance/metrics";
 import { ReviewComputeWorkerProvider } from "@/lib/review-performance/review-compute-worker-context";
-import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
 
 const TOKENIZE_MAX_LINE_LENGTH = 4_000;
 
@@ -67,7 +66,6 @@ export function ReviewPerformanceProviders({ children }: { children: ReactNode }
     return (
         <WorkerPoolContextProvider poolOptions={workerPoolOptions} highlighterOptions={highlighterOptions}>
             <ReviewComputeWorkerProvider>
-                <ShikiAppThemeSync />
                 <ReviewWorkerRenderOptionsSync />
                 {children}
             </ReviewComputeWorkerProvider>

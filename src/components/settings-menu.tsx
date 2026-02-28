@@ -131,7 +131,7 @@ function ShortcutsTab() {
                 </Button>
             </div>
 
-            <div className="divide-y divide-border/40">
+            <div>
                 <ShortcutRow
                     label="Next Unviewed File"
                     shortcut={shortcuts.nextUnviewedFile}
@@ -615,19 +615,19 @@ function StorageTab() {
                 <section className="space-y-2">
                     <h3 className="text-[12px] font-medium">Storage Health</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[12px]">
-                        <div className="border border-border p-2">
+                        <div className="p-2">
                             <div>Collections backend: {snapshot.backendMode}</div>
                             <div>Persistence degraded: {snapshot.persistenceDegraded ? "yes" : "no"}</div>
                             <div>Last sweep: {formatTimestamp(snapshot.lastSweepAt)}</div>
                         </div>
-                        <div className="border border-border p-2">
+                        <div className="p-2">
                             <div>Total records: {snapshot.totalRecords}</div>
                             <div>Total bytes: {formatBytes(snapshot.totalBytes)}</div>
                             <div>
                                 Quota estimate: {formatBytes(snapshot.estimatedUsageBytes)} / {formatBytes(snapshot.estimatedQuotaBytes)}
                             </div>
                         </div>
-                        <div className="border border-border p-2">
+                        <div className="p-2">
                             <div>Critical load ms: {perfSnapshot?.lastCriticalLoadMs ?? "n/a"}</div>
                             <div>Deferred load ms: {perfSnapshot?.lastDeferredLoadMs ?? "n/a"}</div>
                             <div>Long tasks: {perfSnapshot?.longTaskCount ?? 0}</div>
@@ -640,7 +640,7 @@ function StorageTab() {
             {snapshot ? (
                 <section className="space-y-2">
                     <h3 className="text-[12px] font-medium">Tier Summary</h3>
-                    <div className="border border-border divide-y divide-border text-[12px]">
+                    <div className="text-[12px]">
                         {tierOrder.map((tier) => {
                             const summary = snapshot.tiers[tier];
                             return (
@@ -660,7 +660,7 @@ function StorageTab() {
             {snapshot ? (
                 <section className="space-y-2">
                     <h3 className="text-[12px] font-medium">Collections</h3>
-                    <div className="border border-border divide-y divide-border text-[12px]">
+                    <div className="text-[12px]">
                         {snapshot.collections.map((summary) => (
                             <div key={`${summary.tier}:${summary.name}`} className="p-2 grid grid-cols-1 md:grid-cols-7 gap-2">
                                 <div className="font-medium min-w-0 md:col-span-2">
@@ -717,7 +717,7 @@ function SettingsPanelHeader({ onClose, onResetAllSettings }: { onClose?: () => 
     const hasActions = Boolean(onClose || onResetAllSettings);
 
     return (
-        <div className="h-10 px-2.5 border-b border-border bg-chrome flex items-center gap-2">
+        <div className="h-10 px-2.5 bg-chrome flex items-center gap-2">
             <div className="text-[12px] font-medium flex items-center gap-2 w-full">
                 <Settings2 className="size-4" />
                 Settings

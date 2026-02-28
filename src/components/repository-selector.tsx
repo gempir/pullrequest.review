@@ -71,22 +71,22 @@ export function RepositorySelector({
             </div>
 
             {isRepositoryLoading ? (
-                <div className="border border-border bg-background p-8 text-center text-muted-foreground text-[13px]">
+                <div className="bg-background p-8 text-center text-muted-foreground text-[13px]">
                     <div className="flex items-center justify-center gap-2">
                         <Loader2 className="size-4 animate-spin" />
                         <span>Loading repositories...</span>
                     </div>
                 </div>
             ) : repositoryError ? (
-                <div className="border border-destructive bg-destructive/10 p-4 text-destructive text-[13px]">
+                <div className="bg-destructive/10 p-4 text-destructive text-[13px]">
                     <div className="flex items-center gap-2">
                         <AlertCircle className="size-4" />
                         <span>{repositoryError instanceof Error ? repositoryError.message : "Failed to load repositories"}</span>
                     </div>
                 </div>
             ) : (
-                <div className="border border-border bg-background max-h-80 overflow-auto">
-                    <div className="divide-y divide-border">
+                <div className="bg-background max-h-80 overflow-auto">
+                    <div>
                         {filtered.map((repo) => {
                             const checked = selected.has(repo.fullName);
                             return (
@@ -96,7 +96,7 @@ export function RepositorySelector({
                                 >
                                     <input
                                         type="checkbox"
-                                        className="size-4 shrink-0 rounded-[2px] border border-border bg-muted accent-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                        className="size-4 shrink-0 rounded-[2px] bg-muted accent-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                         checked={checked}
                                         onChange={(e) => {
                                             setSelected((prev) => {

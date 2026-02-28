@@ -207,10 +207,7 @@ export function PullRequestSummaryPanel({
     return (
         <div className="pr-diff-font" style={{ fontFamily: "var(--comment-font-family)" }}>
             {headerTitle ? (
-                <div
-                    className="h-10 border-b border-border bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]"
-                    data-component="summary-header"
-                >
+                <div className="h-10 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]" data-component="summary-header">
                     <span className="size-4 flex items-center justify-center shrink-0">
                         <ScrollText className="size-3.5" />
                     </span>

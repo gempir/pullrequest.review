@@ -281,8 +281,8 @@ export function ReviewAllModeView({
                                                 selectedVersionUnread
                                                     ? "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
                                                     : isSelectedVersionViewed
-                                                        ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                                        : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                                                      ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                                      : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
                                             }
                                         >
                                             <Check className="size-3" />

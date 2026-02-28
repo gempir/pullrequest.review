@@ -10,6 +10,7 @@ import {
     removePullRequestApproval,
     requestChangesOnPullRequest,
     resolvePullRequestComment,
+    updatePullRequestComment,
 } from "@/lib/git-host/service";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
@@ -48,6 +49,9 @@ type UseReviewPageActionsProps = {
     copySourceBranchResetTimeoutRef: MutableRefObject<number | null>;
     setCopiedPath: (path: string | null | ((current: string | null) => string | null)) => void;
     setCopiedSourceBranch: (next: boolean) => void;
+    onOptimisticCommentCreate: (payload: { path?: string; content: string; line?: number; side?: CommentLineSide; parentId?: number }) => number | null;
+    onOptimisticCommentUpdate: (commentId: number, pending: boolean) => void;
+    onOptimisticCommentRemove: (commentId: number) => void;
 };
 
 export function useReviewPageActions({
@@ -71,6 +75,9 @@ export function useReviewPageActions({
     copySourceBranchResetTimeoutRef,
     setCopiedPath,
     setCopiedSourceBranch,
+    onOptimisticCommentCreate,
+    onOptimisticCommentUpdate,
+    onOptimisticCommentRemove,
 }: UseReviewPageActionsProps) {
     const refreshPullRequest = useCallback(async () => {
         await refetchPullRequest();
@@ -198,7 +205,14 @@ export function useReviewPageActions({
                     : { path: payload.path },
             });
         },
-        onSuccess: async (_, vars) => {
+        onMutate: (vars) => {
+            const optimisticCommentId = onOptimisticCommentCreate(vars);
+            return { optimisticCommentId };
+        },
+        onSuccess: async (_, vars, context) => {
+            if (typeof context?.optimisticCommentId === "number") {
+                onOptimisticCommentUpdate(context.optimisticCommentId, false);
+            }
             if (vars.line && vars.side && vars.path) {
                 clearInlineDraftContent({
                     path: vars.path,
@@ -215,7 +229,10 @@ export function useReviewPageActions({
             });
             await refreshPullRequest();
         },
-        onError: (error) => {
+        onError: (error, _vars, context) => {
+            if (typeof context?.optimisticCommentId === "number") {
+                onOptimisticCommentRemove(context.optimisticCommentId);
+            }
             setActionError(error instanceof Error ? error.message : "Failed to create comment");
         },
     });
@@ -240,6 +257,27 @@ export function useReviewPageActions({
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to update comment resolution");
+        },
+    });
+    const updateCommentMutation = useMutation({
+        mutationFn: (payload: { commentId: number; content: string; hasInlineContext: boolean }) => {
+            const prRef = ensurePrRef();
+            if (!authCanWrite) {
+                requestAuth("write");
+                throw new Error("Sign in required");
+            }
+            return updatePullRequestComment({
+                prRef,
+                commentId: payload.commentId,
+                content: payload.content,
+                hasInlineContext: payload.hasInlineContext,
+            });
+        },
+        onSuccess: async () => {
+            await refreshPullRequest();
+        },
+        onError: (error) => {
+            setActionError(error instanceof Error ? error.message : "Failed to edit comment");
         },
     });
     const deleteCommentMutation = useMutation({
@@ -347,6 +385,18 @@ export function useReviewPageActions({
         },
         [actionPolicy.canCommentInline, actionPolicy.disabledReason.commentInline, authCanWrite, createCommentMutation, requestAuth, setActionError],
     );
+    const submitCommentEdit = useCallback(
+        (commentId: number, content: string, hasInlineContext: boolean) => {
+            const trimmed = content.trim();
+            if (!trimmed) return;
+            updateCommentMutation.mutate({
+                commentId,
+                content: trimmed,
+                hasInlineContext,
+            });
+        },
+        [updateCommentMutation],
+    );
 
     const handleCopyPath = useCallback(
         async (path: string) => {
@@ -403,6 +453,7 @@ export function useReviewPageActions({
         mergeMutation,
         createCommentMutation,
         resolveCommentMutation,
+        updateCommentMutation,
         deleteCommentMutation,
         handleApprovePullRequest,
         handleRequestChangesPullRequest,
@@ -410,6 +461,7 @@ export function useReviewPageActions({
         handleMarkPullRequestAsDraft,
         submitInlineComment,
         submitThreadReply,
+        submitCommentEdit,
         handleCopyPath,
         handleCopySourceBranch,
     };

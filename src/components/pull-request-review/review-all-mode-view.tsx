@@ -1,7 +1,7 @@
-import type { FileDiffOptions, OnDiffLineClickProps, OnDiffLineEnterLeaveProps } from "@pierre/diffs";
+import type { FileDiffOptions, OnDiffLineEnterLeaveProps } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, CheckCheck, ChevronDown, ChevronRight, Copy, ScrollText } from "lucide-react";
+import { Check, CheckCheck, Copy, ScrollText } from "lucide-react";
 import type { CSSProperties, RefObject } from "react";
 import { useEffect, useMemo } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
@@ -9,7 +9,7 @@ import { DiffContextButton, type DiffContextState } from "@/components/pull-requ
 import { FileVersionSelect, type FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { InlineDiffAnnotation } from "@/components/pull-request-review/inline-diff-annotation";
 import { ReviewDiffSettingsMenu } from "@/components/pull-request-review/review-diff-settings-menu";
-import type { SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
+import type { InlineCommentLineTarget, SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Button } from "@/components/ui/button";
 import { fileAnchorId } from "@/lib/file-anchors";
@@ -21,6 +21,7 @@ import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 type ReviewAllModeViewProps = {
     viewMode: "single" | "all";
+    allowNestedReplies: boolean;
     onWorkspaceModeChange: (mode: "single" | "all") => void;
     pullRequestTitle: string;
     prData: PullRequestBundle | null;
@@ -48,6 +49,7 @@ type ReviewAllModeViewProps = {
     canCommentInline: boolean;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
+    updateCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     getSelectedVersionIdForPath: (path: string) => string | undefined;
     getVersionOptionsForPath: (path: string) => FileVersionSelectOption[];
@@ -64,12 +66,13 @@ type ReviewAllModeViewProps = {
     onSubmitInlineComment: () => void;
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
-    onOpenInlineDraftForPath: (path: string, props: OnDiffLineClickProps) => void;
+    onOpenInlineDraftForPath: (path: string, target: InlineCommentLineTarget) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     onReplyToThread: (commentId: number, content: string) => void;
-    onDiffLineEnter: (props: OnDiffLineEnterLeaveProps) => void;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onDiffLineEnter: (props: OnDiffLineEnterLeaveProps, onOpenInlineDraft?: (target: InlineCommentLineTarget) => void) => void;
     onDiffLineLeave: (props: OnDiffLineEnterLeaveProps) => void;
     diffTypographyStyle: CSSProperties;
     buildFileAnnotations: (filePath: string) => SingleFileAnnotation[];
@@ -82,6 +85,7 @@ type ReviewAllModeViewProps = {
 
 export function ReviewAllModeView({
     viewMode,
+    allowNestedReplies,
     onWorkspaceModeChange,
     pullRequestTitle,
     prData,
@@ -109,6 +113,7 @@ export function ReviewAllModeView({
     canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    updateCommentPending,
     toRenderableFileDiff,
     getSelectedVersionIdForPath,
     getVersionOptionsForPath,
@@ -127,6 +132,7 @@ export function ReviewAllModeView({
     onResolveThread,
     onHistoryCommentNavigate,
     onReplyToThread,
+    onEditComment,
     onDiffLineEnter,
     onDiffLineLeave,
     diffTypographyStyle,
@@ -159,16 +165,8 @@ export function ReviewAllModeView({
     return (
         <div className="w-full max-w-full" data-component="diff-list-view" style={{ paddingBottom: diffListBottomPadding }}>
             {prData ? (
-                <div
-                    id={fileAnchorId(PR_SUMMARY_PATH)}
-                    className={cn("w-full max-w-full border border-l-0 border-t-0 border-border", isSummaryCollapsedInAllMode && "border-b-0")}
-                    style={{ borderTopWidth: 0 }}
-                >
-                    <div
-                        className={cn(
-                            "group sticky top-0 z-20 h-10 min-w-0 border-b border-border bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]",
-                        )}
-                    >
+                <div id={fileAnchorId(PR_SUMMARY_PATH)} className={cn("w-full max-w-full", isSummaryCollapsedInAllMode && "border-b-0")}>
+                    <div className={cn("group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
                         <button type="button" className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden text-left" onClick={onToggleSummaryCollapsed}>
                             <span className="size-4 flex items-center justify-center shrink-0">
                                 <ScrollText className="size-3.5" />
@@ -201,12 +199,6 @@ export function ReviewAllModeView({
                                 </span>
                             </Button>
                         </div>
-                        <span
-                            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
-                            aria-hidden
-                        >
-                            {isSummaryCollapsedInAllMode ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-                        </span>
                     </div>
                     {!isSummaryCollapsedInAllMode && (
                         <PullRequestSummaryPanel bundle={prData} diffStats={lineStats} onSelectComment={onHistoryCommentNavigate} />
@@ -219,7 +211,9 @@ export function ReviewAllModeView({
                 const entry = allModeDiffEntries[virtualRow.index];
                 if (!entry) return null;
                 const { fileDiff, filePath } = entry;
-                const fileUnresolvedCount = (threadsByPath.get(filePath) ?? []).filter((thread) => !thread.root.resolution && !thread.root.deleted).length;
+                const fileUnresolvedCount = (threadsByPath.get(filePath) ?? []).filter(
+                    (thread) => !thread.root.comment.resolution && !thread.root.comment.deleted,
+                ).length;
                 const fileStats = fileLineStats.get(filePath) ?? { added: 0, removed: 0 };
                 const fileName = filePath.split("/").pop() || filePath;
                 const isCollapsed = collapsedAllModeFiles[filePath] ?? (collapseViewedFilesByDefault && viewedFiles.has(filePath));
@@ -240,16 +234,8 @@ export function ReviewAllModeView({
 
                 return (
                     <div key={filePath} ref={rowVirtualizer.measureElement} data-index={virtualRow.index}>
-                        <div
-                            id={fileAnchorId(filePath)}
-                            className={cn("w-full max-w-full border border-l-0 border-t-0 border-border bg-card", isCollapsed && "border-b-0")}
-                            style={virtualRow.index === 0 && !prData ? { borderTopWidth: 0 } : undefined}
-                        >
-                            <div
-                                className={cn(
-                                    "group sticky top-0 z-20 h-10 min-w-0 border-b border-border bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]",
-                                )}
-                            >
+                        <div id={fileAnchorId(filePath)} className={cn("w-full max-w-full bg-card", isCollapsed && "border-b-0")}>
+                            <div className={cn("group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
                                 <div className="min-w-0 flex flex-1 items-center gap-2">
                                     <button
                                         type="button"
@@ -309,12 +295,6 @@ export function ReviewAllModeView({
                                         </span>
                                     </button>
                                 </div>
-                                <span
-                                    className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100"
-                                    aria-hidden
-                                >
-                                    {isCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-                                </span>
                             </div>
                             {!isCollapsed ? (
                                 <div className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">
@@ -323,15 +303,15 @@ export function ReviewAllModeView({
                                             fileDiff={toRenderableFileDiff(displayedFileDiff)}
                                             options={{
                                                 ...fileDiffOptions,
-                                                onLineClick: (props) => {
-                                                    if (readOnlyHistorical) return;
-                                                    onOpenInlineDraftForPath(filePath, props);
-                                                },
-                                                onLineNumberClick: (props) => {
-                                                    if (readOnlyHistorical) return;
-                                                    onOpenInlineDraftForPath(filePath, props);
-                                                },
-                                                onLineEnter: onDiffLineEnter,
+                                                onLineClick: undefined,
+                                                onLineNumberClick: undefined,
+                                                onLineEnter: (props) =>
+                                                    onDiffLineEnter(
+                                                        props,
+                                                        readOnlyHistorical || !canCommentInline
+                                                            ? undefined
+                                                            : (target) => onOpenInlineDraftForPath(filePath, target),
+                                                    ),
                                                 onLineLeave: onDiffLineLeave,
                                             }}
                                             className="compact-diff commentable-diff pr-diff-font"
@@ -340,6 +320,7 @@ export function ReviewAllModeView({
                                             renderAnnotation={(annotation) => (
                                                 <InlineDiffAnnotation
                                                     annotation={annotation as SingleFileAnnotation}
+                                                    allowNestedReplies={allowNestedReplies}
                                                     workspace={workspace}
                                                     repo={repo}
                                                     pullRequestId={pullRequestId}
@@ -347,6 +328,7 @@ export function ReviewAllModeView({
                                                     canCommentInline={canCommentInline && !readOnlyHistorical}
                                                     canResolveThread={canResolveThread}
                                                     resolveCommentPending={resolveCommentPending}
+                                                    updateCommentPending={updateCommentPending}
                                                     getInlineDraftContent={getInlineDraftContent}
                                                     setInlineDraftContent={setInlineDraftContent}
                                                     onSubmitInlineComment={onSubmitInlineComment}
@@ -356,6 +338,7 @@ export function ReviewAllModeView({
                                                     onDeleteComment={onDeleteComment}
                                                     onResolveThread={onResolveThread}
                                                     onReplyToThread={onReplyToThread}
+                                                    onEditComment={onEditComment}
                                                 />
                                             )}
                                         />

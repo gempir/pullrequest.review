@@ -1,9 +1,8 @@
-import { type FileDiffOptions, getFiletypeFromFileName, type OnDiffLineClickProps, type OnDiffLineEnterLeaveProps, parsePatchFiles } from "@pierre/diffs";
+import { type FileDiffOptions, getFiletypeFromFileName, type OnDiffLineEnterLeaveProps, parsePatchFiles } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatNavbarDate, linesUpdated, normalizeNavbarState } from "@/components/pull-request-review/review-formatters";
 import { useDiffHighlighterState } from "@/components/pull-request-review/use-review-page-effects";
-import { readReviewDerivedCacheValue, writeReviewDerivedCacheValue } from "@/lib/data/query-collections";
 import type { FileNode } from "@/lib/file-tree-context";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
@@ -16,17 +15,12 @@ import {
     getCommentPath,
     getFilePath,
     hashString,
+    type InlineCommentLineTarget,
     type SingleFileAnnotation,
 } from "./review-page-model";
 import type { CommentThread } from "./review-threads";
-import { sortThreadsByCreatedAt } from "./review-threads";
+import { buildCommentThreads, normalizeCommentThreads, sortThreadsByCreatedAt } from "./review-threads";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
-
-type CachedReviewDerivedArtifacts = {
-    fileDiffs: FileDiffMetadata[];
-    fileDiffFingerprints: Array<[string, string]>;
-    threads: CommentThread[];
-};
 
 type WorkerDerivedState = {
     cacheKey: string;
@@ -36,6 +30,9 @@ type WorkerDerivedState = {
 };
 
 const EMPTY_COMMENTS: PullRequestBundle["comments"] = [];
+const INLINE_COMMENT_TRIGGER_ATTR = "data-inline-comment-trigger";
+const INLINE_COMMENT_TRIGGER_ID_ATTR = "data-inline-comment-trigger-id";
+const INLINE_COMMENT_TRIGGER_LABEL = "Add line comment";
 
 function buildFileDiffFingerprint(fileDiff: FileDiffMetadata) {
     const normalized = {
@@ -59,6 +56,15 @@ function buildFileDiffFingerprint(fileDiff: FileDiffMetadata) {
         })),
     };
     return hashString(JSON.stringify(normalized));
+}
+
+function normalizeDiffSelectionPath(path: string) {
+    const trimmed = path.trim();
+    if (!trimmed || trimmed === "/dev/null") return "";
+    if (trimmed.startsWith("a/") || trimmed.startsWith("b/") || trimmed.startsWith("c/")) {
+        return trimmed.slice(2);
+    }
+    return trimmed;
 }
 
 export function useReviewPageDerived({
@@ -91,7 +97,7 @@ export function useReviewPageDerived({
     inlineComment: InlineCommentDraft | null;
     theme: Parameters<typeof useDiffHighlighterState>[0]["theme"];
     compactDiffOptions: FileDiffOptions<undefined>;
-    onOpenInlineCommentDraft: (path: string, props: OnDiffLineClickProps) => void;
+    onOpenInlineCommentDraft: (path: string, target: InlineCommentLineTarget) => void;
     fullFileContexts: Record<string, { oldLines: string[]; newLines: string[] }>;
 }) {
     const diffText = prData?.diff ?? "";
@@ -118,7 +124,7 @@ export function useReviewPageDerived({
 
     const scopeCacheKey = useMemo(() => {
         if (!prData?.prRef) return "review:empty";
-        return buildReviewScopeCacheKey(prData.prRef, "review-derived");
+        return buildReviewScopeCacheKey(prData.prRef, "review-derived-v2");
     }, [prData?.prRef]);
 
     const derivedCacheKey = useMemo(
@@ -147,16 +153,6 @@ export function useReviewPageDerived({
             return;
         }
 
-        const cachedArtifacts = readReviewDerivedCacheValue<CachedReviewDerivedArtifacts>(derivedCacheKey);
-        if (cachedArtifacts) {
-            applyWorkerDerived(derivedCacheKey, {
-                fileDiffs: cachedArtifacts.fileDiffs,
-                fileDiffFingerprints: new Map(cachedArtifacts.fileDiffFingerprints),
-                threads: cachedArtifacts.threads,
-            });
-            return;
-        }
-
         if (pendingDerivedCacheKeyRef.current === derivedCacheKey) {
             return;
         }
@@ -170,11 +166,6 @@ export function useReviewPageDerived({
             .then((result) => {
                 if (cancelled) return;
                 if (pendingDerivedCacheKeyRef.current !== derivedCacheKey) return;
-                writeReviewDerivedCacheValue(derivedCacheKey, {
-                    fileDiffs: result.fileDiffs,
-                    fileDiffFingerprints: Array.from(result.fileDiffFingerprints.entries()),
-                    threads: result.threads,
-                } satisfies CachedReviewDerivedArtifacts);
                 applyWorkerDerived(derivedCacheKey, {
                     fileDiffs: result.fileDiffs,
                     fileDiffFingerprints: result.fileDiffFingerprints,
@@ -194,29 +185,7 @@ export function useReviewPageDerived({
                         fallbackFingerprints.set(path, buildFileDiffFingerprint(fileDiff));
                     }
                 });
-                const roots = comments.filter((comment) => !comment.parent?.id);
-                const repliesByParent = new Map<number, typeof comments>();
-                for (const comment of comments) {
-                    const parentId = comment.parent?.id;
-                    if (!parentId) continue;
-                    const replies = repliesByParent.get(parentId) ?? [];
-                    replies.push(comment);
-                    repliesByParent.set(parentId, replies);
-                }
-                const fallbackThreads: CommentThread[] = roots
-                    .map((root) => ({
-                        id: root.id,
-                        root,
-                        replies: [...(repliesByParent.get(root.id) ?? [])].sort(
-                            (a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime(),
-                        ),
-                    }))
-                    .sort((a, b) => new Date(a.root.createdAt ?? 0).getTime() - new Date(b.root.createdAt ?? 0).getTime());
-                writeReviewDerivedCacheValue(derivedCacheKey, {
-                    fileDiffs: fallbackDiffs,
-                    fileDiffFingerprints: Array.from(fallbackFingerprints.entries()),
-                    threads: fallbackThreads,
-                } satisfies CachedReviewDerivedArtifacts);
+                const fallbackThreads = buildCommentThreads(comments);
                 applyWorkerDerived(derivedCacheKey, {
                     fileDiffs: fallbackDiffs,
                     fileDiffFingerprints: fallbackFingerprints,
@@ -283,8 +252,25 @@ export function useReviewPageDerived({
         });
         return map;
     }, [fileDiffs]);
+    const diffByNormalizedPath = useMemo(() => {
+        const map = new Map<string, FileDiffMetadata>();
+        for (const [path, fileDiff] of diffByPath.entries()) {
+            const normalizedPath = normalizeDiffSelectionPath(path);
+            if (!normalizedPath || map.has(normalizedPath)) continue;
+            map.set(normalizedPath, fileDiff);
+        }
+        return map;
+    }, [diffByPath]);
     const fileDiffFingerprints = workerDerived.fileDiffFingerprints;
-    const selectableDiffPathSet = useMemo(() => new Set(diffByPath.keys()), [diffByPath]);
+    const selectableDiffPathSet = useMemo(() => {
+        const paths = new Set<string>();
+        for (const path of diffByPath.keys()) {
+            paths.add(path);
+            const normalizedPath = normalizeDiffSelectionPath(path);
+            if (normalizedPath) paths.add(normalizedPath);
+        }
+        return paths;
+    }, [diffByPath]);
 
     const visibleFilePaths = useMemo(() => {
         const seen = new Set<string>();
@@ -297,9 +283,27 @@ export function useReviewPageDerived({
         });
         return values;
     }, [filteredDiffs]);
+    const fallbackVisibleFilePaths = useMemo(() => {
+        const diffstatEntries = prData?.diffstat ?? [];
+        const seen = new Set<string>();
+        const values: string[] = [];
+        for (const entry of diffstatEntries) {
+            const path = entry.new?.path ?? entry.old?.path;
+            if (!path || seen.has(path)) continue;
+            const normalizedPath = path.toLowerCase();
+            const matchesSearch = !normalizedSearch || normalizedPath.includes(normalizedSearch);
+            const forcedVisiblePath = showUnviewedOnly ? activeFile : undefined;
+            const matchesViewedFilter = !showUnviewedOnly || forcedVisiblePath === path || !viewedFiles.has(path);
+            if (!matchesSearch || !matchesViewedFilter) continue;
+            seen.add(path);
+            values.push(path);
+        }
+        return values;
+    }, [activeFile, normalizedSearch, prData?.diffstat, showUnviewedOnly, viewedFiles]);
+    const effectiveVisibleFilePaths = visibleFilePaths.length > 0 ? visibleFilePaths : fallbackVisibleFilePaths;
 
     const settingsPathSet = useMemo(() => new Set(settingsTreeItems.map((item) => item.path)), [settingsTreeItems]);
-    const visiblePathSet = useMemo(() => new Set([PR_SUMMARY_PATH, ...visibleFilePaths]), [visibleFilePaths]);
+    const visiblePathSet = useMemo(() => new Set([PR_SUMMARY_PATH, ...effectiveVisibleFilePaths]), [effectiveVisibleFilePaths]);
     const allowedPathSet = useMemo(() => (showSettingsPanel ? settingsPathSet : visiblePathSet), [settingsPathSet, showSettingsPanel, visiblePathSet]);
 
     const treeFilePaths = useMemo(() => allFiles().map((file) => file.path), [allFiles]);
@@ -337,23 +341,27 @@ export function useReviewPageDerived({
 
     const selectedFilePath = useMemo(() => {
         if (!activeFile) return undefined;
-        if (!diffByPath.has(activeFile)) return undefined;
+        if (!selectableDiffPathSet.has(activeFile)) return undefined;
         return activeFile;
-    }, [activeFile, diffByPath]);
+    }, [activeFile, selectableDiffPathSet]);
 
     const selectedFileDiff = useMemo(() => {
         if (!selectedFilePath) return undefined;
-        return diffByPath.get(selectedFilePath);
-    }, [diffByPath, selectedFilePath]);
+        const exactMatch = diffByPath.get(selectedFilePath);
+        if (exactMatch) return exactMatch;
+        const normalizedPath = normalizeDiffSelectionPath(selectedFilePath);
+        if (!normalizedPath) return undefined;
+        return diffByNormalizedPath.get(normalizedPath);
+    }, [diffByNormalizedPath, diffByPath, selectedFilePath]);
 
     const isSummarySelected = activeFile === PR_SUMMARY_PATH;
-    const threads = workerDerived.threads;
-    const unresolvedThreads = threads.filter((thread) => !thread.root.resolution && !thread.root.deleted);
+    const threads = useMemo(() => normalizeCommentThreads(workerDerived.threads), [workerDerived.threads]);
+    const unresolvedThreads = threads.filter((thread) => !thread.root.comment.resolution && !thread.root.comment.deleted);
 
     const threadsByPath = useMemo(() => {
         const grouped = new Map<string, CommentThread[]>();
         for (const thread of threads) {
-            const path = getCommentPath(thread.root);
+            const path = getCommentPath(thread.root.comment);
             const bucket = grouped.get(path) ?? [];
             bucket.push(thread);
             grouped.set(path, bucket);
@@ -367,7 +375,7 @@ export function useReviewPageDerived({
     }, [selectedFilePath, threadsByPath]);
 
     const selectedFileLevelThreads = useMemo(
-        () => selectedThreads.filter((thread) => !thread.root.deleted && !getCommentInlinePosition(thread.root)),
+        () => selectedThreads.filter((thread) => !thread.root.comment.deleted && !getCommentInlinePosition(thread.root.comment)),
         [selectedThreads],
     );
 
@@ -391,31 +399,85 @@ export function useReviewPageDerived({
         return map;
     }, [prData?.diffstat]);
 
-    const handleDiffLineEnter = useCallback((props: OnDiffLineEnterLeaveProps) => {
-        props.lineElement.style.cursor = "copy";
-        if (props.numberElement) props.numberElement.style.cursor = "copy";
+    const removeInlineCommentTriggerButton = useCallback((props: OnDiffLineEnterLeaveProps) => {
+        const numberElement = props.numberElement;
+        if (!numberElement) return;
+        const button = numberElement.querySelector<HTMLElement>(`[${INLINE_COMMENT_TRIGGER_ATTR}="true"]`);
+        if (button) {
+            button.remove();
+        }
     }, []);
 
-    const handleDiffLineLeave = useCallback((props: OnDiffLineEnterLeaveProps) => {
-        props.lineElement.style.cursor = "";
-        if (props.numberElement) props.numberElement.style.cursor = "";
-    }, []);
+    const handleDiffLineEnter = useCallback(
+        (props: OnDiffLineEnterLeaveProps, onOpenInlineDraft?: (target: InlineCommentLineTarget) => void) => {
+            props.lineElement.style.cursor = "";
+            const numberElement = props.numberElement;
+            if (!numberElement) return;
+            numberElement.style.cursor = onOpenInlineDraft ? "pointer" : "";
+            removeInlineCommentTriggerButton(props);
+            if (!onOpenInlineDraft) return;
 
-    const handleSingleDiffLineClick = useCallback(
-        (props: OnDiffLineClickProps) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className =
+                "inline-flex h-4 w-4 items-center justify-center rounded border border-status-added/80 bg-status-added/20 text-status-added shadow-sm";
+            button.title = INLINE_COMMENT_TRIGGER_LABEL;
+            button.setAttribute("aria-label", INLINE_COMMENT_TRIGGER_LABEL);
+            button.setAttribute(INLINE_COMMENT_TRIGGER_ATTR, "true");
+            button.setAttribute(INLINE_COMMENT_TRIGGER_ID_ATTR, `${props.annotationSide}:${props.lineNumber}`);
+            button.innerHTML =
+                '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>';
+            button.style.position = "absolute";
+            button.style.right = "2px";
+            button.style.top = "50%";
+            button.style.transform = "translateY(-50%)";
+            button.style.cursor = "pointer";
+            button.style.zIndex = "2";
+            button.addEventListener("pointerdown", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+            });
+            button.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onOpenInlineDraft({
+                    lineNumber: props.lineNumber,
+                    annotationSide: props.annotationSide,
+                });
+            });
+            numberElement.style.position = "relative";
+            numberElement.style.cursor = "pointer";
+            numberElement.appendChild(button);
+        },
+        [removeInlineCommentTriggerButton],
+    );
+
+    const handleDiffLineLeave = useCallback(
+        (props: OnDiffLineEnterLeaveProps) => {
+            props.lineElement.style.cursor = "";
+            if (props.numberElement) props.numberElement.style.cursor = "";
+            removeInlineCommentTriggerButton(props);
+        },
+        [removeInlineCommentTriggerButton],
+    );
+
+    const openInlineDraftForSelectedPath = useCallback(
+        (target: InlineCommentLineTarget) => {
             if (!selectedFilePath) return;
-            onOpenInlineCommentDraft(selectedFilePath, props);
+            onOpenInlineCommentDraft(selectedFilePath, target);
         },
         [onOpenInlineCommentDraft, selectedFilePath],
     );
 
     const buildFileAnnotations = useCallback(
         (filePath: string) => {
-            const fileThreads = (threadsByPath.get(filePath) ?? []).filter((thread) => !thread.root.deleted && Boolean(getCommentInlinePosition(thread.root)));
+            const fileThreads = (threadsByPath.get(filePath) ?? []).filter(
+                (thread) => !thread.root.comment.deleted && Boolean(getCommentInlinePosition(thread.root.comment)),
+            );
             const annotations: SingleFileAnnotation[] = [];
 
             for (const thread of fileThreads) {
-                const position = getCommentInlinePosition(thread.root);
+                const position = getCommentInlinePosition(thread.root.comment);
                 if (!position) continue;
                 annotations.push({
                     side: position.side,
@@ -445,12 +507,12 @@ export function useReviewPageDerived({
     const singleFileDiffOptions = useMemo<FileDiffOptions<undefined>>(
         () => ({
             ...compactDiffOptions,
-            onLineClick: handleSingleDiffLineClick,
-            onLineNumberClick: handleSingleDiffLineClick,
-            onLineEnter: handleDiffLineEnter,
+            onLineClick: undefined,
+            onLineNumberClick: undefined,
+            onLineEnter: (props) => handleDiffLineEnter(props, openInlineDraftForSelectedPath),
             onLineLeave: handleDiffLineLeave,
         }),
-        [compactDiffOptions, handleDiffLineEnter, handleDiffLineLeave, handleSingleDiffLineClick],
+        [compactDiffOptions, handleDiffLineEnter, handleDiffLineLeave, openInlineDraftForSelectedPath],
     );
 
     return {

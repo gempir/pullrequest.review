@@ -1,21 +1,11 @@
 import { type Collection, createCollection, localOnlyCollectionOptions } from "@tanstack/db";
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
-import {
-    clearGitHostCacheTierData,
-    ensureGitHostDataReady,
-    type GitHostDataDebugSnapshot,
-    getGitHostDataDebugSnapshot,
-    sweepExpiredGitHostData,
-} from "@/lib/git-host/query-collections";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 
-export type StorageTier = "cache" | "state" | "permanent";
+export type StorageTier = "state" | "permanent";
 
 const DATA_DATABASE_NAME = "pullrequestdotreview_data_v1";
 const STATE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const REVIEW_DERIVED_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
-const REVIEW_DERIVED_CACHE_MAX_BYTES = 512 * 1024;
-const REVIEW_DERIVED_CACHE_MAX_RECORDS = 120;
 const LEGACY_RESET_METADATA_ID = "legacy_reset_v1";
 
 const APP_PREFERENCES_COLLECTION_NAME = "app_preferences";
@@ -206,7 +196,6 @@ export type DataCollectionDebugSummary = {
 
 export type DataCollectionsDebugSnapshot = {
     backendMode: AppCollectionBackendMode;
-    hostBackendMode: GitHostDataDebugSnapshot["backendMode"];
     persistenceDegraded: boolean;
     estimatedUsageBytes: number | null;
     estimatedQuotaBytes: number | null;
@@ -808,7 +797,6 @@ export function ensureDataCollectionsReady() {
             .then(async () => {
                 await runLegacyResetIfNeeded();
                 await sweepExpiredStateCollections();
-                await ensureGitHostDataReady();
             });
     }
 
@@ -888,59 +876,6 @@ export function writeHostPreferencesRecord(data: { activeHost: GitHost; reposByH
         },
         HOST_PREFERENCES_RECORD_ID,
     );
-}
-
-function reviewDerivedCacheRecordId(cacheKey: string) {
-    return `review-derived:${cacheKey}`;
-}
-
-export function readReviewDerivedCacheValue<T>(cacheKey: string): T | null {
-    const id = reviewDerivedCacheRecordId(cacheKey);
-    const record = getAppMetadataCollection().get(id);
-    if (!record) return null;
-    if (isExpiredRecord(record, Date.now())) {
-        void deleteRecord(getAppMetadataCollection(), id, id);
-        return null;
-    }
-    try {
-        return JSON.parse(record.value) as T;
-    } catch {
-        return null;
-    }
-}
-
-export function writeReviewDerivedCacheValue(cacheKey: string, payload: unknown) {
-    const id = reviewDerivedCacheRecordId(cacheKey);
-    const serializedPayload = JSON.stringify(payload);
-    if (new TextEncoder().encode(serializedPayload).length > REVIEW_DERIVED_CACHE_MAX_BYTES) {
-        return;
-    }
-    const now = Date.now();
-    const metadataCollection = getAppMetadataCollection();
-    const derivedRecords = Array.from(metadataCollection.values())
-        .filter((record) => record.id.startsWith("review-derived:"))
-        .sort((left, right) => left.updatedAt - right.updatedAt);
-
-    void (async () => {
-        const overflow = derivedRecords.length - REVIEW_DERIVED_CACHE_MAX_RECORDS;
-        if (overflow >= 0) {
-            for (let index = 0; index <= overflow; index += 1) {
-                const evicted = derivedRecords[index];
-                if (!evicted || evicted.id === id) continue;
-                await deleteRecord(metadataCollection, evicted.id, evicted.id);
-            }
-        }
-        await upsertRecord(
-            metadataCollection,
-            {
-                id,
-                value: serializedPayload,
-                updatedAt: now,
-                expiresAt: now + REVIEW_DERIVED_CACHE_TTL_MS,
-            },
-            id,
-        );
-    })();
 }
 
 export function readBitbucketAuthCredential() {
@@ -1221,7 +1156,6 @@ export async function getDataCollectionsDebugSnapshot(now = Date.now()): Promise
     ensureCollectionsInitialized();
 
     const tiers: Record<StorageTier, TierDebugSummary> = {
-        cache: { count: 0, approxBytes: 0, oldestUpdatedAt: null, newestUpdatedAt: null },
         state: { count: 0, approxBytes: 0, oldestUpdatedAt: null, newestUpdatedAt: null },
         permanent: { count: 0, approxBytes: 0, oldestUpdatedAt: null, newestUpdatedAt: null },
     };
@@ -1275,88 +1209,28 @@ export async function getDataCollectionsDebugSnapshot(now = Date.now()): Promise
         collections.push(entry);
     }
 
-    const hostSnapshot = await getGitHostDataDebugSnapshot(now);
-    for (const [name, summary] of Object.entries(hostSnapshot.collections)) {
-        const entry: DataCollectionDebugSummary = {
-            name,
-            tier: "cache",
-            count: summary.count,
-            approxBytes: summary.approxBytes,
-            oldestUpdatedAt: summary.oldestFetchedAt,
-            newestUpdatedAt: summary.newestFetchedAt,
-            oldestExpiresAt: summary.oldestExpiresAt,
-            newestExpiresAt: summary.newestExpiresAt,
-            expiredCount: summary.expiredCount,
-        };
-        collections.push(entry);
-
-        totalRecords += entry.count;
-        totalBytes += entry.approxBytes;
-        tiers.cache.count += entry.count;
-        tiers.cache.approxBytes += entry.approxBytes;
-        tiers.cache.oldestUpdatedAt =
-            tiers.cache.oldestUpdatedAt === null
-                ? entry.oldestUpdatedAt
-                : entry.oldestUpdatedAt === null
-                  ? tiers.cache.oldestUpdatedAt
-                  : Math.min(tiers.cache.oldestUpdatedAt, entry.oldestUpdatedAt);
-        tiers.cache.newestUpdatedAt =
-            tiers.cache.newestUpdatedAt === null
-                ? entry.newestUpdatedAt
-                : entry.newestUpdatedAt === null
-                  ? tiers.cache.newestUpdatedAt
-                  : Math.max(tiers.cache.newestUpdatedAt, entry.newestUpdatedAt);
-    }
-
     collections.sort((a, b) => a.name.localeCompare(b.name));
 
     const estimate = await storageEstimate();
 
     return {
-        backendMode: appDataFallbackActive || hostSnapshot.backendMode === "memory" ? "memory" : "indexeddb",
-        hostBackendMode: hostSnapshot.backendMode,
+        backendMode: appDataFallbackActive ? "memory" : "indexeddb",
         persistenceDegraded: appDataPersistenceDegraded,
         estimatedUsageBytes: estimate.usage,
         estimatedQuotaBytes: estimate.quota,
         totalRecords,
         totalBytes,
-        lastSweepAt:
-            lastAppDataSweepAt === null
-                ? hostSnapshot.lastSweepAt
-                : hostSnapshot.lastSweepAt === null
-                  ? lastAppDataSweepAt
-                  : Math.max(lastAppDataSweepAt, hostSnapshot.lastSweepAt),
+        lastSweepAt: lastAppDataSweepAt,
         tiers,
         collections,
     };
 }
 
-export async function clearCacheTierData() {
-    ensureCollectionsInitialized();
-    let removed = 0;
-
-    for (const collectionSummary of getAppCollectionSummaries()) {
-        if (collectionSummary.tier !== "cache") continue;
-        for (const record of collectionSummary.collection.values()) {
-            await deleteRecord(collectionSummary.collection, record.id, `${collectionSummary.name}:${record.id}`);
-            removed += 1;
-        }
-    }
-
-    const hostCleared = await clearGitHostCacheTierData();
-    return {
-        removed: removed + hostCleared.removed,
-        appRemoved: removed,
-        hostRemoved: hostCleared.removed,
-    };
-}
-
 export async function clearExpiredDataNow(now = Date.now()) {
-    const [appResult, hostResult] = await Promise.all([sweepExpiredStateCollections(now), sweepExpiredGitHostData(now)]);
+    const appResult = await sweepExpiredStateCollections(now);
     return {
-        removed: appResult.removed + hostResult.removed,
+        removed: appResult.removed,
         appRemoved: appResult.removed,
-        hostRemoved: hostResult.removed,
     };
 }
 

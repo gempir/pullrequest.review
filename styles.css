@@ -228,6 +228,11 @@
         cursor: pointer;
     }
 
+    button,
+    [data-slot="button"] {
+        border-width: 0;
+    }
+
     button:disabled {
         cursor: not-allowed;
     }

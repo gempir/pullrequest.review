@@ -10,13 +10,7 @@ import { NumberStepperInput } from "@/components/ui/number-stepper-input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useAppearance } from "@/lib/appearance-context";
-import {
-    clearCacheTierData,
-    clearExpiredDataNow,
-    type DataCollectionsDebugSnapshot,
-    getDataCollectionsDebugSnapshot,
-    type StorageTier,
-} from "@/lib/data/query-collections";
+import { clearExpiredDataNow, type DataCollectionsDebugSnapshot, getDataCollectionsDebugSnapshot, type StorageTier } from "@/lib/data/query-collections";
 import { getDetectedFontOptionFromValue, useDetectedMonospaceFontOptions } from "@/lib/detected-monospace-fonts";
 import { useDiffOptions } from "@/lib/diff-options-context";
 import { DIFF_THEMES, type DiffTheme } from "@/lib/diff-themes";
@@ -137,7 +131,7 @@ function ShortcutsTab() {
                 </Button>
             </div>
 
-            <div className="divide-y divide-border/40">
+            <div>
                 <ShortcutRow
                     label="Next Unviewed File"
                     shortcut={shortcuts.nextUnviewedFile}
@@ -509,7 +503,7 @@ function StorageTab() {
         snapshot: DataCollectionsDebugSnapshot | null;
         perfSnapshot: ReviewPerfSnapshot | null;
         loading: boolean;
-        busyAction: "refresh" | "clear-cache" | "clear-expired" | "export" | null;
+        busyAction: "refresh" | "clear-expired" | "export" | null;
         statusMessage: string | null;
     }>({
         snapshot: null,
@@ -538,22 +532,6 @@ function StorageTab() {
         void refreshSnapshots();
     }, [refreshSnapshots]);
 
-    const runClearCache = useCallback(async () => {
-        if (!window.confirm("Clear cache-tier storage now? This removes cached pull request data and forces refetches.")) return;
-        setState((prev) => ({ ...prev, busyAction: "clear-cache", statusMessage: null }));
-        const startedAt = Date.now();
-        try {
-            const result = await clearCacheTierData();
-            await refreshSnapshots();
-            setState((prev) => ({
-                ...prev,
-                statusMessage: `Cleared cache tier: ${result.removed} records removed in ${Date.now() - startedAt}ms (app ${result.appRemoved}, host ${result.hostRemoved}).`,
-            }));
-        } finally {
-            setState((prev) => ({ ...prev, busyAction: null }));
-        }
-    }, [refreshSnapshots]);
-
     const runClearExpired = useCallback(async () => {
         if (!window.confirm("Clear expired storage entries now?")) return;
         setState((prev) => ({ ...prev, busyAction: "clear-expired", statusMessage: null }));
@@ -563,7 +541,7 @@ function StorageTab() {
             await refreshSnapshots();
             setState((prev) => ({
                 ...prev,
-                statusMessage: `Cleared expired data: ${result.removed} records removed in ${Date.now() - startedAt}ms (app ${result.appRemoved}, host ${result.hostRemoved}).`,
+                statusMessage: `Cleared expired data: ${result.removed} records removed in ${Date.now() - startedAt}ms (app ${result.appRemoved}).`,
             }));
         } finally {
             setState((prev) => ({ ...prev, busyAction: null }));
@@ -614,7 +592,7 @@ function StorageTab() {
         }
     }, []);
 
-    const tierOrder: StorageTier[] = ["cache", "state", "permanent"];
+    const tierOrder: StorageTier[] = ["state", "permanent"];
     const snapshot = state.snapshot;
     const perfSnapshot = state.perfSnapshot;
 
@@ -637,20 +615,19 @@ function StorageTab() {
                 <section className="space-y-2">
                     <h3 className="text-[12px] font-medium">Storage Health</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[12px]">
-                        <div className="border border-border p-2">
+                        <div className="p-2">
                             <div>Collections backend: {snapshot.backendMode}</div>
-                            <div>Host cache backend: {snapshot.hostBackendMode}</div>
                             <div>Persistence degraded: {snapshot.persistenceDegraded ? "yes" : "no"}</div>
                             <div>Last sweep: {formatTimestamp(snapshot.lastSweepAt)}</div>
                         </div>
-                        <div className="border border-border p-2">
+                        <div className="p-2">
                             <div>Total records: {snapshot.totalRecords}</div>
                             <div>Total bytes: {formatBytes(snapshot.totalBytes)}</div>
                             <div>
                                 Quota estimate: {formatBytes(snapshot.estimatedUsageBytes)} / {formatBytes(snapshot.estimatedQuotaBytes)}
                             </div>
                         </div>
-                        <div className="border border-border p-2">
+                        <div className="p-2">
                             <div>Critical load ms: {perfSnapshot?.lastCriticalLoadMs ?? "n/a"}</div>
                             <div>Deferred load ms: {perfSnapshot?.lastDeferredLoadMs ?? "n/a"}</div>
                             <div>Long tasks: {perfSnapshot?.longTaskCount ?? 0}</div>
@@ -663,7 +640,7 @@ function StorageTab() {
             {snapshot ? (
                 <section className="space-y-2">
                     <h3 className="text-[12px] font-medium">Tier Summary</h3>
-                    <div className="border border-border divide-y divide-border text-[12px]">
+                    <div className="text-[12px]">
                         {tierOrder.map((tier) => {
                             const summary = snapshot.tiers[tier];
                             return (
@@ -683,7 +660,7 @@ function StorageTab() {
             {snapshot ? (
                 <section className="space-y-2">
                     <h3 className="text-[12px] font-medium">Collections</h3>
-                    <div className="border border-border divide-y divide-border text-[12px]">
+                    <div className="text-[12px]">
                         {snapshot.collections.map((summary) => (
                             <div key={`${summary.tier}:${summary.name}`} className="p-2 grid grid-cols-1 md:grid-cols-7 gap-2">
                                 <div className="font-medium min-w-0 md:col-span-2">
@@ -706,9 +683,6 @@ function StorageTab() {
             <section className="space-y-2">
                 <h3 className="text-[12px] font-medium">Actions</h3>
                 <div className="flex flex-wrap items-center gap-2">
-                    <Button variant="outline" size="sm" disabled={state.busyAction !== null} onClick={() => void runClearCache()}>
-                        Clear cache tier
-                    </Button>
                     <Button variant="outline" size="sm" disabled={state.busyAction !== null} onClick={() => void runClearExpired()}>
                         Clear expired now
                     </Button>
@@ -743,7 +717,7 @@ function SettingsPanelHeader({ onClose, onResetAllSettings }: { onClose?: () => 
     const hasActions = Boolean(onClose || onResetAllSettings);
 
     return (
-        <div className="h-10 px-2.5 border-b border-border bg-chrome flex items-center gap-2">
+        <div className="h-10 px-2.5 bg-chrome flex items-center gap-2">
             <div className="text-[12px] font-medium flex items-center gap-2 w-full">
                 <Settings2 className="size-4" />
                 Settings

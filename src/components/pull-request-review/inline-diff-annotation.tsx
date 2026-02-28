@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 
 type InlineDiffAnnotationProps = {
     annotation: SingleFileAnnotation;
+    allowNestedReplies: boolean;
     workspace: string;
     repo: string;
     pullRequestId: string;
@@ -15,6 +16,7 @@ type InlineDiffAnnotationProps = {
     canCommentInline: boolean;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
+    updateCommentPending: boolean;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
     onSubmitInlineComment: () => void;
@@ -24,10 +26,12 @@ type InlineDiffAnnotationProps = {
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onReplyToThread: (commentId: number, content: string) => void;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
 };
 
 export function InlineDiffAnnotation({
     annotation,
+    allowNestedReplies,
     workspace,
     repo,
     pullRequestId,
@@ -35,6 +39,7 @@ export function InlineDiffAnnotation({
     canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    updateCommentPending,
     getInlineDraftContent,
     setInlineDraftContent,
     onSubmitInlineComment,
@@ -44,12 +49,13 @@ export function InlineDiffAnnotation({
     onDeleteComment,
     onResolveThread,
     onReplyToThread,
+    onEditComment,
 }: InlineDiffAnnotationProps) {
     const metadata = annotation.metadata;
     if (!metadata) return null;
 
     return (
-        <div className="px-2 py-1.5 border-y border-border bg-background/70">
+        <div className="px-2 py-1.5 bg-background/70">
             {metadata.kind === "draft" ? (
                 <div className="space-y-2">
                     <CommentEditor
@@ -81,14 +87,17 @@ export function InlineDiffAnnotation({
             ) : (
                 <ThreadCard
                     thread={metadata.thread}
+                    allowNestedReplies={allowNestedReplies}
                     canResolveThread={canResolveThread}
                     canCommentInline={canCommentInline}
                     createCommentPending={createCommentPending}
                     resolveCommentPending={resolveCommentPending}
+                    updateCommentPending={updateCommentPending}
                     currentUserDisplayName={currentUserDisplayName}
                     onDeleteComment={onDeleteComment}
                     onResolveThread={onResolveThread}
                     onReplyToThread={onReplyToThread}
+                    onEditComment={onEditComment}
                 />
             )}
         </div>

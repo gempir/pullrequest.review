@@ -219,7 +219,9 @@ export function ReviewAllModeView({
                 const entry = allModeDiffEntries[virtualRow.index];
                 if (!entry) return null;
                 const { fileDiff, filePath } = entry;
-                const fileUnresolvedCount = (threadsByPath.get(filePath) ?? []).filter((thread) => !thread.root.resolution && !thread.root.deleted).length;
+                const fileUnresolvedCount = (threadsByPath.get(filePath) ?? []).filter(
+                    (thread) => !thread.root.comment.resolution && !thread.root.comment.deleted,
+                ).length;
                 const fileStats = fileLineStats.get(filePath) ?? { added: 0, removed: 0 };
                 const fileName = filePath.split("/").pop() || filePath;
                 const isCollapsed = collapsedAllModeFiles[filePath] ?? (collapseViewedFilesByDefault && viewedFiles.has(filePath));

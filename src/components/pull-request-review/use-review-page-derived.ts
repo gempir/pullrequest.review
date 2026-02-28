@@ -19,7 +19,7 @@ import {
     type SingleFileAnnotation,
 } from "./review-page-model";
 import type { CommentThread } from "./review-threads";
-import { sortThreadsByCreatedAt } from "./review-threads";
+import { buildCommentThreads, normalizeCommentThreads, sortThreadsByCreatedAt } from "./review-threads";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 type CachedReviewDerivedArtifacts = {
@@ -118,7 +118,7 @@ export function useReviewPageDerived({
 
     const scopeCacheKey = useMemo(() => {
         if (!prData?.prRef) return "review:empty";
-        return buildReviewScopeCacheKey(prData.prRef, "review-derived");
+        return buildReviewScopeCacheKey(prData.prRef, "review-derived-v2");
     }, [prData?.prRef]);
 
     const derivedCacheKey = useMemo(
@@ -152,7 +152,7 @@ export function useReviewPageDerived({
             applyWorkerDerived(derivedCacheKey, {
                 fileDiffs: cachedArtifacts.fileDiffs,
                 fileDiffFingerprints: new Map(cachedArtifacts.fileDiffFingerprints),
-                threads: cachedArtifacts.threads,
+                threads: normalizeCommentThreads(cachedArtifacts.threads),
             });
             return;
         }
@@ -194,24 +194,7 @@ export function useReviewPageDerived({
                         fallbackFingerprints.set(path, buildFileDiffFingerprint(fileDiff));
                     }
                 });
-                const roots = comments.filter((comment) => !comment.parent?.id);
-                const repliesByParent = new Map<number, typeof comments>();
-                for (const comment of comments) {
-                    const parentId = comment.parent?.id;
-                    if (!parentId) continue;
-                    const replies = repliesByParent.get(parentId) ?? [];
-                    replies.push(comment);
-                    repliesByParent.set(parentId, replies);
-                }
-                const fallbackThreads: CommentThread[] = roots
-                    .map((root) => ({
-                        id: root.id,
-                        root,
-                        replies: [...(repliesByParent.get(root.id) ?? [])].sort(
-                            (a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime(),
-                        ),
-                    }))
-                    .sort((a, b) => new Date(a.root.createdAt ?? 0).getTime() - new Date(b.root.createdAt ?? 0).getTime());
+                const fallbackThreads = buildCommentThreads(comments);
                 writeReviewDerivedCacheValue(derivedCacheKey, {
                     fileDiffs: fallbackDiffs,
                     fileDiffFingerprints: Array.from(fallbackFingerprints.entries()),
@@ -347,13 +330,13 @@ export function useReviewPageDerived({
     }, [diffByPath, selectedFilePath]);
 
     const isSummarySelected = activeFile === PR_SUMMARY_PATH;
-    const threads = workerDerived.threads;
-    const unresolvedThreads = threads.filter((thread) => !thread.root.resolution && !thread.root.deleted);
+    const threads = useMemo(() => normalizeCommentThreads(workerDerived.threads), [workerDerived.threads]);
+    const unresolvedThreads = threads.filter((thread) => !thread.root.comment.resolution && !thread.root.comment.deleted);
 
     const threadsByPath = useMemo(() => {
         const grouped = new Map<string, CommentThread[]>();
         for (const thread of threads) {
-            const path = getCommentPath(thread.root);
+            const path = getCommentPath(thread.root.comment);
             const bucket = grouped.get(path) ?? [];
             bucket.push(thread);
             grouped.set(path, bucket);
@@ -367,7 +350,7 @@ export function useReviewPageDerived({
     }, [selectedFilePath, threadsByPath]);
 
     const selectedFileLevelThreads = useMemo(
-        () => selectedThreads.filter((thread) => !thread.root.deleted && !getCommentInlinePosition(thread.root)),
+        () => selectedThreads.filter((thread) => !thread.root.comment.deleted && !getCommentInlinePosition(thread.root.comment)),
         [selectedThreads],
     );
 
@@ -411,11 +394,13 @@ export function useReviewPageDerived({
 
     const buildFileAnnotations = useCallback(
         (filePath: string) => {
-            const fileThreads = (threadsByPath.get(filePath) ?? []).filter((thread) => !thread.root.deleted && Boolean(getCommentInlinePosition(thread.root)));
+            const fileThreads = (threadsByPath.get(filePath) ?? []).filter(
+                (thread) => !thread.root.comment.deleted && Boolean(getCommentInlinePosition(thread.root.comment)),
+            );
             const annotations: SingleFileAnnotation[] = [];
 
             for (const thread of fileThreads) {
-                const position = getCommentInlinePosition(thread.root);
+                const position = getCommentInlinePosition(thread.root.comment);
                 if (!position) continue;
                 annotations.push({
                     side: position.side,

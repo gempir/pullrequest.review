@@ -1,12 +1,7 @@
 import { parsePatchFiles } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
+import { buildCommentThreads, type CommentThread } from "@/components/pull-request-review/review-threads";
 import type { Comment as PullRequestComment } from "@/lib/git-host/types";
-
-type CommentThread = {
-    id: number;
-    root: PullRequestComment;
-    replies: PullRequestComment[];
-};
 
 type ComputeReviewDerivedRequest = {
     type: "compute-review-derived";
@@ -69,31 +64,6 @@ function buildFileDiffFingerprint(fileDiff: FileDiffMetadata) {
         })),
     };
     return hashString(JSON.stringify(normalized));
-}
-
-function sortByCreatedAt(left: { createdAt?: string }, right: { createdAt?: string }) {
-    return new Date(left.createdAt ?? 0).getTime() - new Date(right.createdAt ?? 0).getTime();
-}
-
-function buildCommentThreads(comments: PullRequestComment[]): CommentThread[] {
-    const roots = comments.filter((comment) => !comment.parent?.id);
-    const repliesByParent = new Map<number, PullRequestComment[]>();
-
-    for (const comment of comments) {
-        const parentId = comment.parent?.id;
-        if (!parentId) continue;
-        const replies = repliesByParent.get(parentId) ?? [];
-        replies.push(comment);
-        repliesByParent.set(parentId, replies);
-    }
-
-    return roots
-        .map((root) => ({
-            id: root.id,
-            root,
-            replies: [...(repliesByParent.get(root.id) ?? [])].sort(sortByCreatedAt),
-        }))
-        .sort((left, right) => sortByCreatedAt(left.root, right.root));
 }
 
 function computeReviewDerived(diffText: string, comments: PullRequestComment[]) {

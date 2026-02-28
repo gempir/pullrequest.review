@@ -279,11 +279,15 @@ export function useReviewFileHashSync({
     activeFile,
     showSettingsPanel,
     settingsPathSet,
+    selectableFilePaths,
+    isFileSelectionReady,
     suppressHashSyncRef,
 }: {
     activeFile: string | undefined;
     showSettingsPanel: boolean;
     settingsPathSet: Set<string>;
+    selectableFilePaths: Set<string>;
+    isFileSelectionReady: boolean;
     suppressHashSyncRef?: MutableRefObject<boolean>;
 }) {
     useEffect(() => {
@@ -293,6 +297,23 @@ export function useReviewFileHashSync({
             return;
         }
         if (!showSettingsPanel && !activeFile) return;
+
+        const hashPath = parsePrFileHash(window.location.hash);
+        if (!showSettingsPanel && hashPath) {
+            // Keep hash-based deep links intact until selectable file paths are loaded.
+            if (!isFileSelectionReady && !selectableFilePaths.has(hashPath)) {
+                return;
+            }
+            // Allow the hash-selection effect to apply a valid file target first.
+            if (selectableFilePaths.has(hashPath) && activeFile !== hashPath) {
+                return;
+            }
+            // If we're still on summary while a file hash is present, keep the hash
+            // so selection can happen once file entries are ready.
+            if (activeFile === PR_SUMMARY_PATH && activeFile !== hashPath) {
+                return;
+            }
+        }
 
         const nextHash = showSettingsPanel
             ? undefined
@@ -305,7 +326,7 @@ export function useReviewFileHashSync({
 
         const nextUrl = `${window.location.pathname}${window.location.search}${nextHash ? `#${nextHash}` : ""}`;
         window.history.replaceState(window.history.state, "", nextUrl);
-    }, [activeFile, settingsPathSet, showSettingsPanel, suppressHashSyncRef]);
+    }, [activeFile, isFileSelectionReady, selectableFilePaths, settingsPathSet, showSettingsPanel, suppressHashSyncRef]);
 }
 
 export function useAllModeScrollSelection({

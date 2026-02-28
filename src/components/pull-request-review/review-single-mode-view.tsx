@@ -44,6 +44,7 @@ type ReviewSingleModeViewProps = {
     canCommentInline: boolean;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
+    updateCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     onCopyPath: (path: string) => void;
     areAllFilesViewed: boolean;
@@ -59,6 +60,7 @@ type ReviewSingleModeViewProps = {
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onReplyToThread: (commentId: number, content: string) => void;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
     onOpenDiffSettings: () => void;
     onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
     fileContextState: Record<string, DiffContextState>;
@@ -92,6 +94,7 @@ export function ReviewSingleModeView({
     canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    updateCommentPending,
     toRenderableFileDiff,
     onCopyPath,
     areAllFilesViewed,
@@ -107,6 +110,7 @@ export function ReviewSingleModeView({
     onDeleteComment,
     onResolveThread,
     onReplyToThread,
+    onEditComment,
     onOpenDiffSettings,
     onLoadFullFileContext,
     fileContextState,
@@ -232,6 +236,7 @@ export function ReviewSingleModeView({
                                 canCommentInline={canCommentInline && !selectedFileReadOnlyHistorical}
                                 canResolveThread={canResolveThread}
                                 resolveCommentPending={resolveCommentPending}
+                                updateCommentPending={updateCommentPending}
                                 getInlineDraftContent={getInlineDraftContent}
                                 setInlineDraftContent={setInlineDraftContent}
                                 onSubmitInlineComment={onSubmitInlineComment}
@@ -241,6 +246,7 @@ export function ReviewSingleModeView({
                                 onDeleteComment={onDeleteComment}
                                 onResolveThread={onResolveThread}
                                 onReplyToThread={onReplyToThread}
+                                onEditComment={onEditComment}
                             />
                         )}
                     />
@@ -259,10 +265,12 @@ export function ReviewSingleModeView({
                             canCommentInline={canCommentInline}
                             createCommentPending={createCommentPending}
                             resolveCommentPending={resolveCommentPending}
+                            updateCommentPending={updateCommentPending}
                             currentUserDisplayName={currentUserDisplayName}
                             onDeleteComment={onDeleteComment}
                             onResolveThread={onResolveThread}
                             onReplyToThread={onReplyToThread}
+                            onEditComment={onEditComment}
                         />
                     ))}
                 </div>

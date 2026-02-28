@@ -84,10 +84,12 @@ export function ReviewCommitScopeControl({
                                                 onToggleCommitSelection(option.hash);
                                             }}
                                         >
-                                            <div className="min-w-0 space-y-0.5">
-                                                <div className="flex items-center gap-2 text-[11px]">
-                                                    <span className={cn("font-mono", selected ? "text-foreground" : "text-foreground/90")}>{option.label}</span>
-                                                    <span className="text-muted-foreground">{option.timestamp}</span>
+                                            <div className="min-w-0 w-full space-y-0.5">
+                                                <div className="flex min-w-0 items-center gap-2 text-[11px]">
+                                                    <span className={cn("min-w-0 truncate font-mono", selected ? "text-foreground" : "text-foreground/90")}>
+                                                        {option.label}
+                                                    </span>
+                                                    <span className="ml-auto shrink-0 text-right tabular-nums text-muted-foreground">{option.timestamp}</span>
                                                 </div>
                                                 <div className="truncate text-[11px] text-muted-foreground">{option.message || "(no message)"}</div>
                                             </div>

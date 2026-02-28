@@ -48,6 +48,7 @@ type ReviewAllModeViewProps = {
     canCommentInline: boolean;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
+    updateCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     getSelectedVersionIdForPath: (path: string) => string | undefined;
     getVersionOptionsForPath: (path: string) => FileVersionSelectOption[];
@@ -69,6 +70,7 @@ type ReviewAllModeViewProps = {
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     onReplyToThread: (commentId: number, content: string) => void;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
     onDiffLineEnter: (props: OnDiffLineEnterLeaveProps, onOpenInlineDraft?: (target: InlineCommentLineTarget) => void) => void;
     onDiffLineLeave: (props: OnDiffLineEnterLeaveProps) => void;
     diffTypographyStyle: CSSProperties;
@@ -109,6 +111,7 @@ export function ReviewAllModeView({
     canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    updateCommentPending,
     toRenderableFileDiff,
     getSelectedVersionIdForPath,
     getVersionOptionsForPath,
@@ -127,6 +130,7 @@ export function ReviewAllModeView({
     onResolveThread,
     onHistoryCommentNavigate,
     onReplyToThread,
+    onEditComment,
     onDiffLineEnter,
     onDiffLineLeave,
     diffTypographyStyle,
@@ -321,6 +325,7 @@ export function ReviewAllModeView({
                                                     canCommentInline={canCommentInline && !readOnlyHistorical}
                                                     canResolveThread={canResolveThread}
                                                     resolveCommentPending={resolveCommentPending}
+                                                    updateCommentPending={updateCommentPending}
                                                     getInlineDraftContent={getInlineDraftContent}
                                                     setInlineDraftContent={setInlineDraftContent}
                                                     onSubmitInlineComment={onSubmitInlineComment}
@@ -330,6 +335,7 @@ export function ReviewAllModeView({
                                                     onDeleteComment={onDeleteComment}
                                                     onResolveThread={onResolveThread}
                                                     onReplyToThread={onReplyToThread}
+                                                    onEditComment={onEditComment}
                                                 />
                                             )}
                                         />

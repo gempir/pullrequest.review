@@ -1,4 +1,5 @@
-import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
+import { formatRecentTimestamp } from "@/components/pull-request-review/review-formatters";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
@@ -12,18 +13,9 @@ export type FileVersionSelectOption = {
     state?: "loading" | "error";
 };
 
-const commitDateFormatter = new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-});
-
 function formatCommitDate(commitDate?: string) {
     if (!commitDate) return null;
-    const parsed = new Date(commitDate);
-    if (Number.isNaN(parsed.getTime())) return null;
-    return commitDateFormatter.format(parsed);
+    return formatRecentTimestamp(commitDate);
 }
 
 export function FileVersionSelect({
@@ -63,7 +55,10 @@ export function FileVersionSelect({
                     <DropdownMenuItem
                         key={option.id}
                         disabled={option.state === "loading" || option.state === "error"}
-                        className="cursor-pointer rounded-none px-2 py-1.5 text-[11px] font-mono items-start"
+                        className={cn(
+                            "cursor-pointer rounded-none px-2 py-1.5 text-[11px] font-mono items-start",
+                            option.id === selected.id ? "bg-status-renamed/20 focus:bg-status-renamed/25" : "",
+                        )}
                         onSelect={(event) => {
                             if (option.state === "loading" || option.state === "error") {
                                 event.preventDefault();
@@ -73,13 +68,7 @@ export function FileVersionSelect({
                         }}
                     >
                         <span className="flex min-w-0 flex-1 items-start gap-2">
-                            {option.state === "loading" ? (
-                                <Loader2 className="mt-[1px] size-3 shrink-0 animate-spin text-muted-foreground" />
-                            ) : (
-                                <span className={cn("mt-[2px] inline-block w-2", option.unread ? "text-status-renamed" : "text-muted-foreground")}>
-                                    {option.unread ? "*" : " "}
-                                </span>
-                            )}
+                            {option.state === "loading" ? <Loader2 className="mt-[1px] size-3 shrink-0 animate-spin text-muted-foreground" /> : null}
                             <span className="min-w-0 flex-1">
                                 <span className="flex items-center gap-2">
                                     <span className="min-w-0 flex-1 truncate">
@@ -93,7 +82,6 @@ export function FileVersionSelect({
                                 {option.commitMessage ? <span className="block truncate text-[10px] text-muted-foreground">{option.commitMessage}</span> : null}
                             </span>
                         </span>
-                        {option.id === selected.id ? <Check className="mt-[1px] size-3.5 shrink-0 text-muted-foreground" /> : null}
                     </DropdownMenuItem>
                 ))}
             </DropdownMenuContent>

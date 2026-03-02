@@ -311,8 +311,9 @@ export function useReviewFileHashSync({
             if (!isFileSelectionReady && !selectableFilePaths.has(hashPath)) {
                 return;
             }
-            // Allow the hash-selection effect to apply a valid file target first.
-            if (selectableFilePaths.has(hashPath) && activeFile !== hashPath) {
+            // Allow the hash-selection effect to apply a valid file target first
+            // only while file selection has not been resolved yet.
+            if (selectableFilePaths.has(hashPath) && !activeFile) {
                 return;
             }
             // If we're still on summary while a file hash is present, keep the hash

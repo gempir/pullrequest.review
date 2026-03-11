@@ -98,11 +98,11 @@ function MarkdownBlock({ text }: { text: string }) {
 function Section({ title, children, headerRight }: { title: string; children: ReactNode; headerRight?: ReactNode }) {
     return (
         <section>
-            <div className="h-8 px-2.5 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <div className="app-card-header h-10 px-3 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
                 <span>{title}</span>
                 {headerRight ? <span className="ml-auto">{headerRight}</span> : null}
             </div>
-            <div className="p-2.5">{children}</div>
+            <div className="app-card p-3">{children}</div>
         </section>
     );
 }
@@ -207,7 +207,7 @@ export function PullRequestSummaryPanel({
     return (
         <div className="pr-diff-font" style={{ fontFamily: "var(--comment-font-family)" }}>
             {headerTitle ? (
-                <div className="h-10 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]" data-component="summary-header">
+                <div className="app-card-header h-11 px-3 flex items-center gap-2 overflow-hidden text-[12px]" data-component="summary-header">
                     <span className="size-4 flex items-center justify-center shrink-0">
                         <ScrollText className="size-3.5" />
                     </span>
@@ -221,9 +221,9 @@ export function PullRequestSummaryPanel({
                     {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
                 </div>
             ) : null}
-            <div className="p-2.5 space-y-2.5">
+            <div className="p-3 space-y-3">
                 <section>
-                    <div className="p-2.5">
+                    <div className="app-card p-3">
                         {pr.description?.trim() ? (
                             <MarkdownBlock text={pr.description} />
                         ) : (
@@ -254,10 +254,10 @@ export function PullRequestSummaryPanel({
                                             onClick={handleClick}
                                             disabled={!canNavigateToComment}
                                             className={cn(
-                                                "w-full rounded-md px-2.5 py-2 text-left",
+                                                "w-full rounded-[2px] px-2.5 py-2 text-left",
                                                 canNavigateToComment
-                                                    ? "bg-secondary/40 transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border"
-                                                    : "bg-secondary/30 cursor-default",
+                                                    ? "app-list-row transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
+                                                    : "app-card-muted cursor-default",
                                             )}
                                         >
                                             <div className="space-y-1.5">
@@ -287,7 +287,7 @@ export function PullRequestSummaryPanel({
                     <Section title="Commits">
                         {orderedCommits.length > 0 ? (
                             <div className="space-y-1.5">
-                                <div className="grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                <div className="grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-2 text-[10px] uppercase tracking-wide text-muted-foreground">
                                     <span>Author</span>
                                     <span>Commit</span>
                                     <span>Message</span>
@@ -300,7 +300,7 @@ export function PullRequestSummaryPanel({
                                         <div
                                             key={commit.hash}
                                             className={cn(
-                                                "grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 rounded-md bg-secondary/40 px-2 py-1.5 text-[11px]",
+                                                "grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 rounded-[2px] border border-subtle-border bg-muted/60 px-2 py-2 text-[11px]",
                                                 mergedDevelop ? "bg-status-added/10 text-muted-foreground opacity-70" : "",
                                             )}
                                         >

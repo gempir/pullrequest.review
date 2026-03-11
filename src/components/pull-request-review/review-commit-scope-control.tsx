@@ -42,22 +42,14 @@ export function ReviewCommitScopeControl({
         <div className="flex min-w-0 items-center gap-1">
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 min-w-[80px] justify-between border-0 bg-background px-2 text-[11px] focus-visible:ring-0"
-                    >
+                    <Button type="button" variant="ghost" size="sm" className="h-8 min-w-[96px] justify-between bg-card px-2.5 text-[11px]">
                         <span className="truncate">{scopeLabel}</span>
                         <GitCompare className="ml-1 size-3" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[430px] p-0">
+                <DropdownMenuContent align="start" className="w-[430px] p-1.5">
                     <DropdownMenuItem
-                        className={cn(
-                            "rounded-none px-2 py-2 border-t border-border/30 first:border-t-0 cursor-pointer",
-                            mode === "full" ? "bg-status-renamed/20 focus:bg-status-renamed/25" : "",
-                        )}
+                        className={cn("px-2 py-2 cursor-pointer", mode === "full" ? "bg-status-renamed/20 focus:bg-status-renamed/25" : "")}
                         onSelect={(event) => {
                             event.preventDefault();
                             onSetFullScope();
@@ -65,7 +57,7 @@ export function ReviewCommitScopeControl({
                     >
                         <div className="min-w-0 w-full text-[11px]">All Changes</div>
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator className="my-0" />
+                    <DropdownMenuSeparator className="my-1" />
                     {commitOptions.length > 0 ? (
                         <div className="max-h-[60vh] min-h-0 overflow-y-auto">
                             <div className="space-y-0">
@@ -76,7 +68,7 @@ export function ReviewCommitScopeControl({
                                         <DropdownMenuItem
                                             key={option.hash}
                                             className={cn(
-                                                "items-start gap-2 px-2 py-1 rounded-none border-t border-border/30 first:border-t-0 cursor-crosshair",
+                                                "items-start gap-2 px-2 py-2 cursor-crosshair",
                                                 selected ? "bg-status-renamed/20 focus:bg-status-renamed/25" : inRange ? "bg-muted/35 focus:bg-muted/45" : "",
                                             )}
                                             onSelect={(event) => {

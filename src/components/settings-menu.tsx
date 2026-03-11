@@ -1,6 +1,6 @@
 import { type FileDiffOptions, parsePatchFiles } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
-import { FileCode2, Files, RotateCcw, Settings2 } from "lucide-react";
+import { FileCode2, Files, MonitorCog, MoonStar, RotateCcw, Settings2, SunMedium } from "lucide-react";
 import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { DiffToolbar } from "@/components/diff-toolbar";
 import type { SettingsTab } from "@/components/settings-navigation";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { NumberStepperInput } from "@/components/ui/number-stepper-input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { APP_CHROME_THEMES } from "@/lib/app-chrome-themes";
 import { useAppearance } from "@/lib/appearance-context";
 import { clearExpiredDataNow, type DataCollectionsDebugSnapshot, getDataCollectionsDebugSnapshot, type StorageTier } from "@/lib/data/query-collections";
 import { getDetectedFontOptionFromValue, useDetectedMonospaceFontOptions } from "@/lib/detected-monospace-fonts";
@@ -168,7 +169,7 @@ function ShortcutsTab() {
 }
 
 function DiffSettingsTab({ workspaceMode, onWorkspaceModeChange }: { workspaceMode?: WorkspaceMode; onWorkspaceModeChange?: (mode: WorkspaceMode) => void }) {
-    const { options } = useDiffOptions();
+    const { options, setOption } = useDiffOptions();
     const { monospaceFontFamily, monospaceFontSize, monospaceLineHeight } = useAppearance();
     const previewFileDiff = useMemo(() => {
         const patches = parsePatchFiles(DIFF_PREVIEW_PATCH);
@@ -214,6 +215,42 @@ function DiffSettingsTab({ workspaceMode, onWorkspaceModeChange }: { workspaceMo
 
     return (
         <div className="space-y-2.5">
+            <div className="rounded-[2px] border border-border bg-card p-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                    <div className="space-y-1">
+                        <Label className="text-[12px] text-muted-foreground">Diff Syntax Theme</Label>
+                        <Select
+                            value={options.followSystemTheme ? "__system__" : options.theme}
+                            onValueChange={(value) => {
+                                if (value === "__system__") {
+                                    setOption("followSystemTheme", true);
+                                    return;
+                                }
+                                setOption("followSystemTheme", false);
+                                setOption("theme", value as DiffTheme);
+                            }}
+                        >
+                            <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-80">
+                                <SelectItem value="__system__" className="text-[12px]">
+                                    Follow browser preference (GitHub default)
+                                </SelectItem>
+                                {DIFF_THEMES.map((theme) => (
+                                    <SelectItem key={theme} value={theme} className="text-[12px]">
+                                        {theme}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="rounded-[2px] border border-border bg-muted/40 px-3 py-2.5 text-[12px] text-muted-foreground">
+                        Diff theme only affects syntax colors and diff rendering. App chrome colors are controlled in Appearance.
+                    </div>
+                </div>
+            </div>
+
             {workspaceMode && onWorkspaceModeChange && (
                 <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2">
@@ -258,12 +295,14 @@ function DiffSettingsTab({ workspaceMode, onWorkspaceModeChange }: { workspaceMo
 
 function AppearanceTab() {
     const {
+        appChromeThemeId,
         sansFontFamily,
         monospaceFontFamily,
         sansFontSize,
         sansLineHeight,
         monospaceFontSize,
         monospaceLineHeight,
+        setAppChromeThemeId,
         setSansFontFamily,
         setMonospaceFontFamily,
         setSansFontSize,
@@ -278,38 +317,30 @@ function AppearanceTab() {
         const fallback = getDetectedFontOptionFromValue(monospaceFontFamily);
         return fallback ? [...detectedMonospaceFonts, fallback] : detectedMonospaceFonts;
     }, [detectedMonospaceFonts, monospaceFontFamily]);
-    const { options, setOption } = useDiffOptions();
-    const appThemeValue = options.followSystemTheme ? "__system__" : options.theme;
 
     return (
         <div className="space-y-3 max-w-3xl">
-            <div className="space-y-1">
-                <Label className="text-[12px] text-muted-foreground">Theme</Label>
-                <Select
-                    value={appThemeValue}
-                    onValueChange={(value) => {
-                        if (value === "__system__") {
-                            setOption("followSystemTheme", true);
-                            return;
-                        }
-                        setOption("followSystemTheme", false);
-                        setOption("theme", value as DiffTheme);
-                    }}
-                >
-                    <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-80">
-                        <SelectItem value="__system__" className="text-[12px]">
-                            Detect browser preference (github dark/light default)
-                        </SelectItem>
-                        {DIFF_THEMES.map((theme) => (
-                            <SelectItem key={theme} value={theme} className="text-[12px]">
-                                {theme}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+            <div className="rounded-[2px] border border-border bg-card p-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                    <div className="space-y-3">
+                        <div className="space-y-1">
+                            <Label className="text-[12px] text-muted-foreground">App Theme</Label>
+                            <Select value={appChromeThemeId} onValueChange={(value) => setAppChromeThemeId(value as (typeof APP_CHROME_THEMES)[number]["id"])}>
+                                <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {APP_CHROME_THEMES.map((theme) => (
+                                        <SelectItem key={theme.id} value={theme.id} className="text-[12px]">
+                                            {theme.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <ChromeThemePreview themeId={appChromeThemeId} />
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-3xl">
@@ -405,6 +436,43 @@ function AppearanceTab() {
                             {
                                 'const previewId = "A1B2C3";\nconst longLine = "monospace preview long line for wrapping and spacing checks in settings panel output with detailed identifiers and timestamps";\nreturn previewId + " " + longLine;'
                             }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ChromeThemePreview({ themeId }: { themeId: (typeof APP_CHROME_THEMES)[number]["id"] }) {
+    const titleIcon =
+        themeId === "paper" ? <SunMedium className="size-4" /> : themeId === "system" ? <MonitorCog className="size-4" /> : <MoonStar className="size-4" />;
+    const metaLabel = themeId === "system" ? "matches system" : themeId === "paper" ? "light theme" : "dark theme";
+
+    return (
+        <div className="rounded-[2px] border border-border bg-background p-3">
+            <div className="rounded-[2px] border border-border bg-card overflow-hidden">
+                <div className="flex h-10 items-center gap-2 border-b border-border bg-chrome px-3 text-[12px]">
+                    {titleIcon}
+                    <span className="font-medium text-foreground">Chrome preview</span>
+                    <span className="ml-auto text-muted-foreground">{metaLabel}</span>
+                </div>
+                <div className="grid gap-3 p-3">
+                    <div className="rounded-[2px] border border-border bg-panel px-3 py-2.5">
+                        <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                            <span className="font-medium text-foreground">Readable title</span>
+                            <span className="ml-auto">Feb 28, 2026</span>
+                        </div>
+                        <p className="mt-2 text-[14px] leading-relaxed text-foreground">
+                            Comments, summaries, and wrapped metadata should remain easy to scan without relying on pure-black slabs.
+                        </p>
+                    </div>
+                    <div className="grid gap-2">
+                        <div className="rounded-[2px] border border-border bg-elevated px-3 py-2 text-[12px] text-foreground">
+                            Selected row with stronger separation
+                        </div>
+                        <div className="rounded-[2px] border border-border/70 bg-muted px-3 py-2 text-[12px] text-muted-foreground">
+                            Secondary row for history, commits, and settings groups
                         </div>
                     </div>
                 </div>
@@ -717,7 +785,7 @@ function SettingsPanelHeader({ onClose, onResetAllSettings }: { onClose?: () => 
     const hasActions = Boolean(onClose || onResetAllSettings);
 
     return (
-        <div className="h-10 px-2.5 bg-chrome flex items-center gap-2">
+        <div className="app-card-header h-11 px-3 flex items-center gap-2">
             <div className="text-[12px] font-medium flex items-center gap-2 w-full">
                 <Settings2 className="size-4" />
                 Settings
@@ -768,7 +836,7 @@ export function SettingsPanelContentOnly({ workspaceMode, onWorkspaceModeChange,
     return (
         <div className="h-full min-h-0 flex flex-col">
             <SettingsPanelHeader onClose={onClose} onResetAllSettings={resetAllSettings} />
-            <div className="flex-1 px-3 py-2.5 overflow-auto">
+            <div className="flex-1 overflow-auto bg-panel px-3 py-3">
                 <SettingsPanelContent workspaceMode={workspaceMode} onWorkspaceModeChange={onWorkspaceModeChange} activeTab={resolvedActiveTab} />
             </div>
         </div>

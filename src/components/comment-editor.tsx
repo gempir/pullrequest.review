@@ -71,9 +71,9 @@ export function CommentEditor({
     }, [editor, onReady]);
 
     return (
-        <div className="bg-background">
+        <div className="rounded-[2px] border border-subtle-border bg-card">
             <Plate editor={editor} onChange={({ value: nextValue }) => onChange(valueToText(nextValue))}>
-                <div className="flex items-center gap-1 px-1.5 py-1">
+                <div className="flex items-center gap-1 border-b border-subtle-border bg-muted/60 px-1.5 py-1.5">
                     <Button
                         type="button"
                         variant="ghost"
@@ -170,7 +170,7 @@ export function CommentEditor({
                             onSubmit();
                         }
                     }}
-                    className="block h-[3.5rem] w-full overflow-y-auto px-3 py-2 text-[13px] leading-relaxed transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 whitespace-pre-wrap break-words [&_p]:m-0"
+                    className="block h-[4.25rem] w-full overflow-y-auto px-3 py-2.5 text-[14px] leading-relaxed transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 whitespace-pre-wrap break-words [&_p]:m-0"
                 />
             </Plate>
         </div>

@@ -234,11 +234,11 @@ function DirectoryNode({
             <button
                 type="button"
                 className={cn(
-                    "group w-full min-w-0 flex items-center gap-3 py-1 text-left",
-                    "hover:bg-sidebar/70 active:bg-sidebar/90 transition-colors cursor-pointer",
-                    isActive ? "bg-sidebar text-foreground" : "text-muted-foreground",
+                    "group w-full min-w-0 flex items-center gap-3 rounded-[2px] py-1.5 text-left transition-colors cursor-pointer",
+                    "hover:bg-sidebar-accent/85 active:bg-sidebar-accent",
+                    isActive ? "bg-sidebar-accent text-foreground shadow-[inset_0_0_0_1px_var(--border-default)]" : "text-muted-foreground",
                 )}
-                style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
+                style={{ paddingLeft: `${8 + level * treeIndentSize}px`, paddingRight: "8px" }}
                 onClick={() => {
                     const handled = onDirectoryClick?.(displayNode);
                     if (handled) return;
@@ -249,7 +249,7 @@ function DirectoryNode({
                 <span className={cn("relative size-4 flex items-center justify-center shrink-0 text-muted-foreground")}>
                     <span className="group-hover:hidden">
                         {isRepositoryNode ? (
-                            <span className="inline-flex h-4 min-w-[14px] items-center justify-center rounded border border-border bg-secondary px-0.5 text-[9px] leading-none text-muted-foreground">
+                            <span className="inline-flex h-4 min-w-[14px] items-center justify-center rounded border border-subtle-border bg-muted px-0.5 text-[9px] leading-none text-muted-foreground">
                                 {pullRequestCount}
                             </span>
                         ) : host ? (
@@ -269,7 +269,7 @@ function DirectoryNode({
             </button>
             {expanded && (
                 <div className="relative">
-                    <div className="absolute top-0 bottom-0 w-px bg-border opacity-30" style={{ left: `${4 + level * treeIndentSize + 8}px` }} />
+                    <div className="absolute top-0 bottom-0 w-px bg-subtle-border opacity-70" style={{ left: `${8 + level * treeIndentSize + 8}px` }} />
                     <FileTree
                         path={displayNode.path}
                         level={level + 1}
@@ -322,11 +322,11 @@ const FileNodeRow = memo(function FileNodeRow({
             type="button"
             data-tree-path={node.path}
             className={cn(
-                "w-full min-w-0 flex items-center gap-3 py-1 text-left",
-                "hover:bg-sidebar/70 active:bg-sidebar/90 transition-colors cursor-pointer",
-                isActive ? "bg-sidebar text-foreground" : "text-muted-foreground",
+                "w-full min-w-0 flex items-center gap-3 rounded-[2px] py-1.5 text-left transition-colors cursor-pointer",
+                "hover:bg-sidebar-accent/85 active:bg-sidebar-accent",
+                isActive ? "bg-sidebar-accent text-foreground shadow-[inset_0_0_0_1px_var(--border-default)]" : "text-muted-foreground",
             )}
-            style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
+            style={{ paddingLeft: `${8 + level * treeIndentSize}px`, paddingRight: "8px" }}
             onClick={() => {
                 tree.setActiveFile(node.path);
                 onFileClick?.(node);

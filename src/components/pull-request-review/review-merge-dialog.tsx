@@ -38,11 +38,11 @@ export function ReviewMergeDialog({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-lg p-0">
-                <div className="h-10 border-b border-border bg-card px-2.5 pr-12 flex items-center">
-                    <DialogTitle className="text-[12px] font-medium leading-none">Merge pull request</DialogTitle>
+                <div className="app-card-header h-11 px-3 pr-12 flex items-center">
+                    <DialogTitle className="text-[13px] font-medium leading-none">Merge pull request</DialogTitle>
                 </div>
 
-                <div className="space-y-3 px-2.5 py-3 text-[12px]">
+                <div className="space-y-4 px-3 py-3.5 text-[12px]">
                     <div className="space-y-1.5">
                         <Label htmlFor="merge-strategy" className="text-[11px] uppercase tracking-wide text-muted-foreground">
                             Merge strategy
@@ -84,14 +84,14 @@ export function ReviewMergeDialog({
                         />
                     </div>
 
-                    <div className="flex items-center gap-2 border border-border px-2 py-1.5">
+                    <div className="rounded-[2px] border border-border bg-muted/45 px-3 py-2">
                         <Switch checked={closeSourceBranch} onCheckedChange={onCloseSourceBranchChange} id="close-branch" size="sm" />
                         <Label htmlFor="close-branch" className="text-[12px]">
                             Close source branch
                         </Label>
                     </div>
 
-                    <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+                    <div className="flex items-center justify-end gap-2 border-t border-subtle-border pt-3">
                         <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
                             <X className="size-4" />
                             Cancel

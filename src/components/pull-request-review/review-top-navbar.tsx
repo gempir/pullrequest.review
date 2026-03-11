@@ -79,11 +79,11 @@ export function ReviewTopNavbar({
     const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
 
     return (
-        <div className="h-11 bg-chrome px-1.5 flex items-center gap-3" style={{ fontFamily: "var(--comment-font-family)" }} data-component="navbar">
+        <div className="h-11 bg-chrome px-2.5 flex items-center gap-3" style={{ fontFamily: "var(--comment-font-family)" }} data-component="navbar">
             {loading ? (
                 <>
                     {treeCollapsed ? (
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={onExpandTree} aria-label="Expand file tree">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={onExpandTree} aria-label="Expand file tree">
                             <PanelLeftOpen className="size-3.5" />
                         </Button>
                     ) : null}
@@ -91,9 +91,9 @@ export function ReviewTopNavbar({
                 </>
             ) : (
                 <div className="flex h-full w-full items-stretch justify-between">
-                    <div className="min-w-0 flex h-full items-center gap-2 text-[11px] text-muted-foreground">
+                    <div className="min-w-0 flex h-full items-center gap-2.5 text-[11px] text-muted-foreground">
                         {treeCollapsed ? (
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={onExpandTree} aria-label="Expand file tree">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={onExpandTree} aria-label="Expand file tree">
                                 <PanelLeftOpen className="size-3.5" />
                             </Button>
                         ) : null}
@@ -105,7 +105,7 @@ export function ReviewTopNavbar({
                                 variant="ghost"
                                 size="sm"
                                 className={cn(
-                                    "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 p-0 transition-opacity bg-chrome/95",
+                                    "absolute right-0 top-1/2 h-6 w-6 -translate-y-1/2 p-0 transition-opacity bg-chrome/95",
                                     copiedSourceBranch
                                         ? "opacity-100"
                                         : "opacity-0 pointer-events-none group-hover/source:opacity-100 group-hover/source:pointer-events-auto group-focus-within/source:opacity-100 group-focus-within/source:pointer-events-auto",
@@ -118,21 +118,18 @@ export function ReviewTopNavbar({
                         </div>
                         <span>-&gt;</span>
                         <span className="max-w-[180px] truncate text-foreground">{destinationBranch}</span>
-                        <span className={cn("px-1.5 py-0.5 border uppercase text-[10px] rounded", navbarStateClass(navbarState))}>{navbarState}</span>
-                        <span className="truncate">{navbarStatusDate}</span>
+                        <span className={cn("px-2 py-1 border uppercase text-[10px] tracking-wide rounded-[2px]", navbarStateClass(navbarState))}>
+                            {navbarState}
+                        </span>
+                        <span className="truncate text-muted-foreground">{navbarStatusDate}</span>
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 
-                    <div className="ml-2 -mr-1.5 flex h-full shrink-0">
+                    <div className="ml-2 flex h-full shrink-0 items-center gap-1">
                         {pullRequestUrl ? (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button
-                                        asChild
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-full w-10 rounded-none border-0 px-0 bg-chrome text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-0"
-                                    >
+                                    <Button asChild variant="ghost" size="sm" className="h-8 w-8 p-0">
                                         <a
                                             href={pullRequestUrl}
                                             target="_blank"
@@ -151,9 +148,7 @@ export function ReviewTopNavbar({
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className={cn(
-                                        "h-full min-w-24 rounded-none border-0 border-transparent px-3 bg-chrome text-foreground hover:bg-secondary data-[state=open]:bg-secondary hover:border-transparent focus-visible:outline-none focus-visible:ring-0",
-                                    )}
+                                    className={cn("h-8 min-w-24 px-3 data-[state=open]:bg-accent")}
                                     disabled={actionBusy}
                                     aria-label="Pull request actions"
                                 >
@@ -170,7 +165,7 @@ export function ReviewTopNavbar({
                                     )}
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" side="bottom" sideOffset={0}>
+                            <DropdownMenuContent align="end" side="bottom" sideOffset={4}>
                                 <DropdownMenuItem
                                     className={cn(
                                         "cursor-pointer py-2 text-[13px]",
@@ -233,13 +228,13 @@ export function ReviewTopNavbar({
 
 function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: PullRequestBuildStatus[]; isRefreshing: boolean }) {
     return (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
             {buildStatuses.length > 3 ? (
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <span
                             className={cn(
-                                "inline-flex h-6 min-w-10 px-1.5 items-center justify-center rounded-full border text-[10px] leading-none font-medium",
+                                "inline-flex h-7 min-w-11 px-2 items-center justify-center rounded-full border text-[10px] leading-none font-medium",
                                 buildStatusBubbleClass(aggregateBuildState(buildStatuses)),
                             )}
                         >
@@ -260,7 +255,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                                     ) : (
                                         <Minus className="size-3" />
                                     );
-                                const rowClass = "flex items-center gap-2 w-full rounded px-1.5 py-1";
+                                const rowClass = "flex items-center gap-2 w-full rounded-[2px] px-1.5 py-1.5";
                                 if (build.url) {
                                     return (
                                         <a
@@ -326,7 +321,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                                         href={build.url}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="flex items-center gap-2 w-full rounded px-1.5 py-1 hover:bg-accent cursor-pointer"
+                                        className="flex items-center gap-2 w-full rounded-[2px] px-1.5 py-1.5 hover:bg-accent cursor-pointer"
                                     >
                                         <span
                                             className={cn(
@@ -340,7 +335,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                                         <span className="truncate text-foreground">{build.name}</span>
                                     </a>
                                 ) : (
-                                    <div className="flex items-center gap-2 w-full rounded px-1.5 py-1">
+                                    <div className="flex items-center gap-2 w-full rounded-[2px] px-1.5 py-1.5">
                                         <span
                                             className={cn(
                                                 "inline-flex size-4 items-center justify-center rounded-full border",

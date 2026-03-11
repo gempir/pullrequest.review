@@ -1,11 +1,10 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import type { AppChromeThemeId } from "@/lib/app-chrome-themes";
 import { ensureDataCollectionsReady, readAppearanceSettingsRecord, writeAppearanceSettingsRecord } from "@/lib/data/query-collections";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue, fontFamilyToCss } from "@/lib/font-options";
 
-type AppThemeMode = "auto" | "light" | "dark";
-
 type AppearanceSettings = {
-    appThemeMode: AppThemeMode;
+    appChromeThemeId: AppChromeThemeId;
     sansFontFamily: FontFamilyValue;
     monospaceFontFamily: FontFamilyValue;
     sansFontSize: number;
@@ -19,7 +18,7 @@ type AppearanceSettings = {
 };
 
 type AppearanceContextValue = AppearanceSettings & {
-    setAppThemeMode: (mode: AppThemeMode) => void;
+    setAppChromeThemeId: (themeId: AppChromeThemeId) => void;
     setSansFontFamily: (font: FontFamilyValue) => void;
     setMonospaceFontFamily: (font: FontFamilyValue) => void;
     setSansFontSize: (size: number) => void;
@@ -34,17 +33,17 @@ type AppearanceContextValue = AppearanceSettings & {
 };
 
 const defaultAppearance: AppearanceSettings = {
-    appThemeMode: "auto",
+    appChromeThemeId: "system",
     sansFontFamily: "geist-sans",
     monospaceFontFamily: DEFAULT_FONT_FAMILY,
-    sansFontSize: 14,
-    sansLineHeight: 1.25,
-    monospaceFontSize: 13,
-    monospaceLineHeight: 1.25,
+    sansFontSize: 15,
+    sansLineHeight: 1.5,
+    monospaceFontSize: 14,
+    monospaceLineHeight: 1.45,
     treeUseCustomTypography: false,
     treeFontFamily: "geist-sans",
-    treeFontSize: 12,
-    treeLineHeight: 1.45,
+    treeFontSize: 13,
+    treeLineHeight: 1.5,
 };
 
 const AppearanceContext = createContext<AppearanceContextValue | null>(null);
@@ -78,20 +77,27 @@ function deriveTreeLineHeight(treeUseCustomTypography: boolean, treeLineHeight: 
 
 function parseStoredSettings(raw: Record<string, unknown> | null): AppearanceSettings | null {
     if (!raw) return null;
-    const appThemeMode =
-        raw.appThemeMode === "light" || raw.appThemeMode === "dark" || raw.appThemeMode === "auto" ? raw.appThemeMode : defaultAppearance.appThemeMode;
+    const hasStoredThemeId = raw.appChromeThemeId === "system" || raw.appChromeThemeId === "paper" || raw.appChromeThemeId === "graphite";
+    const legacyThemeMode = raw.appThemeMode === "light" || raw.appThemeMode === "dark" || raw.appThemeMode === "auto" ? raw.appThemeMode : null;
+    const appChromeThemeId: AppChromeThemeId = hasStoredThemeId
+        ? (raw.appChromeThemeId as AppChromeThemeId)
+        : legacyThemeMode === "light"
+          ? "paper"
+          : legacyThemeMode === "dark"
+            ? "graphite"
+            : defaultAppearance.appChromeThemeId;
 
     return {
-        appThemeMode,
+        appChromeThemeId: legacyThemeMode === "auto" ? "system" : appChromeThemeId,
         sansFontFamily: (raw.sansFontFamily as FontFamilyValue) ?? defaultAppearance.sansFontFamily,
         monospaceFontFamily: (raw.monospaceFontFamily as FontFamilyValue) ?? defaultAppearance.monospaceFontFamily,
-        sansFontSize: normalizeFontSize(Number(raw.sansFontSize ?? defaultAppearance.sansFontSize), 11, 20),
+        sansFontSize: normalizeFontSize(Number(raw.sansFontSize ?? defaultAppearance.sansFontSize), 12, 20),
         sansLineHeight: normalizeLineHeight(Number(raw.sansLineHeight ?? defaultAppearance.sansLineHeight), 1, 2.2),
-        monospaceFontSize: normalizeFontSize(Number(raw.monospaceFontSize ?? defaultAppearance.monospaceFontSize), 11, 20),
+        monospaceFontSize: normalizeFontSize(Number(raw.monospaceFontSize ?? defaultAppearance.monospaceFontSize), 12, 20),
         monospaceLineHeight: normalizeLineHeight(Number(raw.monospaceLineHeight ?? defaultAppearance.monospaceLineHeight), 1, 2.2),
         treeUseCustomTypography: typeof raw.treeUseCustomTypography === "boolean" ? raw.treeUseCustomTypography : defaultAppearance.treeUseCustomTypography,
         treeFontFamily: (raw.treeFontFamily as FontFamilyValue) ?? defaultAppearance.treeFontFamily,
-        treeFontSize: normalizeFontSize(Number(raw.treeFontSize ?? defaultAppearance.treeFontSize), 10, 18),
+        treeFontSize: normalizeFontSize(Number(raw.treeFontSize ?? defaultAppearance.treeFontSize), 11, 18),
         treeLineHeight: normalizeLineHeight(Number(raw.treeLineHeight ?? defaultAppearance.treeLineHeight), 1, 2.2),
     };
 }
@@ -159,29 +165,24 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
         const media = window.matchMedia("(prefers-color-scheme: dark)");
 
         const applyTheme = () => {
+            const effectiveThemeId: Exclude<AppChromeThemeId, "system"> =
+                settings.appChromeThemeId === "system" ? (media.matches ? "graphite" : "paper") : settings.appChromeThemeId;
             root.classList.remove("light", "dark");
-            if (settings.appThemeMode === "light") {
-                root.classList.add("light");
-                return;
-            }
-            if (settings.appThemeMode === "dark") {
-                root.classList.add("dark");
-                return;
-            }
-            root.classList.add(media.matches ? "dark" : "light");
+            root.classList.add(effectiveThemeId === "paper" ? "light" : "dark");
+            root.dataset.chromeTheme = effectiveThemeId;
         };
 
         applyTheme();
         const onChange = () => {
-            if (settings.appThemeMode !== "auto") return;
+            if (settings.appChromeThemeId !== "system") return;
             applyTheme();
         };
         media.addEventListener("change", onChange);
         return () => media.removeEventListener("change", onChange);
-    }, [settings.appThemeMode]);
+    }, [settings.appChromeThemeId]);
 
-    const setAppThemeMode = useCallback((mode: AppThemeMode) => {
-        setSettings((prev) => ({ ...prev, appThemeMode: mode }));
+    const setAppChromeThemeId = useCallback((themeId: AppChromeThemeId) => {
+        setSettings((prev) => ({ ...prev, appChromeThemeId: themeId }));
     }, []);
     const setSansFontFamily = useCallback((font: FontFamilyValue) => {
         setSettings((prev) => ({ ...prev, sansFontFamily: font }));
@@ -238,7 +239,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     const value = useMemo<AppearanceContextValue>(
         () => ({
             ...settings,
-            setAppThemeMode,
+            setAppChromeThemeId,
             setSansFontFamily,
             setMonospaceFontFamily,
             setSansFontSize,
@@ -253,7 +254,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
         }),
         [
             settings,
-            setAppThemeMode,
+            setAppChromeThemeId,
             setSansFontFamily,
             setMonospaceFontFamily,
             setSansFontSize,

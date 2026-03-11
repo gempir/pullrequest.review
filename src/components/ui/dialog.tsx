@@ -15,7 +15,7 @@ function DialogPortal({ ...props }: React.ComponentProps<typeof DialogPrimitive.
 }
 
 function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
-    return <DialogPrimitive.Overlay data-slot="dialog-overlay" className={cn("fixed inset-0 z-50 bg-overlay/70", className)} {...props} />;
+    return <DialogPrimitive.Overlay data-slot="dialog-overlay" className={cn("fixed inset-0 z-50 bg-overlay/55 backdrop-blur-[2px]", className)} {...props} />;
 }
 
 function DialogContent({ className, children, ...props }: React.ComponentProps<typeof DialogPrimitive.Content>) {
@@ -25,13 +25,13 @@ function DialogContent({ className, children, ...props }: React.ComponentProps<t
             <DialogPrimitive.Content
                 data-slot="dialog-content"
                 className={cn(
-                    "bg-background border border-border fixed left-[50%] top-[50%] z-50 grid w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] shadow-lg",
+                    "fixed left-[50%] top-[50%] z-50 grid w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] rounded-[4px] border border-border bg-popover shadow-[var(--shadow-floating)]",
                     className,
                 )}
                 {...props}
             >
                 {children}
-                <DialogPrimitive.Close className="absolute right-4 top-4 opacity-70 hover:opacity-100 focus:outline-none disabled:pointer-events-none">
+                <DialogPrimitive.Close className="absolute right-4 top-4 rounded-[2px] border border-transparent p-1 opacity-70 hover:bg-accent hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/35 disabled:pointer-events-none">
                     <X className="h-4 w-4" />
                     <span className="sr-only">Close</span>
                 </DialogPrimitive.Close>
@@ -41,7 +41,7 @@ function DialogContent({ className, children, ...props }: React.ComponentProps<t
 }
 
 function DialogTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
-    return <DialogPrimitive.Title data-slot="dialog-title" className={cn("text-lg font-semibold leading-none tracking-tight", className)} {...props} />;
+    return <DialogPrimitive.Title data-slot="dialog-title" className={cn("text-base font-semibold leading-none tracking-tight", className)} {...props} />;
 }
 
 export { Dialog, DialogContent, DialogTitle };

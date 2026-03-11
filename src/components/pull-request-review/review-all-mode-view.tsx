@@ -166,7 +166,7 @@ export function ReviewAllModeView({
         <div className="w-full max-w-full" data-component="diff-list-view" style={{ paddingBottom: diffListBottomPadding }}>
             {prData ? (
                 <div id={fileAnchorId(PR_SUMMARY_PATH)} className={cn("w-full max-w-full", isSummaryCollapsedInAllMode && "border-b-0")}>
-                    <div className={cn("group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
+                    <div className={cn("app-card-header group sticky top-0 z-20 h-11 min-w-0 px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
                         <button type="button" className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden text-left" onClick={onToggleSummaryCollapsed}>
                             <span className="size-4 flex items-center justify-center shrink-0">
                                 <ScrollText className="size-3.5" />
@@ -234,8 +234,12 @@ export function ReviewAllModeView({
 
                 return (
                     <div key={filePath} ref={rowVirtualizer.measureElement} data-index={virtualRow.index}>
-                        <div id={fileAnchorId(filePath)} className={cn("w-full max-w-full bg-card", isCollapsed && "border-b-0")}>
-                            <div className={cn("group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
+                        <div id={fileAnchorId(filePath)} className={cn("app-card w-full max-w-full", isCollapsed && "border-b-0")}>
+                            <div
+                                className={cn(
+                                    "app-card-header group sticky top-0 z-20 h-11 min-w-0 px-2.5 flex items-center gap-2 overflow-hidden text-[12px]",
+                                )}
+                            >
                                 <div className="min-w-0 flex flex-1 items-center gap-2">
                                     <button
                                         type="button"
@@ -281,7 +285,11 @@ export function ReviewAllModeView({
                                         onViewModeChange={onWorkspaceModeChange}
                                         onOpenDiffSettings={onOpenDiffSettings}
                                     />
-                                    <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(filePath)}>
+                                    <button
+                                        type="button"
+                                        className="flex items-center text-muted-foreground transition-colors hover:text-foreground"
+                                        onClick={() => onToggleViewed(filePath)}
+                                    >
                                         <span
                                             className={
                                                 selectedVersionUnread
@@ -343,9 +351,7 @@ export function ReviewAllModeView({
                                             )}
                                         />
                                     ) : (
-                                        <div className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">
-                                            Loading syntax highlighting...
-                                        </div>
+                                        <div className="app-empty-state w-full p-3 text-[12px] text-muted-foreground">Loading syntax highlighting...</div>
                                     )}
                                 </div>
                             ) : null}
@@ -356,7 +362,7 @@ export function ReviewAllModeView({
             {paddingBottom > 0 ? <div style={{ height: paddingBottom }} /> : null}
 
             {allModeDiffEntries.length === 0 ? (
-                <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">No files match the current search.</div>
+                <div className="app-empty-state p-8 text-center text-muted-foreground text-[13px]">No files match the current search.</div>
             ) : null}
         </div>
     );

@@ -45,7 +45,7 @@ export function SidebarTopControls({
     );
 
     return (
-        <div data-component="top-sidebar" className="h-11 px-2 bg-chrome flex items-center gap-1">
+        <div data-component="top-sidebar" className="h-11 px-2.5 bg-chrome flex items-center gap-1.5">
             <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onHome} aria-label="Home">
                 <House className="size-3.5" />
             </Button>
@@ -85,7 +85,7 @@ export function SidebarTopControls({
                 <TooltipContent side="bottom" className="max-w-[360px] p-2 text-[11px]">
                     {activeFetches.length === 0 && <div>Refresh</div>}
                     {activeFetches.map((fetch) => (
-                        <div key={fetch.scopeId} className="px-2 py-1 border-b border-border/40 last:border-b-0">
+                        <div key={fetch.scopeId} className="px-2 py-1.5 border-b border-subtle-border last:border-b-0">
                             <div className="text-foreground">{fetch.label}</div>
                             <div className="text-muted-foreground">{`Running for ${fetch.elapsedSeconds}s`}</div>
                         </div>

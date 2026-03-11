@@ -47,9 +47,9 @@ function SettingsRoute() {
                     settingsActive
                 />
 
-                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-chrome flex items-center gap-2">
+                <div data-component="search-sidebar" className="h-10 px-2 bg-chrome flex items-center gap-2">
                     <Input
-                        className="h-7 text-[12px] border-0 focus-visible:ring-0"
+                        className="h-8 text-[12px]"
                         placeholder="search settings"
                         value={searchQuery}
                         onChange={(event) => setSearchQuery(event.target.value)}

@@ -39,7 +39,7 @@ export function FileVersionSelect({
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    className="h-7 min-w-[110px] max-w-[190px] border-0 bg-background px-2 text-[11px] font-mono flex items-center gap-1.5 outline-none transition-colors hover:bg-secondary data-[state=open]:bg-secondary focus-visible:ring-0"
+                    className="h-8 min-w-[118px] max-w-[190px] rounded-[2px] border border-border bg-card px-2.5 text-[11px] font-mono flex items-center gap-1.5 outline-none transition-colors hover:border-strong-border hover:bg-accent data-[state=open]:bg-accent focus-visible:ring-2 focus-visible:ring-ring/35"
                     aria-label="Select file version"
                 >
                     {isLoadingHistory ? <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" /> : null}
@@ -50,13 +50,13 @@ export function FileVersionSelect({
                     <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="bottom" align="start" sideOffset={4} className="w-[26rem] max-h-[min(70vh,32rem)] overflow-y-auto p-0">
+            <DropdownMenuContent side="bottom" align="start" sideOffset={4} className="w-[26rem] max-h-[min(70vh,32rem)] overflow-y-auto p-1.5">
                 {options.map((option) => (
                     <DropdownMenuItem
                         key={option.id}
                         disabled={option.state === "loading" || option.state === "error"}
                         className={cn(
-                            "cursor-pointer rounded-none px-2 py-1.5 text-[11px] font-mono items-start",
+                            "cursor-pointer px-2 py-2 text-[11px] font-mono items-start",
                             option.id === selected.id ? "bg-status-renamed/20 focus:bg-status-renamed/25" : "",
                         )}
                         onSelect={(event) => {

@@ -16,7 +16,6 @@ import type { GitHost } from "@/lib/git-host/types";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
 import { appQueryClient } from "@/lib/query-client";
 import { ensureLongTaskObserver } from "@/lib/review-performance/metrics";
-import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
 
 import "../../styles.css";
@@ -33,14 +32,14 @@ function NotFoundComponent() {
     return (
         <div className="h-full overflow-auto bg-background">
             <div className="min-h-full flex items-center justify-center p-4">
-                <div className="bg-card p-6 max-w-md">
+                <div className="app-card p-6 max-w-md">
                     <div className="pb-3 mb-4">
                         <h1 className="text-lg font-semibold">[ERROR] 404</h1>
                     </div>
                     <p className="text-muted-foreground mb-4">Page not found.</p>
                     <Link
                         to="/"
-                        className="inline-flex items-center gap-2 h-8 px-4 bg-foreground text-background hover:bg-background hover:text-foreground transition-colors text-[13px]"
+                        className="inline-flex items-center gap-2 h-9 px-4 bg-foreground text-background hover:bg-background hover:text-foreground transition-colors text-[13px]"
                     >
                         cd ~
                     </Link>
@@ -62,7 +61,6 @@ function RootComponent() {
                 <AppearanceProvider>
                     <PrProvider>
                         <DiffOptionsProvider>
-                            <ShikiAppThemeSync />
                             <FileTreeProvider>
                                 <ShortcutsProvider>
                                     <AppLayout />
@@ -92,7 +90,7 @@ function OnboardingScreen() {
                         navigate({ to: "/settings" });
                     }}
                 />
-                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-chrome flex items-center">
+                <div data-component="search-sidebar" className="h-10 px-2 bg-chrome flex items-center">
                     <span className="text-[11px] text-muted-foreground px-1">Select host</span>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto" data-component="tree">
@@ -100,8 +98,8 @@ function OnboardingScreen() {
                         <button
                             key={host}
                             type="button"
-                            className={`w-full flex items-center gap-2 px-2 py-1 text-left text-[12px] hover:bg-accent ${
-                                activeHost === host ? "bg-accent text-foreground" : "text-muted-foreground"
+                            className={`mx-2 my-1 flex w-auto items-center gap-2 rounded-[2px] px-3 py-2 text-left text-[12px] transition-colors hover:bg-accent ${
+                                activeHost === host ? "border border-border bg-accent text-foreground" : "text-muted-foreground"
                             }`}
                             onClick={() => {
                                 setActiveHost(host);

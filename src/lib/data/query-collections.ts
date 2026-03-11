@@ -45,7 +45,7 @@ type AppPreferenceRecord = BaseCollectionRecord & {
 
 type AppearanceSettingsRecord = BaseCollectionRecord & {
     id: typeof APPEARANCE_RECORD_ID;
-    appThemeMode: "auto" | "light" | "dark";
+    appChromeThemeId: "system" | "graphite" | "paper";
     sansFontFamily: string;
     monospaceFontFamily: string;
     sansFontSize: number;

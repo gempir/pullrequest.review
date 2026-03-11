@@ -56,7 +56,7 @@ export function NumberStepperInput({ value, onValueChange, min, max, step = 1, c
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-1/2 w-full rounded-none p-0"
+                    className="h-1/2 w-full rounded-none border-l border-subtle-border p-0"
                     disabled={disabled}
                     onClick={() => applyValue(value + step)}
                     aria-label="Increase value"
@@ -67,7 +67,7 @@ export function NumberStepperInput({ value, onValueChange, min, max, step = 1, c
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-1/2 w-full rounded-none p-0"
+                    className="h-1/2 w-full rounded-none border-t border-l border-subtle-border p-0"
                     disabled={disabled}
                     onClick={() => applyValue(value - step)}
                     aria-label="Decrease value"

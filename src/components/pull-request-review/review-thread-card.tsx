@@ -39,7 +39,7 @@ function CommentAvatar({ name, url, sizeClass = "size-6" }: { name?: string; url
 
 function CommentMarkdown({ text }: { text: string }) {
     return (
-        <div className="text-[13px] leading-relaxed" style={{ fontFamily: "var(--comment-font-family)" }}>
+        <div className="text-[14px] leading-[1.6]" style={{ fontFamily: "var(--comment-font-family)" }}>
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize]}
@@ -52,8 +52,10 @@ function CommentMarkdown({ text }: { text: string }) {
                     th: ({ node: _node, ...props }) => <th {...props} className="p-2 text-left" />,
                     td: ({ node: _node, ...props }) => <td {...props} className="p-2" />,
                     blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="pl-3 text-muted-foreground" />,
-                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-secondary px-1 py-0.5 text-[11px]" />,
-                    pre: ({ node: _node, ...props }) => <pre {...props} className="overflow-x-auto rounded bg-background p-2 text-[11px]" />,
+                    code: ({ node: _node, ...props }) => <code {...props} className="rounded-[2px] bg-muted px-1 py-0.5 text-[11px]" />,
+                    pre: ({ node: _node, ...props }) => (
+                        <pre {...props} className="overflow-x-auto rounded-[2px] border border-subtle-border bg-background p-2 text-[11px]" />
+                    ),
                     img: ({ node: _node, ...props }) => <img {...props} className="inline align-middle" alt={props.alt ?? ""} />,
                 }}
             >
@@ -115,6 +117,11 @@ type ActiveConnector = {
     top: number;
     height: number;
 };
+
+const THREAD_CONNECTOR_OFFSET_PX = 9;
+const THREAD_CONNECTOR_BEND_TOP_PX = 14;
+const THREAD_CONNECTOR_TOP_EXTENSION_PX = 6;
+const THREAD_CONNECTOR_JOIN_OVERLAP_PX = 1;
 
 type ThreadActionsProps = {
     commentId: number;
@@ -313,39 +320,41 @@ function ThreadReplyNode({
     const showNestedPipe = allowNestedReplies && depth > 0;
     const showNestedContinuation = showNestedPipe && node.children.length > 0;
     const isNodeHovered = hoveredCommentId === reply.id;
-    const connectorBendTop = "top-[14px]";
+    const connectorStemHeight = THREAD_CONNECTOR_BEND_TOP_PX + THREAD_CONNECTOR_TOP_EXTENSION_PX + THREAD_CONNECTOR_JOIN_OVERLAP_PX;
 
     return (
         <div className="group/reply relative" style={{ marginLeft: `${nestingDepth * 12}px` }}>
             {showFlatPipe ? (
-                <div className="pointer-events-none absolute left-2 -top-1.5 h-1.5 w-px bg-border/45 transition-colors group-hover/reply-card:bg-border/80" />
+                <div
+                    className="pointer-events-none absolute -top-1.5 h-1.5 w-px bg-border/45 transition-colors group-hover/reply-card:bg-border/80"
+                    style={{ left: `${THREAD_CONNECTOR_OFFSET_PX}px` }}
+                />
             ) : null}
             {/* biome-ignore lint/a11y/noStaticElementInteractions: hover state is used only for connector styling */}
             <div
                 id={commentAnchorId(reply.id)}
                 ref={(element) => setCommentCardRef(reply.id, element)}
-                className="peer/reply-card group/reply-card relative z-10 flex gap-2 rounded bg-muted/20 p-1.5"
+                className="peer/reply-card group/reply-card relative z-10 flex gap-2 rounded-[2px] border border-subtle-border bg-muted/40 p-2"
                 onMouseEnter={() => setHoveredCommentId(reply.id)}
                 onMouseLeave={() => setHoveredCommentId((prev) => (prev === reply.id ? null : prev))}
             >
                 {showNestedPipe ? (
                     <>
                         <div
-                            className={cn(
-                                "pointer-events-none absolute -left-[8px] -top-1.5 h-5 w-px transition-colors",
-                                isNodeHovered ? "bg-border/80" : "bg-border/35",
-                            )}
+                            className={cn("pointer-events-none absolute -top-1.5 w-px transition-colors", isNodeHovered ? "bg-border/80" : "bg-border/35")}
+                            style={{ left: `${-THREAD_CONNECTOR_OFFSET_PX}px`, height: `${connectorStemHeight}px` }}
                         />
                         <div
-                            className={cn(
-                                "pointer-events-none absolute -left-[8px] h-px w-2 transition-colors",
-                                isNodeHovered ? "bg-border/80" : "bg-border/35",
-                                connectorBendTop,
-                            )}
+                            className={cn("pointer-events-none absolute h-px transition-colors", isNodeHovered ? "bg-border/80" : "bg-border/35")}
+                            style={{
+                                left: `${-THREAD_CONNECTOR_OFFSET_PX}px`,
+                                top: `${THREAD_CONNECTOR_BEND_TOP_PX}px`,
+                                width: `${THREAD_CONNECTOR_OFFSET_PX + 1}px`,
+                            }}
                         />
                     </>
                 ) : null}
-                <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-5" />
+                <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-6" />
                 <div className="relative z-10 flex-1 space-y-0.5">
                     <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
                         <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
@@ -410,7 +419,10 @@ function ThreadReplyNode({
                 </div>
             </div>
             {showNestedContinuation ? (
-                <div className={cn("pointer-events-none absolute -left-[8px] bottom-0 w-px bg-border/35 transition-colors", connectorBendTop)} />
+                <div
+                    className="pointer-events-none absolute bottom-0 w-px bg-border/35 transition-colors"
+                    style={{ left: `${-THREAD_CONNECTOR_OFFSET_PX}px`, top: `${THREAD_CONNECTOR_BEND_TOP_PX}px` }}
+                />
             ) : null}
             {node.children.length > 0 ? (
                 <div className="mt-1.5 space-y-1.5">
@@ -510,7 +522,7 @@ function ThreadRootCommentCard({
         <div
             id={commentAnchorId(rootComment.id)}
             ref={(element) => setCommentCardRef(rootComment.id, element)}
-            className="relative z-10 flex items-start gap-2 rounded bg-muted/40 p-1.5"
+            className="relative z-10 flex items-start gap-3 rounded-[2px] border border-border bg-card p-2.5"
         >
             <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} />
             <div className="flex-1 min-w-0 space-y-1">
@@ -595,7 +607,7 @@ function ThreadRootCommentCard({
                 ) : (
                     <button
                         type="button"
-                        className="w-full rounded bg-muted/20 px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                        className="w-full rounded-[2px] border border-subtle-border bg-muted/35 px-2.5 py-1.5 text-left text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
                         onClick={onExpandResolved}
                         aria-label="Expand resolved thread"
                     >
@@ -687,9 +699,9 @@ export function ThreadCard({
                     const containerRect = container.getBoundingClientRect();
                     const childRect = childCard.getBoundingClientRect();
                     const parentRect = parentCard.getBoundingClientRect();
-                    const left = childRect.left - containerRect.left - 8;
+                    const left = childRect.left - containerRect.left - THREAD_CONNECTOR_OFFSET_PX;
                     const top = parentRect.bottom - containerRect.top;
-                    const bottom = childRect.top - containerRect.top + 14;
+                    const bottom = childRect.top - containerRect.top + THREAD_CONNECTOR_BEND_TOP_PX;
                     nextConnector = {
                         left,
                         top: Math.min(top, bottom),
@@ -768,7 +780,7 @@ export function ThreadCard({
     };
 
     return (
-        <div className="p-0.5 text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
+        <div className="text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
             <div ref={threadContainerRef} className="relative flex flex-col gap-1.5">
                 {activeConnector ? (
                     <div

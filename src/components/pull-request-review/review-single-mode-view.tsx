@@ -166,12 +166,12 @@ export function ReviewSingleModeView({
     }
 
     if (!selectedFileDiff || !selectedFilePath) {
-        return <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">No file selected for the current filter.</div>;
+        return <div className="app-empty-state p-8 text-center text-muted-foreground text-[13px]">No file selected for the current filter.</div>;
     }
 
     return (
         <div id={fileAnchorId(selectedFilePath)} data-component="diff-file-view" className="h-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
-            <div className="h-10 min-w-0 bg-chrome px-3 flex items-center gap-2 overflow-hidden">
+            <div className="app-card-header h-11 min-w-0 px-3 flex items-center gap-2 overflow-hidden">
                 <span className="size-4 flex items-center justify-center shrink-0">
                     <RepositoryFileIcon fileName={selectedFilePath.split("/").pop() || selectedFilePath} className="size-3.5" />
                 </span>
@@ -206,7 +206,11 @@ export function ReviewSingleModeView({
                     <span className="select-none text-status-added">+{fileLineStats.get(selectedFilePath)?.added ?? 0}</span>
                     <span className="select-none text-status-removed">-{fileLineStats.get(selectedFilePath)?.removed ?? 0}</span>
                     <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
-                    <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(selectedFilePath)}>
+                    <button
+                        type="button"
+                        className="flex items-center text-muted-foreground transition-colors hover:text-foreground"
+                        onClick={() => onToggleViewed(selectedFilePath)}
+                    >
                         <span
                             className={
                                 isSelectedVersionViewed
@@ -254,12 +258,12 @@ export function ReviewSingleModeView({
                         )}
                     />
                 ) : (
-                    <div className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">Loading syntax highlighting...</div>
+                    <div className="app-empty-state w-full p-3 text-[12px] text-muted-foreground">Loading syntax highlighting...</div>
                 )}
             </div>
 
             {!selectedFileReadOnlyHistorical && selectedFileLevelThreads.length > 0 ? (
-                <div className="border-t border-border px-3 py-2 space-y-2">
+                <div className="border-t border-subtle-border bg-panel px-3 py-3 space-y-3">
                     {selectedFileLevelThreads.map((thread) => (
                         <ThreadCard
                             key={thread.id}

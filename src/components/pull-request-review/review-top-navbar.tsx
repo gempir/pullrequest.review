@@ -87,7 +87,13 @@ export function ReviewTopNavbar({
             {loading ? (
                 <>
                     {treeCollapsed ? (
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={onExpandTree} aria-label="Expand file tree">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                            onClick={onExpandTree}
+                            aria-label="Expand file tree"
+                        >
                             <PanelLeftOpen className="size-3.5" />
                         </Button>
                     ) : null}
@@ -97,7 +103,13 @@ export function ReviewTopNavbar({
                 <div className="flex h-full w-full items-stretch justify-between">
                     <div className="min-w-0 flex h-full items-center gap-2 text-[11px] text-faint-foreground">
                         {treeCollapsed ? (
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={onExpandTree} aria-label="Expand file tree">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                                onClick={onExpandTree}
+                                aria-label="Expand file tree"
+                            >
                                 <PanelLeftOpen className="size-3.5" />
                             </Button>
                         ) : null}
@@ -127,7 +139,7 @@ export function ReviewTopNavbar({
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 
-                    <div className="ml-2 -mr-1.5 flex h-full shrink-0">
+                    <div className="ml-2 -mr-1.5 flex h-full shrink-0 divide-x divide-border-muted">
                         {pullRequestUrl ? (
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -135,7 +147,12 @@ export function ReviewTopNavbar({
                                         asChild
                                         variant="ghost"
                                         size="sm"
-                                        className="h-full w-10 rounded-none border-transparent px-0 bg-chrome text-foreground hover:bg-surface-1 focus-visible:outline-none focus-visible:ring-0"
+                                        className={cn(
+                                            "h-full w-11 rounded-none px-0 bg-chrome focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                            host === "github"
+                                                ? "text-status-renamed hover:bg-surface-1 hover:text-status-renamed"
+                                                : "text-host-bitbucket hover:bg-surface-1 hover:text-host-bitbucket-accent",
+                                        )}
                                     >
                                         <a
                                             href={pullRequestUrl}
@@ -156,7 +173,7 @@ export function ReviewTopNavbar({
                                     variant="ghost"
                                     size="sm"
                                     className={cn(
-                                        "h-full min-w-24 rounded-none border-transparent px-3 bg-chrome text-foreground hover:bg-surface-1 data-[state=open]:bg-surface-1 hover:border-transparent focus-visible:outline-none focus-visible:ring-0",
+                                        "h-full min-w-24 rounded-none px-3 bg-chrome text-foreground hover:bg-surface-1 data-[state=open]:bg-surface-1 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
                                     )}
                                     disabled={actionBusy}
                                     aria-label="Pull request actions"

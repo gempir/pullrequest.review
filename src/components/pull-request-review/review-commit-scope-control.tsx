@@ -44,9 +44,9 @@ export function ReviewCommitScopeControl({
                 <DropdownMenuTrigger asChild>
                     <Button
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="h-7 min-w-[80px] justify-between border-0 bg-background px-2 text-[11px] focus-visible:ring-0"
+                        className="h-7 min-w-[88px] rounded-md justify-between border border-input bg-surface-1 px-2 text-[11px] hover:bg-surface-2"
                     >
                         <span className="truncate">{scopeLabel}</span>
                         <GitCompare className="ml-1 size-3" />

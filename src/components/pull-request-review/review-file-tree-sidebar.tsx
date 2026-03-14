@@ -129,7 +129,13 @@ export function ReviewFileTreeSidebar({
                         settingsActive={showSettingsPanel}
                         settingsAriaLabel={showSettingsPanel ? "Close settings" : "Open settings"}
                         rightContent={
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={onCollapseTree} aria-label="Collapse file tree">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                                onClick={onCollapseTree}
+                                aria-label="Collapse file tree"
+                            >
                                 <PanelLeftClose className="size-3.5" />
                             </Button>
                         }

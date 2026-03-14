@@ -170,7 +170,7 @@ function ThreadActions({
     onResolveThread,
     onDeleteComment,
 }: ThreadActionsProps) {
-    const actionButtonClass = "h-5 gap-1 px-1.5 text-[10px] leading-none";
+    const actionButtonClass = "h-6 rounded-md border border-input bg-surface-1 gap-1 px-2 text-[10px] leading-none hover:bg-surface-2";
     const actionIconClass = "size-2";
     return (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -179,25 +179,43 @@ function ThreadActions({
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 gap-1.5"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
                         disabled={updateCommentPending}
                         onClick={() => onSubmitEdit(commentId, hasInlineContext)}
                     >
                         <Check className="size-3.5" />
                         Save
                     </Button>
-                    <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={updateCommentPending} onClick={onCancelEdit}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        disabled={updateCommentPending}
+                        onClick={onCancelEdit}
+                    >
                         <X className="size-3.5" />
                         Cancel
                     </Button>
                 </>
             ) : replyTargetCommentId === commentId ? (
                 <>
-                    <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={createCommentPending || !canCommentInline} onClick={onSubmitReply}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        disabled={createCommentPending || !canCommentInline}
+                        onClick={onSubmitReply}
+                    >
                         <SendHorizontal className="size-3.5" />
                         Comment
                     </Button>
-                    <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={createCommentPending} onClick={onCancelReply}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        disabled={createCommentPending}
+                        onClick={onCancelReply}
+                    >
                         <X className="size-3.5" />
                         Cancel
                     </Button>
@@ -321,6 +339,7 @@ function ThreadReplyNode({
     const showNestedContinuation = showNestedPipe && node.children.length > 0;
     const isNodeHovered = hoveredCommentId === reply.id;
     const connectorBendTop = "top-[14px]";
+    const connectorOffsetClass = "-left-[7px]";
 
     return (
         <div className="group/reply relative" style={{ marginLeft: `${nestingDepth * 12}px` }}>
@@ -339,13 +358,15 @@ function ThreadReplyNode({
                     <>
                         <div
                             className={cn(
-                                "pointer-events-none absolute -left-[8px] -top-1.5 h-5 w-px transition-colors",
+                                "pointer-events-none absolute -top-1.5 h-5 w-px transition-colors",
+                                connectorOffsetClass,
                                 isNodeHovered ? "bg-border" : "bg-border-muted",
                             )}
                         />
                         <div
                             className={cn(
-                                "pointer-events-none absolute -left-[8px] h-px w-2 transition-colors",
+                                "pointer-events-none absolute h-px w-2 transition-colors",
+                                connectorOffsetClass,
                                 isNodeHovered ? "bg-border" : "bg-border-muted",
                                 connectorBendTop,
                             )}
@@ -419,7 +440,7 @@ function ThreadReplyNode({
                 </div>
             </div>
             {showNestedContinuation ? (
-                <div className={cn("pointer-events-none absolute -left-[8px] bottom-0 w-px bg-border-muted transition-colors", connectorBendTop)} />
+                <div className={cn("pointer-events-none absolute bottom-0 w-px bg-border-muted transition-colors", connectorOffsetClass, connectorBendTop)} />
             ) : null}
             {node.children.length > 0 ? (
                 <div className="mt-1.5 space-y-1.5">
@@ -534,7 +555,7 @@ function ThreadRootCommentCard({
                         {isResolved ? (
                             <button
                                 type="button"
-                                className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors text-[10px] uppercase tracking-wide"
+                                className="inline-flex h-6 items-center gap-1 rounded-md border border-input bg-surface-1 px-2 text-muted-foreground hover:bg-surface-2 hover:text-foreground transition-colors text-[10px] uppercase tracking-wide"
                                 onClick={onToggleCollapsed}
                                 aria-expanded={!collapsed}
                                 aria-label={collapsed ? "Expand resolved thread" : "Collapse resolved thread"}
@@ -606,7 +627,7 @@ function ThreadRootCommentCard({
                 ) : (
                     <button
                         type="button"
-                        className="w-full rounded-md bg-surface-1/60 border border-border-muted px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground hover:bg-surface-1 transition-colors flex items-center gap-1"
+                        className="w-full rounded-md bg-surface-1 border border-input px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground hover:bg-surface-2 transition-colors flex items-center gap-1"
                         onClick={onExpandResolved}
                         aria-label="Expand resolved thread"
                     >
@@ -698,7 +719,7 @@ export function ThreadCard({
                     const containerRect = container.getBoundingClientRect();
                     const childRect = childCard.getBoundingClientRect();
                     const parentRect = parentCard.getBoundingClientRect();
-                    const left = childRect.left - containerRect.left - 8;
+                    const left = childRect.left - containerRect.left - 7;
                     const top = parentRect.bottom - containerRect.top;
                     const bottom = childRect.top - containerRect.top + 14;
                     nextConnector = {

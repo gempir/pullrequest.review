@@ -220,7 +220,6 @@ function DirectoryNode({
     }
 
     const expanded = tree.isExpanded(displayNode.path);
-    const kind = kinds.get(displayNode.path);
     const displayName = nameParts.join("/");
     const host = hostFromTreePath(displayNode.path);
     const isActive = activeFile === displayNode.path;
@@ -246,7 +245,7 @@ function DirectoryNode({
                 }}
                 aria-expanded={expanded}
             >
-                <span className={cn("relative size-4 flex items-center justify-center shrink-0", kindIconColor(kind))}>
+                <span className="relative size-4 flex items-center justify-center shrink-0 text-muted-foreground">
                     <span className="group-hover:hidden">
                         {isRepositoryNode ? (
                             <span className="inline-flex h-4 min-w-[14px] items-center justify-center rounded border border-border-muted bg-surface-2 px-0.5 text-[9px] leading-none text-muted-foreground">

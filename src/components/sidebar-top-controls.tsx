@@ -46,14 +46,25 @@ export function SidebarTopControls({
 
     return (
         <div data-component="top-sidebar" className="h-11 px-2 bg-chrome border-b border-border-muted flex items-center gap-1">
-            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onHome} aria-label="Home">
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                onClick={onHome}
+                aria-label="Home"
+            >
                 <House className="size-3.5" />
             </Button>
             <Button
                 type="button"
-                variant={settingsActive ? "default" : "ghost"}
+                variant="ghost"
                 size="sm"
-                className={cn("h-8 w-8 p-0", settingsButtonClassName)}
+                className={cn(
+                    "h-8 w-8 p-0 text-muted-foreground hover:text-foreground",
+                    settingsActive ? "bg-surface-2 text-accent" : null,
+                    settingsButtonClassName,
+                )}
                 onClick={onSettings}
                 aria-label={settingsAriaLabel}
             >
@@ -65,7 +76,7 @@ export function SidebarTopControls({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                         onMouseEnter={() => setIsRefreshHovered(true)}
                         onMouseLeave={() => setIsRefreshHovered(false)}
                         onFocus={() => setIsRefreshFocused(true)}

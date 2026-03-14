@@ -19,7 +19,7 @@ function DropdownMenuContent({ className, sideOffset = 6, ...props }: React.Comp
                 data-slot="dropdown-menu-content"
                 sideOffset={sideOffset}
                 className={cn(
-                    "z-50 min-w-40 overflow-hidden rounded-[2px] border-0 bg-popover p-1 text-[12px] text-popover-foreground shadow-none",
+                    "z-50 min-w-40 overflow-hidden rounded-md border border-border bg-popover p-1 text-[12px] text-popover-foreground shadow-none",
                     "animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
                     "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
                     className,
@@ -41,7 +41,7 @@ function DropdownMenuItem({ className, inset, ...props }: React.ComponentProps<t
         <DropdownMenuPrimitive.Item
             data-slot="dropdown-menu-item"
             className={cn(
-                "relative flex cursor-default select-none items-center gap-2 rounded-[2px] px-2 py-1.5 text-foreground outline-hidden transition-colors",
+                "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-foreground outline-hidden transition-colors",
                 "focus:bg-surface-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
                 inset && "pl-7",
                 className,

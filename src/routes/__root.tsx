@@ -100,8 +100,8 @@ function OnboardingScreen() {
                         <button
                             key={host}
                             type="button"
-                            className={`w-full flex items-center gap-2 px-2 py-1 text-left text-[12px] hover:bg-accent ${
-                                activeHost === host ? "bg-accent text-foreground" : "text-muted-foreground"
+                            className={`w-full flex items-center gap-2 px-2 py-1 text-left text-[12px] hover:bg-surface-2 ${
+                                activeHost === host ? "bg-surface-2 text-foreground" : "text-muted-foreground"
                             }`}
                             onClick={() => {
                                 setActiveHost(host);

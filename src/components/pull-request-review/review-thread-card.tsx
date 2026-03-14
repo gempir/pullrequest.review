@@ -31,7 +31,10 @@ function CommentAvatar({ name, url, sizeClass = "size-6" }: { name?: string; url
         return <img src={url} alt={name ?? "avatar"} className={`${size} rounded-full object-cover shrink-0`} />;
     }
     return (
-        <span className={`${size} rounded-full bg-secondary text-[10px] text-muted-foreground flex items-center justify-center shrink-0`} aria-hidden>
+        <span
+            className={`${size} rounded-full bg-surface-2 border border-border-muted text-[10px] text-muted-foreground flex items-center justify-center shrink-0`}
+            aria-hidden
+        >
             {initials(name)}
         </span>
     );
@@ -44,16 +47,20 @@ function CommentMarkdown({ text }: { text: string }) {
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize]}
                 components={{
-                    a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" className="underline text-foreground" />,
+                    a: ({ node: _node, ...props }) => (
+                        <a {...props} target="_blank" rel="noreferrer" className="underline text-accent hover:text-accent-muted" />
+                    ),
                     p: ({ node: _node, ...props }) => <p {...props} className="whitespace-pre-wrap break-words" />,
                     ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc pl-5 space-y-1" />,
                     ol: ({ node: _node, ...props }) => <ol {...props} className="list-decimal pl-5 space-y-1" />,
                     table: ({ node: _node, ...props }) => <table {...props} className="w-full border-collapse" />,
                     th: ({ node: _node, ...props }) => <th {...props} className="p-2 text-left" />,
                     td: ({ node: _node, ...props }) => <td {...props} className="p-2" />,
-                    blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="pl-3 text-muted-foreground" />,
-                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-secondary px-1 py-0.5 text-[11px]" />,
-                    pre: ({ node: _node, ...props }) => <pre {...props} className="overflow-x-auto rounded bg-background p-2 text-[11px]" />,
+                    blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l-2 border-border pl-3 text-muted-foreground" />,
+                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-surface-2 px-1 py-0.5 text-[11px]" />,
+                    pre: ({ node: _node, ...props }) => (
+                        <pre {...props} className="overflow-x-auto rounded bg-surface-1 border border-border-muted p-2 text-[11px]" />
+                    ),
                     img: ({ node: _node, ...props }) => <img {...props} className="inline align-middle" alt={props.alt ?? ""} />,
                 }}
             >
@@ -163,7 +170,7 @@ function ThreadActions({
     onResolveThread,
     onDeleteComment,
 }: ThreadActionsProps) {
-    const actionButtonClass = "h-5 gap-1 px-1.5 text-[10px] leading-none";
+    const actionButtonClass = "h-6 rounded-md border border-input bg-surface-1 gap-1 px-2 text-[10px] leading-none hover:bg-surface-2";
     const actionIconClass = "size-2";
     return (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -172,25 +179,43 @@ function ThreadActions({
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 gap-1.5"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
                         disabled={updateCommentPending}
                         onClick={() => onSubmitEdit(commentId, hasInlineContext)}
                     >
                         <Check className="size-3.5" />
                         Save
                     </Button>
-                    <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={updateCommentPending} onClick={onCancelEdit}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        disabled={updateCommentPending}
+                        onClick={onCancelEdit}
+                    >
                         <X className="size-3.5" />
                         Cancel
                     </Button>
                 </>
             ) : replyTargetCommentId === commentId ? (
                 <>
-                    <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={createCommentPending || !canCommentInline} onClick={onSubmitReply}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        disabled={createCommentPending || !canCommentInline}
+                        onClick={onSubmitReply}
+                    >
                         <SendHorizontal className="size-3.5" />
                         Comment
                     </Button>
-                    <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={createCommentPending} onClick={onCancelReply}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        disabled={createCommentPending}
+                        onClick={onCancelReply}
+                    >
                         <X className="size-3.5" />
                         Cancel
                     </Button>
@@ -314,17 +339,18 @@ function ThreadReplyNode({
     const showNestedContinuation = showNestedPipe && node.children.length > 0;
     const isNodeHovered = hoveredCommentId === reply.id;
     const connectorBendTop = "top-[14px]";
+    const connectorOffsetClass = "-left-[7px]";
 
     return (
         <div className="group/reply relative" style={{ marginLeft: `${nestingDepth * 12}px` }}>
             {showFlatPipe ? (
-                <div className="pointer-events-none absolute left-2 -top-1.5 h-1.5 w-px bg-border/45 transition-colors group-hover/reply-card:bg-border/80" />
+                <div className="pointer-events-none absolute left-2 -top-1.5 h-1.5 w-px bg-border-muted transition-colors group-hover/reply-card:bg-border" />
             ) : null}
             {/* biome-ignore lint/a11y/noStaticElementInteractions: hover state is used only for connector styling */}
             <div
                 id={commentAnchorId(reply.id)}
                 ref={(element) => setCommentCardRef(reply.id, element)}
-                className="peer/reply-card group/reply-card relative z-10 flex gap-2 rounded bg-muted/20 p-1.5"
+                className="peer/reply-card group/reply-card relative z-10 flex gap-2 rounded-md bg-surface-1 border border-border-muted p-2"
                 onMouseEnter={() => setHoveredCommentId(reply.id)}
                 onMouseLeave={() => setHoveredCommentId((prev) => (prev === reply.id ? null : prev))}
             >
@@ -332,14 +358,16 @@ function ThreadReplyNode({
                     <>
                         <div
                             className={cn(
-                                "pointer-events-none absolute -left-[8px] -top-1.5 h-5 w-px transition-colors",
-                                isNodeHovered ? "bg-border/80" : "bg-border/35",
+                                "pointer-events-none absolute -top-1.5 h-5 w-px transition-colors",
+                                connectorOffsetClass,
+                                isNodeHovered ? "bg-border" : "bg-border-muted",
                             )}
                         />
                         <div
                             className={cn(
-                                "pointer-events-none absolute -left-[8px] h-px w-2 transition-colors",
-                                isNodeHovered ? "bg-border/80" : "bg-border/35",
+                                "pointer-events-none absolute h-px w-2 transition-colors",
+                                connectorOffsetClass,
+                                isNodeHovered ? "bg-border" : "bg-border-muted",
                                 connectorBendTop,
                             )}
                         />
@@ -349,7 +377,9 @@ function ThreadReplyNode({
                 <div className="relative z-10 flex-1 space-y-0.5">
                     <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
                         <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
-                        <span>{formatCommentTimestamp(reply.createdAt)}</span>
+                        <span className="opacity-0 group-hover/reply-card:opacity-100 transition-opacity duration-150">
+                            {formatCommentTimestamp(reply.createdAt)}
+                        </span>
                         {reply.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                     </div>
                     {isEditingOnNode ? (
@@ -410,7 +440,7 @@ function ThreadReplyNode({
                 </div>
             </div>
             {showNestedContinuation ? (
-                <div className={cn("pointer-events-none absolute -left-[8px] bottom-0 w-px bg-border/35 transition-colors", connectorBendTop)} />
+                <div className={cn("pointer-events-none absolute bottom-0 w-px bg-border-muted transition-colors", connectorOffsetClass, connectorBendTop)} />
             ) : null}
             {node.children.length > 0 ? (
                 <div className="mt-1.5 space-y-1.5">
@@ -510,20 +540,22 @@ function ThreadRootCommentCard({
         <div
             id={commentAnchorId(rootComment.id)}
             ref={(element) => setCommentCardRef(rootComment.id, element)}
-            className="relative z-10 flex items-start gap-2 rounded bg-muted/40 p-1.5"
+            className="group/root-card relative z-10 flex items-start gap-2 rounded-md bg-surface-1 border border-border-muted p-3"
         >
             <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} />
             <div className="flex-1 min-w-0 space-y-1">
                 <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
                     <span className="font-medium text-foreground text-[12px]">{rootComment.user?.displayName ?? "Unknown"}</span>
-                    <span>{formatCommentTimestamp(rootComment.createdAt)}</span>
+                    <span className="opacity-0 group-hover/root-card:opacity-100 transition-opacity duration-150">
+                        {formatCommentTimestamp(rootComment.createdAt)}
+                    </span>
                     {rootComment.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                     <div className="ml-auto flex items-center gap-2">
                         <span className="text-[10px] uppercase tracking-wide">{isResolved ? "Resolved" : "Unresolved"}</span>
                         {isResolved ? (
                             <button
                                 type="button"
-                                className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors text-[10px] uppercase tracking-wide"
+                                className="inline-flex h-6 items-center gap-1 rounded-md border border-input bg-surface-1 px-2 text-muted-foreground hover:bg-surface-2 hover:text-foreground transition-colors text-[10px] uppercase tracking-wide"
                                 onClick={onToggleCollapsed}
                                 aria-expanded={!collapsed}
                                 aria-label={collapsed ? "Expand resolved thread" : "Collapse resolved thread"}
@@ -595,7 +627,7 @@ function ThreadRootCommentCard({
                 ) : (
                     <button
                         type="button"
-                        className="w-full rounded bg-muted/20 px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                        className="w-full rounded-md bg-surface-1 border border-input px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground hover:bg-surface-2 transition-colors flex items-center gap-1"
                         onClick={onExpandResolved}
                         aria-label="Expand resolved thread"
                     >
@@ -687,7 +719,7 @@ export function ThreadCard({
                     const containerRect = container.getBoundingClientRect();
                     const childRect = childCard.getBoundingClientRect();
                     const parentRect = parentCard.getBoundingClientRect();
-                    const left = childRect.left - containerRect.left - 8;
+                    const left = childRect.left - containerRect.left - 7;
                     const top = parentRect.bottom - containerRect.top;
                     const bottom = childRect.top - containerRect.top + 14;
                     nextConnector = {
@@ -772,7 +804,7 @@ export function ThreadCard({
             <div ref={threadContainerRef} className="relative flex flex-col gap-1.5">
                 {activeConnector ? (
                     <div
-                        className="pointer-events-none absolute w-px bg-border/80"
+                        className="pointer-events-none absolute w-px bg-border"
                         style={{ left: `${activeConnector.left}px`, top: `${activeConnector.top}px`, height: `${activeConnector.height}px` }}
                     />
                 ) : null}

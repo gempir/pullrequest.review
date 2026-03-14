@@ -5,16 +5,16 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-    "inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-1 focus-visible:ring-ring",
+    "inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
     {
         variants: {
             variant: {
-                default: "bg-foreground text-background border-0 hover:bg-background hover:text-foreground",
-                destructive: "bg-destructive text-destructive-foreground border-0 hover:bg-transparent hover:text-destructive",
-                outline: "bg-transparent text-foreground border-0 hover:bg-secondary hover:text-secondary-foreground",
-                secondary: "bg-secondary text-secondary-foreground border-0 hover:bg-accent",
-                ghost: "bg-transparent text-foreground border-0 hover:bg-secondary",
-                link: "bg-transparent text-foreground underline-offset-4 hover:underline border-none",
+                default: "bg-accent text-accent-foreground border border-accent hover:bg-accent-muted hover:border-accent-muted",
+                destructive: "bg-destructive text-destructive-foreground border border-destructive hover:bg-destructive/90",
+                outline: "border border-border bg-transparent text-foreground hover:bg-surface-2 hover:border-border",
+                secondary: "bg-surface-1 text-foreground border border-border-muted hover:bg-surface-2",
+                ghost: "bg-transparent text-foreground border border-transparent hover:bg-surface-1",
+                link: "bg-transparent text-accent underline-offset-4 hover:underline border-none",
             },
             size: {
                 default: "h-8 px-4 py-1 text-[13px] has-[>svg]:px-3",

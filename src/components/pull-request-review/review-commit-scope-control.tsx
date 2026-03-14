@@ -77,7 +77,7 @@ export function ReviewCommitScopeControl({
                                             key={option.hash}
                                             className={cn(
                                                 "items-start gap-2 px-2 py-1 rounded-none border-t border-border/30 first:border-t-0 cursor-crosshair",
-                                                selected ? "bg-status-renamed/20 focus:bg-status-renamed/25" : inRange ? "bg-muted/35 focus:bg-muted/45" : "",
+                                                selected ? "bg-status-renamed/20 focus:bg-status-renamed/25" : inRange ? "bg-surface-1 focus:bg-surface-2" : "",
                                             )}
                                             onSelect={(event) => {
                                                 event.preventDefault();

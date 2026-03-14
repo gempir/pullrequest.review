@@ -15,7 +15,7 @@ function OAuthCallback() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-background p-6">
             <div className="w-full max-w-lg border border-border bg-card">
-                <div className="border-b border-border px-4 py-3 bg-secondary">
+                <div className="border-b border-border px-4 py-3 bg-surface-1">
                     <span className="text-[13px] font-medium">Redirecting</span>
                 </div>
                 <div className="p-6">

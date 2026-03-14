@@ -74,15 +74,17 @@ function MarkdownBlock({ text }: { text: string }) {
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize]}
                 components={{
-                    a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" className="underline text-foreground" />,
+                    a: ({ node: _node, ...props }) => (
+                        <a {...props} target="_blank" rel="noreferrer" className="underline text-accent hover:text-accent-muted" />
+                    ),
                     p: ({ node: _node, ...props }) => <p {...props} className="whitespace-pre-wrap break-words" />,
                     ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc pl-5 space-y-1" />,
                     ol: ({ node: _node, ...props }) => <ol {...props} className="list-decimal pl-5 space-y-1" />,
                     table: ({ node: _node, ...props }) => <table {...props} className="w-full border-collapse" />,
                     th: ({ node: _node, ...props }) => <th {...props} className="border border-border p-2 text-left" />,
                     td: ({ node: _node, ...props }) => <td {...props} className="border border-border p-2" />,
-                    blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l border-border pl-3 text-muted-foreground" />,
-                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-secondary px-1 py-0.5 text-[11px]" />,
+                    blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l-2 border-border pl-3 text-muted-foreground" />,
+                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-surface-2 px-1 py-0.5 text-[11px]" />,
                     pre: ({ node: _node, ...props }) => (
                         <pre {...props} className="overflow-x-auto rounded border border-border bg-background p-2 text-[11px]" />
                     ),
@@ -115,7 +117,7 @@ function Avatar({ name, url, sizeClass = "size-5" }: { name?: string; url?: stri
         <span
             className={cn(
                 sizeClass,
-                "rounded-full shrink-0 border border-border bg-secondary text-[10px] text-muted-foreground flex items-center justify-center",
+                "rounded-full shrink-0 border border-border-muted bg-surface-2 text-[10px] text-muted-foreground flex items-center justify-center",
             )}
             aria-hidden
         >
@@ -207,7 +209,10 @@ export function PullRequestSummaryPanel({
     return (
         <div className="pr-diff-font" style={{ fontFamily: "var(--comment-font-family)" }}>
             {headerTitle ? (
-                <div className="h-10 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]" data-component="summary-header">
+                <div
+                    className="h-10 bg-chrome border-b border-border-muted px-2.5 flex items-center gap-2 overflow-hidden text-[12px]"
+                    data-component="summary-header"
+                >
                     <span className="size-4 flex items-center justify-center shrink-0">
                         <ScrollText className="size-3.5" />
                     </span>
@@ -254,10 +259,10 @@ export function PullRequestSummaryPanel({
                                             onClick={handleClick}
                                             disabled={!canNavigateToComment}
                                             className={cn(
-                                                "w-full rounded-md px-2.5 py-2 text-left",
+                                                "w-full rounded-md px-2.5 py-2 text-left border",
                                                 canNavigateToComment
-                                                    ? "bg-secondary/40 transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border"
-                                                    : "bg-secondary/30 cursor-default",
+                                                    ? "bg-surface-1 border-border-muted transition-colors hover:bg-surface-2 hover:border-border focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                    : "bg-surface-1 border-border-muted cursor-default",
                                             )}
                                         >
                                             <div className="space-y-1.5">
@@ -265,7 +270,7 @@ export function PullRequestSummaryPanel({
                                                     <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} sizeClass="size-4" />
                                                     <span className="text-foreground">{eventLabel(event.type)}</span>
                                                     <span className="text-muted-foreground">{event.actor?.displayName ?? "Unknown"}</span>
-                                                    {event.comment?.path ? <span className="text-primary font-mono truncate">{event.comment.path}</span> : null}
+                                                    {event.comment?.path ? <span className="text-accent font-mono truncate">{event.comment.path}</span> : null}
                                                     <span className="ml-auto text-muted-foreground">{formatDate(event.createdAt)}</span>
                                                 </div>
                                                 {event.details ? <div className="text-[13px] text-muted-foreground break-words">{event.details}</div> : null}
@@ -300,7 +305,7 @@ export function PullRequestSummaryPanel({
                                         <div
                                             key={commit.hash}
                                             className={cn(
-                                                "grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 rounded-md bg-secondary/40 px-2 py-1.5 text-[11px]",
+                                                "grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 rounded-md bg-surface-1 border border-border-muted px-2 py-1.5 text-[11px]",
                                                 mergedDevelop ? "bg-status-added/10 text-muted-foreground opacity-70" : "",
                                             )}
                                         >

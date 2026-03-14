@@ -50,9 +50,9 @@ function kindColor(kind: ChangeKind) {
     }
 }
 
-function kindMarker(kind?: ChangeKind) {
-    if (!kind) return null;
-    return <span className={cn("h-3 w-0.5 shrink-0 rounded-sm", kindColor(kind))} aria-hidden />;
+function kindIconColor(kind?: ChangeKind) {
+    if (!kind) return "text-muted-foreground";
+    return kindColor(kind);
 }
 
 function isSettingsPath(path: string) {
@@ -235,8 +235,8 @@ function DirectoryNode({
                 type="button"
                 className={cn(
                     "group w-full min-w-0 flex items-center gap-3 py-1 text-left",
-                    "hover:bg-sidebar/70 active:bg-sidebar/90 transition-colors cursor-pointer",
-                    isActive ? "bg-sidebar text-foreground" : "text-muted-foreground",
+                    "hover:bg-surface-2 active:bg-surface-3 transition-colors cursor-pointer",
+                    isActive ? "bg-surface-2 text-foreground border-l-2 border-l-accent" : "text-muted-foreground border-l-2 border-l-transparent",
                 )}
                 style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
                 onClick={() => {
@@ -246,10 +246,10 @@ function DirectoryNode({
                 }}
                 aria-expanded={expanded}
             >
-                <span className={cn("relative size-4 flex items-center justify-center shrink-0 text-muted-foreground")}>
+                <span className={cn("relative size-4 flex items-center justify-center shrink-0", kindIconColor(kind))}>
                     <span className="group-hover:hidden">
                         {isRepositoryNode ? (
-                            <span className="inline-flex h-4 min-w-[14px] items-center justify-center rounded border border-border bg-secondary px-0.5 text-[9px] leading-none text-muted-foreground">
+                            <span className="inline-flex h-4 min-w-[14px] items-center justify-center rounded border border-border-muted bg-surface-2 px-0.5 text-[9px] leading-none text-muted-foreground">
                                 {pullRequestCount}
                             </span>
                         ) : host ? (
@@ -264,12 +264,11 @@ function DirectoryNode({
                         {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
                     </span>
                 </span>
-                {kindMarker(kind)}
                 <span className="flex-1 min-w-0 truncate text-foreground">{displayName}</span>
             </button>
             {expanded && (
                 <div className="relative">
-                    <div className="absolute top-0 bottom-0 w-px bg-border opacity-30" style={{ left: `${4 + level * treeIndentSize + 8}px` }} />
+                    <div className="absolute top-0 bottom-0 w-px bg-border-muted" style={{ left: `${4 + level * treeIndentSize + 8}px` }} />
                     <FileTree
                         path={displayNode.path}
                         level={level + 1}
@@ -323,8 +322,8 @@ const FileNodeRow = memo(function FileNodeRow({
             data-tree-path={node.path}
             className={cn(
                 "w-full min-w-0 flex items-center gap-3 py-1 text-left",
-                "hover:bg-sidebar/70 active:bg-sidebar/90 transition-colors cursor-pointer",
-                isActive ? "bg-sidebar text-foreground" : "text-muted-foreground",
+                "hover:bg-surface-2 active:bg-surface-3 transition-colors cursor-pointer",
+                isActive ? "bg-surface-2 text-foreground border-l-2 border-l-accent" : "text-muted-foreground border-l-2 border-l-transparent",
             )}
             style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
             onClick={() => {
@@ -332,7 +331,7 @@ const FileNodeRow = memo(function FileNodeRow({
                 onFileClick?.(node);
             }}
         >
-            <span className={cn("size-4 flex items-center justify-center shrink-0")}>
+            <span className={cn("size-4 flex items-center justify-center shrink-0", kindIconColor(kind))}>
                 {node.type === "summary" ? (
                     isHomeNode ? (
                         <House className="size-3.5" />
@@ -349,7 +348,6 @@ const FileNodeRow = memo(function FileNodeRow({
                     <RepositoryFileIcon fileName={node.name} className="size-3.5" />
                 )}
             </span>
-            {kindMarker(kind)}
             <span className={cn("flex-1 min-w-0 truncate pr-2 text-foreground", isUnviewedFile ? "text-status-renamed" : "")}>{node.name}</span>
         </button>
     );

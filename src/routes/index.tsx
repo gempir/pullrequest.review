@@ -392,7 +392,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
 
                 <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-chrome flex items-center gap-2">
                     <Input
-                        className="h-7 text-[12px] border-0 focus-visible:ring-0"
+                        className="h-7 text-[12px]"
                         placeholder={showSettingsPanel ? "search settings" : "search repos or pull requests"}
                         value={searchQuery}
                         onChange={(event) => setSearchQuery(event.target.value)}
@@ -589,7 +589,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                     .map(({ host, repo, pullRequests }) => (
                                         <div key={`${host}:${repo.fullName}`} className="p-3">
                                             <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 flex items-center gap-2">
-                                                <span className="px-1 py-0.5 bg-secondary">{getHostLabel(host)}</span>
+                                                <span className="px-1 py-0.5 bg-surface-1 border border-border-muted rounded">{getHostLabel(host)}</span>
                                                 <span className="font-mono">{repo.fullName}</span>
                                             </div>
                                             <div className="space-y-1">
@@ -597,7 +597,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                                     <button
                                                         type="button"
                                                         key={`${host}:${repo.fullName}-${pr.id}`}
-                                                        className="w-full text-left px-3 py-2 text-[13px] hover:bg-accent transition-colors bg-background"
+                                                        className="w-full text-left px-3 py-2 text-[13px] hover:bg-surface-2 transition-colors bg-background"
                                                         onClick={() => {
                                                             if (repo.host === "github") {
                                                                 navigate({

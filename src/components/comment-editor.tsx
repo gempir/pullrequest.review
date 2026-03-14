@@ -71,9 +71,9 @@ export function CommentEditor({
     }, [editor, onReady]);
 
     return (
-        <div className="bg-background">
+        <div className="bg-surface-1 border border-border-muted rounded-md overflow-hidden">
             <Plate editor={editor} onChange={({ value: nextValue }) => onChange(valueToText(nextValue))}>
-                <div className="flex items-center gap-1 px-1.5 py-1">
+                <div className="flex items-center gap-1 px-1.5 py-1 border-b border-border-muted">
                     <Button
                         type="button"
                         variant="ghost"

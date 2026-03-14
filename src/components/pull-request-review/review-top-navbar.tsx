@@ -79,11 +79,21 @@ export function ReviewTopNavbar({
     const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
 
     return (
-        <div className="h-11 bg-chrome px-1.5 flex items-center gap-3" style={{ fontFamily: "var(--comment-font-family)" }} data-component="navbar">
+        <div
+            className="h-11 bg-chrome border-b border-border-muted px-1.5 flex items-center gap-3"
+            style={{ fontFamily: "var(--comment-font-family)" }}
+            data-component="navbar"
+        >
             {loading ? (
                 <>
                     {treeCollapsed ? (
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={onExpandTree} aria-label="Expand file tree">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                            onClick={onExpandTree}
+                            aria-label="Expand file tree"
+                        >
                             <PanelLeftOpen className="size-3.5" />
                         </Button>
                     ) : null}
@@ -91,9 +101,15 @@ export function ReviewTopNavbar({
                 </>
             ) : (
                 <div className="flex h-full w-full items-stretch justify-between">
-                    <div className="min-w-0 flex h-full items-center gap-2 text-[11px] text-muted-foreground">
+                    <div className="min-w-0 flex h-full items-center gap-2 text-[11px] text-faint-foreground">
                         {treeCollapsed ? (
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={onExpandTree} aria-label="Expand file tree">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                                onClick={onExpandTree}
+                                aria-label="Expand file tree"
+                            >
                                 <PanelLeftOpen className="size-3.5" />
                             </Button>
                         ) : null}
@@ -123,7 +139,7 @@ export function ReviewTopNavbar({
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 
-                    <div className="ml-2 -mr-1.5 flex h-full shrink-0">
+                    <div className="ml-2 -mr-1.5 flex h-full shrink-0 divide-x divide-border-muted">
                         {pullRequestUrl ? (
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -131,7 +147,12 @@ export function ReviewTopNavbar({
                                         asChild
                                         variant="ghost"
                                         size="sm"
-                                        className="h-full w-10 rounded-none border-0 px-0 bg-chrome text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-0"
+                                        className={cn(
+                                            "h-full w-11 rounded-none px-0 bg-chrome focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                            host === "github"
+                                                ? "text-status-renamed hover:bg-surface-1 hover:text-status-renamed"
+                                                : "text-host-bitbucket hover:bg-surface-1 hover:text-host-bitbucket-accent",
+                                        )}
                                     >
                                         <a
                                             href={pullRequestUrl}
@@ -152,7 +173,7 @@ export function ReviewTopNavbar({
                                     variant="ghost"
                                     size="sm"
                                     className={cn(
-                                        "h-full min-w-24 rounded-none border-0 border-transparent px-3 bg-chrome text-foreground hover:bg-secondary data-[state=open]:bg-secondary hover:border-transparent focus-visible:outline-none focus-visible:ring-0",
+                                        "h-full min-w-24 rounded-none px-3 bg-chrome text-foreground hover:bg-surface-1 data-[state=open]:bg-surface-1 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
                                     )}
                                     disabled={actionBusy}
                                     aria-label="Pull request actions"
@@ -215,7 +236,7 @@ export function ReviewTopNavbar({
                                     Decline PR
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                    className="cursor-pointer py-2 text-[13px] text-muted-foreground focus:bg-secondary focus:text-foreground"
+                                    className="cursor-pointer py-2 text-[13px] text-muted-foreground focus:bg-surface-2 focus:text-foreground"
                                     disabled={!canMarkDraft || actionBusy}
                                     onSelect={onMarkDraft}
                                 >
@@ -268,7 +289,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                                             href={build.url}
                                             target="_blank"
                                             rel="noreferrer"
-                                            className={cn(rowClass, "hover:bg-accent cursor-pointer")}
+                                            className={cn(rowClass, "hover:bg-surface-2 cursor-pointer")}
                                         >
                                             <span
                                                 className={cn(
@@ -326,7 +347,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                                         href={build.url}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="flex items-center gap-2 w-full rounded px-1.5 py-1 hover:bg-accent cursor-pointer"
+                                        className="flex items-center gap-2 w-full rounded px-1.5 py-1 hover:bg-surface-2 cursor-pointer"
                                     >
                                         <span
                                             className={cn(

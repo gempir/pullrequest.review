@@ -91,7 +91,7 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
             data-slot="select-item"
             className={cn(
                 "relative flex w-full cursor-default items-center gap-2 py-1.5 pr-8 pl-2 text-[13px] outline-none select-none transition-colors",
-                "focus:bg-accent focus:text-accent-foreground",
+                "focus:bg-surface-2 focus:text-foreground",
                 "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
                 "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-muted-foreground",
                 "*:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",

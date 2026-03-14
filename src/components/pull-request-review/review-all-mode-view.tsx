@@ -191,8 +191,8 @@ export function ReviewAllModeView({
                                 <span
                                     className={
                                         areAllFilesViewed
-                                            ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                            : "size-4 bg-muted/40 border border-border/70 text-muted-foreground flex items-center justify-center"
+                                            ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                            : "size-4 bg-surface-1 border border-border text-muted-foreground flex items-center justify-center"
                                     }
                                 >
                                     <CheckCheck className="size-3" />
@@ -285,10 +285,10 @@ export function ReviewAllModeView({
                                         <span
                                             className={
                                                 selectedVersionUnread
-                                                    ? "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                                                    ? "size-4 bg-surface-1 border border-border text-transparent flex items-center justify-center"
                                                     : isSelectedVersionViewed
-                                                      ? "size-4 bg-muted/40 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                                      : "size-4 bg-muted/40 border border-border/70 text-transparent flex items-center justify-center"
+                                                      ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                                      : "size-4 bg-surface-1 border border-border text-transparent flex items-center justify-center"
                                             }
                                         >
                                             <Check className="size-3" />

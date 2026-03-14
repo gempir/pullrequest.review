@@ -116,7 +116,10 @@ export function ReviewFileTreeSidebar({
     }, [activeFile, loading]);
 
     return (
-        <aside className={cn("relative shrink-0 bg-background flex flex-col overflow-hidden")} style={{ width: treeCollapsed ? 0 : treeWidth }}>
+        <aside
+            className={cn("relative shrink-0 bg-surface-1 flex flex-col overflow-hidden border-r border-border-muted")}
+            style={{ width: treeCollapsed ? 0 : treeWidth }}
+        >
             {!treeCollapsed ? (
                 <>
                     <SidebarTopControls
@@ -131,7 +134,7 @@ export function ReviewFileTreeSidebar({
                             </Button>
                         }
                     />
-                    <div className="h-10 bg-chrome flex items-center" data-component="search-sidebar">
+                    <div className="h-10 bg-chrome border-b border-border-muted flex items-center" data-component="search-sidebar">
                         <Input
                             className="h-full bg-chrome text-[12px] flex-1 min-w-0 border-0 rounded-none focus-visible:border-0 focus-visible:ring-0"
                             placeholder="search files"
@@ -147,7 +150,7 @@ export function ReviewFileTreeSidebar({
                                             type="button"
                                             variant="ghost"
                                             size="sm"
-                                            className={cn("size-7 p-0 relative", showUnviewedOnly ? "bg-accent text-foreground" : "")}
+                                            className={cn("size-7 p-0 relative", showUnviewedOnly ? "bg-surface-2 text-foreground" : "")}
                                             onClick={onToggleUnviewedOnly}
                                             aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
                                         >
@@ -212,7 +215,7 @@ export function ReviewFileTreeSidebar({
                     )}
                     <button
                         type="button"
-                        className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-border/30"
+                        className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-accent/40"
                         onMouseDown={onStartTreeResize}
                         aria-label="Resize file tree"
                     />

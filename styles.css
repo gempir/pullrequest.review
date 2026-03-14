@@ -31,51 +31,58 @@
 }
 
 :root {
-    --background: #0a0a0a;
-    --foreground: #e0e0e0;
-    --card: #111111;
-    --card-foreground: #e0e0e0;
-    --popover: #111111;
-    --popover-foreground: #e0e0e0;
+    /* GitHub Dark inspired palette */
+    --background: #0d1117;
+    --foreground: #e6edf3;
+    --surface-1: #161b22;
+    --surface-2: #1c2128;
+    --surface-3: #21262d;
+    --card: #161b22;
+    --card-foreground: #e6edf3;
+    --popover: #161b22;
+    --popover-foreground: #e6edf3;
 
-    --primary: #e0e0e0;
-    --primary-foreground: #0a0a0a;
+    --primary: #e6edf3;
+    --primary-foreground: #0d1117;
 
-    --secondary: #1a1a1a;
-    --secondary-foreground: #e0e0e0;
+    --secondary: #161b22;
+    --secondary-foreground: #e6edf3;
 
-    --muted: #141414;
-    --muted-foreground: #707070;
+    --muted: #161b22;
+    --muted-foreground: #8b949e;
+    --faint-foreground: #6e7681;
 
-    --accent: #1f1f1f;
-    --accent-foreground: #e0e0e0;
+    --accent: #3b82f6;
+    --accent-muted: #1d4ed8;
+    --accent-foreground: #ffffff;
 
-    --destructive: #dc2626;
+    --destructive: #f85149;
     --destructive-foreground: #ffffff;
 
-    --border: #2a2a2a;
-    --input: #2a2a2a;
-    --ring: #404040;
-    --chrome: #0c0c0c;
-    --overlay: #000000;
+    --border: #30363d;
+    --border-muted: #21262d;
+    --input: #30363d;
+    --ring: #388bfd;
+    --chrome: #161b22;
+    --overlay: rgba(1, 4, 9, 0.8);
 
-    --status-added: #22c55e;
-    --status-removed: #ef4444;
-    --status-modified: #eab308;
+    --status-added: #3fb950;
+    --status-removed: #f85149;
+    --status-modified: #d29922;
     --status-renamed: #3b82f6;
     --host-bitbucket: #2684ff;
     --host-bitbucket-accent: #0052cc;
 
-    --radius: 2px;
+    --radius: 6px;
 
-    --sidebar: #0f0f0f;
-    --sidebar-foreground: #e0e0e0;
-    --sidebar-primary: #e0e0e0;
-    --sidebar-primary-foreground: #0a0a0a;
-    --sidebar-accent: #1a1a1a;
-    --sidebar-accent-foreground: #e0e0e0;
-    --sidebar-border: #2a2a2a;
-    --sidebar-ring: #404040;
+    --sidebar: #0d1117;
+    --sidebar-foreground: #e6edf3;
+    --sidebar-primary: #e6edf3;
+    --sidebar-primary-foreground: #0d1117;
+    --sidebar-accent: #1c2128;
+    --sidebar-accent-foreground: #e6edf3;
+    --sidebar-border: #30363d;
+    --sidebar-ring: #388bfd;
 
     --font-menlo: Menlo, "Geist Mono", ui-monospace, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     --font-jetbrains-mono: "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
@@ -110,35 +117,49 @@
 }
 
 :root.light {
-    --background: #f7f7f8;
-    --foreground: #141414;
-    --card: #ffffff;
-    --card-foreground: #141414;
+    /* GitHub Light inspired palette */
+    --background: #ffffff;
+    --foreground: #1f2328;
+    --surface-1: #f6f8fa;
+    --surface-2: #eaeef2;
+    --surface-3: #d0d7de;
+    --card: #f6f8fa;
+    --card-foreground: #1f2328;
     --popover: #ffffff;
-    --popover-foreground: #141414;
-    --primary: #111111;
-    --primary-foreground: #fafafa;
-    --secondary: #ededee;
-    --secondary-foreground: #141414;
-    --muted: #f1f1f3;
-    --muted-foreground: #56565f;
-    --accent: #e5e7eb;
-    --accent-foreground: #111111;
-    --destructive: #dc2626;
+    --popover-foreground: #1f2328;
+    --primary: #1f2328;
+    --primary-foreground: #ffffff;
+    --secondary: #f6f8fa;
+    --secondary-foreground: #1f2328;
+    --muted: #f6f8fa;
+    --muted-foreground: #656d76;
+    --faint-foreground: #8b949e;
+    --accent: #0969da;
+    --accent-muted: #0550ae;
+    --accent-foreground: #ffffff;
+    --destructive: #cf222e;
     --destructive-foreground: #ffffff;
-    --border: #d4d4d8;
-    --input: #d4d4d8;
-    --ring: #8b8b96;
-    --chrome: #f6f6f7;
-    --sidebar: #f3f4f6;
-    --sidebar-foreground: #111111;
-    --sidebar-primary: #111111;
-    --sidebar-primary-foreground: #fafafa;
-    --sidebar-accent: #e5e7eb;
-    --sidebar-accent-foreground: #111111;
-    --sidebar-border: #d4d4d8;
-    --sidebar-ring: #8b8b96;
-    --overlay: #000000;
+    --border: #d0d7de;
+    --border-muted: #d8dee4;
+    --input: #d0d7de;
+    --ring: #0969da;
+    --chrome: #f6f8fa;
+    --overlay: rgba(31, 35, 40, 0.5);
+
+    /* Light mode status colors -- darkened for contrast */
+    --status-added: #1a7f37;
+    --status-removed: #cf222e;
+    --status-modified: #9a6700;
+    --status-renamed: #0969da;
+
+    --sidebar: #f6f8fa;
+    --sidebar-foreground: #1f2328;
+    --sidebar-primary: #1f2328;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #eaeef2;
+    --sidebar-accent-foreground: #1f2328;
+    --sidebar-border: #d0d7de;
+    --sidebar-ring: #0969da;
     --host-bitbucket: #2684ff;
     --host-bitbucket-accent: #0052cc;
 }
@@ -146,10 +167,15 @@
 @theme inline {
     --color-background: var(--background);
     --color-foreground: var(--foreground);
+    --color-surface-1: var(--surface-1);
+    --color-surface-2: var(--surface-2);
+    --color-surface-3: var(--surface-3);
     --color-card: var(--card);
     --color-card-foreground: var(--card-foreground);
     --color-muted-foreground: var(--muted-foreground);
+    --color-faint-foreground: var(--faint-foreground);
     --color-border: var(--border);
+    --color-border-muted: var(--border-muted);
     --color-ring: var(--ring);
     --color-chrome: var(--chrome);
     --color-overlay: var(--overlay);
@@ -166,6 +192,7 @@
     --color-destructive-foreground: var(--destructive-foreground);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
+    --color-accent-muted: var(--accent-muted);
     --color-muted: var(--muted);
     --color-secondary-foreground: var(--secondary-foreground);
     --color-secondary: var(--secondary);
@@ -182,14 +209,14 @@
     --color-host-bitbucket: var(--host-bitbucket);
     --color-host-bitbucket-accent: var(--host-bitbucket-accent);
 
-    /* Minimal radius */
-    --radius-sm: 1px;
-    --radius-md: 2px;
-    --radius-lg: 2px;
-    --radius-xl: 2px;
-    --radius-2xl: 2px;
-    --radius-3xl: 2px;
-    --radius-4xl: 2px;
+    /* Modern rounded radius */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 10px;
+    --radius-2xl: 12px;
+    --radius-3xl: 14px;
+    --radius-4xl: 16px;
 }
 
 @layer base {
@@ -228,11 +255,6 @@
         cursor: pointer;
     }
 
-    button,
-    [data-slot="button"] {
-        border-width: 0;
-    }
-
     button:disabled {
         cursor: not-allowed;
     }
@@ -251,7 +273,7 @@
     /* Selection style */
     ::selection {
         background-color: var(--accent);
-        color: var(--foreground);
+        color: var(--accent-foreground);
     }
 
     /* Scrollbar styling */
@@ -327,12 +349,12 @@
     }
 
     .terminal-button:hover {
-        background-color: var(--accent);
-        border-color: var(--ring);
+        background-color: var(--surface-2);
+        border-color: var(--border);
     }
 
     .terminal-button:active {
-        background-color: var(--muted);
+        background-color: var(--surface-3);
     }
 
     .terminal-button-primary {

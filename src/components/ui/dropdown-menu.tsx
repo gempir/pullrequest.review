@@ -42,7 +42,7 @@ function DropdownMenuItem({ className, inset, ...props }: React.ComponentProps<t
             data-slot="dropdown-menu-item"
             className={cn(
                 "relative flex cursor-default select-none items-center gap-2 rounded-[2px] px-2 py-1.5 text-foreground outline-hidden transition-colors",
-                "focus:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+                "focus:bg-surface-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
                 inset && "pl-7",
                 className,
             )}

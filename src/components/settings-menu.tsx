@@ -109,7 +109,7 @@ function ShortcutRow({ label, shortcut, onChange }: { label: string; shortcut: S
                     onBlur={() => setIsRecording(false)}
                     className={cn(
                         "h-8 px-2.5 text-[12px] transition-colors min-w-[96px] text-center",
-                        isRecording ? "bg-accent text-accent-foreground" : "bg-secondary/40 hover:bg-secondary/60",
+                        isRecording ? "bg-accent text-accent-foreground" : "bg-surface-1 border border-border-muted hover:bg-surface-2",
                     )}
                 >
                     {isRecording ? "Press key..." : displayShortcut()}
@@ -168,7 +168,7 @@ function ShortcutsTab() {
 }
 
 function DiffSettingsTab({ workspaceMode, onWorkspaceModeChange }: { workspaceMode?: WorkspaceMode; onWorkspaceModeChange?: (mode: WorkspaceMode) => void }) {
-    const { options } = useDiffOptions();
+    const { options, setOption } = useDiffOptions();
     const { monospaceFontFamily, monospaceFontSize, monospaceLineHeight } = useAppearance();
     const previewFileDiff = useMemo(() => {
         const patches = parsePatchFiles(DIFF_PREVIEW_PATCH);
@@ -212,8 +212,38 @@ function DiffSettingsTab({ workspaceMode, onWorkspaceModeChange }: { workspaceMo
         [options],
     );
 
+    const diffThemeValue = options.followSystemTheme ? "__system__" : options.theme;
+
     return (
         <div className="space-y-2.5">
+            <div className="space-y-1">
+                <Label className="text-[12px] text-muted-foreground">Diff Theme</Label>
+                <Select
+                    value={diffThemeValue}
+                    onValueChange={(value) => {
+                        if (value === "__system__") {
+                            setOption("followSystemTheme", true);
+                            return;
+                        }
+                        setOption("followSystemTheme", false);
+                        setOption("theme", value as DiffTheme);
+                    }}
+                >
+                    <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-80">
+                        <SelectItem value="__system__" className="text-[12px]">
+                            Auto (github dark/light default)
+                        </SelectItem>
+                        {DIFF_THEMES.map((theme) => (
+                            <SelectItem key={theme} value={theme} className="text-[12px]">
+                                {theme}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
             {workspaceMode && onWorkspaceModeChange && (
                 <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2">
@@ -258,6 +288,8 @@ function DiffSettingsTab({ workspaceMode, onWorkspaceModeChange }: { workspaceMo
 
 function AppearanceTab() {
     const {
+        appThemeMode,
+        setAppThemeMode,
         sansFontFamily,
         monospaceFontFamily,
         sansFontSize,
@@ -278,36 +310,25 @@ function AppearanceTab() {
         const fallback = getDetectedFontOptionFromValue(monospaceFontFamily);
         return fallback ? [...detectedMonospaceFonts, fallback] : detectedMonospaceFonts;
     }, [detectedMonospaceFonts, monospaceFontFamily]);
-    const { options, setOption } = useDiffOptions();
-    const appThemeValue = options.followSystemTheme ? "__system__" : options.theme;
 
     return (
         <div className="space-y-3 max-w-3xl">
             <div className="space-y-1">
-                <Label className="text-[12px] text-muted-foreground">Theme</Label>
-                <Select
-                    value={appThemeValue}
-                    onValueChange={(value) => {
-                        if (value === "__system__") {
-                            setOption("followSystemTheme", true);
-                            return;
-                        }
-                        setOption("followSystemTheme", false);
-                        setOption("theme", value as DiffTheme);
-                    }}
-                >
+                <Label className="text-[12px] text-muted-foreground">App Theme</Label>
+                <Select value={appThemeMode} onValueChange={(value) => setAppThemeMode(value as "auto" | "light" | "dark")}>
                     <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="max-h-80">
-                        <SelectItem value="__system__" className="text-[12px]">
-                            Detect browser preference (github dark/light default)
+                    <SelectContent>
+                        <SelectItem value="auto" className="text-[12px]">
+                            Auto (follow system)
                         </SelectItem>
-                        {DIFF_THEMES.map((theme) => (
-                            <SelectItem key={theme} value={theme} className="text-[12px]">
-                                {theme}
-                            </SelectItem>
-                        ))}
+                        <SelectItem value="dark" className="text-[12px]">
+                            Dark
+                        </SelectItem>
+                        <SelectItem value="light" className="text-[12px]">
+                            Light
+                        </SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -609,7 +630,9 @@ function StorageTab() {
                 </Button>
             </div>
 
-            {state.statusMessage ? <div className="text-[11px] px-2 py-1.5 bg-secondary/40">{state.statusMessage}</div> : null}
+            {state.statusMessage ? (
+                <div className="text-[11px] px-2 py-1.5 bg-surface-1 border border-border-muted rounded-md">{state.statusMessage}</div>
+            ) : null}
 
             {snapshot ? (
                 <section className="space-y-2">

@@ -92,7 +92,7 @@ export function RepositorySelector({
                             return (
                                 <label
                                     key={repo.fullName}
-                                    className="flex items-center gap-3 px-4 py-2.5 text-[13px] hover:bg-accent cursor-pointer transition-colors"
+                                    className="flex items-center gap-3 px-4 py-2.5 text-[13px] hover:bg-surface-2 cursor-pointer transition-colors"
                                 >
                                     <input
                                         type="checkbox"

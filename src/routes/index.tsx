@@ -4,6 +4,7 @@ import { AlertCircle, GitPullRequest, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { FileTree } from "@/components/file-tree";
+import { GitHostIcon } from "@/components/git-host-icon";
 import { RepositorySelector } from "@/components/repository-selector";
 import { SettingsPanelContentOnly } from "@/components/settings-menu";
 import { getSettingsTreeItems, settingsPathForTab, settingsTabFromPath } from "@/components/settings-navigation";
@@ -74,10 +75,47 @@ function normalizePullRequestRecord(record: unknown): {
             id: pullRequestId,
             title,
             state: typeof pullRequestSource.state === "string" ? pullRequestSource.state : "OPEN",
+            createdAt: typeof pullRequestSource.createdAt === "string" ? pullRequestSource.createdAt : undefined,
+            updatedAt: typeof pullRequestSource.updatedAt === "string" ? pullRequestSource.updatedAt : undefined,
+            source:
+                typeof pullRequestSource.source === "object" && pullRequestSource.source
+                    ? {
+                          branch:
+                              typeof pullRequestSource.source.branch === "object" && pullRequestSource.source.branch
+                                  ? { name: pullRequestSource.source.branch.name }
+                                  : undefined,
+                      }
+                    : undefined,
+            destination:
+                typeof pullRequestSource.destination === "object" && pullRequestSource.destination
+                    ? {
+                          branch:
+                              typeof pullRequestSource.destination.branch === "object" && pullRequestSource.destination.branch
+                                  ? { name: pullRequestSource.destination.branch.name }
+                                  : undefined,
+                      }
+                    : undefined,
             links: typeof pullRequestSource.links === "object" ? pullRequestSource.links : undefined,
             author: typeof pullRequestSource.author === "object" ? pullRequestSource.author : undefined,
         },
     };
+}
+
+function formatRootListDate(value?: string) {
+    if (!value) return null;
+    const parsed = Date.parse(value);
+    if (Number.isNaN(parsed)) return null;
+    return new Intl.DateTimeFormat(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    }).format(parsed);
+}
+
+function getDateSortTimestamp(value?: string) {
+    if (!value) return Number.NEGATIVE_INFINITY;
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
 }
 
 function normalizeWorkspaceLabel(workspace: string, hostDomain: string) {
@@ -325,6 +363,35 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
         return map;
     }, [groupedPullRequests]);
 
+    const sortedRootPullRequests = useMemo(() => {
+        const rows = groupedPullRequests.flatMap(({ host, repo, pullRequests }) => {
+            const repoKey = `${host}:${repo.fullName}`;
+            return pullRequests.map((pullRequest) => ({
+                host,
+                repo,
+                repoKey,
+                pullRequest,
+                updatedDateLabel: formatRootListDate(pullRequest.updatedAt),
+                updatedAtTimestamp: getDateSortTimestamp(pullRequest.updatedAt),
+            }));
+        });
+
+        rows.sort((a, b) => {
+            if (a.updatedAtTimestamp !== b.updatedAtTimestamp) {
+                return b.updatedAtTimestamp - a.updatedAtTimestamp;
+            }
+            if (a.pullRequest.id !== b.pullRequest.id) {
+                return b.pullRequest.id - a.pullRequest.id;
+            }
+            if (a.host !== b.host) {
+                return a.host.localeCompare(b.host);
+            }
+            return a.repo.fullName.localeCompare(b.repo.fullName);
+        });
+
+        return rows;
+    }, [groupedPullRequests]);
+
     const pullRequestTree = useMemo(() => buildPullRequestTree(reposByHost, pullRequestsByRepo, searchQuery), [reposByHost, pullRequestsByRepo, searchQuery]);
 
     const syncTreeFromPanel = useCallback(() => {
@@ -374,7 +441,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
 
     return (
         <div className="h-full min-h-0 flex bg-background">
-            <aside data-component="sidebar" className="w-[300px] shrink-0 bg-background flex flex-col">
+            <aside data-component="sidebar" className="w-[300px] shrink-0 bg-surface-1 border-r border-border-muted flex flex-col">
                 <SidebarTopControls
                     onHome={() => {
                         setShowSettingsPanel(false);
@@ -390,9 +457,9 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                     settingsActive={showSettingsPanel}
                 />
 
-                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-chrome flex items-center gap-2">
+                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-chrome border-b border-border-muted flex items-center gap-2">
                     <Input
-                        className="h-7 text-[12px]"
+                        className="h-7 text-[12px] border-0 rounded-none focus-visible:ring-0"
                         placeholder={showSettingsPanel ? "search settings" : "search repos or pull requests"}
                         value={searchQuery}
                         onChange={(event) => setSearchQuery(event.target.value)}
@@ -470,7 +537,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
             </aside>
 
             <section className="flex-1 min-w-0 min-h-0 flex flex-col">
-                <header data-component="navbar" className="h-11 bg-chrome px-3 flex items-center gap-2 text-[12px]">
+                <header data-component="navbar" className="h-11 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 text-[12px]">
                     <span className="text-muted-foreground">
                         {showSettingsPanel ? "Settings" : showRepositoryPanel ? "Repository Selection" : "Open Pull Requests"}
                     </span>
@@ -515,7 +582,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                             Clear {getHostLabel(activeHost)} repositories
                                         </Button>
                                     </div>
-                                    <div className="bg-destructive/5 p-3 space-y-2">
+                                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
                                         <div className="text-[12px] text-muted-foreground">Danger zone</div>
                                         <Button
                                             variant="outline"
@@ -538,7 +605,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                             )}
                         </div>
                     ) : selectedRepoCount === 0 ? (
-                        <div className="bg-card p-8 text-center space-y-3 max-w-2xl">
+                        <div className="rounded-md border border-border-muted bg-surface-1 p-8 text-center space-y-3 max-w-2xl">
                             <div className="flex items-center justify-center gap-2 text-muted-foreground">
                                 <GitPullRequest className="size-4" />
                                 <span className="text-[13px]">No repositories selected.</span>
@@ -555,19 +622,21 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                             </Button>
                         </div>
                     ) : isRepoPullRequestLoading ? (
-                        <div className="flex items-center gap-2 text-muted-foreground text-[13px]">
-                            <Loader2 className="size-4 animate-spin" />
-                            <span>Loading pull requests...</span>
+                        <div className="rounded-md border border-border-muted bg-surface-1 p-4 max-w-2xl">
+                            <div className="flex items-center gap-2 text-muted-foreground text-[13px]">
+                                <Loader2 className="size-4 animate-spin" />
+                                <span>Loading pull requests...</span>
+                            </div>
                         </div>
                     ) : repoPullRequestError ? (
-                        <div className="bg-destructive/10 p-4 text-destructive text-[13px] max-w-2xl">
+                        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-destructive text-[13px] max-w-2xl">
                             <div className="flex items-center gap-2">
                                 <AlertCircle className="size-4" />
                                 <span>[ERROR] {repoPullRequestError instanceof Error ? repoPullRequestError.message : "Failed to load pull requests"}</span>
                             </div>
                         </div>
-                    ) : groupedPullRequests.every((entry) => entry.pullRequests.length === 0) ? (
-                        <div className="bg-card p-8 text-center space-y-3 max-w-2xl">
+                    ) : sortedRootPullRequests.length === 0 ? (
+                        <div className="rounded-md border border-border-muted bg-surface-1 p-8 text-center space-y-3 max-w-2xl">
                             <p className="text-[13px] text-muted-foreground">No pull requests in selected repositories.</p>
                             <Button
                                 variant="outline"
@@ -582,57 +651,73 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                             </Button>
                         </div>
                     ) : (
-                        <div className="bg-card max-w-4xl">
-                            <div>
-                                {groupedPullRequests
-                                    .filter((entry) => entry.pullRequests.length > 0)
-                                    .map(({ host, repo, pullRequests }) => (
-                                        <div key={`${host}:${repo.fullName}`} className="p-3">
-                                            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 flex items-center gap-2">
-                                                <span className="px-1 py-0.5 bg-surface-1 border border-border-muted rounded">{getHostLabel(host)}</span>
-                                                <span className="font-mono">{repo.fullName}</span>
-                                            </div>
-                                            <div className="space-y-1">
-                                                {pullRequests.map((pr) => (
-                                                    <button
-                                                        type="button"
-                                                        key={`${host}:${repo.fullName}-${pr.id}`}
-                                                        className="w-full text-left px-3 py-2 text-[13px] hover:bg-surface-2 transition-colors bg-background"
-                                                        onClick={() => {
-                                                            if (repo.host === "github") {
-                                                                navigate({
-                                                                    to: "/$workspace/$repo/pull/$pullRequestId",
-                                                                    params: {
-                                                                        workspace: repo.workspace,
-                                                                        repo: repo.repo,
-                                                                        pullRequestId: String(pr.id),
-                                                                    },
-                                                                    search: DEFAULT_REVIEW_SCOPE_SEARCH,
-                                                                    hash: "",
-                                                                });
-                                                                return;
-                                                            }
-                                                            navigate({
-                                                                to: "/$workspace/$repo/pull-requests/$pullRequestId",
-                                                                params: {
-                                                                    workspace: repo.workspace,
-                                                                    repo: repo.repo,
-                                                                    pullRequestId: String(pr.id),
-                                                                },
-                                                                search: DEFAULT_REVIEW_SCOPE_SEARCH,
-                                                                hash: "",
-                                                            });
-                                                        }}
-                                                    >
-                                                        <div className="font-medium truncate text-foreground">{pr.title}</div>
-                                                        <div className="text-[11px] text-muted-foreground mt-0.5">
-                                                            #{pr.id} - {pr.author?.displayName ?? "Unknown author"}
-                                                        </div>
-                                                    </button>
-                                                ))}
-                                            </div>
+                        <div className="max-w-4xl">
+                            <div className="space-y-2">
+                                {sortedRootPullRequests.map(({ host, repo, repoKey, pullRequest, updatedDateLabel }, index) => {
+                                    const previous = sortedRootPullRequests[index - 1];
+                                    const showRepoLabel =
+                                        !previous || previous.repoKey !== repoKey || !updatedDateLabel || previous.updatedDateLabel !== updatedDateLabel;
+
+                                    return (
+                                        <div key={`${host}:${repo.fullName}-${pullRequest.id}`} className="space-y-1">
+                                            {showRepoLabel ? (
+                                                <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-1 flex items-center gap-2">
+                                                    <span className="inline-flex items-center justify-center text-foreground">
+                                                        <GitHostIcon host={host} className="size-3.5" />
+                                                    </span>
+                                                    <span className="font-mono">{repo.fullName}</span>
+                                                </div>
+                                            ) : null}
+                                            <button
+                                                type="button"
+                                                className="w-full text-left px-3 py-2 text-[13px] rounded-md border border-transparent bg-surface-1 hover:border-border-muted hover:bg-surface-2 transition-colors"
+                                                onClick={() => {
+                                                    if (repo.host === "github") {
+                                                        navigate({
+                                                            to: "/$workspace/$repo/pull/$pullRequestId",
+                                                            params: {
+                                                                workspace: repo.workspace,
+                                                                repo: repo.repo,
+                                                                pullRequestId: String(pullRequest.id),
+                                                            },
+                                                            search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                                            hash: "",
+                                                        });
+                                                        return;
+                                                    }
+                                                    navigate({
+                                                        to: "/$workspace/$repo/pull-requests/$pullRequestId",
+                                                        params: {
+                                                            workspace: repo.workspace,
+                                                            repo: repo.repo,
+                                                            pullRequestId: String(pullRequest.id),
+                                                        },
+                                                        search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                                        hash: "",
+                                                    });
+                                                }}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="font-medium truncate text-foreground">{pullRequest.title}</div>
+                                                    {updatedDateLabel ? (
+                                                        <span className="shrink-0 text-[10px] text-muted-foreground">Updated {updatedDateLabel}</span>
+                                                    ) : null}
+                                                </div>
+                                                <div className="text-[11px] text-muted-foreground mt-0.5">
+                                                    #{pullRequest.id} - {pullRequest.author?.displayName ?? "Unknown author"}
+                                                </div>
+                                                <div className="text-[10px] text-muted-foreground mt-1 flex items-center justify-between gap-3">
+                                                    <span>
+                                                        {pullRequest.source?.branch?.name ?? "source"} -&gt; {pullRequest.destination?.branch?.name ?? "target"}
+                                                    </span>
+                                                    {formatRootListDate(pullRequest.createdAt) ? (
+                                                        <span className="shrink-0">Created {formatRootListDate(pullRequest.createdAt)}</span>
+                                                    ) : null}
+                                                </div>
+                                            </button>
                                         </div>
-                                    ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

@@ -36,6 +36,10 @@ interface BitbucketPullRequestSummaryRaw {
     id: number;
     title: string;
     state: string;
+    created_on?: string;
+    updated_on?: string;
+    source?: PullRequestSummary["source"];
+    destination?: PullRequestSummary["destination"];
     links?: PullRequestSummary["links"];
     author?: BitbucketUser;
 }
@@ -306,6 +310,10 @@ function mapPullRequestSummary(pullRequest: BitbucketPullRequestSummaryRaw): Pul
         id: pullRequest.id,
         title: pullRequest.title,
         state: pullRequest.state,
+        createdAt: pullRequest.created_on,
+        updatedAt: pullRequest.updated_on,
+        source: pullRequest.source,
+        destination: pullRequest.destination,
         links: pullRequest.links,
         author: {
             displayName: pullRequest.author?.display_name,

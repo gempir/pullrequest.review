@@ -27,6 +27,10 @@ export interface PullRequestSummary {
     id: number;
     title: string;
     state: string;
+    createdAt?: string;
+    updatedAt?: string;
+    source?: { branch?: { name?: string } };
+    destination?: { branch?: { name?: string } };
     links?: { html?: { href?: string } };
     author?: { displayName?: string; avatarUrl?: string };
 }

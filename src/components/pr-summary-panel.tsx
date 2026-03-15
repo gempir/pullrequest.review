@@ -294,12 +294,6 @@ export function PullRequestSummaryPanel({
                     <Section>
                         {orderedCommits.length > 0 ? (
                             <div className="space-y-1.5">
-                                <div className="grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                                    <span>Author</span>
-                                    <span>Commit</span>
-                                    <span>Message</span>
-                                    <span className="text-right">Date</span>
-                                </div>
                                 {orderedCommits.map((commit) => {
                                     const message = commit.summary?.raw ?? commit.message;
                                     const mergedDevelop = isMergedDevelopCommit(message);

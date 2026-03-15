@@ -4,6 +4,7 @@ import { AlertCircle, GitPullRequest, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { FileTree } from "@/components/file-tree";
+import { GitHostIcon } from "@/components/git-host-icon";
 import { RepositorySelector } from "@/components/repository-selector";
 import { SettingsPanelContentOnly } from "@/components/settings-menu";
 import { getSettingsTreeItems, settingsPathForTab, settingsTabFromPath } from "@/components/settings-navigation";
@@ -74,10 +75,41 @@ function normalizePullRequestRecord(record: unknown): {
             id: pullRequestId,
             title,
             state: typeof pullRequestSource.state === "string" ? pullRequestSource.state : "OPEN",
+            createdAt: typeof pullRequestSource.createdAt === "string" ? pullRequestSource.createdAt : undefined,
+            updatedAt: typeof pullRequestSource.updatedAt === "string" ? pullRequestSource.updatedAt : undefined,
+            source:
+                typeof pullRequestSource.source === "object" && pullRequestSource.source
+                    ? {
+                          branch:
+                              typeof pullRequestSource.source.branch === "object" && pullRequestSource.source.branch
+                                  ? { name: pullRequestSource.source.branch.name }
+                                  : undefined,
+                      }
+                    : undefined,
+            destination:
+                typeof pullRequestSource.destination === "object" && pullRequestSource.destination
+                    ? {
+                          branch:
+                              typeof pullRequestSource.destination.branch === "object" && pullRequestSource.destination.branch
+                                  ? { name: pullRequestSource.destination.branch.name }
+                                  : undefined,
+                      }
+                    : undefined,
             links: typeof pullRequestSource.links === "object" ? pullRequestSource.links : undefined,
             author: typeof pullRequestSource.author === "object" ? pullRequestSource.author : undefined,
         },
     };
+}
+
+function formatRootListDate(value?: string) {
+    if (!value) return null;
+    const parsed = Date.parse(value);
+    if (Number.isNaN(parsed)) return null;
+    return new Intl.DateTimeFormat(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    }).format(parsed);
 }
 
 function normalizeWorkspaceLabel(workspace: string, hostDomain: string) {
@@ -589,9 +621,11 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                 {groupedPullRequests
                                     .filter((entry) => entry.pullRequests.length > 0)
                                     .map(({ host, repo, pullRequests }) => (
-                                        <div key={`${host}:${repo.fullName}`} className="rounded-md border border-border-muted p-3">
+                                        <div key={`${host}:${repo.fullName}`} className="space-y-1">
                                             <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 flex items-center gap-2">
-                                                <span className="px-1 py-0.5 border border-border-muted rounded">{getHostLabel(host)}</span>
+                                                <span className="inline-flex items-center justify-center text-foreground">
+                                                    <GitHostIcon host={host} className="size-3.5" />
+                                                </span>
                                                 <span className="font-mono">{repo.fullName}</span>
                                             </div>
                                             <div className="space-y-1">
@@ -626,9 +660,24 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                                             });
                                                         }}
                                                     >
-                                                        <div className="font-medium truncate text-foreground">{pr.title}</div>
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="font-medium truncate text-foreground">{pr.title}</div>
+                                                            {formatRootListDate(pr.updatedAt) ? (
+                                                                <span className="shrink-0 text-[10px] text-muted-foreground">
+                                                                    Updated {formatRootListDate(pr.updatedAt)}
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
                                                         <div className="text-[11px] text-muted-foreground mt-0.5">
                                                             #{pr.id} - {pr.author?.displayName ?? "Unknown author"}
+                                                        </div>
+                                                        <div className="text-[10px] text-muted-foreground mt-1 flex items-center justify-between gap-3">
+                                                            <span>
+                                                                {pr.source?.branch?.name ?? "source"} -&gt; {pr.destination?.branch?.name ?? "target"}
+                                                            </span>
+                                                            {formatRootListDate(pr.createdAt) ? (
+                                                                <span className="shrink-0">Created {formatRootListDate(pr.createdAt)}</span>
+                                                            ) : null}
                                                         </div>
                                                     </button>
                                                 ))}

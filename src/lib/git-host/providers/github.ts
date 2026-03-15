@@ -363,6 +363,14 @@ function mapPullRequestSummary(pr: GithubPull): PullRequestSummary {
         id: pr.number,
         title: pr.title,
         state: (pr.state ?? "OPEN").toUpperCase(),
+        createdAt: pr.created_at,
+        updatedAt: pr.updated_at,
+        source: {
+            branch: { name: pr.head?.ref },
+        },
+        destination: {
+            branch: { name: pr.base?.ref },
+        },
         links: { html: { href: pr.html_url } },
         author: { displayName: pr.user?.login, avatarUrl: pr.user?.avatar_url },
     };

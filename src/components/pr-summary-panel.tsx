@@ -97,13 +97,15 @@ function MarkdownBlock({ text }: { text: string }) {
     );
 }
 
-function Section({ title, children, headerRight }: { title: string; children: ReactNode; headerRight?: ReactNode }) {
+function Section({ title, children, headerRight }: { title?: string; children: ReactNode; headerRight?: ReactNode }) {
     return (
         <section>
-            <div className="h-8 px-2.5 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-                <span>{title}</span>
-                {headerRight ? <span className="ml-auto">{headerRight}</span> : null}
-            </div>
+            {title || headerRight ? (
+                <div className="h-8 px-2.5 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    {title ? <span>{title}</span> : null}
+                    {headerRight ? <span className="ml-auto">{headerRight}</span> : null}
+                </div>
+            ) : null}
             <div className="p-2.5">{children}</div>
         </section>
     );
@@ -238,7 +240,7 @@ export function PullRequestSummaryPanel({
                 </section>
 
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                    <Section title="History">
+                    <Section>
                         {orderedHistory.length > 0 ? (
                             <div className="space-y-2">
                                 {orderedHistory.map((event) => {
@@ -289,7 +291,7 @@ export function PullRequestSummaryPanel({
                         )}
                     </Section>
 
-                    <Section title="Commits">
+                    <Section>
                         {orderedCommits.length > 0 ? (
                             <div className="space-y-1.5">
                                 <div className="grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">

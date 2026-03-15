@@ -112,6 +112,12 @@ function formatRootListDate(value?: string) {
     }).format(parsed);
 }
 
+function getDateSortTimestamp(value?: string) {
+    if (!value) return Number.NEGATIVE_INFINITY;
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
+}
+
 function normalizeWorkspaceLabel(workspace: string, hostDomain: string) {
     const normalized = workspace
         .trim()
@@ -357,6 +363,35 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
         return map;
     }, [groupedPullRequests]);
 
+    const sortedRootPullRequests = useMemo(() => {
+        const rows = groupedPullRequests.flatMap(({ host, repo, pullRequests }) => {
+            const repoKey = `${host}:${repo.fullName}`;
+            return pullRequests.map((pullRequest) => ({
+                host,
+                repo,
+                repoKey,
+                pullRequest,
+                updatedDateLabel: formatRootListDate(pullRequest.updatedAt),
+                updatedAtTimestamp: getDateSortTimestamp(pullRequest.updatedAt),
+            }));
+        });
+
+        rows.sort((a, b) => {
+            if (a.updatedAtTimestamp !== b.updatedAtTimestamp) {
+                return b.updatedAtTimestamp - a.updatedAtTimestamp;
+            }
+            if (a.pullRequest.id !== b.pullRequest.id) {
+                return b.pullRequest.id - a.pullRequest.id;
+            }
+            if (a.host !== b.host) {
+                return a.host.localeCompare(b.host);
+            }
+            return a.repo.fullName.localeCompare(b.repo.fullName);
+        });
+
+        return rows;
+    }, [groupedPullRequests]);
+
     const pullRequestTree = useMemo(() => buildPullRequestTree(reposByHost, pullRequestsByRepo, searchQuery), [reposByHost, pullRequestsByRepo, searchQuery]);
 
     const syncTreeFromPanel = useCallback(() => {
@@ -600,7 +635,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                 <span>[ERROR] {repoPullRequestError instanceof Error ? repoPullRequestError.message : "Failed to load pull requests"}</span>
                             </div>
                         </div>
-                    ) : groupedPullRequests.every((entry) => entry.pullRequests.length === 0) ? (
+                    ) : sortedRootPullRequests.length === 0 ? (
                         <div className="rounded-md border border-border-muted bg-surface-1 p-8 text-center space-y-3 max-w-2xl">
                             <p className="text-[13px] text-muted-foreground">No pull requests in selected repositories.</p>
                             <Button
@@ -618,72 +653,71 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                     ) : (
                         <div className="max-w-4xl">
                             <div className="space-y-2">
-                                {groupedPullRequests
-                                    .filter((entry) => entry.pullRequests.length > 0)
-                                    .map(({ host, repo, pullRequests }) => (
-                                        <div key={`${host}:${repo.fullName}`} className="space-y-1">
-                                            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 flex items-center gap-2">
-                                                <span className="inline-flex items-center justify-center text-foreground">
-                                                    <GitHostIcon host={host} className="size-3.5" />
-                                                </span>
-                                                <span className="font-mono">{repo.fullName}</span>
-                                            </div>
-                                            <div className="space-y-1">
-                                                {pullRequests.map((pr) => (
-                                                    <button
-                                                        type="button"
-                                                        key={`${host}:${repo.fullName}-${pr.id}`}
-                                                        className="w-full text-left px-3 py-2 text-[13px] rounded-md border border-transparent bg-surface-1 hover:border-border-muted hover:bg-surface-2 transition-colors"
-                                                        onClick={() => {
-                                                            if (repo.host === "github") {
-                                                                navigate({
-                                                                    to: "/$workspace/$repo/pull/$pullRequestId",
-                                                                    params: {
-                                                                        workspace: repo.workspace,
-                                                                        repo: repo.repo,
-                                                                        pullRequestId: String(pr.id),
-                                                                    },
-                                                                    search: DEFAULT_REVIEW_SCOPE_SEARCH,
-                                                                    hash: "",
-                                                                });
-                                                                return;
-                                                            }
-                                                            navigate({
-                                                                to: "/$workspace/$repo/pull-requests/$pullRequestId",
-                                                                params: {
-                                                                    workspace: repo.workspace,
-                                                                    repo: repo.repo,
-                                                                    pullRequestId: String(pr.id),
-                                                                },
-                                                                search: DEFAULT_REVIEW_SCOPE_SEARCH,
-                                                                hash: "",
-                                                            });
-                                                        }}
-                                                    >
-                                                        <div className="flex items-start justify-between gap-3">
-                                                            <div className="font-medium truncate text-foreground">{pr.title}</div>
-                                                            {formatRootListDate(pr.updatedAt) ? (
-                                                                <span className="shrink-0 text-[10px] text-muted-foreground">
-                                                                    Updated {formatRootListDate(pr.updatedAt)}
-                                                                </span>
-                                                            ) : null}
-                                                        </div>
-                                                        <div className="text-[11px] text-muted-foreground mt-0.5">
-                                                            #{pr.id} - {pr.author?.displayName ?? "Unknown author"}
-                                                        </div>
-                                                        <div className="text-[10px] text-muted-foreground mt-1 flex items-center justify-between gap-3">
-                                                            <span>
-                                                                {pr.source?.branch?.name ?? "source"} -&gt; {pr.destination?.branch?.name ?? "target"}
-                                                            </span>
-                                                            {formatRootListDate(pr.createdAt) ? (
-                                                                <span className="shrink-0">Created {formatRootListDate(pr.createdAt)}</span>
-                                                            ) : null}
-                                                        </div>
-                                                    </button>
-                                                ))}
-                                            </div>
+                                {sortedRootPullRequests.map(({ host, repo, repoKey, pullRequest, updatedDateLabel }, index) => {
+                                    const previous = sortedRootPullRequests[index - 1];
+                                    const showRepoLabel =
+                                        !previous || previous.repoKey !== repoKey || !updatedDateLabel || previous.updatedDateLabel !== updatedDateLabel;
+
+                                    return (
+                                        <div key={`${host}:${repo.fullName}-${pullRequest.id}`} className="space-y-1">
+                                            {showRepoLabel ? (
+                                                <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-1 flex items-center gap-2">
+                                                    <span className="inline-flex items-center justify-center text-foreground">
+                                                        <GitHostIcon host={host} className="size-3.5" />
+                                                    </span>
+                                                    <span className="font-mono">{repo.fullName}</span>
+                                                </div>
+                                            ) : null}
+                                            <button
+                                                type="button"
+                                                className="w-full text-left px-3 py-2 text-[13px] rounded-md border border-transparent bg-surface-1 hover:border-border-muted hover:bg-surface-2 transition-colors"
+                                                onClick={() => {
+                                                    if (repo.host === "github") {
+                                                        navigate({
+                                                            to: "/$workspace/$repo/pull/$pullRequestId",
+                                                            params: {
+                                                                workspace: repo.workspace,
+                                                                repo: repo.repo,
+                                                                pullRequestId: String(pullRequest.id),
+                                                            },
+                                                            search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                                            hash: "",
+                                                        });
+                                                        return;
+                                                    }
+                                                    navigate({
+                                                        to: "/$workspace/$repo/pull-requests/$pullRequestId",
+                                                        params: {
+                                                            workspace: repo.workspace,
+                                                            repo: repo.repo,
+                                                            pullRequestId: String(pullRequest.id),
+                                                        },
+                                                        search: DEFAULT_REVIEW_SCOPE_SEARCH,
+                                                        hash: "",
+                                                    });
+                                                }}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="font-medium truncate text-foreground">{pullRequest.title}</div>
+                                                    {updatedDateLabel ? (
+                                                        <span className="shrink-0 text-[10px] text-muted-foreground">Updated {updatedDateLabel}</span>
+                                                    ) : null}
+                                                </div>
+                                                <div className="text-[11px] text-muted-foreground mt-0.5">
+                                                    #{pullRequest.id} - {pullRequest.author?.displayName ?? "Unknown author"}
+                                                </div>
+                                                <div className="text-[10px] text-muted-foreground mt-1 flex items-center justify-between gap-3">
+                                                    <span>
+                                                        {pullRequest.source?.branch?.name ?? "source"} -&gt; {pullRequest.destination?.branch?.name ?? "target"}
+                                                    </span>
+                                                    {formatRootListDate(pullRequest.createdAt) ? (
+                                                        <span className="shrink-0">Created {formatRootListDate(pullRequest.createdAt)}</span>
+                                                    ) : null}
+                                                </div>
+                                            </button>
                                         </div>
-                                    ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

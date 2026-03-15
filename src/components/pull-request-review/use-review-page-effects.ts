@@ -298,7 +298,9 @@ export function useReviewFileHashSync({
         if (typeof window === "undefined") return;
         if (suppressHashSyncRef?.current) {
             suppressHashSyncRef.current = false;
-            return;
+            if (!showSettingsPanel && activeFile && activeFile !== PR_SUMMARY_PATH) {
+                return;
+            }
         }
         if (!showSettingsPanel && !activeFile) return;
         if (!showSettingsPanel && activeFile && activeFile !== PR_SUMMARY_PATH && !selectableFilePaths.has(activeFile)) {
@@ -316,9 +318,9 @@ export function useReviewFileHashSync({
             if (selectableFilePaths.has(hashPath) && !activeFile) {
                 return;
             }
-            // If we're still on summary while a file hash is present, keep the hash
+            // If we're still on summary while file selection is not ready, keep the hash
             // so selection can happen once file entries are ready.
-            if (activeFile === PR_SUMMARY_PATH && activeFile !== hashPath) {
+            if (activeFile === PR_SUMMARY_PATH && activeFile !== hashPath && !isFileSelectionReady) {
                 return;
             }
         }

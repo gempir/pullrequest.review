@@ -106,7 +106,7 @@ function Section({ title, children, headerRight }: { title?: string; children: R
                     {headerRight ? <span className="ml-auto">{headerRight}</span> : null}
                 </div>
             ) : null}
-            <div className="p-2.5">{children}</div>
+            <div>{children}</div>
         </section>
     );
 }
@@ -239,7 +239,7 @@ export function PullRequestSummaryPanel({
                     </div>
                 </section>
 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
                     <Section>
                         {orderedHistory.length > 0 ? (
                             <div className="space-y-2">

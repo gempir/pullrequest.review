@@ -374,7 +374,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
 
     return (
         <div className="h-full min-h-0 flex bg-background">
-            <aside data-component="sidebar" className="w-[300px] shrink-0 bg-background flex flex-col">
+            <aside data-component="sidebar" className="w-[300px] shrink-0 bg-surface-1 border-r border-border-muted flex flex-col">
                 <SidebarTopControls
                     onHome={() => {
                         setShowSettingsPanel(false);
@@ -390,9 +390,9 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                     settingsActive={showSettingsPanel}
                 />
 
-                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-chrome flex items-center gap-2">
+                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-chrome border-b border-border-muted flex items-center gap-2">
                     <Input
-                        className="h-7 text-[12px]"
+                        className="h-7 text-[12px] border-0 rounded-none focus-visible:ring-0"
                         placeholder={showSettingsPanel ? "search settings" : "search repos or pull requests"}
                         value={searchQuery}
                         onChange={(event) => setSearchQuery(event.target.value)}
@@ -470,7 +470,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
             </aside>
 
             <section className="flex-1 min-w-0 min-h-0 flex flex-col">
-                <header data-component="navbar" className="h-11 bg-chrome px-3 flex items-center gap-2 text-[12px]">
+                <header data-component="navbar" className="h-11 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 text-[12px]">
                     <span className="text-muted-foreground">
                         {showSettingsPanel ? "Settings" : showRepositoryPanel ? "Repository Selection" : "Open Pull Requests"}
                     </span>
@@ -515,7 +515,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                             Clear {getHostLabel(activeHost)} repositories
                                         </Button>
                                     </div>
-                                    <div className="bg-destructive/5 p-3 space-y-2">
+                                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
                                         <div className="text-[12px] text-muted-foreground">Danger zone</div>
                                         <Button
                                             variant="outline"
@@ -538,7 +538,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                             )}
                         </div>
                     ) : selectedRepoCount === 0 ? (
-                        <div className="bg-card p-8 text-center space-y-3 max-w-2xl">
+                        <div className="rounded-md border border-border-muted bg-surface-1 p-8 text-center space-y-3 max-w-2xl">
                             <div className="flex items-center justify-center gap-2 text-muted-foreground">
                                 <GitPullRequest className="size-4" />
                                 <span className="text-[13px]">No repositories selected.</span>
@@ -555,19 +555,21 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                             </Button>
                         </div>
                     ) : isRepoPullRequestLoading ? (
-                        <div className="flex items-center gap-2 text-muted-foreground text-[13px]">
-                            <Loader2 className="size-4 animate-spin" />
-                            <span>Loading pull requests...</span>
+                        <div className="rounded-md border border-border-muted bg-surface-1 p-4 max-w-2xl">
+                            <div className="flex items-center gap-2 text-muted-foreground text-[13px]">
+                                <Loader2 className="size-4 animate-spin" />
+                                <span>Loading pull requests...</span>
+                            </div>
                         </div>
                     ) : repoPullRequestError ? (
-                        <div className="bg-destructive/10 p-4 text-destructive text-[13px] max-w-2xl">
+                        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-destructive text-[13px] max-w-2xl">
                             <div className="flex items-center gap-2">
                                 <AlertCircle className="size-4" />
                                 <span>[ERROR] {repoPullRequestError instanceof Error ? repoPullRequestError.message : "Failed to load pull requests"}</span>
                             </div>
                         </div>
                     ) : groupedPullRequests.every((entry) => entry.pullRequests.length === 0) ? (
-                        <div className="bg-card p-8 text-center space-y-3 max-w-2xl">
+                        <div className="rounded-md border border-border-muted bg-surface-1 p-8 text-center space-y-3 max-w-2xl">
                             <p className="text-[13px] text-muted-foreground">No pull requests in selected repositories.</p>
                             <Button
                                 variant="outline"
@@ -582,14 +584,14 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                             </Button>
                         </div>
                     ) : (
-                        <div className="bg-card max-w-4xl">
-                            <div>
+                        <div className="max-w-4xl">
+                            <div className="space-y-2">
                                 {groupedPullRequests
                                     .filter((entry) => entry.pullRequests.length > 0)
                                     .map(({ host, repo, pullRequests }) => (
-                                        <div key={`${host}:${repo.fullName}`} className="p-3">
+                                        <div key={`${host}:${repo.fullName}`} className="rounded-md border border-border-muted p-3">
                                             <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-2 flex items-center gap-2">
-                                                <span className="px-1 py-0.5 bg-surface-1 border border-border-muted rounded">{getHostLabel(host)}</span>
+                                                <span className="px-1 py-0.5 border border-border-muted rounded">{getHostLabel(host)}</span>
                                                 <span className="font-mono">{repo.fullName}</span>
                                             </div>
                                             <div className="space-y-1">
@@ -597,7 +599,7 @@ function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }:
                                                     <button
                                                         type="button"
                                                         key={`${host}:${repo.fullName}-${pr.id}`}
-                                                        className="w-full text-left px-3 py-2 text-[13px] hover:bg-surface-2 transition-colors bg-background"
+                                                        className="w-full text-left px-3 py-2 text-[13px] rounded-md border border-transparent bg-surface-1 hover:border-border-muted hover:bg-surface-2 transition-colors"
                                                         onClick={() => {
                                                             if (repo.host === "github") {
                                                                 navigate({

@@ -167,10 +167,10 @@ export function ReviewTopNavbar({
                                         variant="ghost"
                                         size="sm"
                                         className={cn(
-                                            "h-full w-11 rounded-none px-0 bg-chrome focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                            "h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
                                             host === "github"
-                                                ? "text-status-renamed hover:bg-surface-1 hover:text-status-renamed"
-                                                : "text-host-bitbucket hover:bg-surface-1 hover:text-host-bitbucket-accent",
+                                                ? "hover:bg-surface-1 hover:text-status-renamed"
+                                                : "hover:bg-surface-1 hover:text-host-bitbucket-accent",
                                         )}
                                     >
                                         <a
@@ -192,7 +192,7 @@ export function ReviewTopNavbar({
                                     variant="ghost"
                                     size="sm"
                                     className={cn(
-                                        "h-full min-w-24 rounded-none px-3 bg-chrome text-foreground hover:bg-surface-1 data-[state=open]:bg-surface-1 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                        "h-full min-w-24 rounded-none px-3 bg-chrome text-foreground hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
                                     )}
                                     disabled={actionBusy}
                                     aria-label="Pull request actions"

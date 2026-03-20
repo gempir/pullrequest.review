@@ -95,7 +95,10 @@ export function ReviewCommentsSidebar({
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className={cn("size-7 p-0 relative", includeResolved ? "bg-surface-2 text-foreground" : "text-muted-foreground")}
+                                className={cn(
+                                    "size-7 p-0 relative text-muted-foreground hover:text-foreground",
+                                    includeResolved ? "bg-surface-2 text-foreground" : "",
+                                )}
                                 onClick={() => setIncludeResolved((prev) => !prev)}
                                 aria-label={includeResolved ? "Hide resolved comments" : "Include resolved comments"}
                             >

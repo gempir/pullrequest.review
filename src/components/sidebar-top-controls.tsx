@@ -45,7 +45,7 @@ export function SidebarTopControls({
     );
 
     return (
-        <div data-component="top-sidebar" className="h-11 px-2 bg-chrome border-b border-border-muted flex items-center gap-1">
+        <div data-component="top-sidebar" className="h-11 pl-2 pr-0 bg-chrome border-b border-border-muted flex items-center gap-1">
             <Button
                 type="button"
                 variant="ghost"

@@ -35,12 +35,12 @@ export function ReviewRightSidebar({
                 aria-label={`Resize ${title.toLowerCase()}`}
             />
             <div className="flex h-full min-w-0 flex-col overflow-hidden">
-                <div className="flex h-11 items-center gap-2 border-b border-border-muted bg-chrome px-3">
+                <div className="flex h-11 items-center gap-2 border-b border-border-muted bg-chrome pl-0 pr-3">
                     <Button
                         type="button"
                         variant="ghost"
                         size="icon-sm"
-                        className="size-7 -ml-1 text-muted-foreground hover:text-foreground"
+                        className="size-7 text-muted-foreground hover:text-foreground"
                         onClick={onToggleCollapsed}
                         aria-label={`Collapse ${title.toLowerCase()}`}
                     >

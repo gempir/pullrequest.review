@@ -30,6 +30,7 @@ const TREE_SETTINGS_RECORD_ID = "tree-settings";
 const SHORTCUTS_RECORD_ID = "shortcuts";
 const HOST_PREFERENCES_RECORD_ID = "host-preferences";
 const REVIEW_LAYOUT_RECORD_ID = "review-layout";
+const DEFAULT_REVIEW_RIGHT_SIDEBAR_WIDTH = 320;
 
 const LOCAL_STORAGE_RESET_PREFIX = "pr_review_";
 
@@ -147,6 +148,8 @@ type ReviewLayoutStateRecord = BaseCollectionRecord & {
     treeWidth: number;
     treeCollapsed: boolean;
     viewMode: ReviewViewMode;
+    rightSidebarWidth?: number;
+    rightSidebarCollapsed?: boolean;
 };
 
 type InlineDraftSide = "additions" | "deletions";
@@ -313,7 +316,7 @@ const REVIEW_DIRECTORY_STATE_SCHEMA = {
 
 const REVIEW_LAYOUT_STATE_SCHEMA = {
     title: "pullrequestdotreview review layout state",
-    version: 0,
+    version: 1,
     type: "object",
     primaryKey: "id",
     properties: {
@@ -321,9 +324,22 @@ const REVIEW_LAYOUT_STATE_SCHEMA = {
         treeWidth: { type: "number" },
         treeCollapsed: { type: "boolean" },
         viewMode: { type: "string", maxLength: 20 },
+        rightSidebarWidth: { type: "number" },
+        rightSidebarCollapsed: { type: "boolean" },
     },
     required: ["id", "updatedAt", "expiresAt", "treeWidth", "treeCollapsed", "viewMode"],
     additionalProperties: false,
+} as const;
+
+const REVIEW_LAYOUT_STATE_MIGRATION_STRATEGIES = {
+    1: (oldDocument: ReviewLayoutStateRecord & Record<string, unknown>) => ({
+        ...oldDocument,
+        rightSidebarWidth:
+            typeof oldDocument.rightSidebarWidth === "number" && Number.isFinite(oldDocument.rightSidebarWidth)
+                ? oldDocument.rightSidebarWidth
+                : DEFAULT_REVIEW_RIGHT_SIDEBAR_WIDTH,
+        rightSidebarCollapsed: typeof oldDocument.rightSidebarCollapsed === "boolean" ? oldDocument.rightSidebarCollapsed : false,
+    }),
 } as const;
 
 const INLINE_COMMENT_DRAFTS_SCHEMA = {
@@ -442,7 +458,13 @@ async function initRxdbCollections() {
         return;
     }
 
-    const [{ createRxDatabase }, { getRxStorageDexie }] = await Promise.all([import("rxdb/plugins/core"), import("rxdb/plugins/storage-dexie")]);
+    const [{ addRxPlugin, createRxDatabase }, { RxDBMigrationSchemaPlugin }, { getRxStorageDexie }] = await Promise.all([
+        import("rxdb/plugins/core"),
+        import("rxdb/plugins/migration-schema"),
+        import("rxdb/plugins/storage-dexie"),
+    ]);
+
+    addRxPlugin(RxDBMigrationSchemaPlugin);
 
     const database = await createRxDatabase({
         name: DATA_DATABASE_NAME,
@@ -464,6 +486,7 @@ async function initRxdbCollections() {
         },
         [REVIEW_LAYOUT_STATE_COLLECTION_NAME]: {
             schema: REVIEW_LAYOUT_STATE_SCHEMA,
+            migrationStrategies: REVIEW_LAYOUT_STATE_MIGRATION_STRATEGIES,
         },
         [INLINE_COMMENT_DRAFTS_COLLECTION_NAME]: {
             schema: INLINE_COMMENT_DRAFTS_SCHEMA,
@@ -701,9 +724,9 @@ function readPermanentRecord<T extends Record<string, unknown>>(id: string): (T 
     };
 }
 
-function writePermanentRecord(id: string, value: Record<string, unknown>, context: string) {
+async function writePermanentRecord(id: string, value: Record<string, unknown>, context: string) {
     const now = Date.now();
-    void upsertRecord(
+    await upsertRecord(
         getAppPreferencesCollection(),
         {
             id,
@@ -888,8 +911,8 @@ export function readBitbucketAuthCredential() {
     };
 }
 
-export function writeBitbucketAuthCredential(data: { email: string; apiToken: string }) {
-    writePermanentRecord(
+export async function writeBitbucketAuthCredential(data: { email: string; apiToken: string }) {
+    await writePermanentRecord(
         "bitbucket",
         {
             host: "bitbucket",
@@ -913,8 +936,8 @@ export function readGithubAuthCredential() {
     };
 }
 
-export function writeGithubAuthCredential(data: { token: string }) {
-    writePermanentRecord(
+export async function writeGithubAuthCredential(data: { token: string }) {
+    await writePermanentRecord(
         "github",
         {
             host: "github",

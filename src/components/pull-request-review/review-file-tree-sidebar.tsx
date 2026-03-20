@@ -117,7 +117,7 @@ export function ReviewFileTreeSidebar({
 
     return (
         <aside
-            className={cn("relative shrink-0 bg-surface-1 flex flex-col overflow-hidden border-r border-border-muted")}
+            className={cn("relative shrink-0 bg-background flex flex-col overflow-hidden border-r border-border-muted")}
             style={{ width: treeCollapsed ? 0 : treeWidth }}
         >
             {!treeCollapsed ? (
@@ -156,7 +156,10 @@ export function ReviewFileTreeSidebar({
                                             type="button"
                                             variant="ghost"
                                             size="sm"
-                                            className={cn("size-7 p-0 relative", showUnviewedOnly ? "bg-surface-2 text-foreground" : "")}
+                                            className={cn(
+                                                "size-7 p-0 relative text-muted-foreground hover:text-foreground",
+                                                showUnviewedOnly ? "bg-surface-2 text-foreground" : "",
+                                            )}
                                             onClick={onToggleUnviewedOnly}
                                             aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
                                         >
@@ -176,7 +179,7 @@ export function ReviewFileTreeSidebar({
                                             type="button"
                                             variant="ghost"
                                             size="sm"
-                                            className="size-7 p-0"
+                                            className="size-7 p-0 text-muted-foreground hover:text-foreground"
                                             onClick={onCollapseAllDirectories}
                                             aria-label="Collapse all directories"
                                         >
@@ -191,7 +194,7 @@ export function ReviewFileTreeSidebar({
                                             type="button"
                                             variant="ghost"
                                             size="sm"
-                                            className="size-7 p-0"
+                                            className="size-7 p-0 text-muted-foreground hover:text-foreground"
                                             onClick={onExpandAllDirectories}
                                             aria-label="Expand all directories"
                                         >

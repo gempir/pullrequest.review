@@ -219,6 +219,13 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
         onRequireAuth?.("rate_limit");
     }, [canWrite, onRequireAuth, queryError]);
 
+    useEffect(() => {
+        if (!canWrite) return;
+        if (!queryError || !isRateLimitedError(queryError)) return;
+        if (queryIsFetching) return;
+        void refetchQuery();
+    }, [canWrite, queryError, queryIsFetching, refetchQuery]);
+
     return {
         hostCapabilities,
         critical,

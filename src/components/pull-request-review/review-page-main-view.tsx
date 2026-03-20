@@ -10,6 +10,7 @@ type ReviewPageMainViewProps = {
     navbarProps: ComponentProps<typeof ReviewTopNavbar>;
     actionError: string | null;
     diffContent: ReactNode;
+    rightSidebar?: ReactNode;
     mergeDialogProps: ComponentProps<typeof ReviewMergeDialog>;
 };
 
@@ -20,6 +21,7 @@ export function ReviewPageMainView({
     navbarProps,
     actionError,
     diffContent,
+    rightSidebar,
     mergeDialogProps,
 }: ReviewPageMainViewProps) {
     return (
@@ -37,6 +39,8 @@ export function ReviewPageMainView({
                     {diffContent}
                 </div>
             </div>
+
+            {rightSidebar}
 
             <ReviewMergeDialog {...mergeDialogProps} />
         </div>

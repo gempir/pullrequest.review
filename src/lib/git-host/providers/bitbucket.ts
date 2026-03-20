@@ -182,8 +182,8 @@ function readCredentials() {
     return parseCredentials(JSON.stringify(stored));
 }
 
-function writeCredentials(credentials: BitbucketCredentials) {
-    writeBitbucketAuthCredential(credentials);
+async function writeCredentials(credentials: BitbucketCredentials) {
+    await writeBitbucketAuthCredential(credentials);
 }
 
 function clearCredentials() {
@@ -689,7 +689,7 @@ export const bitbucketClient: GitHostClient = {
             throw new Error(details ? `Bitbucket authentication failed (${status}): ${details}` : `Bitbucket authentication failed (${status})`);
         }
 
-        writeCredentials({ email, apiToken: token });
+        await writeCredentials({ email, apiToken: token });
         return { authenticated: true };
     },
     async logout(): Promise<AuthState> {

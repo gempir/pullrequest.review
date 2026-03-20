@@ -1,4 +1,19 @@
-import { Check, Copy, Github, GitMerge, GlassWater, Loader2, Menu, Minus, PanelLeftOpen, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
+import {
+    Check,
+    Copy,
+    Github,
+    GitMerge,
+    GlassWater,
+    Loader2,
+    Menu,
+    Minus,
+    PanelLeftOpen,
+    PanelRightOpen,
+    PenSquare,
+    TriangleAlert,
+    X,
+    XCircle,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import {
     aggregateBuildState,
@@ -17,6 +32,7 @@ type ReviewTopNavbarProps = {
     loading: boolean;
     isRefreshing: boolean;
     treeCollapsed: boolean;
+    rightSidebarCollapsed: boolean;
     host: GitHost;
     pullRequestUrl?: string;
     sourceBranch: string;
@@ -37,6 +53,7 @@ type ReviewTopNavbarProps = {
     copiedSourceBranch: boolean;
     commitScopeSlot?: ReactNode;
     onExpandTree: () => void;
+    onExpandRightSidebar: () => void;
     onCopySourceBranch: (branchName: string) => void;
     onApprove: () => void;
     onRequestChanges: () => void;
@@ -49,6 +66,7 @@ export function ReviewTopNavbar({
     loading,
     isRefreshing,
     treeCollapsed,
+    rightSidebarCollapsed,
     host,
     pullRequestUrl,
     sourceBranch,
@@ -69,6 +87,7 @@ export function ReviewTopNavbar({
     copiedSourceBranch,
     commitScopeSlot,
     onExpandTree,
+    onExpandRightSidebar,
     onCopySourceBranch,
     onApprove,
     onRequestChanges,
@@ -245,6 +264,22 @@ export function ReviewTopNavbar({
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
+                        {rightSidebarCollapsed ? (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                        onClick={onExpandRightSidebar}
+                                        aria-label="Expand comments sidebar"
+                                    >
+                                        <PanelRightOpen className="size-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Expand comments sidebar</TooltipContent>
+                            </Tooltip>
+                        ) : null}
                     </div>
                 </div>
             )}

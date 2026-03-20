@@ -207,8 +207,8 @@ function readAuth() {
     return parseAuth(JSON.stringify(stored));
 }
 
-function writeAuth(auth: GithubAuth) {
-    writeGithubAuthCredential(auth);
+async function writeAuth(auth: GithubAuth) {
+    await writeGithubAuthCredential(auth);
 }
 
 function clearAuth() {
@@ -359,21 +359,30 @@ function extractSingleFilePatchFromUnifiedDiff(diffText: string, targetPath: str
 }
 
 function mapPullRequestSummary(pr: GithubPull): PullRequestSummary {
-    return {
+    const summary: PullRequestSummary = {
         id: pr.number,
         title: pr.title,
         state: (pr.state ?? "OPEN").toUpperCase(),
-        createdAt: pr.created_at,
-        updatedAt: pr.updated_at,
-        source: {
-            branch: { name: pr.head?.ref },
-        },
-        destination: {
-            branch: { name: pr.base?.ref },
-        },
         links: { html: { href: pr.html_url } },
         author: { displayName: pr.user?.login, avatarUrl: pr.user?.avatar_url },
     };
+    if (pr.created_at) {
+        summary.createdAt = pr.created_at;
+    }
+    if (pr.updated_at) {
+        summary.updatedAt = pr.updated_at;
+    }
+    if (pr.head?.ref) {
+        summary.source = {
+            branch: { name: pr.head.ref },
+        };
+    }
+    if (pr.base?.ref) {
+        summary.destination = {
+            branch: { name: pr.base.ref },
+        };
+    }
+    return summary;
 }
 
 function mapPullRequestDetails(
@@ -905,7 +914,7 @@ export const githubClient: GitHostClient = {
             throw new Error(details ? `GitHub authentication failed (${status}): ${details}` : `GitHub authentication failed (${status})`);
         }
 
-        writeAuth({ token });
+        await writeAuth({ token });
         return { authenticated: true };
     },
     async logout(): Promise<AuthState> {
@@ -1162,46 +1171,96 @@ export const githubClient: GitHostClient = {
         if (!commentNodeId) {
             throw new Error("GitHub comment node id is unavailable");
         }
+        const pullRequestNumber = Number(data.prRef.pullRequestId);
+        if (!Number.isInteger(pullRequestNumber) || pullRequestNumber <= 0) {
+            throw new Error("GitHub pull request number is invalid");
+        }
 
-        const threadLookupResponse = await request(
-            "/graphql",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    query: `
-                        query ReviewThreadByComment($commentId: ID!) {
-                            node(id: $commentId) {
-                                ... on PullRequestReviewComment {
-                                    pullRequestReviewThread {
-                                        id
-                                        isResolved
+        let thread:
+            | {
+                  id?: string;
+                  isResolved?: boolean;
+              }
+            | undefined;
+        let after: string | null = null;
+
+        do {
+            const threadLookupResponse = await request(
+                "/graphql",
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        query: `
+                            query ReviewThreadsByPullRequest($owner: String!, $repo: String!, $pullRequestNumber: Int!, $after: String) {
+                                repository(owner: $owner, name: $repo) {
+                                    pullRequest(number: $pullRequestNumber) {
+                                        reviewThreads(first: 100, after: $after) {
+                                            nodes {
+                                                id
+                                                isResolved
+                                                comments(first: 100) {
+                                                    nodes {
+                                                        id
+                                                    }
+                                                }
+                                            }
+                                            pageInfo {
+                                                hasNextPage
+                                                endCursor
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
-                    `,
-                    variables: { commentId: commentNodeId },
-                }),
-            },
-            { requireAuth: true },
-        );
-        const threadLookupPayload = (await threadLookupResponse.json()) as {
-            errors?: Array<{ message?: string }>;
-            data?: {
-                node?: {
-                    pullRequestReviewThread?: {
-                        id?: string;
-                        isResolved?: boolean;
+                        `,
+                        variables: {
+                            owner: data.prRef.workspace,
+                            repo: data.prRef.repo,
+                            pullRequestNumber,
+                            after,
+                        },
+                    }),
+                },
+                { requireAuth: true },
+            );
+            const threadLookupPayload = (await threadLookupResponse.json()) as {
+                errors?: Array<{ message?: string }>;
+                data?: {
+                    repository?: {
+                        pullRequest?: {
+                            reviewThreads?: {
+                                nodes?: Array<{
+                                    id?: string;
+                                    isResolved?: boolean;
+                                    comments?: {
+                                        nodes?: Array<{ id?: string }>;
+                                    };
+                                }>;
+                                pageInfo?: {
+                                    hasNextPage?: boolean;
+                                    endCursor?: string | null;
+                                };
+                            };
+                        };
                     };
                 };
             };
-        };
-        const threadLookupError = threadLookupPayload.errors?.[0]?.message;
-        if (threadLookupError) {
-            throw new Error(threadLookupError);
-        }
-        const thread = threadLookupPayload.data?.node?.pullRequestReviewThread;
+            const threadLookupError = threadLookupPayload.errors?.[0]?.message;
+            if (threadLookupError) {
+                throw new Error(threadLookupError);
+            }
+
+            const reviewThreads = threadLookupPayload.data?.repository?.pullRequest?.reviewThreads;
+            thread = reviewThreads?.nodes?.find((candidate) => candidate.comments?.nodes?.some((threadComment) => threadComment.id?.trim() === commentNodeId));
+            if (thread) {
+                break;
+            }
+
+            const pageInfo = reviewThreads?.pageInfo;
+            after = pageInfo?.hasNextPage ? (pageInfo.endCursor?.trim() ?? null) : null;
+        } while (after);
+
         const threadId = thread?.id?.trim();
         if (!threadId) {
             throw new Error("GitHub review thread id is unavailable for this comment");

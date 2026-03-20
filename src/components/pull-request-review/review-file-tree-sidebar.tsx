@@ -117,7 +117,7 @@ export function ReviewFileTreeSidebar({
 
     return (
         <aside
-            className={cn("relative shrink-0 bg-surface-1 flex flex-col overflow-hidden border-r border-border-muted")}
+            className={cn("relative shrink-0 bg-background flex flex-col overflow-hidden border-r border-border-muted")}
             style={{ width: treeCollapsed ? 0 : treeWidth }}
         >
             {!treeCollapsed ? (

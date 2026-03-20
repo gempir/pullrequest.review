@@ -10,6 +10,7 @@ import { useReviewComputeWorker } from "@/lib/review-performance/review-compute-
 import {
     buildReviewDerivedCacheKey,
     buildReviewScopeCacheKey,
+    type CommentLineSide,
     collectDirectoryPaths,
     getCommentInlinePosition,
     getCommentPath,
@@ -19,7 +20,7 @@ import {
     type SingleFileAnnotation,
 } from "./review-page-model";
 import type { CommentThread } from "./review-threads";
-import { buildCommentThreads, normalizeCommentThreads, sortThreadsByCreatedAt } from "./review-threads";
+import { buildCommentThreads, flattenThread, normalizeCommentThreads, sortThreadsByCreatedAt } from "./review-threads";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 type WorkerDerivedState = {
@@ -27,6 +28,17 @@ type WorkerDerivedState = {
     fileDiffs: FileDiffMetadata[];
     fileDiffFingerprints: Map<string, string>;
     threads: CommentThread[];
+};
+
+export type ReviewSidebarThreadItem = {
+    commentId: number;
+    isResolved: boolean;
+    path: string;
+    line?: number;
+    side?: CommentLineSide;
+    replyCount: number;
+    latestActivityAt?: string;
+    thread: CommentThread;
 };
 
 const EMPTY_COMMENTS: PullRequestBundle["comments"] = [];
@@ -65,6 +77,21 @@ function normalizeDiffSelectionPath(path: string) {
         return trimmed.slice(2);
     }
     return trimmed;
+}
+
+function timestampValue(value?: string) {
+    if (!value) return 0;
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function latestActivityAt(thread: CommentThread) {
+    return flattenThread(thread).reduce<string | undefined>((latest, comment) => {
+        const candidate = comment.updatedAt ?? comment.createdAt;
+        if (!candidate) return latest;
+        if (!latest) return candidate;
+        return timestampValue(candidate) > timestampValue(latest) ? candidate : latest;
+    }, undefined);
 }
 
 export function useReviewPageDerived({
@@ -374,6 +401,31 @@ export function useReviewPageDerived({
         return sortThreadsByCreatedAt(threadsByPath.get(selectedFilePath) ?? []);
     }, [selectedFilePath, threadsByPath]);
 
+    const sidebarThreads = useMemo(() => {
+        const items: ReviewSidebarThreadItem[] = [];
+        for (const thread of threads) {
+            const rootComment = thread.root.comment;
+            if (rootComment.deleted) continue;
+            const path = getCommentPath(rootComment);
+            if (!path) continue;
+            const position = getCommentInlinePosition(rootComment);
+            const flattened = flattenThread(thread);
+            const latestAt = latestActivityAt(thread);
+            const replyCount = Math.max(0, flattened.length - 1);
+            items.push({
+                commentId: rootComment.id,
+                isResolved: Boolean(rootComment.resolution),
+                path,
+                line: position?.lineNumber,
+                side: position?.side,
+                replyCount,
+                latestActivityAt: latestAt,
+                thread,
+            });
+        }
+        return items.sort((left, right) => timestampValue(right.latestActivityAt) - timestampValue(left.latestActivityAt));
+    }, [threads]);
+
     const selectedFileLevelThreads = useMemo(
         () => selectedThreads.filter((thread) => !thread.root.comment.deleted && !getCommentInlinePosition(thread.root.comment)),
         [selectedThreads],
@@ -529,6 +581,7 @@ export function useReviewPageDerived({
         selectedFileDiff,
         isSummarySelected,
         unresolvedThreads,
+        sidebarThreads,
         threadsByPath,
         selectedFileLevelThreads,
         lineStats,

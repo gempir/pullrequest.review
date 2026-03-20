@@ -40,7 +40,7 @@ export function ReviewRightSidebar({
                         type="button"
                         variant="ghost"
                         size="icon-sm"
-                        className="size-7 -ml-1"
+                        className="size-7 -ml-1 text-muted-foreground hover:text-foreground"
                         onClick={onToggleCollapsed}
                         aria-label={`Collapse ${title.toLowerCase()}`}
                     >

@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronRight, PenSquare, Reply, SendHorizontal, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Circle, CircleCheck, PenSquare, Reply, SendHorizontal, Trash2, X } from "lucide-react";
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -8,6 +8,7 @@ import { CommentEditor } from "@/components/comment-editor";
 import { formatCommentTimestamp } from "@/components/pull-request-review/review-formatters";
 import { type CommentThread, type CommentThreadNode, threadCommentCount } from "@/components/pull-request-review/review-threads";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { commentAnchorId } from "@/lib/file-anchors";
 import { cn } from "@/lib/utils";
 
@@ -67,6 +68,32 @@ function CommentMarkdown({ text }: { text: string }) {
                 {text}
             </ReactMarkdown>
         </div>
+    );
+}
+
+function ThreadStatusButton({ isResolved, disabled, onToggle }: { isResolved: boolean; disabled: boolean; onToggle: () => void }) {
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <button
+                    type="button"
+                    className="group/status relative inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={onToggle}
+                    disabled={disabled}
+                    aria-label={isResolved ? "Unresolve" : "Resolve"}
+                >
+                    <Circle className="size-4" />
+                    <Check
+                        className={cn(
+                            "absolute size-2.5 transition-opacity",
+                            isResolved ? "opacity-100" : "opacity-0",
+                            !isResolved && !disabled ? "group-hover/status:opacity-50" : "",
+                        )}
+                    />
+                </button>
+            </TooltipTrigger>
+            <TooltipContent>{isResolved ? "Unresolve" : "Resolve"}</TooltipContent>
+        </Tooltip>
     );
 }
 
@@ -251,7 +278,7 @@ function ThreadActions({
                 disabled={resolveCommentPending || !canResolveThread}
                 onClick={() => onResolveThread(rootCommentId, !isResolved)}
             >
-                <Check className={actionIconClass} />
+                <CircleCheck className={actionIconClass} />
                 {isResolved ? "Unresolve" : "Resolve"}
             </Button>
             {canDelete ? (
@@ -377,9 +404,7 @@ function ThreadReplyNode({
                 <div className="relative z-10 flex-1 space-y-0.5">
                     <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
                         <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
-                        <span className="opacity-0 group-hover/reply-card:opacity-100 transition-opacity duration-150">
-                            {formatCommentTimestamp(reply.createdAt)}
-                        </span>
+                        <span>{formatCommentTimestamp(reply.createdAt)}</span>
                         {reply.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                     </div>
                     {isEditingOnNode ? (
@@ -546,12 +571,14 @@ function ThreadRootCommentCard({
             <div className="flex-1 min-w-0 space-y-1">
                 <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
                     <span className="font-medium text-foreground text-[12px]">{rootComment.user?.displayName ?? "Unknown"}</span>
-                    <span className="opacity-0 group-hover/root-card:opacity-100 transition-opacity duration-150">
-                        {formatCommentTimestamp(rootComment.createdAt)}
-                    </span>
+                    <span>{formatCommentTimestamp(rootComment.createdAt)}</span>
                     {rootComment.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                     <div className="ml-auto flex items-center gap-2">
-                        <span className="text-[10px] uppercase tracking-wide">{isResolved ? "Resolved" : "Unresolved"}</span>
+                        <ThreadStatusButton
+                            isResolved={isResolved}
+                            disabled={resolveCommentPending || !canResolveThread}
+                            onToggle={() => onResolveThread(rootComment.id, !isResolved)}
+                        />
                         {isResolved ? (
                             <button
                                 type="button"

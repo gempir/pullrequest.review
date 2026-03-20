@@ -16,6 +16,7 @@ import {
 } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
+import { ReviewCommentsSidebar } from "@/components/pull-request-review/review-comments-sidebar";
 import { ReviewCommitScopeControl } from "@/components/pull-request-review/review-commit-scope-control";
 import { formatRecentTimestamp } from "@/components/pull-request-review/review-formatters";
 import { createReviewPageUiStore, useReviewPageUiValue } from "@/components/pull-request-review/review-page.store";
@@ -220,7 +221,18 @@ function usePullRequestReviewPageView({
         options.diffUseCustomTypography,
     ]);
     const { root, dirState, setTree, setKinds, allFiles, activeFile, setActiveFile, setDirectoryExpandedMap, expand } = useFileTree();
-    const { treeWidth, treeCollapsed, setTreeCollapsed, viewMode, setViewMode, startTreeResize } = useReviewLayoutPreferences();
+    const {
+        treeWidth,
+        treeCollapsed,
+        setTreeCollapsed,
+        rightSidebarWidth,
+        rightSidebarCollapsed,
+        setRightSidebarCollapsed,
+        viewMode,
+        setViewMode,
+        startTreeResize,
+        startRightSidebarResize,
+    } = useReviewLayoutPreferences();
     const hostDataCollectionsVersion = useSyncExternalStore(
         subscribeHostDataCollectionsVersion,
         getHostDataCollectionsVersionSnapshot,
@@ -856,6 +868,7 @@ function usePullRequestReviewPageView({
         selectedFileDiff,
         isSummarySelected,
         threadsByPath,
+        sidebarThreads,
         selectedFileLevelThreads,
         lineStats,
         navbarStatusDate,
@@ -891,6 +904,7 @@ function usePullRequestReviewPageView({
         }
         return map;
     }, [fileDiffFingerprints]);
+    const unresolvedSidebarThreadCount = sidebarThreads.filter((thread) => !thread.isResolved).length;
 
     useEffect(() => {
         if (!prData) return;
@@ -1736,6 +1750,7 @@ function usePullRequestReviewPageView({
     const { sidebarProps, navbarProps, mergeDialogProps } = useReviewPageViewProps({
         treeWidth,
         treeCollapsed,
+        rightSidebarCollapsed,
         treeLoading,
         host,
         pullRequestUrl,
@@ -1764,6 +1779,7 @@ function usePullRequestReviewPageView({
         onToggleSettings: handleToggleSettingsPanel,
         onCollapseTree: () => setTreeCollapsed(true),
         onExpandTree: () => setTreeCollapsed(false),
+        onExpandRightSidebar: () => setRightSidebarCollapsed(false),
         onSearchQueryChange: setSearchQuery,
         onToggleUnviewedOnly: () => setShowUnviewedOnly((prev) => !prev),
         onCollapseAllDirectories: collapseAllDirectories,
@@ -1790,6 +1806,42 @@ function usePullRequestReviewPageView({
         isMerging: mergeMutation.isPending,
         onMerge: () => mergeMutation.mutate(),
     });
+    const rightSidebar = useMemo(
+        () => (
+            <ReviewCommentsSidebar
+                width={rightSidebarWidth}
+                collapsed={rightSidebarCollapsed}
+                unresolvedCount={unresolvedSidebarThreadCount}
+                canResolveThread={actionPolicy.canResolveThread}
+                resolveCommentPending={resolveCommentMutation.isPending}
+                onToggleCollapsed={() => setRightSidebarCollapsed(!rightSidebarCollapsed)}
+                onStartResize={startRightSidebarResize}
+                threads={sidebarThreads}
+                onSelectThread={(item) => {
+                    handleHistoryCommentNavigate({
+                        path: item.path,
+                        line: item.line,
+                        side: item.side,
+                        commentId: item.commentId,
+                    });
+                }}
+                onResolveThread={(commentId, resolve) => {
+                    resolveCommentMutation.mutate({ commentId, resolve });
+                }}
+            />
+        ),
+        [
+            actionPolicy.canResolveThread,
+            handleHistoryCommentNavigate,
+            rightSidebarCollapsed,
+            rightSidebarWidth,
+            resolveCommentMutation,
+            setRightSidebarCollapsed,
+            sidebarThreads,
+            startRightSidebarResize,
+            unresolvedSidebarThreadCount,
+        ],
+    );
 
     useInlineDraftFocus({
         inlineComment,
@@ -1831,6 +1883,7 @@ function usePullRequestReviewPageView({
             sidebarProps={sidebarProps}
             navbarProps={navbarProps}
             actionError={actionError}
+            rightSidebar={rightSidebar}
             diffContent={
                 <ReviewPageDiffContent
                     showSettingsPanel={showSettingsPanel}

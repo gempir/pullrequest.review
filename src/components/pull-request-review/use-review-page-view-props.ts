@@ -8,6 +8,7 @@ type MainViewProps = ComponentProps<typeof ReviewPageMainView>;
 export function useReviewPageViewProps({
     treeWidth,
     treeCollapsed,
+    rightSidebarCollapsed,
     treeLoading,
     host,
     pullRequestUrl,
@@ -36,6 +37,7 @@ export function useReviewPageViewProps({
     onToggleSettings,
     onCollapseTree,
     onExpandTree,
+    onExpandRightSidebar,
     onSearchQueryChange,
     onToggleUnviewedOnly,
     onCollapseAllDirectories,
@@ -64,6 +66,7 @@ export function useReviewPageViewProps({
 }: {
     treeWidth: number;
     treeCollapsed: boolean;
+    rightSidebarCollapsed: boolean;
     treeLoading: boolean;
     host: GitHost;
     pullRequestUrl?: string;
@@ -92,6 +95,7 @@ export function useReviewPageViewProps({
     onToggleSettings: MainViewProps["sidebarProps"]["onToggleSettings"];
     onCollapseTree: MainViewProps["sidebarProps"]["onCollapseTree"];
     onExpandTree: MainViewProps["navbarProps"]["onExpandTree"];
+    onExpandRightSidebar: MainViewProps["navbarProps"]["onExpandRightSidebar"];
     onSearchQueryChange: MainViewProps["sidebarProps"]["onSearchQueryChange"];
     onToggleUnviewedOnly: MainViewProps["sidebarProps"]["onToggleUnviewedOnly"];
     onCollapseAllDirectories: MainViewProps["sidebarProps"]["onCollapseAllDirectories"];
@@ -172,6 +176,7 @@ export function useReviewPageViewProps({
             loading: false,
             isRefreshing,
             treeCollapsed,
+            rightSidebarCollapsed,
             host,
             pullRequestUrl,
             sourceBranch: pullRequest?.source?.branch?.name ?? "source",
@@ -192,6 +197,7 @@ export function useReviewPageViewProps({
             copiedSourceBranch,
             commitScopeSlot,
             onExpandTree,
+            onExpandRightSidebar,
             onCopySourceBranch,
             onApprove,
             onRequestChanges,
@@ -214,6 +220,7 @@ export function useReviewPageViewProps({
             isRefreshing,
             markDraftPending,
             host,
+            rightSidebarCollapsed,
             pullRequestUrl,
             navbarState,
             navbarStatusDate,
@@ -221,6 +228,7 @@ export function useReviewPageViewProps({
             onDecline,
             onCopySourceBranch,
             onExpandTree,
+            onExpandRightSidebar,
             onMarkDraft,
             onOpenMerge,
             onRequestChanges,

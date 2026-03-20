@@ -1,4 +1,19 @@
-import { Check, Copy, Github, GitMerge, GlassWater, Loader2, Menu, Minus, PanelLeftOpen, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
+import {
+    Check,
+    Copy,
+    Github,
+    GitMerge,
+    GlassWater,
+    Loader2,
+    Menu,
+    Minus,
+    PanelLeftOpen,
+    PanelRightOpen,
+    PenSquare,
+    TriangleAlert,
+    X,
+    XCircle,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import {
     aggregateBuildState,
@@ -17,6 +32,7 @@ type ReviewTopNavbarProps = {
     loading: boolean;
     isRefreshing: boolean;
     treeCollapsed: boolean;
+    rightSidebarCollapsed: boolean;
     host: GitHost;
     pullRequestUrl?: string;
     sourceBranch: string;
@@ -37,6 +53,7 @@ type ReviewTopNavbarProps = {
     copiedSourceBranch: boolean;
     commitScopeSlot?: ReactNode;
     onExpandTree: () => void;
+    onExpandRightSidebar: () => void;
     onCopySourceBranch: (branchName: string) => void;
     onApprove: () => void;
     onRequestChanges: () => void;
@@ -49,6 +66,7 @@ export function ReviewTopNavbar({
     loading,
     isRefreshing,
     treeCollapsed,
+    rightSidebarCollapsed,
     host,
     pullRequestUrl,
     sourceBranch,
@@ -69,6 +87,7 @@ export function ReviewTopNavbar({
     copiedSourceBranch,
     commitScopeSlot,
     onExpandTree,
+    onExpandRightSidebar,
     onCopySourceBranch,
     onApprove,
     onRequestChanges,
@@ -148,10 +167,10 @@ export function ReviewTopNavbar({
                                         variant="ghost"
                                         size="sm"
                                         className={cn(
-                                            "h-full w-11 rounded-none px-0 bg-chrome focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                            "h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
                                             host === "github"
-                                                ? "text-status-renamed hover:bg-surface-1 hover:text-status-renamed"
-                                                : "text-host-bitbucket hover:bg-surface-1 hover:text-host-bitbucket-accent",
+                                                ? "hover:bg-surface-1 hover:text-status-renamed"
+                                                : "hover:bg-surface-1 hover:text-host-bitbucket-accent",
                                         )}
                                     >
                                         <a
@@ -173,7 +192,7 @@ export function ReviewTopNavbar({
                                     variant="ghost"
                                     size="sm"
                                     className={cn(
-                                        "h-full min-w-24 rounded-none px-3 bg-chrome text-foreground hover:bg-surface-1 data-[state=open]:bg-surface-1 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                        "h-full min-w-24 rounded-none px-3 bg-chrome text-foreground hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
                                     )}
                                     disabled={actionBusy}
                                     aria-label="Pull request actions"
@@ -245,6 +264,22 @@ export function ReviewTopNavbar({
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
+                        {rightSidebarCollapsed ? (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                        onClick={onExpandRightSidebar}
+                                        aria-label="Expand comments sidebar"
+                                    >
+                                        <PanelRightOpen className="size-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Expand comments sidebar</TooltipContent>
+                            </Tooltip>
+                        ) : null}
                     </div>
                 </div>
             )}

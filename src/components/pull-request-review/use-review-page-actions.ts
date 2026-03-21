@@ -1,32 +1,10 @@
-import { useMutation } from "@tanstack/react-query";
 import { type MutableRefObject, useCallback } from "react";
-import {
-    approvePullRequest,
-    createPullRequestComment,
-    declinePullRequest,
-    deletePullRequestComment,
-    markPullRequestAsDraft,
-    mergePullRequest,
-    removePullRequestApproval,
-    requestChangesOnPullRequest,
-    resolvePullRequestComment,
-    updatePullRequestComment,
-} from "@/lib/git-host/service";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
+import type { ActionPolicy, CommentLineSide } from "./review-page-actions.types";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
-
-type CommentLineSide = "additions" | "deletions";
-
-type ActionPolicy = {
-    canApprove: boolean;
-    canRequestChanges: boolean;
-    canMerge: boolean;
-    canDecline: boolean;
-    canMarkDraft: boolean;
-    canCommentInline: boolean;
-    canResolveThread: boolean;
-    disabledReason: { commentInline?: string; decline?: string; markDraft?: string };
-};
+import { useReviewClipboardActions } from "./use-review-clipboard-actions";
+import { useReviewCommentActions } from "./use-review-comment-actions";
+import { useReviewDecisionActions } from "./use-review-decision-actions";
 
 type UseReviewPageActionsProps = {
     authCanWrite: boolean;
@@ -90,359 +68,60 @@ export function useReviewPageActions({
         return prData.prRef;
     }, [prData?.prRef, pullRequest]);
 
-    const approveMutation = useMutation({
-        mutationFn: () => {
-            const prRef = ensurePrRef();
-            return approvePullRequest({ prRef });
-        },
-        onSuccess: async () => {
-            setActionError(null);
-            await refreshPullRequest();
-        },
-        onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to approve pull request");
-        },
-    });
-
-    const removeApprovalMutation = useMutation({
-        mutationFn: () => {
-            const prRef = ensurePrRef();
-            return removePullRequestApproval({ prRef });
-        },
-        onSuccess: async () => {
-            setActionError(null);
-            await refreshPullRequest();
-        },
-        onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to remove approval");
-        },
-    });
-
-    const requestChangesMutation = useMutation({
-        mutationFn: () => {
-            const prRef = ensurePrRef();
-            return requestChangesOnPullRequest({ prRef });
-        },
-        onSuccess: async () => {
-            setActionError(null);
-            await refreshPullRequest();
-        },
-        onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to request changes");
-        },
-    });
-
-    const mergeMutation = useMutation({
-        mutationFn: () => {
-            const prRef = ensurePrRef();
-            return mergePullRequest({
-                prRef,
-                message: mergeMessage,
-                mergeStrategy,
-                closeSourceBranch,
-            });
-        },
-        onSuccess: async () => {
-            setMergeOpen(false);
-            setActionError(null);
-            await refreshPullRequest();
-        },
-        onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to merge pull request");
-        },
-    });
-
-    const declineMutation = useMutation({
-        mutationFn: () => {
-            const prRef = ensurePrRef();
-            return declinePullRequest({ prRef });
-        },
-        onSuccess: async () => {
-            setActionError(null);
-            await refreshPullRequest();
-        },
-        onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to decline pull request");
-        },
-    });
-
-    const markDraftMutation = useMutation({
-        mutationFn: () => {
-            const prRef = ensurePrRef();
-            return markPullRequestAsDraft({ prRef });
-        },
-        onSuccess: async () => {
-            setActionError(null);
-            await refreshPullRequest();
-        },
-        onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to mark pull request as draft");
-        },
-    });
-
-    const createCommentMutation = useMutation({
-        mutationFn: (payload: { path?: string; content: string; line?: number; side?: CommentLineSide; parentId?: number }) => {
-            const prRef = ensurePrRef();
-            if (payload.parentId) {
-                return createPullRequestComment({
-                    prRef,
-                    content: payload.content,
-                    parentId: payload.parentId,
-                });
-            }
-            if (!payload.path) {
-                throw new Error("Comment path is required for inline comments");
-            }
-            return createPullRequestComment({
-                prRef,
-                content: payload.content,
-                inline: payload.line
-                    ? {
-                          path: payload.path,
-                          to: payload.side === "deletions" ? undefined : payload.line,
-                          from: payload.side === "deletions" ? payload.line : undefined,
-                      }
-                    : { path: payload.path },
-            });
-        },
-        onMutate: (vars) => {
-            const optimisticCommentId = onOptimisticCommentCreate(vars);
-            return { optimisticCommentId };
-        },
-        onSuccess: async (_, vars, context) => {
-            if (typeof context?.optimisticCommentId === "number") {
-                onOptimisticCommentUpdate(context.optimisticCommentId, false);
-            }
-            if (vars.line && vars.side && vars.path) {
-                clearInlineDraftContent({
-                    path: vars.path,
-                    line: vars.line,
-                    side: vars.side,
-                });
-            }
-            setInlineComment((prev) => {
-                if (!prev) return prev;
-                if (prev.path !== vars.path) return prev;
-                if (vars.line && prev.line !== vars.line) return prev;
-                if (vars.side && prev.side !== vars.side) return prev;
-                return null;
-            });
-            await refreshPullRequest();
-        },
-        onError: (error, _vars, context) => {
-            if (typeof context?.optimisticCommentId === "number") {
-                onOptimisticCommentRemove(context.optimisticCommentId);
-            }
-            setActionError(error instanceof Error ? error.message : "Failed to create comment");
-        },
-    });
-
-    const resolveCommentMutation = useMutation({
-        mutationFn: (payload: { commentId: number; resolve: boolean }) => {
-            const prRef = ensurePrRef();
-            if (!actionPolicy.canResolveThread) {
-                if (!authCanWrite) {
-                    requestAuth("write");
-                }
-                throw new Error("Comment resolution is not supported for this host");
-            }
-            return resolvePullRequestComment({
-                prRef,
-                commentId: payload.commentId,
-                resolve: payload.resolve,
-            });
-        },
-        onSuccess: async () => {
-            await refreshPullRequest();
-        },
-        onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to update comment resolution");
-        },
-    });
-    const updateCommentMutation = useMutation({
-        mutationFn: (payload: { commentId: number; content: string; hasInlineContext: boolean }) => {
-            const prRef = ensurePrRef();
-            if (!authCanWrite) {
-                requestAuth("write");
-                throw new Error("Sign in required");
-            }
-            return updatePullRequestComment({
-                prRef,
-                commentId: payload.commentId,
-                content: payload.content,
-                hasInlineContext: payload.hasInlineContext,
-            });
-        },
-        onSuccess: async () => {
-            await refreshPullRequest();
-        },
-        onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to edit comment");
-        },
-    });
-    const deleteCommentMutation = useMutation({
-        mutationFn: (payload: { commentId: number; hasInlineContext: boolean }) => {
-            const prRef = ensurePrRef();
-            if (!authCanWrite) {
-                requestAuth("write");
-                throw new Error("Sign in required");
-            }
-            return deletePullRequestComment({
-                prRef,
-                commentId: payload.commentId,
-                hasInlineContext: payload.hasInlineContext,
-            });
-        },
-        onSuccess: async () => {
-            await refreshPullRequest();
-        },
-        onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to delete comment");
-        },
-    });
-
-    const handleApprovePullRequest = useCallback(() => {
-        if (!actionPolicy.canApprove) {
-            if (!authCanWrite) requestAuth("write");
-            return;
-        }
-        if (approveMutation.isPending || removeApprovalMutation.isPending || requestChangesMutation.isPending) return;
-        if (isApprovedByCurrentUser) {
-            removeApprovalMutation.mutate();
-            return;
-        }
-        approveMutation.mutate();
-    }, [actionPolicy.canApprove, approveMutation, authCanWrite, isApprovedByCurrentUser, removeApprovalMutation, requestAuth, requestChangesMutation]);
-
-    const handleRequestChangesPullRequest = useCallback(() => {
-        if (!actionPolicy.canRequestChanges) {
-            if (!authCanWrite) requestAuth("write");
-            return;
-        }
-        if (approveMutation.isPending || removeApprovalMutation.isPending || requestChangesMutation.isPending) return;
-        requestChangesMutation.mutate();
-    }, [actionPolicy.canRequestChanges, approveMutation, authCanWrite, removeApprovalMutation, requestAuth, requestChangesMutation]);
-
-    const handleDeclinePullRequest = useCallback(() => {
-        if (!actionPolicy.canDecline) {
-            if (!authCanWrite) requestAuth("write");
-            else setActionError(actionPolicy.disabledReason.decline ?? "Decline is not available");
-            return;
-        }
-        if (declineMutation.isPending) return;
-        declineMutation.mutate();
-    }, [actionPolicy.canDecline, actionPolicy.disabledReason.decline, authCanWrite, declineMutation, requestAuth, setActionError]);
-
-    const handleMarkPullRequestAsDraft = useCallback(() => {
-        if (!actionPolicy.canMarkDraft) {
-            if (!authCanWrite) requestAuth("write");
-            else setActionError(actionPolicy.disabledReason.markDraft ?? "Mark as draft is not available");
-            return;
-        }
-        if (markDraftMutation.isPending) return;
-        markDraftMutation.mutate();
-    }, [actionPolicy.canMarkDraft, actionPolicy.disabledReason.markDraft, authCanWrite, markDraftMutation, requestAuth, setActionError]);
-
-    const submitInlineComment = useCallback(() => {
-        if (!actionPolicy.canCommentInline) {
-            setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
-            if (!authCanWrite) requestAuth("write");
-            return;
-        }
-        if (!inlineComment) return;
-        const content = getInlineDraftContent(inlineComment).trim();
-        if (!content) return;
-        createCommentMutation.mutate({
-            path: inlineComment.path,
-            content,
-            line: inlineComment.line,
-            side: inlineComment.side,
-        });
-    }, [
-        actionPolicy.canCommentInline,
-        actionPolicy.disabledReason.commentInline,
+    const {
+        approveMutation,
+        declineMutation,
+        handleApprovePullRequest,
+        handleDeclinePullRequest,
+        handleMarkPullRequestAsDraft,
+        handleRequestChangesPullRequest,
+        markDraftMutation,
+        mergeMutation,
+        removeApprovalMutation,
+        requestChangesMutation,
+    } = useReviewDecisionActions({
+        actionPolicy,
         authCanWrite,
-        createCommentMutation,
-        getInlineDraftContent,
-        inlineComment,
+        closeSourceBranch,
+        ensurePrRef,
+        isApprovedByCurrentUser,
+        mergeMessage,
+        mergeStrategy,
+        refreshPullRequest,
         requestAuth,
         setActionError,
-    ]);
-
-    const submitThreadReply = useCallback(
-        (parentCommentId: number, content: string) => {
-            if (!actionPolicy.canCommentInline) {
-                setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
-                if (!authCanWrite) requestAuth("write");
-                return;
-            }
-            const trimmed = content.trim();
-            if (!trimmed) return;
-            createCommentMutation.mutate({
-                content: trimmed,
-                parentId: parentCommentId,
-            });
-        },
-        [actionPolicy.canCommentInline, actionPolicy.disabledReason.commentInline, authCanWrite, createCommentMutation, requestAuth, setActionError],
-    );
-    const submitCommentEdit = useCallback(
-        (commentId: number, content: string, hasInlineContext: boolean) => {
-            const trimmed = content.trim();
-            if (!trimmed) return;
-            updateCommentMutation.mutate({
-                commentId,
-                content: trimmed,
-                hasInlineContext,
-            });
-        },
-        [updateCommentMutation],
-    );
-
-    const handleCopyPath = useCallback(
-        async (path: string) => {
-            if (typeof navigator === "undefined" || !navigator.clipboard) {
-                setActionError("Clipboard is not available");
-                return;
-            }
-            try {
-                await navigator.clipboard.writeText(path);
-                setActionError(null);
-                setCopiedPath(path);
-                if (copyResetTimeoutRef.current !== null) {
-                    window.clearTimeout(copyResetTimeoutRef.current);
-                }
-                copyResetTimeoutRef.current = window.setTimeout(() => {
-                    setCopiedPath((current) => (current === path ? null : current));
-                }, 1400);
-            } catch {
-                setActionError("Failed to copy file path");
-            }
-        },
-        [copyResetTimeoutRef, setActionError, setCopiedPath],
-    );
-
-    const handleCopySourceBranch = useCallback(
-        async (branchName: string) => {
-            if (typeof navigator === "undefined" || !navigator.clipboard) {
-                setActionError("Clipboard is not available");
-                return;
-            }
-            try {
-                await navigator.clipboard.writeText(branchName);
-                setActionError(null);
-                setCopiedSourceBranch(true);
-                if (copySourceBranchResetTimeoutRef.current !== null) {
-                    window.clearTimeout(copySourceBranchResetTimeoutRef.current);
-                }
-                copySourceBranchResetTimeoutRef.current = window.setTimeout(() => {
-                    setCopiedSourceBranch(false);
-                }, 1400);
-            } catch {
-                setActionError("Failed to copy source branch");
-            }
-        },
-        [copySourceBranchResetTimeoutRef, setActionError, setCopiedSourceBranch],
-    );
+        setMergeOpen,
+    });
+    const {
+        createCommentMutation,
+        deleteCommentMutation,
+        resolveCommentMutation,
+        submitCommentEdit,
+        submitInlineComment,
+        submitThreadReply,
+        updateCommentMutation,
+    } = useReviewCommentActions({
+        actionPolicy,
+        authCanWrite,
+        clearInlineDraftContent,
+        createOptimisticComment: onOptimisticCommentCreate,
+        ensurePrRef,
+        getInlineDraftContent,
+        inlineComment,
+        onOptimisticCommentRemove,
+        onOptimisticCommentUpdate,
+        refreshPullRequest,
+        requestAuth,
+        setActionError,
+        setInlineComment,
+    });
+    const { handleCopyPath, handleCopySourceBranch } = useReviewClipboardActions({
+        copyResetTimeoutRef,
+        copySourceBranchResetTimeoutRef,
+        setActionError,
+        setCopiedPath,
+        setCopiedSourceBranch,
+    });
 
     return {
         approveMutation,

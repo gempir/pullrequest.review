@@ -1,19 +1,7 @@
 import type { FileDiffOptions } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
-import { useLiveQuery } from "@tanstack/react-db";
 import { useNavigate } from "@tanstack/react-router";
-import {
-    type CSSProperties,
-    type ReactNode,
-    type SetStateAction,
-    startTransition,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    useSyncExternalStore,
-} from "react";
+import { type CSSProperties, type ReactNode, type SetStateAction, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { ReviewCommentsSidebar } from "@/components/pull-request-review/review-comments-sidebar";
@@ -46,9 +34,10 @@ import {
 } from "@/components/pull-request-review/use-review-page-effects";
 import { useReviewPageNavigation } from "@/components/pull-request-review/use-review-page-navigation";
 import { useReviewPageViewProps } from "@/components/pull-request-review/use-review-page-view-props";
-import { isRateLimitedError as isRateLimitedQueryError, useReviewQuery } from "@/components/pull-request-review/use-review-query";
-import { readViewedVersionIds, useViewedStorageKey, writeViewedVersionIds } from "@/components/pull-request-review/use-review-storage";
+import { isRateLimitedError as isRateLimitedQueryError } from "@/components/pull-request-review/use-review-query";
+import { readViewedVersionIds, writeViewedVersionIds } from "@/components/pull-request-review/use-review-storage";
 import { getSettingsTreeItems } from "@/components/settings-navigation";
+import { useReviewScopedData } from "@/features/review/data/use-review-scoped-data";
 import {
     ALL_MODE_SCROLL_RETRY_DELAYS,
     ALL_MODE_STICKY_OFFSET,
@@ -59,7 +48,6 @@ import {
     latestVersionIdFromFingerprint,
     parentDirectories,
     parseSingleFilePatch,
-    sameScopeSearch,
     splitFileIntoLines,
 } from "@/features/review/model/review-page-controller-helpers";
 import { useAppearance } from "@/lib/appearance-context";
@@ -67,22 +55,12 @@ import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
 import { commentAnchorId, fileAnchorId } from "@/lib/file-anchors";
 import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
-import {
-    getHostDataCollectionsVersionSnapshot,
-    getPullRequestCommitRangeDiffCollection,
-    getPullRequestCommitRangeDiffDataCollection,
-    getPullRequestFileContextCollection,
-    getPullRequestFileHistoryCollection,
-    getPullRequestFileHistoryDataCollection,
-    type PullRequestCommitRangeDiffRecord,
-    savePullRequestFileContextRecord,
-    subscribeHostDataCollectionsVersion,
-} from "@/lib/git-host/query-collections";
+import { getPullRequestFileHistoryCollection, savePullRequestFileContextRecord } from "@/lib/git-host/query-collections";
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import { fetchPullRequestFileContents } from "@/lib/git-host/service";
 import type { GitHost, Comment as PullRequestComment } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
-import { diffScopeStorageSegment, type ReviewDiffScopeSearch, resolveReviewDiffScope } from "@/lib/review-diff-scope";
+import type { ReviewDiffScopeSearch } from "@/lib/review-diff-scope";
 import { markReviewPerf } from "@/lib/review-performance/metrics";
 import { makeDirectoryStateStorageKey } from "@/lib/review-storage";
 
@@ -152,12 +130,6 @@ export function useReviewPageController({
         startTreeResize,
         startRightSidebarResize,
     } = useReviewLayoutPreferences();
-    const hostDataCollectionsVersion = useSyncExternalStore(
-        subscribeHostDataCollectionsVersion,
-        getHostDataCollectionsVersionSnapshot,
-        getHostDataCollectionsVersionSnapshot,
-    );
-
     const workspaceRef = useRef<HTMLDivElement | null>(null);
     const diffScrollRef = useRef<HTMLDivElement | null>(null);
     const inlineDraftFocusRef = useRef<(() => void) | null>(null);
@@ -265,7 +237,6 @@ export function useReviewPageController({
     const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<Record<string, boolean>>({});
     const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
-    const [scopeNotice, setScopeNotice] = useState<string | null>(null);
     const [fileContexts, setFileContexts] = useState<Record<string, FullFileContextEntry>>({});
     const [optimisticComments, setOptimisticComments] = useState<PullRequestComment[]>([]);
     const [dirStateHydrated, setDirStateHydrated] = useState(false);
@@ -298,157 +269,39 @@ export function useReviewPageController({
             setViewMode,
         });
     const {
+        commitRangeScopedCollection,
+        commitScopeLoading,
+        effectivePrData,
         hostCapabilities,
         isCriticalLoading,
-        isDeferredLoading,
-        isRefreshing,
-        query: prQuery,
-    } = useReviewQuery({
+        isPrQueryFetching,
+        persistedFileContexts,
+        persistedFileHistoryByPath,
+        prContextKey,
+        prQuery,
+        prRef,
+        resolvedScope,
+        scopeNotice,
+        setScopeNotice,
+        viewedStorageKey,
+    } = useReviewScopedData({
         host,
         workspace,
         repo,
         pullRequestId,
-        canRead: auth.canRead,
-        canWrite: auth.canWrite,
-        onRequireAuth: (reason) => {
-            requestAuth(reason);
-        },
+        auth,
+        reviewDiffScopeSearch,
+        onReviewDiffScopeSearchChange,
+        requestAuth,
     });
-
-    const basePrData = prQuery.data;
-    const diffScopeSearch: ReviewDiffScopeSearch = reviewDiffScopeSearch ?? {};
-    const pullRequest = basePrData?.pr;
+    const pullRequest = effectivePrData?.pr;
     const pullRequestUrl = pullRequest?.links?.html?.href;
     const pullRequestTitle = pullRequest?.title?.trim();
-    const isPrQueryFetching = isRefreshing || isDeferredLoading;
     const refetchPrQuery = prQuery.refetch;
     const isRateLimitedError = isRateLimitedQueryError(prQuery.error);
     useReviewDocumentTitle({ isLoading: isCriticalLoading, pullRequestTitle });
 
     const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
-    const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
-    const prContextKey = `${host}:${workspace}/${repo}/${pullRequestId}`;
-    const resolvedScope = useMemo(
-        () =>
-            resolveReviewDiffScope({
-                search: diffScopeSearch,
-                commits: basePrData?.commits ?? [],
-                destinationCommitHash: basePrData?.pr.destination?.commit?.hash,
-            }),
-        [basePrData?.commits, basePrData?.pr.destination?.commit?.hash, diffScopeSearch],
-    );
-    const diffScopeSegment = useMemo(() => diffScopeStorageSegment(resolvedScope), [resolvedScope]);
-    // Build viewed-file storage key from stable primitives to avoid object identity churn.
-    const viewedStorageKey = useViewedStorageKey(basePrData?.prRef, diffScopeSegment);
-
-    const commitRangeDiffCollectionData = useMemo(() => {
-        void hostDataCollectionsVersion;
-        return getPullRequestCommitRangeDiffDataCollection();
-    }, [hostDataCollectionsVersion]);
-    const fileContextCollection = useMemo(() => {
-        // Recreate the scoped collection when host-data storage falls back.
-        void hostDataCollectionsVersion;
-        return getPullRequestFileContextCollection();
-    }, [hostDataCollectionsVersion]);
-    const fileHistoryCollection = useMemo(() => {
-        void hostDataCollectionsVersion;
-        return getPullRequestFileHistoryDataCollection();
-    }, [hostDataCollectionsVersion]);
-    const commitRangeDiffQuery = useLiveQuery(
-        (q) => q.from({ range: commitRangeDiffCollectionData }).select(({ range }) => ({ ...range })),
-        [commitRangeDiffCollectionData],
-    );
-    const fileContextQuery = useLiveQuery((q) => q.from({ context: fileContextCollection }).select(({ context }) => ({ ...context })), [fileContextCollection]);
-    const fileHistoryQuery = useLiveQuery((q) => q.from({ history: fileHistoryCollection }).select(({ history }) => ({ ...history })), [fileHistoryCollection]);
-    const persistedFileContexts = useMemo(() => {
-        if (resolvedScope.mode !== "full") return {};
-        const entries: Record<string, { oldLines: string[]; newLines: string[]; fetchedAt: number }> = {};
-        for (const record of fileContextQuery.data ?? []) {
-            if (record.prKey !== prContextKey) continue;
-            entries[record.path] = {
-                oldLines: record.oldLines,
-                newLines: record.newLines,
-                fetchedAt: record.fetchedAt,
-            };
-        }
-        return entries;
-    }, [fileContextQuery.data, prContextKey, resolvedScope.mode]);
-    const persistedFileHistoryByPath = useMemo(() => {
-        const entries: Record<
-            string,
-            {
-                entries: Array<{
-                    versionId: string;
-                    commitHash: string;
-                    commitDate?: string;
-                    commitMessage?: string;
-                    authorDisplayName?: string;
-                    filePathAtCommit: string;
-                    status: "added" | "modified" | "removed" | "renamed";
-                    patch: string;
-                }>;
-                fetchedAt: number;
-            }
-        > = {};
-        for (const record of fileHistoryQuery.data ?? []) {
-            if (record.prKey !== prContextKey) continue;
-            entries[record.path] = {
-                entries: record.entries,
-                fetchedAt: record.fetchedAt,
-            };
-        }
-        return entries;
-    }, [fileHistoryQuery.data, prContextKey]);
-    const persistedCommitRangeDiffs = useMemo(() => {
-        const entries: Record<string, PullRequestCommitRangeDiffRecord> = {};
-        for (const record of commitRangeDiffQuery.data ?? []) {
-            if (record.prKey !== prContextKey) continue;
-            entries[`${record.baseCommitHash}..${record.headCommitHash}`] = record;
-        }
-        return entries;
-    }, [commitRangeDiffQuery.data, prContextKey]);
-    const scopedRangeDiffRecord = useMemo(() => {
-        if (resolvedScope.mode === "full") return undefined;
-        if (!resolvedScope.baseCommitHash || !resolvedScope.headCommitHash) return undefined;
-        return persistedCommitRangeDiffs[`${resolvedScope.baseCommitHash}..${resolvedScope.headCommitHash}`];
-    }, [persistedCommitRangeDiffs, resolvedScope]);
-    const commitRangeScopedCollection = useMemo(() => {
-        if (!basePrData || resolvedScope.mode === "full") return null;
-        if (!resolvedScope.baseCommitHash || !resolvedScope.headCommitHash) return null;
-        if (resolvedScope.selectedCommitHashes.length === 0) return null;
-        return getPullRequestCommitRangeDiffCollection({
-            prRef,
-            baseCommitHash: resolvedScope.baseCommitHash,
-            headCommitHash: resolvedScope.headCommitHash,
-            selectedCommitHashes: resolvedScope.selectedCommitHashes,
-        });
-    }, [basePrData, prRef, resolvedScope]);
-    const effectivePrData = useMemo(() => {
-        if (!basePrData) return undefined;
-        if (resolvedScope.mode === "full") return basePrData;
-        if (resolvedScope.selectedCommitHashes.length === 0) {
-            return {
-                ...basePrData,
-                diff: "",
-                diffstat: [],
-                commits: resolvedScope.selectedCommits,
-            };
-        }
-        if (!scopedRangeDiffRecord) {
-            return {
-                ...basePrData,
-                diff: "",
-                diffstat: [],
-                commits: resolvedScope.selectedCommits,
-            };
-        }
-        return {
-            ...basePrData,
-            diff: scopedRangeDiffRecord.diff,
-            diffstat: scopedRangeDiffRecord.diffstat,
-            commits: resolvedScope.selectedCommits,
-        };
-    }, [basePrData, resolvedScope, scopedRangeDiffRecord]);
     const removeMatchedOptimisticComments = useCallback((serverComments: PullRequestComment[]) => {
         const serverKeyCounts = new Map<string, number>();
         for (const comment of serverComments) {
@@ -559,49 +412,7 @@ export function useReviewPageController({
             comments: [...serverComments, ...unmatchedOptimisticComments],
         };
     }, [effectivePrData, optimisticComments]);
-    const commitScopeLoading = resolvedScope.mode === "range" && resolvedScope.selectedCommitHashes.length > 0 && !scopedRangeDiffRecord;
     const treeLoading = isCriticalLoading || commitScopeLoading;
-
-    useEffect(() => {
-        if (!onReviewDiffScopeSearchChange) return;
-        if (sameScopeSearch(diffScopeSearch, resolvedScope.normalizedSearch)) return;
-        onReviewDiffScopeSearchChange(resolvedScope.normalizedSearch);
-    }, [diffScopeSearch, onReviewDiffScopeSearchChange, resolvedScope.normalizedSearch]);
-
-    useEffect(() => {
-        if (!onReviewDiffScopeSearchChange) return;
-        if (resolvedScope.mode !== "full" || !resolvedScope.fallbackReason || !diffScopeSearch.from || !diffScopeSearch.to) return;
-        const notice =
-            resolvedScope.fallbackReason === "invalid_range"
-                ? "Selected commit range is unavailable. Switched to full diff."
-                : "Commit range base/head could not be resolved. Switched to full diff.";
-        setScopeNotice(notice);
-        onReviewDiffScopeSearchChange({});
-    }, [diffScopeSearch.from, diffScopeSearch.to, onReviewDiffScopeSearchChange, resolvedScope]);
-
-    useEffect(() => {
-        if (!commitRangeScopedCollection) return;
-        let cancelled = false;
-        setScopeNotice(null);
-        void (async () => {
-            await commitRangeScopedCollection.utils.refetch({ throwOnError: false });
-            if (cancelled) return;
-            const maybeError = commitRangeScopedCollection.utils.lastError;
-            if (!maybeError) return;
-            const message = maybeError instanceof Error ? maybeError.message : "Failed to load commit range diff.";
-            setScopeNotice(message);
-            onReviewDiffScopeSearchChange?.({});
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [commitRangeScopedCollection, onReviewDiffScopeSearchChange]);
-
-    useEffect(() => {
-        if (resolvedScope.mode === "full") return;
-        if (resolvedScope.selectedCommitHashes.length > 0) return;
-        setScopeNotice("No changes in selected range.");
-    }, [resolvedScope.mode, resolvedScope.selectedCommitHashes.length]);
 
     useEffect(() => {
         if (resolvedScope.mode === "full") return;
@@ -1603,7 +1414,7 @@ export function useReviewPageController({
         if (!onReviewDiffScopeSearchChange) return;
         setScopeNotice(null);
         onReviewDiffScopeSearchChange({});
-    }, [onReviewDiffScopeSearchChange]);
+    }, [onReviewDiffScopeSearchChange, setScopeNotice]);
     const applyRangeFromSelectedHashes = useCallback(
         (selectedHashes: Set<string>) => {
             if (!onReviewDiffScopeSearchChange) return;
@@ -1637,7 +1448,7 @@ export function useReviewPageController({
             }
             onReviewDiffScopeSearchChange({ from, to });
         },
-        [onReviewDiffScopeSearchChange, resolvedScope.visibleCommits, visibleCommitIndexByHash],
+        [onReviewDiffScopeSearchChange, resolvedScope.visibleCommits, setScopeNotice, visibleCommitIndexByHash],
     );
     const handleToggleCommitSelection = useCallback(
         (hash: string) => {

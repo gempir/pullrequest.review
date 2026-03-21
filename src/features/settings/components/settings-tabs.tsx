@@ -1,0 +1,687 @@
+import { type FileDiffOptions, parsePatchFiles } from "@pierre/diffs";
+import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
+import { FileCode2, Files, RotateCcw } from "lucide-react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
+import { DiffToolbar } from "@/components/diff-toolbar";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { NumberStepperInput } from "@/components/ui/number-stepper-input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { useAppearance } from "@/lib/appearance-context";
+import { clearExpiredDataNow, type DataCollectionsDebugSnapshot, getDataCollectionsDebugSnapshot, type StorageTier } from "@/lib/data/query-collections";
+import { getDetectedFontOptionFromValue, useDetectedMonospaceFontOptions } from "@/lib/detected-monospace-fonts";
+import { useDiffOptions } from "@/lib/diff-options-context";
+import { DIFF_THEMES, type DiffTheme } from "@/lib/diff-themes";
+import { useFileTree } from "@/lib/file-tree-context";
+import {
+    FONT_FAMILY_OPTIONS,
+    type FontFamilyValue,
+    fontFamilyToCss,
+    isDetectedFontFamilyValue,
+    MONO_FONT_FAMILY_OPTIONS,
+    SANS_FONT_FAMILY_OPTIONS,
+} from "@/lib/font-options";
+import { getReviewPerfSnapshot, type ReviewPerfSnapshot } from "@/lib/review-performance/metrics";
+import { type ShortcutConfig, useShortcuts } from "@/lib/shortcuts-context";
+import { cn } from "@/lib/utils";
+
+export type WorkspaceMode = "single" | "all";
+
+const DIFF_PREVIEW_PATCH = `diff --git a/src/feature.ts b/src/feature.ts
+index 1111111..2222222 100644
+--- a/src/feature.ts
++++ b/src/feature.ts
+@@ -1,5 +1,8 @@
+-const title = "settings-modal";
++const title = "settings-inline";
++const summary = "This preview includes a deliberately long line to verify wrapping behavior when overflow is set to wrap instead of scroll in the diff settings panel.";
++const notes = "Another verbose line for spacing checks: alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega.";
+ export function run() {
+-  return title;
++  return [title, summary, notes].join(" ");
+}
+`;
+
+function ShortcutRow({ label, shortcut, onChange }: { label: string; shortcut: ShortcutConfig; onChange: (config: Partial<ShortcutConfig>) => void }) {
+    const [isRecording, setIsRecording] = useState(false);
+
+    const handleKeyDown = (event: React.KeyboardEvent) => {
+        if (!isRecording) return;
+        event.preventDefault();
+
+        if (event.key === "Escape") {
+            setIsRecording(false);
+            return;
+        }
+
+        if (["Control", "Alt", "Shift", "Meta"].includes(event.key)) return;
+
+        onChange({
+            key: event.key.toLowerCase(),
+            modifiers: {
+                ctrl: event.ctrlKey && event.key !== "Control",
+                alt: event.altKey && event.key !== "Alt",
+                shift: event.shiftKey && event.key !== "Shift",
+                meta: event.metaKey && event.key !== "Meta",
+            },
+        });
+        setIsRecording(false);
+    };
+
+    const displayShortcut = () => {
+        const parts: string[] = [];
+        if (shortcut.modifiers.ctrl) parts.push("Ctrl");
+        if (shortcut.modifiers.alt) parts.push("Alt");
+        if (shortcut.modifiers.shift) parts.push("Shift");
+        if (shortcut.modifiers.meta) parts.push("Cmd");
+        parts.push(shortcut.key.toUpperCase());
+        return parts.join("+");
+    };
+
+    return (
+        <div className="flex items-center justify-between gap-3 px-2 py-2.5">
+            <div className="flex flex-col">
+                <span className="text-[13px]">{label}</span>
+                <span className="text-[11px] text-muted-foreground">{shortcut.description}</span>
+            </div>
+            <button
+                type="button"
+                onClick={() => setIsRecording(true)}
+                onKeyDown={handleKeyDown}
+                onBlur={() => setIsRecording(false)}
+                className={cn(
+                    "h-8 min-w-[96px] px-2.5 text-center text-[12px] transition-colors",
+                    isRecording ? "bg-accent text-accent-foreground" : "border border-border-muted bg-surface-1 hover:bg-surface-2",
+                )}
+            >
+                {isRecording ? "Press key..." : displayShortcut()}
+            </button>
+        </div>
+    );
+}
+
+export function ShortcutsTab() {
+    const { shortcuts, updateShortcut, resetToDefaults } = useShortcuts();
+
+    return (
+        <div className="max-w-3xl space-y-2.5">
+            <div className="flex items-center justify-end">
+                <Button variant="outline" size="sm" onClick={resetToDefaults} className="gap-1.5">
+                    <RotateCcw className="size-3.5" />
+                    Reset Defaults
+                </Button>
+            </div>
+
+            <div>
+                <ShortcutRow
+                    label="Next Unviewed File"
+                    shortcut={shortcuts.nextUnviewedFile}
+                    onChange={(config) => updateShortcut("nextUnviewedFile", config)}
+                />
+                <ShortcutRow
+                    label="Previous Unviewed File"
+                    shortcut={shortcuts.previousUnviewedFile}
+                    onChange={(config) => updateShortcut("previousUnviewedFile", config)}
+                />
+                <ShortcutRow label="Scroll Down" shortcut={shortcuts.scrollDown} onChange={(config) => updateShortcut("scrollDown", config)} />
+                <ShortcutRow label="Scroll Up" shortcut={shortcuts.scrollUp} onChange={(config) => updateShortcut("scrollUp", config)} />
+                <ShortcutRow label="Next File" shortcut={shortcuts.nextFile} onChange={(config) => updateShortcut("nextFile", config)} />
+                <ShortcutRow label="Previous File" shortcut={shortcuts.previousFile} onChange={(config) => updateShortcut("previousFile", config)} />
+                <ShortcutRow label="Mark File Viewed" shortcut={shortcuts.markFileViewed} onChange={(config) => updateShortcut("markFileViewed", config)} />
+                <ShortcutRow
+                    label="Mark File Viewed + Fold"
+                    shortcut={shortcuts.markFileViewedAndFold}
+                    onChange={(config) => updateShortcut("markFileViewedAndFold", config)}
+                />
+                <ShortcutRow
+                    label="Approve Pull Request"
+                    shortcut={shortcuts.approvePullRequest}
+                    onChange={(config) => updateShortcut("approvePullRequest", config)}
+                />
+                <ShortcutRow
+                    label="Request Changes"
+                    shortcut={shortcuts.requestChangesPullRequest}
+                    onChange={(config) => updateShortcut("requestChangesPullRequest", config)}
+                />
+            </div>
+        </div>
+    );
+}
+
+export function DiffSettingsTab({
+    workspaceMode,
+    onWorkspaceModeChange,
+}: {
+    workspaceMode?: WorkspaceMode;
+    onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
+}) {
+    const { options, setOption } = useDiffOptions();
+    const { monospaceFontFamily, monospaceFontSize, monospaceLineHeight } = useAppearance();
+    const previewFileDiff = useMemo(() => parsePatchFiles(DIFF_PREVIEW_PATCH)[0]?.files[0], []);
+    const previewStyle = useMemo(() => {
+        const fontFamily = fontFamilyToCss(options.diffUseCustomTypography ? options.diffFontFamily : monospaceFontFamily);
+        const fontSize = `${options.diffUseCustomTypography ? options.diffFontSize : monospaceFontSize}px`;
+        const lineHeight = String(options.diffUseCustomTypography ? options.diffLineHeight : monospaceLineHeight);
+        return {
+            "--diff-font-family": fontFamily,
+            "--diff-font-size": fontSize,
+            "--diff-line-height": lineHeight,
+            "--diffs-font-family": fontFamily,
+            "--diffs-font-size": fontSize,
+            "--diffs-line-height": lineHeight,
+        } as CSSProperties;
+    }, [
+        monospaceFontFamily,
+        monospaceFontSize,
+        monospaceLineHeight,
+        options.diffFontFamily,
+        options.diffFontSize,
+        options.diffLineHeight,
+        options.diffUseCustomTypography,
+    ]);
+    const previewDiffOptions = useMemo<FileDiffOptions<undefined>>(
+        () => ({
+            theme: options.theme,
+            diffStyle: options.diffStyle,
+            diffIndicators: options.diffIndicators,
+            disableBackground: options.disableBackground,
+            hunkSeparators: options.hunkSeparators,
+            expandUnchanged: options.expandUnchanged,
+            expansionLineCount: options.expansionLineCount,
+            lineDiffType: options.lineDiffType,
+            disableLineNumbers: options.disableLineNumbers,
+            overflow: options.overflow,
+            disableFileHeader: true,
+        }),
+        [options],
+    );
+
+    return (
+        <div className="space-y-2.5">
+            <div className="space-y-1">
+                <Label className="text-[12px] text-muted-foreground">Diff Theme</Label>
+                <Select
+                    value={options.followSystemTheme ? "__system__" : options.theme}
+                    onValueChange={(value) => {
+                        if (value === "__system__") {
+                            setOption("followSystemTheme", true);
+                            return;
+                        }
+                        setOption("followSystemTheme", false);
+                        setOption("theme", value as DiffTheme);
+                    }}
+                >
+                    <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-80">
+                        <SelectItem value="__system__" className="text-[12px]">
+                            Auto (github dark/light default)
+                        </SelectItem>
+                        {DIFF_THEMES.map((theme) => (
+                            <SelectItem key={theme} value={theme} className="text-[12px]">
+                                {theme}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            {workspaceMode && onWorkspaceModeChange ? (
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant={workspaceMode === "single" ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 gap-1.5"
+                        onClick={() => onWorkspaceModeChange("single")}
+                    >
+                        <FileCode2 className="size-3.5" />
+                        Single file
+                    </Button>
+                    <Button
+                        variant={workspaceMode === "all" ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 gap-1.5"
+                        onClick={() => onWorkspaceModeChange("all")}
+                    >
+                        <Files className="size-3.5" />
+                        All files
+                    </Button>
+                </div>
+            ) : null}
+            <DiffToolbar />
+            <div className="space-y-1">
+                <div className="text-[11px] text-muted-foreground">Preview</div>
+                {previewFileDiff ? (
+                    <FileDiff
+                        fileDiff={previewFileDiff as FileDiffMetadata}
+                        options={previewDiffOptions}
+                        className="compact-diff pr-diff-font"
+                        style={previewStyle}
+                    />
+                ) : (
+                    <div className="px-2 py-1.5 text-[11px] text-muted-foreground">Preview unavailable.</div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export function AppearanceTab() {
+    const appearance = useAppearance();
+    const detectedMonospaceFonts = useDetectedMonospaceFontOptions();
+    const resolvedDetectedMonospaceFonts = useMemo(() => {
+        if (!isDetectedFontFamilyValue(appearance.monospaceFontFamily)) return detectedMonospaceFonts;
+        if (detectedMonospaceFonts.some((font) => font.value === appearance.monospaceFontFamily)) return detectedMonospaceFonts;
+        const fallback = getDetectedFontOptionFromValue(appearance.monospaceFontFamily);
+        return fallback ? [...detectedMonospaceFonts, fallback] : detectedMonospaceFonts;
+    }, [appearance.monospaceFontFamily, detectedMonospaceFonts]);
+
+    return (
+        <div className="max-w-3xl space-y-3">
+            <div className="space-y-1">
+                <Label className="text-[12px] text-muted-foreground">App Theme</Label>
+                <Select value={appearance.appThemeMode} onValueChange={(value) => appearance.setAppThemeMode(value as "auto" | "light" | "dark")}>
+                    <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="auto" className="text-[12px]">
+                            Auto (follow system)
+                        </SelectItem>
+                        <SelectItem value="dark" className="text-[12px]">
+                            Dark
+                        </SelectItem>
+                        <SelectItem value="light" className="text-[12px]">
+                            Light
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-3">
+                    <div className="space-y-1">
+                        <Label className="text-[12px] text-muted-foreground">Sans Font</Label>
+                        <Select value={appearance.sansFontFamily} onValueChange={(value) => appearance.setSansFontFamily(value as FontFamilyValue)}>
+                            <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                                {SANS_FONT_FAMILY_OPTIONS.map((font) => (
+                                    <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                                        {font.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[12px] text-muted-foreground">Sans Font Size</Label>
+                        <NumberStepperInput value={appearance.sansFontSize} min={11} max={20} step={1} onValueChange={appearance.setSansFontSize} />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[12px] text-muted-foreground">Sans Line Height</Label>
+                        <NumberStepperInput value={appearance.sansLineHeight} min={1} max={2.2} step={0.05} onValueChange={appearance.setSansLineHeight} />
+                    </div>
+                    <div className="py-1">
+                        <div className="mb-1 text-[11px] text-muted-foreground">Sans</div>
+                        <div
+                            className="space-y-1"
+                            style={{
+                                fontFamily: fontFamilyToCss(appearance.sansFontFamily),
+                                fontSize: `${appearance.sansFontSize}px`,
+                                lineHeight: String(appearance.sansLineHeight),
+                            }}
+                        >
+                            <p>Pull request summaries should stay readable even when comments and metadata span several wrapped lines in a compact layout.</p>
+                            <p>This intentionally long sentence exercises wrapping and makes line-height changes obvious across multiple rows of sans text.</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="space-y-3">
+                    <div className="space-y-1">
+                        <Label className="text-[12px] text-muted-foreground">Monospaced Font</Label>
+                        <Select value={appearance.monospaceFontFamily} onValueChange={(value) => appearance.setMonospaceFontFamily(value as FontFamilyValue)}>
+                            <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                                <SelectGroup>
+                                    <SelectLabel className="text-[11px] text-muted-foreground">Curated fonts</SelectLabel>
+                                    {MONO_FONT_FAMILY_OPTIONS.map((font) => (
+                                        <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                                            {font.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectGroup>
+                                {resolvedDetectedMonospaceFonts.length ? (
+                                    <SelectGroup>
+                                        <SelectLabel className="text-[11px] text-muted-foreground">Detected fonts</SelectLabel>
+                                        {resolvedDetectedMonospaceFonts.map((font) => (
+                                            <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                                                {font.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
+                                ) : null}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[12px] text-muted-foreground">Monospaced Font Size</Label>
+                        <NumberStepperInput value={appearance.monospaceFontSize} min={10} max={18} step={1} onValueChange={appearance.setMonospaceFontSize} />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[12px] text-muted-foreground">Monospaced Line Height</Label>
+                        <NumberStepperInput
+                            value={appearance.monospaceLineHeight}
+                            min={1}
+                            max={2.2}
+                            step={0.05}
+                            onValueChange={appearance.setMonospaceLineHeight}
+                        />
+                    </div>
+                    <div className="py-1">
+                        <div className="mb-1 text-[11px] text-muted-foreground">Monospace</div>
+                        <div
+                            className="whitespace-pre-wrap"
+                            style={{
+                                fontFamily: fontFamilyToCss(appearance.monospaceFontFamily),
+                                fontSize: `${appearance.monospaceFontSize}px`,
+                                lineHeight: String(appearance.monospaceLineHeight),
+                            }}
+                        >
+                            {
+                                'const previewId = "A1B2C3";\nconst longLine = "monospace preview long line for wrapping and spacing checks in settings panel output with detailed identifiers and timestamps";\nreturn previewId + " " + longLine;'
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export function TreeTab() {
+    const appearance = useAppearance();
+    const fileTree = useFileTree();
+
+    return (
+        <div className="max-w-3xl space-y-3">
+            <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                    <Label htmlFor="tree-compact-single-child" className="text-[12px] text-foreground">
+                        Compact single-child folder chains
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">Example: services/foo/bar/file.php as services/foo/bar.</p>
+                </div>
+                <Switch
+                    id="tree-compact-single-child"
+                    checked={fileTree.compactSingleChildDirectories}
+                    onCheckedChange={fileTree.setCompactSingleChildDirectories}
+                    size="sm"
+                />
+            </div>
+            <div className="max-w-56 space-y-1">
+                <Label className="text-[12px] text-muted-foreground">Indentation Size</Label>
+                <NumberStepperInput value={fileTree.treeIndentSize} min={8} max={24} step={1} onValueChange={fileTree.setTreeIndentSize} />
+            </div>
+            <div className="flex items-start justify-between gap-3">
+                <Label htmlFor="tree-custom-typography" className="text-[12px] text-foreground">
+                    Override tree typography
+                </Label>
+                <Switch
+                    id="tree-custom-typography"
+                    checked={appearance.treeUseCustomTypography}
+                    onCheckedChange={appearance.setTreeUseCustomTypography}
+                    size="sm"
+                />
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="space-y-1">
+                    <Label className="text-[12px] text-muted-foreground">Font Family</Label>
+                    <Select
+                        value={appearance.treeFontFamily}
+                        onValueChange={(value) => appearance.setTreeFontFamily(value as FontFamilyValue)}
+                        disabled={!appearance.treeUseCustomTypography}
+                    >
+                        <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                            {FONT_FAMILY_OPTIONS.map((font) => (
+                                <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                                    {font.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-[12px] text-muted-foreground">Font Size</Label>
+                    <NumberStepperInput
+                        value={appearance.treeFontSize}
+                        min={10}
+                        max={18}
+                        step={1}
+                        onValueChange={appearance.setTreeFontSize}
+                        disabled={!appearance.treeUseCustomTypography}
+                    />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-[12px] text-muted-foreground">Line Height</Label>
+                    <NumberStepperInput
+                        value={appearance.treeLineHeight}
+                        min={1}
+                        max={2.2}
+                        step={0.05}
+                        onValueChange={appearance.setTreeLineHeight}
+                        disabled={!appearance.treeUseCustomTypography}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function formatBytes(bytes: number | null) {
+    if (bytes === null || !Number.isFinite(bytes)) return "n/a";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function formatTimestamp(timestamp: number | null) {
+    if (!timestamp || !Number.isFinite(timestamp)) return "n/a";
+    return new Date(timestamp).toLocaleString();
+}
+
+export function StorageTab() {
+    const [state, setState] = useState<{
+        snapshot: DataCollectionsDebugSnapshot | null;
+        perfSnapshot: ReviewPerfSnapshot | null;
+        loading: boolean;
+        busyAction: "refresh" | "clear-expired" | "export" | null;
+        statusMessage: string | null;
+    }>({
+        snapshot: null,
+        perfSnapshot: null,
+        loading: true,
+        busyAction: null,
+        statusMessage: null,
+    });
+
+    const refreshSnapshots = useCallback(async () => {
+        setState((prev) => ({ ...prev, busyAction: "refresh" }));
+        try {
+            const snapshot = await getDataCollectionsDebugSnapshot();
+            const perfSnapshot = getReviewPerfSnapshot();
+            setState((prev) => ({ ...prev, snapshot, perfSnapshot }));
+        } finally {
+            setState((prev) => ({ ...prev, busyAction: null, loading: false }));
+        }
+    }, []);
+
+    useEffect(() => {
+        void refreshSnapshots();
+    }, [refreshSnapshots]);
+
+    const runClearExpired = useCallback(async () => {
+        if (!window.confirm("Clear expired storage entries now?")) return;
+        setState((prev) => ({ ...prev, busyAction: "clear-expired", statusMessage: null }));
+        const startedAt = Date.now();
+        try {
+            const result = await clearExpiredDataNow();
+            await refreshSnapshots();
+            setState((prev) => ({
+                ...prev,
+                statusMessage: `Cleared expired data: ${result.removed} records removed in ${Date.now() - startedAt}ms (app ${result.appRemoved}).`,
+            }));
+        } finally {
+            setState((prev) => ({ ...prev, busyAction: null }));
+        }
+    }, [refreshSnapshots]);
+
+    const runExportDiagnostics = useCallback(async () => {
+        setState((prev) => ({ ...prev, busyAction: "export", statusMessage: null }));
+        try {
+            const snapshot = await getDataCollectionsDebugSnapshot();
+            const perfSnapshot = getReviewPerfSnapshot();
+            const payload = JSON.stringify({ generatedAt: new Date().toISOString(), storage: snapshot, reviewPerformance: perfSnapshot }, null, 2);
+
+            let copied = false;
+            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(payload);
+                    copied = true;
+                } catch {
+                    copied = false;
+                }
+            }
+
+            if (!copied && typeof window !== "undefined") {
+                const blob = new Blob([payload], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `storage-diagnostics-${Date.now()}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                setState((prev) => ({ ...prev, statusMessage: "Diagnostics exported as JSON file." }));
+            } else {
+                setState((prev) => ({ ...prev, statusMessage: "Diagnostics copied to clipboard as JSON." }));
+            }
+        } finally {
+            setState((prev) => ({ ...prev, busyAction: null }));
+        }
+    }, []);
+
+    if (state.loading && !state.snapshot) {
+        return <div className="text-[12px] text-muted-foreground">Loading storage diagnostics...</div>;
+    }
+
+    const tierOrder: StorageTier[] = ["state", "permanent"];
+
+    return (
+        <div className="max-w-4xl space-y-4">
+            <div className="flex items-center justify-between gap-2">
+                <div className="text-[12px] text-muted-foreground">Storage diagnostics and safe maintenance actions.</div>
+                <Button variant="outline" size="sm" onClick={() => void refreshSnapshots()} disabled={state.busyAction !== null}>
+                    Refresh
+                </Button>
+            </div>
+
+            {state.statusMessage ? (
+                <div className="rounded-md border border-border-muted bg-surface-1 px-2 py-1.5 text-[11px]">{state.statusMessage}</div>
+            ) : null}
+
+            {state.snapshot ? (
+                <>
+                    <section className="space-y-2">
+                        <h3 className="text-[12px] font-medium">Storage Health</h3>
+                        <div className="grid grid-cols-1 gap-2 text-[12px] md:grid-cols-3">
+                            <div className="p-2">
+                                <div>Collections backend: {state.snapshot.backendMode}</div>
+                                <div>Persistence degraded: {state.snapshot.persistenceDegraded ? "yes" : "no"}</div>
+                                <div>Last sweep: {formatTimestamp(state.snapshot.lastSweepAt)}</div>
+                            </div>
+                            <div className="p-2">
+                                <div>Total records: {state.snapshot.totalRecords}</div>
+                                <div>Total bytes: {formatBytes(state.snapshot.totalBytes)}</div>
+                                <div>
+                                    Quota estimate: {formatBytes(state.snapshot.estimatedUsageBytes)} / {formatBytes(state.snapshot.estimatedQuotaBytes)}
+                                </div>
+                            </div>
+                            <div className="p-2">
+                                <div>Critical load ms: {state.perfSnapshot?.lastCriticalLoadMs ?? "n/a"}</div>
+                                <div>Deferred load ms: {state.perfSnapshot?.lastDeferredLoadMs ?? "n/a"}</div>
+                                <div>Long tasks: {state.perfSnapshot?.longTaskCount ?? 0}</div>
+                                <div>Worker queue depth: {state.perfSnapshot?.workerQueueDepth ?? 0}</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="space-y-2">
+                        <h3 className="text-[12px] font-medium">Tier Summary</h3>
+                        <div className="text-[12px]">
+                            {tierOrder.map((tier) => {
+                                const summary = state.snapshot?.tiers[tier];
+                                return summary ? (
+                                    <div key={tier} className="grid grid-cols-1 gap-2 p-2 md:grid-cols-5">
+                                        <div className="font-medium capitalize">{tier}</div>
+                                        <div>Records: {summary.count}</div>
+                                        <div>Bytes: {formatBytes(summary.approxBytes)}</div>
+                                        <div>Oldest: {formatTimestamp(summary.oldestUpdatedAt)}</div>
+                                        <div>Newest: {formatTimestamp(summary.newestUpdatedAt)}</div>
+                                    </div>
+                                ) : null;
+                            })}
+                        </div>
+                    </section>
+
+                    <section className="space-y-2">
+                        <h3 className="text-[12px] font-medium">Collections</h3>
+                        <div className="text-[12px]">
+                            {state.snapshot.collections.map((summary) => (
+                                <div key={`${summary.tier}:${summary.name}`} className="grid grid-cols-1 gap-2 p-2 md:grid-cols-7">
+                                    <div className="min-w-0 font-medium md:col-span-2">
+                                        <div className="break-all" title={summary.name}>
+                                            {summary.name}
+                                        </div>
+                                        <div className="text-[11px] text-muted-foreground">tier: {summary.tier}</div>
+                                    </div>
+                                    <div>Records: {summary.count}</div>
+                                    <div>Bytes: {formatBytes(summary.approxBytes)}</div>
+                                    <div>Expired: {summary.expiredCount}</div>
+                                    <div>Oldest: {formatTimestamp(summary.oldestUpdatedAt)}</div>
+                                    <div>Newest: {formatTimestamp(summary.newestUpdatedAt)}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                </>
+            ) : null}
+
+            <section className="space-y-2">
+                <h3 className="text-[12px] font-medium">Actions</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={state.busyAction !== null} onClick={() => void runClearExpired()}>
+                        Clear expired now
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={state.busyAction !== null} onClick={() => void runExportDiagnostics()}>
+                        Export diagnostics JSON
+                    </Button>
+                </div>
+            </section>
+
+            <section className="space-y-1 text-[11px] text-muted-foreground">
+                <div>Quota notes: browser storage quotas are dynamic and may be evicted under storage pressure.</div>
+                <div>Typical ranges: Chromium around 60% of disk, Firefox around min(10% disk, 10GiB), Safari often around 60% for browser apps.</div>
+                <div>localStorage fallback is substantially smaller than IndexedDB.</div>
+            </section>
+        </div>
+    );
+}

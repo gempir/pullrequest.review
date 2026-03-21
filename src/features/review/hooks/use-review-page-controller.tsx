@@ -2,7 +2,6 @@ import type { FileDiffOptions } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, type SetStateAction, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { ReviewCommentsSidebar } from "@/components/pull-request-review/review-comments-sidebar";
 import { ReviewCommitScopeControl } from "@/components/pull-request-review/review-commit-scope-control";
@@ -37,28 +36,25 @@ import { useReviewPageViewProps } from "@/components/pull-request-review/use-rev
 import { isRateLimitedError as isRateLimitedQueryError } from "@/components/pull-request-review/use-review-query";
 import { readViewedVersionIds, writeViewedVersionIds } from "@/components/pull-request-review/use-review-storage";
 import { getSettingsTreeItems } from "@/components/settings-navigation";
+import { useReviewFileContexts } from "@/features/review/data/use-review-file-contexts";
 import { useReviewScopedData } from "@/features/review/data/use-review-scoped-data";
 import {
     ALL_MODE_SCROLL_RETRY_DELAYS,
     ALL_MODE_STICKY_OFFSET,
-    type CreateCommentPayload,
-    commentMatchKey,
     commitVersionId,
-    type FullFileContextEntry,
     latestVersionIdFromFingerprint,
     parentDirectories,
     parseSingleFilePatch,
-    splitFileIntoLines,
 } from "@/features/review/model/review-page-controller-helpers";
+import { useReviewOptimisticComments } from "@/features/review/state/use-review-optimistic-comments";
 import { useAppearance } from "@/lib/appearance-context";
 import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
 import { commentAnchorId, fileAnchorId } from "@/lib/file-anchors";
 import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
-import { getPullRequestFileHistoryCollection, savePullRequestFileContextRecord } from "@/lib/git-host/query-collections";
+import { getPullRequestFileHistoryCollection } from "@/lib/git-host/query-collections";
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
-import { fetchPullRequestFileContents } from "@/lib/git-host/service";
-import type { GitHost, Comment as PullRequestComment } from "@/lib/git-host/types";
+import type { GitHost } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import type { ReviewDiffScopeSearch } from "@/lib/review-diff-scope";
 import { markReviewPerf } from "@/lib/review-performance/metrics";
@@ -237,8 +233,6 @@ export function useReviewPageController({
     const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<Record<string, boolean>>({});
     const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
-    const [fileContexts, setFileContexts] = useState<Record<string, FullFileContextEntry>>({});
-    const [optimisticComments, setOptimisticComments] = useState<PullRequestComment[]>([]);
     const [dirStateHydrated, setDirStateHydrated] = useState(false);
     const [pendingCommentTick, setPendingCommentTick] = useState(0);
     const autoMarkedViewedVersionIdsRef = useRef<Set<string>>(new Set());
@@ -253,7 +247,6 @@ export function useReviewPageController({
     const loadedViewedStateRevisionRef = useRef<string>("");
     const skipViewedStatePersistRevisionRef = useRef<string>("");
     const loadedHistoryRevisionRef = useRef<string>("");
-    const optimisticCommentIdRef = useRef(-1);
     const firstDiffRenderedKeyRef = useRef<string>("");
     const missingDiffRecoveryRef = useRef<{ contextKey: string; attempts: number; lastRecoverySignature: string }>({
         contextKey: "",
@@ -302,196 +295,18 @@ export function useReviewPageController({
     useReviewDocumentTitle({ isLoading: isCriticalLoading, pullRequestTitle });
 
     const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
-    const removeMatchedOptimisticComments = useCallback((serverComments: PullRequestComment[]) => {
-        const serverKeyCounts = new Map<string, number>();
-        for (const comment of serverComments) {
-            const key = commentMatchKey(comment);
-            serverKeyCounts.set(key, (serverKeyCounts.get(key) ?? 0) + 1);
-        }
-        setOptimisticComments((prev) => {
-            let changed = false;
-            const next: PullRequestComment[] = [];
-            const remainingCounts = new Map(serverKeyCounts);
-            for (const optimisticComment of prev) {
-                const key = commentMatchKey(optimisticComment);
-                const matchedCount = remainingCounts.get(key) ?? 0;
-                if (matchedCount > 0) {
-                    changed = true;
-                    remainingCounts.set(key, matchedCount - 1);
-                    continue;
-                }
-                next.push(optimisticComment);
-            }
-            return changed ? next : prev;
-        });
-    }, []);
-    const createOptimisticComment = useCallback(
-        (payload: CreateCommentPayload) => {
-            if (!effectivePrData) return null;
-            const optimisticCommentId = optimisticCommentIdRef.current;
-            optimisticCommentIdRef.current -= 1;
-            const now = new Date().toISOString();
-            const nextComment: PullRequestComment = {
-                id: optimisticCommentId,
-                createdAt: now,
-                updatedAt: now,
-                deleted: false,
-                pending: true,
-                content: { raw: payload.content },
-                user: {
-                    displayName: pullRequest?.currentUser?.displayName ?? "You",
-                    avatarUrl: pullRequest?.currentUser?.avatarUrl,
-                },
-                inline: payload.path
-                    ? {
-                          path: payload.path,
-                          to: payload.side === "deletions" ? undefined : payload.line,
-                          from: payload.side === "deletions" ? payload.line : undefined,
-                      }
-                    : undefined,
-                parent: payload.parentId ? { id: payload.parentId } : undefined,
-            };
-            setOptimisticComments((prev) => [...prev, nextComment]);
-            return optimisticCommentId;
-        },
-        [effectivePrData, pullRequest?.currentUser?.avatarUrl, pullRequest?.currentUser?.displayName],
-    );
-    const updateOptimisticCommentPending = useCallback((commentId: number, pending: boolean) => {
-        setOptimisticComments((prev) => {
-            let changed = false;
-            const next = prev.map((comment) => {
-                if (comment.id !== commentId) return comment;
-                if (comment.pending === pending) return comment;
-                changed = true;
-                return {
-                    ...comment,
-                    pending,
-                    updatedAt: new Date().toISOString(),
-                };
-            });
-            return changed ? next : prev;
-        });
-    }, []);
-    const removeOptimisticComment = useCallback((commentId: number) => {
-        setOptimisticComments((prev) => prev.filter((comment) => comment.id !== commentId));
-    }, []);
-    useEffect(() => {
-        if (!effectivePrData?.comments?.length) return;
-        if (optimisticComments.length === 0) return;
-        removeMatchedOptimisticComments(effectivePrData.comments);
-    }, [effectivePrData?.comments, optimisticComments.length, removeMatchedOptimisticComments]);
-    useEffect(() => {
-        if (!prContextKey) return;
-        setOptimisticComments([]);
-    }, [prContextKey]);
-    const prData = useMemo(() => {
-        if (!effectivePrData) return undefined;
-        if (optimisticComments.length === 0) return effectivePrData;
-        const serverComments = effectivePrData.comments ?? [];
-        const serverKeyCounts = new Map<string, number>();
-        for (const comment of serverComments) {
-            const key = commentMatchKey(comment);
-            serverKeyCounts.set(key, (serverKeyCounts.get(key) ?? 0) + 1);
-        }
-
-        const unmatchedOptimisticComments: PullRequestComment[] = [];
-        const remainingCounts = new Map(serverKeyCounts);
-        for (const comment of optimisticComments) {
-            const key = commentMatchKey(comment);
-            const matchedCount = remainingCounts.get(key) ?? 0;
-            if (matchedCount > 0) {
-                remainingCounts.set(key, matchedCount - 1);
-                continue;
-            }
-            unmatchedOptimisticComments.push(comment);
-        }
-
-        if (unmatchedOptimisticComments.length === 0) return effectivePrData;
-        return {
-            ...effectivePrData,
-            comments: [...serverComments, ...unmatchedOptimisticComments],
-        };
-    }, [effectivePrData, optimisticComments]);
+    const { createOptimisticComment, prData, removeOptimisticComment, updateOptimisticCommentPending } = useReviewOptimisticComments({
+        effectivePrData,
+        prContextKey,
+        currentUserAvatarUrl: pullRequest?.currentUser?.avatarUrl,
+        currentUserDisplayName: pullRequest?.currentUser?.displayName,
+    });
     const treeLoading = isCriticalLoading || commitScopeLoading;
 
     useEffect(() => {
         if (resolvedScope.mode === "full") return;
         setInlineComment(null);
     }, [resolvedScope.mode, setInlineComment]);
-
-    const readyFileContextsRef = useRef<Record<string, { oldLines: string[]; newLines: string[] }>>({});
-
-    const readyFileContexts = useMemo(() => {
-        const prevEntries = readyFileContextsRef.current;
-        const nextEntries: Record<string, { oldLines: string[]; newLines: string[] }> = {};
-        let changed = false;
-
-        for (const [path, entry] of Object.entries(fileContexts)) {
-            if (entry.status !== "ready") continue;
-            const prev = prevEntries[path];
-            if (prev && prev.oldLines === entry.oldLines && prev.newLines === entry.newLines) {
-                nextEntries[path] = prev;
-                continue;
-            }
-            nextEntries[path] = { oldLines: entry.oldLines, newLines: entry.newLines };
-            changed = true;
-        }
-
-        const prevKeys = Object.keys(prevEntries);
-        const nextKeys = Object.keys(nextEntries);
-        const hasKeyChange = prevKeys.length !== nextKeys.length || prevKeys.some((key) => nextEntries[key] !== prevEntries[key]);
-
-        if (!changed && !hasKeyChange) {
-            return prevEntries;
-        }
-
-        readyFileContextsRef.current = nextEntries;
-        return nextEntries;
-    }, [fileContexts]);
-
-    const fileContextStatus = useMemo(() => {
-        const entries: Record<string, DiffContextState> = {};
-        for (const [path, entry] of Object.entries(fileContexts)) {
-            if (entry.status === "loading" || entry.status === "idle") {
-                entries[path] = entry;
-            } else if (entry.status === "ready") {
-                entries[path] = { status: "ready" };
-            } else {
-                entries[path] = { status: "error", error: entry.error };
-            }
-        }
-        return entries;
-    }, [fileContexts]);
-
-    useEffect(() => {
-        setFileContexts((prev) => {
-            let changed = false;
-            const next: Record<string, FullFileContextEntry> = { ...prev };
-
-            for (const [path, context] of Object.entries(persistedFileContexts)) {
-                const existing = next[path];
-                if (existing?.status === "ready" && existing.fetchedAt === context.fetchedAt) {
-                    continue;
-                }
-                next[path] = {
-                    status: "ready",
-                    oldLines: context.oldLines,
-                    newLines: context.newLines,
-                    fetchedAt: context.fetchedAt,
-                };
-                changed = true;
-            }
-
-            for (const [path, entry] of Object.entries(next)) {
-                if (entry.status === "ready" && !persistedFileContexts[path]) {
-                    delete next[path];
-                    changed = true;
-                }
-            }
-
-            return changed ? next : prev;
-        });
-    }, [persistedFileContexts]);
 
     useCopyTimeoutCleanup({
         copyResetTimeoutRef,
@@ -529,60 +344,15 @@ export function useReviewPageController({
     );
     const effectiveBaseCommitHash = resolvedScope.mode === "full" ? prData?.pr.destination?.commit?.hash : resolvedScope.baseCommitHash;
     const effectiveHeadCommitHash = resolvedScope.mode === "full" ? prData?.pr.source?.commit?.hash : resolvedScope.headCommitHash;
-
-    const handleLoadFullFileContext = useCallback(
-        async (filePath: string, fileDiff: FileDiffMetadata) => {
-            const current = fileContexts[filePath];
-            if (current?.status === "loading") return;
-            if (current?.status === "ready" || persistedFileContexts[filePath]) return;
-            setFileContexts((prev) => ({ ...prev, [filePath]: { status: "loading" } }));
-            try {
-                const baseCommit = effectiveBaseCommitHash;
-                const headCommit = effectiveHeadCommitHash;
-                const needsBase = fileDiff.type !== "new";
-                const needsHead = fileDiff.type !== "deleted";
-                if (needsBase && !baseCommit) {
-                    throw new Error("Base commit is unavailable for this pull request.");
-                }
-                if (needsHead && !headCommit) {
-                    throw new Error("Head commit is unavailable for this pull request.");
-                }
-                const effectiveBaseCommit = baseCommit ?? "";
-                const effectiveHeadCommit = headCommit ?? "";
-                const oldPath = (fileDiff.prevName ?? fileDiff.name ?? filePath).trim();
-                const newPath = (fileDiff.name ?? fileDiff.prevName ?? filePath).trim();
-                const [oldContent, newContent] = await Promise.all([
-                    needsBase ? fetchPullRequestFileContents({ prRef, commit: effectiveBaseCommit, path: oldPath }) : Promise.resolve(""),
-                    needsHead ? fetchPullRequestFileContents({ prRef, commit: effectiveHeadCommit, path: newPath }) : Promise.resolve(""),
-                ]);
-                const readyOldLines = needsBase ? splitFileIntoLines(oldContent) : [];
-                const readyNewLines = needsHead ? splitFileIntoLines(newContent) : [];
-                const fetchedAt = Date.now();
-                if (resolvedScope.mode === "full") {
-                    await savePullRequestFileContextRecord({
-                        prRef,
-                        path: filePath,
-                        oldLines: readyOldLines,
-                        newLines: readyNewLines,
-                        fetchedAt,
-                    });
-                }
-                setFileContexts((prev) => ({
-                    ...prev,
-                    [filePath]: {
-                        status: "ready",
-                        oldLines: readyOldLines,
-                        newLines: readyNewLines,
-                        fetchedAt,
-                    },
-                }));
-            } catch (error) {
-                const message = error instanceof Error ? error.message : "Unable to load file context.";
-                setFileContexts((prev) => ({ ...prev, [filePath]: { status: "error", error: message } }));
-            }
-        },
-        [effectiveBaseCommitHash, effectiveHeadCommitHash, fileContexts, persistedFileContexts, prRef, resolvedScope.mode],
-    );
+    const historyRevision = `${effectiveBaseCommitHash ?? ""}:${effectiveHeadCommitHash ?? ""}`;
+    const { fileContextStatus, handleLoadFullFileContext, readyFileContexts } = useReviewFileContexts({
+        effectiveBaseCommitHash,
+        effectiveHeadCommitHash,
+        historyRevision,
+        persistedFileContexts,
+        prRef,
+        resolvedScopeMode: resolvedScope.mode,
+    });
 
     const {
         diffHighlighterReady,
@@ -675,7 +445,6 @@ export function useReviewPageController({
         const sortedVersionIds = Array.from(latestVersionIdByPath.values()).sort();
         return `${viewedStorageKey}:${sortedVersionIds.length}:${hashString(sortedVersionIds.join("|"))}`;
     }, [latestVersionIdByPath, viewedStorageKey]);
-    const historyRevision = `${effectiveBaseCommitHash ?? ""}:${effectiveHeadCommitHash ?? ""}`;
 
     const resetHistoryTracking = useCallback(() => {
         setHistoryRequestedPaths(new Set());
@@ -710,7 +479,6 @@ export function useReviewPageController({
         if (loadedHistoryRevisionRef.current === historyRevision) return;
         loadedHistoryRevisionRef.current = historyRevision;
         resetHistoryTracking();
-        setFileContexts({});
     }, [historyRevision, resetHistoryTracking]);
 
     useEffect(() => {

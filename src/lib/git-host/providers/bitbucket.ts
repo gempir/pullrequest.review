@@ -1,5 +1,8 @@
+import { Effect } from "effect";
 import { clearBitbucketAuthCredential, readBitbucketAuthCredential, writeBitbucketAuthCredential } from "@/lib/data/query-collections";
+import { tryEffectPromise, tryEffectSync } from "@/lib/effect/runtime";
 import { bitbucketAuthSchema, parseSchema } from "@/lib/git-host/schemas";
+import { mapWithConcurrency } from "@/lib/git-host/shared/concurrency";
 import { parseFailureBody } from "@/lib/git-host/shared/http";
 import {
     type AuthState,
@@ -225,24 +228,6 @@ async function request(url: string, init: RequestInit = {}) {
         });
     }
     return response;
-}
-
-async function mapWithConcurrency<TInput, TOutput>(values: TInput[], concurrency: number, mapper: (value: TInput, index: number) => Promise<TOutput>) {
-    if (values.length === 0) return [] as TOutput[];
-    const safeConcurrency = Math.max(1, Math.min(concurrency, values.length));
-    const results = new Array<TOutput>(values.length);
-    let index = 0;
-
-    const workers = Array.from({ length: safeConcurrency }, async () => {
-        while (index < values.length) {
-            const current = index;
-            index += 1;
-            results[current] = await mapper(values[current], current);
-        }
-    });
-
-    await Promise.all(workers);
-    return results;
 }
 
 async function fetchAllDiffStat(startUrl: string): Promise<DiffStatEntry[]> {
@@ -661,289 +646,329 @@ export const bitbucketClient: GitHostClient = {
         declineAvailable: true,
         markDraftAvailable: false,
     },
-    async getAuthState(): Promise<AuthState> {
-        const credentials = readCredentials();
-        return {
-            authenticated: Boolean(credentials?.email && credentials?.apiToken),
-        };
-    },
-    async login(credentials: LoginCredentials): Promise<AuthState> {
-        if (credentials.host !== "bitbucket") {
-            throw new Error("Bitbucket credentials expected");
-        }
-        const email = credentials.email.trim();
-        const token = credentials.apiToken.trim();
-        if (!email) throw new Error("Email is required");
-        if (!token) throw new Error("API token is required");
-
-        const res = await fetch("https://api.bitbucket.org/2.0/user", {
-            headers: {
-                Authorization: `Basic ${encodeBasicAuth(email, token)}`,
-                Accept: "application/json",
-            },
-        });
-
-        if (!res.ok) {
-            const details = await parseFailure(res);
-            const status = `${res.status} ${res.statusText}`;
-            throw new Error(details ? `Bitbucket authentication failed (${status}): ${details}` : `Bitbucket authentication failed (${status})`);
-        }
-
-        await writeCredentials({ email, apiToken: token });
-        return { authenticated: true };
-    },
-    async logout(): Promise<AuthState> {
-        clearCredentials();
-        return { authenticated: false };
-    },
-    async listRepositories() {
-        const values: BitbucketRepoEntry[] = [];
-        let nextUrl: string | undefined = "https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100";
-
-        while (nextUrl) {
-            const res = await request(nextUrl, {
-                headers: { Accept: "application/json" },
-            });
-            const page = (await res.json()) as BitbucketRepoPage;
-            values.push(...(page.values ?? []));
-            nextUrl = page.next;
-        }
-
-        return values.map(normalizeRepo).filter((repo): repo is RepoRef => Boolean(repo));
-    },
-    async listPullRequestsForRepos(data) {
-        if (!data.repos.length) return [];
-        return mapWithConcurrency(data.repos, 4, async (repo) => {
-            const url = `https://api.bitbucket.org/2.0/repositories/${repo.workspace}/${repo.repo}/pullrequests?pagelen=20`;
-            const res = await request(url, {
-                headers: { Accept: "application/json" },
-            });
-            const page = (await res.json()) as BitbucketPullRequestPage;
+    getAuthState(): Effect.Effect<AuthState, Error> {
+        return tryEffectSync("Failed to read Bitbucket auth state", () => {
+            const credentials = readCredentials();
             return {
-                repo,
-                pullRequests: (page.values ?? []).map(mapPullRequestSummary),
+                authenticated: Boolean(credentials?.email && credentials?.apiToken),
             };
         });
     },
-    async fetchPullRequestCriticalByRef(data): Promise<PullRequestCriticalBundle> {
-        return fetchBitbucketPullRequestCritical({
-            workspace: data.prRef.workspace,
-            repo: data.prRef.repo,
-            pullRequestId: data.prRef.pullRequestId,
+    login(credentials: LoginCredentials): Effect.Effect<AuthState, Error> {
+        return tryEffectPromise("Bitbucket login failed", async () => {
+            if (credentials.host !== "bitbucket") {
+                throw new Error("Bitbucket credentials expected");
+            }
+            const email = credentials.email.trim();
+            const token = credentials.apiToken.trim();
+            if (!email) throw new Error("Email is required");
+            if (!token) throw new Error("API token is required");
+
+            const res = await fetch("https://api.bitbucket.org/2.0/user", {
+                headers: {
+                    Authorization: `Basic ${encodeBasicAuth(email, token)}`,
+                    Accept: "application/json",
+                },
+            });
+
+            if (!res.ok) {
+                const details = await parseFailure(res);
+                const status = `${res.status} ${res.statusText}`;
+                throw new Error(details ? `Bitbucket authentication failed (${status}): ${details}` : `Bitbucket authentication failed (${status})`);
+            }
+
+            await writeCredentials({ email, apiToken: token });
+            return { authenticated: true };
         });
     },
-    async fetchPullRequestDeferredByRef(data): Promise<PullRequestDeferredBundle> {
-        return fetchBitbucketPullRequestDeferred({
-            workspace: data.prRef.workspace,
-            repo: data.prRef.repo,
-            pullRequestId: data.prRef.pullRequestId,
+    logout(): Effect.Effect<AuthState, Error> {
+        return tryEffectSync("Bitbucket logout failed", () => {
+            clearCredentials();
+            return { authenticated: false };
         });
     },
-    async fetchPullRequestBundleByRef(data): Promise<PullRequestBundle> {
-        const [critical, deferred] = await Promise.all([
+    listRepositories(): Effect.Effect<RepoRef[], Error> {
+        return tryEffectPromise("Bitbucket repository listing failed", async () => {
+            const values: BitbucketRepoEntry[] = [];
+            let nextUrl: string | undefined = "https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100";
+
+            while (nextUrl) {
+                const res = await request(nextUrl, {
+                    headers: { Accept: "application/json" },
+                });
+                const page = (await res.json()) as BitbucketRepoPage;
+                values.push(...(page.values ?? []));
+                nextUrl = page.next;
+            }
+
+            return values.map(normalizeRepo).filter((repo): repo is RepoRef => Boolean(repo));
+        });
+    },
+    listPullRequestsForRepos(data): Effect.Effect<Array<{ repo: RepoRef; pullRequests: PullRequestSummary[] }>, Error> {
+        return tryEffectPromise("Bitbucket pull request listing failed", async () => {
+            if (!data.repos.length) return [];
+            return mapWithConcurrency(data.repos, 4, async (repo) => {
+                const url = `https://api.bitbucket.org/2.0/repositories/${repo.workspace}/${repo.repo}/pullrequests?pagelen=20`;
+                const res = await request(url, {
+                    headers: { Accept: "application/json" },
+                });
+                const page = (await res.json()) as BitbucketPullRequestPage;
+                return {
+                    repo,
+                    pullRequests: (page.values ?? []).map(mapPullRequestSummary),
+                };
+            });
+        });
+    },
+    fetchPullRequestCriticalByRef(data): Effect.Effect<PullRequestCriticalBundle, Error> {
+        return tryEffectPromise("Bitbucket critical pull request fetch failed", () =>
             fetchBitbucketPullRequestCritical({
                 workspace: data.prRef.workspace,
                 repo: data.prRef.repo,
                 pullRequestId: data.prRef.pullRequestId,
             }),
+        );
+    },
+    fetchPullRequestDeferredByRef(data): Effect.Effect<PullRequestDeferredBundle, Error> {
+        return tryEffectPromise("Bitbucket deferred pull request fetch failed", () =>
             fetchBitbucketPullRequestDeferred({
                 workspace: data.prRef.workspace,
                 repo: data.prRef.repo,
                 pullRequestId: data.prRef.pullRequestId,
             }),
-        ]);
-        const mergedPullRequest: PullRequestDetails = {
-            ...critical.pr,
-            ...(deferred.prPatch ?? {}),
-        };
-        return {
-            ...critical,
-            pr: mergedPullRequest,
-            comments: deferred.comments,
-            history: deferred.history,
-            reviewers: deferred.reviewers,
-            buildStatuses: deferred.buildStatuses,
-        };
+        );
     },
-    async approvePullRequest(data) {
-        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
-        await request(url, {
-            method: "POST",
-            headers: { Accept: "application/json" },
-        });
-        return { ok: true as const };
-    },
-    async removePullRequestApproval(data) {
-        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
-        await request(url, {
-            method: "DELETE",
-            headers: { Accept: "application/json" },
-        });
-        return { ok: true as const };
-    },
-    async requestChanges(data) {
-        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/request-changes`;
-        await request(url, {
-            method: "POST",
-            headers: { Accept: "application/json" },
-        });
-        return { ok: true as const };
-    },
-    async declinePullRequest(data) {
-        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/decline`;
-        await request(url, {
-            method: "POST",
-            headers: { Accept: "application/json" },
-        });
-        return { ok: true as const };
-    },
-    async markPullRequestAsDraft() {
-        throw new Error("Mark as draft is not supported for Bitbucket in this app.");
-    },
-    async mergePullRequest(data) {
-        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/merge`;
-        const payload: Record<string, unknown> = {
-            close_source_branch: Boolean(data.closeSourceBranch),
-        };
-        if (data.message?.trim()) payload.message = data.message.trim();
-        if (data.mergeStrategy?.trim()) payload.merge_strategy = data.mergeStrategy.trim();
-
-        await request(url, {
-            method: "POST",
-            headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-        });
-
-        return { ok: true as const };
-    },
-    async createPullRequestComment(data) {
-        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments`;
-        const payload: Record<string, unknown> = {
-            content: { raw: data.content },
-        };
-        if (data.inline) payload.inline = data.inline;
-        if (data.parentId) payload.parent = { id: data.parentId };
-
-        await request(url, {
-            method: "POST",
-            headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-        });
-
-        return { ok: true as const };
-    },
-    async updatePullRequestComment(data) {
-        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}`;
-        await request(url, {
-            method: "PUT",
-            headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                content: { raw: data.content },
-            }),
-        });
-        return { ok: true as const };
-    },
-    async resolvePullRequestComment(data) {
-        const action = data.resolve ? "resolve" : "unresolve";
-        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}/${action}`;
-        await request(url, {
-            method: "POST",
-            headers: { Accept: "application/json" },
-        });
-
-        return { ok: true as const };
-    },
-    async deletePullRequestComment(data) {
-        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}`;
-        await request(url, {
-            method: "DELETE",
-            headers: { Accept: "application/json" },
-        });
-        return { ok: true as const };
-    },
-    async fetchPullRequestFileContents({ prRef, commit, path }) {
-        const encodedPath = encodeBitbucketPath(path);
-        if (!encodedPath) return "";
-        try {
-            const url = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/src/${commit}/${encodedPath}`;
-            const res = await request(url, { headers: { Accept: "application/octet-stream" } });
-            return await res.text();
-        } catch (error) {
-            if (error instanceof HostApiError && error.status === 404) {
-                return "";
-            }
-            throw error;
-        }
-    },
-    async fetchPullRequestCommitRangeDiff({ prRef, baseCommitHash, headCommitHash, selectedCommitHashes }): Promise<PullRequestCommitRangeDiff> {
-        const normalizedBase = baseCommitHash.trim();
-        const normalizedHead = headCommitHash.trim();
-        if (!normalizedBase || !normalizedHead) {
-            throw new Error("Both base and head commit hashes are required.");
-        }
-        // Bitbucket commit-range spec order is opposite of git diff: "<source>..<destination>".
-        // To preview selected PR changes from base -> head, we must request head..base.
-        const rangeSpec = `${encodeURIComponent(normalizedHead)}..${encodeURIComponent(normalizedBase)}`;
-        const apiBase = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}`;
-        const [diffRes, diffstat] = await Promise.all([
-            request(`${apiBase}/diff/${rangeSpec}`, { headers: { Accept: "text/plain" } }),
-            fetchAllDiffStat(`${apiBase}/diffstat/${rangeSpec}?pagelen=100`),
-        ]);
-        const diffText = await diffRes.text();
-
-        return {
-            prRef,
-            baseCommitHash: normalizedBase,
-            headCommitHash: normalizedHead,
-            selectedCommitHashes: selectedCommitHashes.map((hash) => hash.trim()).filter(Boolean),
-            diff: diffText,
-            diffstat,
-        };
-    },
-    async fetchPullRequestFileHistory({ prRef, path, commits, limit = 20 }): Promise<PullRequestFileHistory> {
-        const normalizedPath = path.trim();
-        if (!normalizedPath || commits.length === 0) {
-            return { path: normalizedPath, entries: [], fetchedAt: Date.now() };
-        }
-
-        const commitCandidates = commits.filter((commit) => Boolean(commit.hash?.trim()));
-        const resolved = await mapWithConcurrency<Commit, PullRequestFileHistoryEntry | null>(commitCandidates, 4, async (commit) => {
-            const commitHash = commit.hash?.trim();
-            if (!commitHash) return null;
-
-            const diffRes = await request(`https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/diff/${commitHash}`, {
-                headers: { Accept: "text/plain" },
-            });
-            const diffText = await diffRes.text();
-            const match = extractSingleFilePatchFromUnifiedDiff(diffText, normalizedPath);
-            if (!match) return null;
+    fetchPullRequestBundleByRef(data): Effect.Effect<PullRequestBundle, Error> {
+        return tryEffectPromise("Bitbucket pull request bundle fetch failed", async () => {
+            const [critical, deferred] = await Promise.all([
+                fetchBitbucketPullRequestCritical({
+                    workspace: data.prRef.workspace,
+                    repo: data.prRef.repo,
+                    pullRequestId: data.prRef.pullRequestId,
+                }),
+                fetchBitbucketPullRequestDeferred({
+                    workspace: data.prRef.workspace,
+                    repo: data.prRef.repo,
+                    pullRequestId: data.prRef.pullRequestId,
+                }),
+            ]);
+            const mergedPullRequest: PullRequestDetails = {
+                ...critical.pr,
+                ...(deferred.prPatch ?? {}),
+            };
             return {
-                versionId: `${normalizedPath}:${commitHash}`,
-                commitHash,
-                commitDate: commit.date,
-                commitMessage: commit.message,
-                authorDisplayName: commit.author?.user?.displayName ?? commit.author?.raw,
-                filePathAtCommit: match.filePathAtCommit,
-                status: match.status,
-                patch: match.patch,
+                ...critical,
+                pr: mergedPullRequest,
+                comments: deferred.comments,
+                history: deferred.history,
+                reviewers: deferred.reviewers,
+                buildStatuses: deferred.buildStatuses,
             };
         });
-        const entries = resolved.filter((entry): entry is PullRequestFileHistoryEntry => entry !== null).slice(0, limit);
+    },
+    approvePullRequest(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("Bitbucket pull request approval failed", async () => {
+            const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
+            await request(url, {
+                method: "POST",
+                headers: { Accept: "application/json" },
+            });
+            return { ok: true as const };
+        });
+    },
+    removePullRequestApproval(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("Bitbucket pull request unapproval failed", async () => {
+            const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
+            await request(url, {
+                method: "DELETE",
+                headers: { Accept: "application/json" },
+            });
+            return { ok: true as const };
+        });
+    },
+    requestChanges(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("Bitbucket request-changes action failed", async () => {
+            const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/request-changes`;
+            await request(url, {
+                method: "POST",
+                headers: { Accept: "application/json" },
+            });
+            return { ok: true as const };
+        });
+    },
+    declinePullRequest(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("Bitbucket decline action failed", async () => {
+            const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/decline`;
+            await request(url, {
+                method: "POST",
+                headers: { Accept: "application/json" },
+            });
+            return { ok: true as const };
+        });
+    },
+    markPullRequestAsDraft(): Effect.Effect<{ ok: true }, Error> {
+        return Effect.fail(new Error("Mark as draft is not supported for Bitbucket in this app."));
+    },
+    mergePullRequest(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("Bitbucket merge failed", async () => {
+            const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/merge`;
+            const payload: Record<string, unknown> = {
+                close_source_branch: Boolean(data.closeSourceBranch),
+            };
+            if (data.message?.trim()) payload.message = data.message.trim();
+            if (data.mergeStrategy?.trim()) payload.merge_strategy = data.mergeStrategy.trim();
 
-        return {
-            path: normalizedPath,
-            entries,
-            fetchedAt: Date.now(),
-        };
+            await request(url, {
+                method: "POST",
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            return { ok: true as const };
+        });
+    },
+    createPullRequestComment(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("Bitbucket comment creation failed", async () => {
+            const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments`;
+            const payload: Record<string, unknown> = {
+                content: { raw: data.content },
+            };
+            if (data.inline) payload.inline = data.inline;
+            if (data.parentId) payload.parent = { id: data.parentId };
+
+            await request(url, {
+                method: "POST",
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            return { ok: true as const };
+        });
+    },
+    updatePullRequestComment(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("Bitbucket comment update failed", async () => {
+            const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}`;
+            await request(url, {
+                method: "PUT",
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    content: { raw: data.content },
+                }),
+            });
+            return { ok: true as const };
+        });
+    },
+    resolvePullRequestComment(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("Bitbucket thread resolution failed", async () => {
+            const action = data.resolve ? "resolve" : "unresolve";
+            const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}/${action}`;
+            await request(url, {
+                method: "POST",
+                headers: { Accept: "application/json" },
+            });
+
+            return { ok: true as const };
+        });
+    },
+    deletePullRequestComment(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("Bitbucket comment deletion failed", async () => {
+            const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments/${data.commentId}`;
+            await request(url, {
+                method: "DELETE",
+                headers: { Accept: "application/json" },
+            });
+            return { ok: true as const };
+        });
+    },
+    fetchPullRequestFileContents({ prRef, commit, path }): Effect.Effect<string, Error> {
+        return tryEffectPromise("Bitbucket file contents fetch failed", async () => {
+            const encodedPath = encodeBitbucketPath(path);
+            if (!encodedPath) return "";
+            try {
+                const url = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/src/${commit}/${encodedPath}`;
+                const res = await request(url, { headers: { Accept: "application/octet-stream" } });
+                return await res.text();
+            } catch (error) {
+                if (error instanceof HostApiError && error.status === 404) {
+                    return "";
+                }
+                throw error;
+            }
+        });
+    },
+    fetchPullRequestCommitRangeDiff({ prRef, baseCommitHash, headCommitHash, selectedCommitHashes }): Effect.Effect<PullRequestCommitRangeDiff, Error> {
+        return tryEffectPromise("Bitbucket commit range diff fetch failed", async () => {
+            const normalizedBase = baseCommitHash.trim();
+            const normalizedHead = headCommitHash.trim();
+            if (!normalizedBase || !normalizedHead) {
+                throw new Error("Both base and head commit hashes are required.");
+            }
+            // Bitbucket commit-range spec order is opposite of git diff: "<source>..<destination>".
+            // To preview selected PR changes from base -> head, we must request head..base.
+            const rangeSpec = `${encodeURIComponent(normalizedHead)}..${encodeURIComponent(normalizedBase)}`;
+            const apiBase = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}`;
+            const [diffRes, diffstat] = await Promise.all([
+                request(`${apiBase}/diff/${rangeSpec}`, { headers: { Accept: "text/plain" } }),
+                fetchAllDiffStat(`${apiBase}/diffstat/${rangeSpec}?pagelen=100`),
+            ]);
+            const diffText = await diffRes.text();
+
+            return {
+                prRef,
+                baseCommitHash: normalizedBase,
+                headCommitHash: normalizedHead,
+                selectedCommitHashes: selectedCommitHashes.map((hash) => hash.trim()).filter(Boolean),
+                diff: diffText,
+                diffstat,
+            };
+        });
+    },
+    fetchPullRequestFileHistory({ prRef, path, commits, limit = 20 }): Effect.Effect<PullRequestFileHistory, Error> {
+        return tryEffectPromise("Bitbucket file history fetch failed", async () => {
+            const normalizedPath = path.trim();
+            if (!normalizedPath || commits.length === 0) {
+                return { path: normalizedPath, entries: [], fetchedAt: Date.now() };
+            }
+
+            const commitCandidates = commits.filter((commit) => Boolean(commit.hash?.trim()));
+            const resolved = await mapWithConcurrency<Commit, PullRequestFileHistoryEntry | null>(commitCandidates, 4, async (commit) => {
+                const commitHash = commit.hash?.trim();
+                if (!commitHash) return null;
+
+                const diffRes = await request(`https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/diff/${commitHash}`, {
+                    headers: { Accept: "text/plain" },
+                });
+                const diffText = await diffRes.text();
+                const match = extractSingleFilePatchFromUnifiedDiff(diffText, normalizedPath);
+                if (!match) return null;
+                return {
+                    versionId: `${normalizedPath}:${commitHash}`,
+                    commitHash,
+                    commitDate: commit.date,
+                    commitMessage: commit.message,
+                    authorDisplayName: commit.author?.user?.displayName ?? commit.author?.raw,
+                    filePathAtCommit: match.filePathAtCommit,
+                    status: match.status,
+                    patch: match.patch,
+                };
+            });
+            const entries = resolved.filter((entry): entry is PullRequestFileHistoryEntry => entry !== null).slice(0, limit);
+
+            return {
+                path: normalizedPath,
+                entries,
+                fetchedAt: Date.now(),
+            };
+        });
     },
 };
 

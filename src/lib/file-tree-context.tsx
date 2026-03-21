@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ensureDataCollectionsReady, readTreeSettingsRecord, writeTreeSettingsRecord } from "@/lib/data/query-collections";
+import { ensureDataCollectionsReadyEffect, readTreeSettingsRecord, writeTreeSettingsRecord } from "@/lib/data/query-collections";
+import { runAppEffect } from "@/lib/effect/runtime";
 
 export type FileNodeType = "summary" | "file" | "directory";
 export type ChangeKind = "add" | "del" | "mix";
@@ -169,7 +170,10 @@ function useFileTreeProviderValue(): FileTreeContextType {
     useEffect(() => {
         let cancelled = false;
         void (async () => {
-            await ensureDataCollectionsReady();
+            await runAppEffect(ensureDataCollectionsReadyEffect(), {
+                label: "Hydrate file tree settings",
+                logError: false,
+            });
             if (cancelled) return;
             const stored = readTreeSettingsRecord();
             if (stored) {

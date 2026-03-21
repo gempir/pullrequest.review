@@ -5,6 +5,7 @@ import {
     writeBitbucketAuthCredential,
     writeGithubAuthCredential,
 } from "../src/lib/data/query-collections";
+import { runAppEffect } from "../src/lib/effect/runtime";
 import { bitbucketClient } from "../src/lib/git-host/providers/bitbucket";
 import { githubClient } from "../src/lib/git-host/providers/github";
 
@@ -18,7 +19,7 @@ afterEach(() => {
 
 describe("commit range diff providers", () => {
     test("GitHub compare endpoint maps diff and diffstat", async () => {
-        writeGithubAuthCredential({ token: "token" });
+        await writeGithubAuthCredential({ token: "token" });
         const calls = [];
         globalThis.fetch = async (input, init = {}) => {
             const url = String(input);
@@ -45,12 +46,15 @@ describe("commit range diff providers", () => {
             });
         };
 
-        const result = await githubClient.fetchPullRequestCommitRangeDiff({
-            prRef: { host: "github", workspace: "acme", repo: "repo", pullRequestId: "1" },
-            baseCommitHash: "aaa11111",
-            headCommitHash: "bbb22222",
-            selectedCommitHashes: ["bbb22222"],
-        });
+        const result = await runAppEffect(
+            githubClient.fetchPullRequestCommitRangeDiff({
+                prRef: { host: "github", workspace: "acme", repo: "repo", pullRequestId: "1" },
+                baseCommitHash: "aaa11111",
+                headCommitHash: "bbb22222",
+                selectedCommitHashes: ["bbb22222"],
+            }),
+            { label: "Test GitHub commit range diff", logError: false },
+        );
 
         expect(calls.length).toBe(2);
         expect(calls[0]?.url).toContain("https://api.github.com/repos/acme/repo/compare/aaa11111...bbb22222");
@@ -67,7 +71,7 @@ describe("commit range diff providers", () => {
     });
 
     test("Bitbucket revspec endpoints map diff and diffstat for selected range", async () => {
-        writeBitbucketAuthCredential({ email: "user@example.com", apiToken: "token" });
+        await writeBitbucketAuthCredential({ email: "user@example.com", apiToken: "token" });
         const calls = [];
         globalThis.fetch = async (input) => {
             const url = String(input);
@@ -91,12 +95,15 @@ describe("commit range diff providers", () => {
             return new Response("Not found", { status: 404 });
         };
 
-        const result = await bitbucketClient.fetchPullRequestCommitRangeDiff({
-            prRef: { host: "bitbucket", workspace: "acme", repo: "repo", pullRequestId: "1" },
-            baseCommitHash: "aaa11111",
-            headCommitHash: "bbb22222",
-            selectedCommitHashes: ["bbb22222"],
-        });
+        const result = await runAppEffect(
+            bitbucketClient.fetchPullRequestCommitRangeDiff({
+                prRef: { host: "bitbucket", workspace: "acme", repo: "repo", pullRequestId: "1" },
+                baseCommitHash: "aaa11111",
+                headCommitHash: "bbb22222",
+                selectedCommitHashes: ["bbb22222"],
+            }),
+            { label: "Test Bitbucket commit range diff", logError: false },
+        );
 
         expect(calls.some((url) => url.includes("/diff/bbb22222..aaa11111"))).toBeTrue();
         expect(calls.some((url) => url.includes("/diffstat/bbb22222..aaa11111?pagelen=100"))).toBeTrue();

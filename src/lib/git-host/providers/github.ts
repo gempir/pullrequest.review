@@ -1,5 +1,8 @@
+import { Effect } from "effect";
 import { clearGithubAuthCredential, readGithubAuthCredential, writeGithubAuthCredential } from "@/lib/data/query-collections";
+import { tryEffectPromise, tryEffectSync } from "@/lib/effect/runtime";
 import { githubAuthSchema, parseSchema } from "@/lib/git-host/schemas";
+import { mapWithConcurrency } from "@/lib/git-host/shared/concurrency";
 import { parseFailureBody } from "@/lib/git-host/shared/http";
 import { collectPaginated } from "@/lib/git-host/shared/pagination";
 import {
@@ -21,6 +24,7 @@ import {
     type PullRequestHistoryEvent,
     type PullRequestReviewer,
     type PullRequestSummary,
+    type RepoRef,
 } from "@/lib/git-host/types";
 
 const API_BASE = "https://api.github.com";
@@ -263,24 +267,6 @@ async function listPaginated<T>(path: string) {
         const res = await request(`${path}${connector}per_page=100&page=${page}`);
         return (await res.json()) as T[];
     });
-}
-
-async function mapWithConcurrency<TInput, TOutput>(values: TInput[], concurrency: number, mapper: (value: TInput, index: number) => Promise<TOutput>) {
-    if (values.length === 0) return [] as TOutput[];
-    const safeConcurrency = Math.max(1, Math.min(concurrency, values.length));
-    const results = new Array<TOutput>(values.length);
-    let index = 0;
-
-    const workers = Array.from({ length: safeConcurrency }, async () => {
-        while (index < values.length) {
-            const current = index;
-            index += 1;
-            results[current] = await mapper(values[current], current);
-        }
-    });
-
-    await Promise.all(workers);
-    return results;
 }
 
 function mapFileStatus(status: string): DiffStatEntry["status"] {
@@ -889,160 +875,183 @@ export const githubClient: GitHostClient = {
         declineAvailable: true,
         markDraftAvailable: true,
     },
-    async getAuthState(): Promise<AuthState> {
-        const auth = readAuth();
-        return { authenticated: Boolean(auth?.token) };
+    getAuthState(): Effect.Effect<AuthState, Error> {
+        return tryEffectSync("Failed to read GitHub auth state", () => {
+            const auth = readAuth();
+            return { authenticated: Boolean(auth?.token) };
+        });
     },
-    async login(credentials: LoginCredentials): Promise<AuthState> {
-        if (credentials.host !== "github") {
-            throw new Error("GitHub credentials expected");
-        }
-        const token = credentials.token.trim();
-        if (!token) throw new Error("Token is required");
+    login(credentials: LoginCredentials): Effect.Effect<AuthState, Error> {
+        return tryEffectPromise("GitHub login failed", async () => {
+            if (credentials.host !== "github") {
+                throw new Error("GitHub credentials expected");
+            }
+            const token = credentials.token.trim();
+            if (!token) throw new Error("Token is required");
 
-        const response = await fetch(`${API_BASE}/user`, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                Accept: "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-        });
+            const response = await fetch(`${API_BASE}/user`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            });
 
-        if (!response.ok) {
-            const details = await parseFailure(response);
-            const status = `${response.status} ${response.statusText}`;
-            throw new Error(details ? `GitHub authentication failed (${status}): ${details}` : `GitHub authentication failed (${status})`);
-        }
+            if (!response.ok) {
+                const details = await parseFailure(response);
+                const status = `${response.status} ${response.statusText}`;
+                throw new Error(details ? `GitHub authentication failed (${status}): ${details}` : `GitHub authentication failed (${status})`);
+            }
 
-        await writeAuth({ token });
-        return { authenticated: true };
-    },
-    async logout(): Promise<AuthState> {
-        clearAuth();
-        return { authenticated: false };
-    },
-    async listRepositories() {
-        if (!authHeader()) {
-            throw new Error("GitHub token required to list repositories. You can still open public PR URLs directly.");
-        }
-        const repos = await listPaginated<GithubRepo>("/user/repos?affiliation=owner,collaborator,organization_member");
-        const mapped = repos.map((repo) => {
-            const workspace = repo.owner?.login;
-            if (!workspace) return null;
-            return {
-                host: "github" as const,
-                workspace,
-                repo: repo.name,
-                fullName: repo.full_name,
-                displayName: repo.name,
-            };
-        });
-        return mapped.filter((repo): repo is NonNullable<typeof repo> => Boolean(repo));
-    },
-    async listPullRequestsForRepos(data) {
-        if (!data.repos.length) return [];
-        return mapWithConcurrency(data.repos, 4, async (repo) => {
-            const pulls = await listPaginated<GithubPull>(`/repos/${repo.workspace}/${repo.repo}/pulls?state=open`);
-            return {
-                repo,
-                pullRequests: pulls.map(mapPullRequestSummary),
-            };
+            await writeAuth({ token });
+            return { authenticated: true };
         });
     },
-    async fetchPullRequestCriticalByRef(data): Promise<PullRequestCriticalBundle> {
-        return fetchGithubPullRequestCritical({
-            workspace: data.prRef.workspace,
-            repo: data.prRef.repo,
-            pullRequestId: data.prRef.pullRequestId,
+    logout(): Effect.Effect<AuthState, Error> {
+        return tryEffectSync("GitHub logout failed", () => {
+            clearAuth();
+            return { authenticated: false };
         });
     },
-    async fetchPullRequestDeferredByRef(data): Promise<PullRequestDeferredBundle> {
-        return fetchGithubPullRequestDeferred({
-            workspace: data.prRef.workspace,
-            repo: data.prRef.repo,
-            pullRequestId: data.prRef.pullRequestId,
+    listRepositories(): Effect.Effect<RepoRef[], Error> {
+        return tryEffectPromise("GitHub repository listing failed", async () => {
+            if (!authHeader()) {
+                throw new Error("GitHub token required to list repositories. You can still open public PR URLs directly.");
+            }
+            const repos = await listPaginated<GithubRepo>("/user/repos?affiliation=owner,collaborator,organization_member");
+            const mapped = repos.map((repo) => {
+                const workspace = repo.owner?.login;
+                if (!workspace) return null;
+                return {
+                    host: "github" as const,
+                    workspace,
+                    repo: repo.name,
+                    fullName: repo.full_name,
+                    displayName: repo.name,
+                };
+            });
+            return mapped.filter((repo): repo is NonNullable<typeof repo> => Boolean(repo));
         });
     },
-    async fetchPullRequestBundleByRef(data): Promise<PullRequestBundle> {
-        const [critical, deferred] = await Promise.all([
+    listPullRequestsForRepos(data): Effect.Effect<Array<{ repo: RepoRef; pullRequests: PullRequestSummary[] }>, Error> {
+        return tryEffectPromise("GitHub pull request listing failed", async () => {
+            if (!data.repos.length) return [];
+            return mapWithConcurrency(data.repos, 4, async (repo) => {
+                const pulls = await listPaginated<GithubPull>(`/repos/${repo.workspace}/${repo.repo}/pulls?state=open`);
+                return {
+                    repo,
+                    pullRequests: pulls.map(mapPullRequestSummary),
+                };
+            });
+        });
+    },
+    fetchPullRequestCriticalByRef(data): Effect.Effect<PullRequestCriticalBundle, Error> {
+        return tryEffectPromise("GitHub critical pull request fetch failed", () =>
             fetchGithubPullRequestCritical({
                 workspace: data.prRef.workspace,
                 repo: data.prRef.repo,
                 pullRequestId: data.prRef.pullRequestId,
             }),
+        );
+    },
+    fetchPullRequestDeferredByRef(data): Effect.Effect<PullRequestDeferredBundle, Error> {
+        return tryEffectPromise("GitHub deferred pull request fetch failed", () =>
             fetchGithubPullRequestDeferred({
                 workspace: data.prRef.workspace,
                 repo: data.prRef.repo,
                 pullRequestId: data.prRef.pullRequestId,
             }),
-        ]);
-        const mergedPullRequest: PullRequestDetails = {
-            ...critical.pr,
-            ...(deferred.prPatch ?? {}),
-        };
-        return {
-            ...critical,
-            pr: mergedPullRequest,
-            comments: deferred.comments,
-            history: deferred.history,
-            reviewers: deferred.reviewers,
-            buildStatuses: deferred.buildStatuses,
-        };
-    },
-    async approvePullRequest(data) {
-        const path = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}/reviews`;
-        await request(
-            path,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ event: "APPROVE" }),
-            },
-            { requireAuth: true },
         );
-        return { ok: true as const };
     },
-    async removePullRequestApproval() {
-        throw new Error("Removing approval is not supported for GitHub in this app.");
-    },
-    async requestChanges(data) {
-        const path = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}/reviews`;
-        await request(
-            path,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    event: "REQUEST_CHANGES",
-                    body: data.body ?? "Requesting changes",
+    fetchPullRequestBundleByRef(data): Effect.Effect<PullRequestBundle, Error> {
+        return tryEffectPromise("GitHub pull request bundle fetch failed", async () => {
+            const [critical, deferred] = await Promise.all([
+                fetchGithubPullRequestCritical({
+                    workspace: data.prRef.workspace,
+                    repo: data.prRef.repo,
+                    pullRequestId: data.prRef.pullRequestId,
                 }),
-            },
-            { requireAuth: true },
-        );
-        return { ok: true as const };
+                fetchGithubPullRequestDeferred({
+                    workspace: data.prRef.workspace,
+                    repo: data.prRef.repo,
+                    pullRequestId: data.prRef.pullRequestId,
+                }),
+            ]);
+            const mergedPullRequest: PullRequestDetails = {
+                ...critical.pr,
+                ...(deferred.prPatch ?? {}),
+            };
+            return {
+                ...critical,
+                pr: mergedPullRequest,
+                comments: deferred.comments,
+                history: deferred.history,
+                reviewers: deferred.reviewers,
+                buildStatuses: deferred.buildStatuses,
+            };
+        });
     },
-    async declinePullRequest(data) {
-        const path = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}`;
-        await request(
-            path,
-            {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ state: "closed" }),
-            },
-            { requireAuth: true },
-        );
-        return { ok: true as const };
+    approvePullRequest(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("GitHub pull request approval failed", async () => {
+            const path = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}/reviews`;
+            await request(
+                path,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ event: "APPROVE" }),
+                },
+                { requireAuth: true },
+            );
+            return { ok: true as const };
+        });
     },
-    async markPullRequestAsDraft(data) {
-        const pullPath = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}`;
-        const pullResponse = await request(pullPath, {}, { requireAuth: true });
-        const pull = (await pullResponse.json()) as GithubPull;
-        if (!pull.node_id) {
-            throw new Error("GitHub pull request node id is unavailable");
-        }
+    removePullRequestApproval(): Effect.Effect<{ ok: true }, Error> {
+        return Effect.fail(new Error("Removing approval is not supported for GitHub in this app."));
+    },
+    requestChanges(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("GitHub request-changes action failed", async () => {
+            const path = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}/reviews`;
+            await request(
+                path,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        event: "REQUEST_CHANGES",
+                        body: data.body ?? "Requesting changes",
+                    }),
+                },
+                { requireAuth: true },
+            );
+            return { ok: true as const };
+        });
+    },
+    declinePullRequest(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("GitHub decline action failed", async () => {
+            const path = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}`;
+            await request(
+                path,
+                {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ state: "closed" }),
+                },
+                { requireAuth: true },
+            );
+            return { ok: true as const };
+        });
+    },
+    markPullRequestAsDraft(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("GitHub draft conversion failed", async () => {
+            const pullPath = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}`;
+            const pullResponse = await request(pullPath, {}, { requireAuth: true });
+            const pull = (await pullResponse.json()) as GithubPull;
+            if (!pull.node_id) {
+                throw new Error("GitHub pull request node id is unavailable");
+            }
 
-        const mutation = `
+            const mutation = `
             mutation ConvertPullRequestToDraft($pullRequestId: ID!) {
                 convertPullRequestToDraft(input: { pullRequestId: $pullRequestId }) {
                     pullRequest {
@@ -1052,146 +1061,154 @@ export const githubClient: GitHostClient = {
             }
         `;
 
-        const response = await request(
-            "/graphql",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    query: mutation,
-                    variables: { pullRequestId: pull.node_id },
-                }),
-            },
-            { requireAuth: true },
-        );
-        const payload = (await response.json()) as {
-            errors?: Array<{ message?: string }>;
-            data?: { convertPullRequestToDraft?: { pullRequest?: { id?: string } } };
-        };
-        const firstError = payload.errors?.[0]?.message;
-        if (firstError) {
-            throw new Error(firstError);
-        }
-        if (!payload.data?.convertPullRequestToDraft?.pullRequest?.id) {
-            throw new Error("GitHub did not confirm draft conversion");
-        }
-        return { ok: true as const };
-    },
-    async mergePullRequest(data) {
-        const path = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}/merge`;
-        const mergeMethod = data.mergeStrategy?.trim() || "merge";
-        await request(
-            path,
-            {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    commit_message: data.message?.trim() || undefined,
-                    merge_method: mergeMethod,
-                }),
-            },
-            { requireAuth: true },
-        );
-        return { ok: true as const };
-    },
-    async createPullRequestComment(data) {
-        const prBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}`;
-
-        if (data.parentId) {
-            await request(
-                `${prBase}/comments`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        body: data.content,
-                        in_reply_to: data.parentId,
-                    }),
-                },
-                { requireAuth: true },
-            );
-            return { ok: true as const };
-        }
-
-        if (data.inline && (data.inline.to || data.inline.from)) {
-            const prRes = await request(prBase);
-            const pr = (await prRes.json()) as GithubPull;
-            const line = data.inline.to ?? data.inline.from;
-            const side = data.inline.from ? "LEFT" : "RIGHT";
-
-            await request(
-                `${prBase}/comments`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        body: data.content,
-                        commit_id: pr.head?.sha,
-                        path: data.inline.path,
-                        side,
-                        line,
-                    }),
-                },
-                { requireAuth: true },
-            );
-            return { ok: true as const };
-        }
-
-        await request(
-            `/repos/${data.prRef.workspace}/${data.prRef.repo}/issues/${data.prRef.pullRequestId}/comments`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ body: data.content }),
-            },
-            { requireAuth: true },
-        );
-
-        return { ok: true as const };
-    },
-    async updatePullRequestComment(data) {
-        const repoBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}`;
-        const path = data.hasInlineContext ? `${repoBase}/pulls/comments/${data.commentId}` : `${repoBase}/issues/comments/${data.commentId}`;
-        await request(
-            path,
-            {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ body: data.content }),
-            },
-            { requireAuth: true },
-        );
-        return { ok: true as const };
-    },
-    async resolvePullRequestComment(data) {
-        const repoBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}`;
-        const commentResponse = await request(`${repoBase}/pulls/comments/${data.commentId}`, {}, { requireAuth: true });
-        const comment = (await commentResponse.json()) as GithubReviewComment;
-        const commentNodeId = comment.node_id?.trim();
-        if (!commentNodeId) {
-            throw new Error("GitHub comment node id is unavailable");
-        }
-        const pullRequestNumber = Number(data.prRef.pullRequestId);
-        if (!Number.isInteger(pullRequestNumber) || pullRequestNumber <= 0) {
-            throw new Error("GitHub pull request number is invalid");
-        }
-
-        let thread:
-            | {
-                  id?: string;
-                  isResolved?: boolean;
-              }
-            | undefined;
-        let after: string | null = null;
-
-        do {
-            const threadLookupResponse = await request(
+            const response = await request(
                 "/graphql",
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        query: `
+                        query: mutation,
+                        variables: { pullRequestId: pull.node_id },
+                    }),
+                },
+                { requireAuth: true },
+            );
+            const payload = (await response.json()) as {
+                errors?: Array<{ message?: string }>;
+                data?: { convertPullRequestToDraft?: { pullRequest?: { id?: string } } };
+            };
+            const firstError = payload.errors?.[0]?.message;
+            if (firstError) {
+                throw new Error(firstError);
+            }
+            if (!payload.data?.convertPullRequestToDraft?.pullRequest?.id) {
+                throw new Error("GitHub did not confirm draft conversion");
+            }
+            return { ok: true as const };
+        });
+    },
+    mergePullRequest(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("GitHub merge failed", async () => {
+            const path = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}/merge`;
+            const mergeMethod = data.mergeStrategy?.trim() || "merge";
+            await request(
+                path,
+                {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        commit_message: data.message?.trim() || undefined,
+                        merge_method: mergeMethod,
+                    }),
+                },
+                { requireAuth: true },
+            );
+            return { ok: true as const };
+        });
+    },
+    createPullRequestComment(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("GitHub comment creation failed", async () => {
+            const prBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}`;
+
+            if (data.parentId) {
+                await request(
+                    `${prBase}/comments`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            body: data.content,
+                            in_reply_to: data.parentId,
+                        }),
+                    },
+                    { requireAuth: true },
+                );
+                return { ok: true as const };
+            }
+
+            if (data.inline && (data.inline.to || data.inline.from)) {
+                const prRes = await request(prBase);
+                const pr = (await prRes.json()) as GithubPull;
+                const line = data.inline.to ?? data.inline.from;
+                const side = data.inline.from ? "LEFT" : "RIGHT";
+
+                await request(
+                    `${prBase}/comments`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            body: data.content,
+                            commit_id: pr.head?.sha,
+                            path: data.inline.path,
+                            side,
+                            line,
+                        }),
+                    },
+                    { requireAuth: true },
+                );
+                return { ok: true as const };
+            }
+
+            await request(
+                `/repos/${data.prRef.workspace}/${data.prRef.repo}/issues/${data.prRef.pullRequestId}/comments`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ body: data.content }),
+                },
+                { requireAuth: true },
+            );
+
+            return { ok: true as const };
+        });
+    },
+    updatePullRequestComment(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("GitHub comment update failed", async () => {
+            const repoBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}`;
+            const path = data.hasInlineContext ? `${repoBase}/pulls/comments/${data.commentId}` : `${repoBase}/issues/comments/${data.commentId}`;
+            await request(
+                path,
+                {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ body: data.content }),
+                },
+                { requireAuth: true },
+            );
+            return { ok: true as const };
+        });
+    },
+    resolvePullRequestComment(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("GitHub thread resolution failed", async () => {
+            const repoBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}`;
+            const commentResponse = await request(`${repoBase}/pulls/comments/${data.commentId}`, {}, { requireAuth: true });
+            const comment = (await commentResponse.json()) as GithubReviewComment;
+            const commentNodeId = comment.node_id?.trim();
+            if (!commentNodeId) {
+                throw new Error("GitHub comment node id is unavailable");
+            }
+            const pullRequestNumber = Number(data.prRef.pullRequestId);
+            if (!Number.isInteger(pullRequestNumber) || pullRequestNumber <= 0) {
+                throw new Error("GitHub pull request number is invalid");
+            }
+
+            let thread:
+                | {
+                      id?: string;
+                      isResolved?: boolean;
+                  }
+                | undefined;
+            let after: string | null = null;
+
+            do {
+                const threadLookupResponse = await request(
+                    "/graphql",
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            query: `
                             query ReviewThreadsByPullRequest($owner: String!, $repo: String!, $pullRequestNumber: Int!, $after: String) {
                                 repository(owner: $owner, name: $repo) {
                                     pullRequest(number: $pullRequestNumber) {
@@ -1214,65 +1231,67 @@ export const githubClient: GitHostClient = {
                                 }
                             }
                         `,
-                        variables: {
-                            owner: data.prRef.workspace,
-                            repo: data.prRef.repo,
-                            pullRequestNumber,
-                            after,
-                        },
-                    }),
-                },
-                { requireAuth: true },
-            );
-            const threadLookupPayload = (await threadLookupResponse.json()) as {
-                errors?: Array<{ message?: string }>;
-                data?: {
-                    repository?: {
-                        pullRequest?: {
-                            reviewThreads?: {
-                                nodes?: Array<{
-                                    id?: string;
-                                    isResolved?: boolean;
-                                    comments?: {
-                                        nodes?: Array<{ id?: string }>;
+                            variables: {
+                                owner: data.prRef.workspace,
+                                repo: data.prRef.repo,
+                                pullRequestNumber,
+                                after,
+                            },
+                        }),
+                    },
+                    { requireAuth: true },
+                );
+                const threadLookupPayload = (await threadLookupResponse.json()) as {
+                    errors?: Array<{ message?: string }>;
+                    data?: {
+                        repository?: {
+                            pullRequest?: {
+                                reviewThreads?: {
+                                    nodes?: Array<{
+                                        id?: string;
+                                        isResolved?: boolean;
+                                        comments?: {
+                                            nodes?: Array<{ id?: string }>;
+                                        };
+                                    }>;
+                                    pageInfo?: {
+                                        hasNextPage?: boolean;
+                                        endCursor?: string | null;
                                     };
-                                }>;
-                                pageInfo?: {
-                                    hasNextPage?: boolean;
-                                    endCursor?: string | null;
                                 };
                             };
                         };
                     };
                 };
-            };
-            const threadLookupError = threadLookupPayload.errors?.[0]?.message;
-            if (threadLookupError) {
-                throw new Error(threadLookupError);
+                const threadLookupError = threadLookupPayload.errors?.[0]?.message;
+                if (threadLookupError) {
+                    throw new Error(threadLookupError);
+                }
+
+                const reviewThreads = threadLookupPayload.data?.repository?.pullRequest?.reviewThreads;
+                thread = reviewThreads?.nodes?.find((candidate) =>
+                    candidate.comments?.nodes?.some((threadComment) => threadComment.id?.trim() === commentNodeId),
+                );
+                if (thread) {
+                    break;
+                }
+
+                const pageInfo = reviewThreads?.pageInfo;
+                after = pageInfo?.hasNextPage ? (pageInfo.endCursor?.trim() ?? null) : null;
+            } while (after);
+
+            const threadId = thread?.id?.trim();
+            if (!threadId) {
+                throw new Error("GitHub review thread id is unavailable for this comment");
             }
 
-            const reviewThreads = threadLookupPayload.data?.repository?.pullRequest?.reviewThreads;
-            thread = reviewThreads?.nodes?.find((candidate) => candidate.comments?.nodes?.some((threadComment) => threadComment.id?.trim() === commentNodeId));
-            if (thread) {
-                break;
+            const threadResolved = thread?.isResolved;
+            if (typeof threadResolved === "boolean" && threadResolved === data.resolve) {
+                return { ok: true as const };
             }
 
-            const pageInfo = reviewThreads?.pageInfo;
-            after = pageInfo?.hasNextPage ? (pageInfo.endCursor?.trim() ?? null) : null;
-        } while (after);
-
-        const threadId = thread?.id?.trim();
-        if (!threadId) {
-            throw new Error("GitHub review thread id is unavailable for this comment");
-        }
-
-        const threadResolved = thread?.isResolved;
-        if (typeof threadResolved === "boolean" && threadResolved === data.resolve) {
-            return { ok: true as const };
-        }
-
-        const mutation = data.resolve
-            ? `
+            const mutation = data.resolve
+                ? `
                 mutation ResolveReviewThread($threadId: ID!) {
                     resolveReviewThread(input: { threadId: $threadId }) {
                         thread {
@@ -1282,7 +1301,7 @@ export const githubClient: GitHostClient = {
                     }
                 }
             `
-            : `
+                : `
                 mutation UnresolveReviewThread($threadId: ID!) {
                     unresolveReviewThread(input: { threadId: $threadId }) {
                         thread {
@@ -1292,142 +1311,151 @@ export const githubClient: GitHostClient = {
                     }
                 }
             `;
-        const mutationResponse = await request(
-            "/graphql",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    query: mutation,
-                    variables: { threadId },
-                }),
-            },
-            { requireAuth: true },
-        );
-        const mutationPayload = (await mutationResponse.json()) as {
-            errors?: Array<{ message?: string }>;
-        };
-        const mutationError = mutationPayload.errors?.[0]?.message;
-        if (mutationError) {
-            throw new Error(mutationError);
-        }
-        return { ok: true as const };
-    },
-    async deletePullRequestComment(data) {
-        const prBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}`;
-        const path = data.hasInlineContext ? `${prBase}/pulls/comments/${data.commentId}` : `${prBase}/issues/comments/${data.commentId}`;
-        await request(
-            path,
-            {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            },
-            { requireAuth: true },
-        );
-        return { ok: true as const };
-    },
-    async fetchPullRequestFileContents({ prRef, commit, path }) {
-        const encodedPath = encodeGitHubPath(path);
-        if (!encodedPath) return "";
-        try {
-            const res = await request(`/repos/${prRef.workspace}/${prRef.repo}/contents/${encodedPath}?ref=${commit}`, {
-                headers: { Accept: "application/vnd.github.raw" },
-            });
-            return await res.text();
-        } catch (error) {
-            if (error instanceof HostApiError && error.status === 404) {
-                return "";
-            }
-            throw error;
-        }
-    },
-    async fetchPullRequestCommitRangeDiff({ prRef, baseCommitHash, headCommitHash, selectedCommitHashes }): Promise<PullRequestCommitRangeDiff> {
-        const normalizedBase = baseCommitHash.trim();
-        const normalizedHead = headCommitHash.trim();
-        if (!normalizedBase || !normalizedHead) {
-            throw new Error("Both base and head commit hashes are required.");
-        }
-        const compareSpec = `${encodeURIComponent(normalizedBase)}...${encodeURIComponent(normalizedHead)}`;
-        const comparePath = `/repos/${prRef.workspace}/${prRef.repo}/compare/${compareSpec}`;
-        const [compareRes, diffRes] = await Promise.all([
-            request(comparePath),
-            request(comparePath, {
-                headers: { Accept: "application/vnd.github.v3.diff" },
-            }),
-        ]);
-        const compare = (await compareRes.json()) as GithubCompareResponse;
-        const diffstat: DiffStatEntry[] = (compare.files ?? []).flatMap((file) => {
-            const path = file.filename?.trim();
-            if (!path) return [];
-            return [
+            const mutationResponse = await request(
+                "/graphql",
                 {
-                    status: mapFileStatus((file.status ?? "modified").toLowerCase()),
-                    new: { path },
-                    old: { path: file.previous_filename ?? path },
-                    linesAdded: Number(file.additions ?? 0),
-                    linesRemoved: Number(file.deletions ?? 0),
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        query: mutation,
+                        variables: { threadId },
+                    }),
                 },
-            ];
-        });
-        const compareCommitHashes = (compare.commits ?? []).map((commit) => commit.sha?.trim()).filter((hash): hash is string => Boolean(hash));
-
-        return {
-            prRef,
-            baseCommitHash: normalizedBase,
-            headCommitHash: normalizedHead,
-            selectedCommitHashes: compareCommitHashes.length > 0 ? compareCommitHashes : selectedCommitHashes,
-            diff: await diffRes.text(),
-            diffstat,
-        };
-    },
-    async fetchPullRequestFileHistory({ prRef, path, commits, limit = 20 }): Promise<PullRequestFileHistory> {
-        const normalizedPath = path.trim();
-        if (!normalizedPath || commits.length === 0) {
-            return { path: normalizedPath, entries: [], fetchedAt: Date.now() };
-        }
-
-        const commitCandidates = commits.filter((commit) => Boolean(commit.hash?.trim()));
-        const resolved = await mapWithConcurrency<Commit, PullRequestFileHistoryEntry | null>(commitCandidates, 4, async (commit) => {
-            const commitHash = commit.hash?.trim();
-            if (!commitHash) return null;
-
-            const commitRes = await request(`/repos/${prRef.workspace}/${prRef.repo}/commits/${commitHash}`);
-            const commitDetails = (await commitRes.json()) as GithubCommitDetails;
-            const matchingFile = (commitDetails.files ?? []).find((file) => matchGithubCommitFileForPath(file, normalizedPath));
-            if (!matchingFile) return null;
-
-            let patch = buildGithubSingleFilePatch(matchingFile);
-            if (!patch) {
-                const diffRes = await request(`/repos/${prRef.workspace}/${prRef.repo}/commits/${commitHash}`, {
-                    headers: { Accept: "application/vnd.github.v3.diff" },
-                });
-                const diffText = await diffRes.text();
-                patch = extractSingleFilePatchFromUnifiedDiff(diffText, normalizedPath);
+                { requireAuth: true },
+            );
+            const mutationPayload = (await mutationResponse.json()) as {
+                errors?: Array<{ message?: string }>;
+            };
+            const mutationError = mutationPayload.errors?.[0]?.message;
+            if (mutationError) {
+                throw new Error(mutationError);
             }
-            if (!patch) return null;
+            return { ok: true as const };
+        });
+    },
+    deletePullRequestComment(data): Effect.Effect<{ ok: true }, Error> {
+        return tryEffectPromise("GitHub comment deletion failed", async () => {
+            const prBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}`;
+            const path = data.hasInlineContext ? `${prBase}/pulls/comments/${data.commentId}` : `${prBase}/issues/comments/${data.commentId}`;
+            await request(
+                path,
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                },
+                { requireAuth: true },
+            );
+            return { ok: true as const };
+        });
+    },
+    fetchPullRequestFileContents({ prRef, commit, path }): Effect.Effect<string, Error> {
+        return tryEffectPromise("GitHub file contents fetch failed", async () => {
+            const encodedPath = encodeGitHubPath(path);
+            if (!encodedPath) return "";
+            try {
+                const res = await request(`/repos/${prRef.workspace}/${prRef.repo}/contents/${encodedPath}?ref=${commit}`, {
+                    headers: { Accept: "application/vnd.github.raw" },
+                });
+                return await res.text();
+            } catch (error) {
+                if (error instanceof HostApiError && error.status === 404) {
+                    return "";
+                }
+                throw error;
+            }
+        });
+    },
+    fetchPullRequestCommitRangeDiff({ prRef, baseCommitHash, headCommitHash, selectedCommitHashes }): Effect.Effect<PullRequestCommitRangeDiff, Error> {
+        return tryEffectPromise("GitHub commit range diff fetch failed", async () => {
+            const normalizedBase = baseCommitHash.trim();
+            const normalizedHead = headCommitHash.trim();
+            if (!normalizedBase || !normalizedHead) {
+                throw new Error("Both base and head commit hashes are required.");
+            }
+            const compareSpec = `${encodeURIComponent(normalizedBase)}...${encodeURIComponent(normalizedHead)}`;
+            const comparePath = `/repos/${prRef.workspace}/${prRef.repo}/compare/${compareSpec}`;
+            const [compareRes, diffRes] = await Promise.all([
+                request(comparePath),
+                request(comparePath, {
+                    headers: { Accept: "application/vnd.github.v3.diff" },
+                }),
+            ]);
+            const compare = (await compareRes.json()) as GithubCompareResponse;
+            const diffstat: DiffStatEntry[] = (compare.files ?? []).flatMap((file) => {
+                const path = file.filename?.trim();
+                if (!path) return [];
+                return [
+                    {
+                        status: mapFileStatus((file.status ?? "modified").toLowerCase()),
+                        new: { path },
+                        old: { path: file.previous_filename ?? path },
+                        linesAdded: Number(file.additions ?? 0),
+                        linesRemoved: Number(file.deletions ?? 0),
+                    },
+                ];
+            });
+            const compareCommitHashes = (compare.commits ?? []).map((commit) => commit.sha?.trim()).filter((hash): hash is string => Boolean(hash));
 
-            const filePathAtCommit = matchingFile.filename?.trim() || matchingFile.previous_filename?.trim() || normalizedPath;
-            const status = mapFileStatus((matchingFile.status ?? "modified").toLowerCase());
             return {
-                versionId: `${normalizedPath}:${commitHash}`,
-                commitHash,
-                commitDate: commit.date,
-                commitMessage: commit.message,
-                authorDisplayName: commit.author?.user?.displayName ?? commit.author?.raw,
-                filePathAtCommit,
-                status,
-                patch,
+                prRef,
+                baseCommitHash: normalizedBase,
+                headCommitHash: normalizedHead,
+                selectedCommitHashes: compareCommitHashes.length > 0 ? compareCommitHashes : selectedCommitHashes,
+                diff: await diffRes.text(),
+                diffstat,
             };
         });
-        const entries = resolved.filter((entry): entry is PullRequestFileHistoryEntry => entry !== null).slice(0, limit);
+    },
+    fetchPullRequestFileHistory({ prRef, path, commits, limit = 20 }): Effect.Effect<PullRequestFileHistory, Error> {
+        return tryEffectPromise("GitHub file history fetch failed", async () => {
+            const normalizedPath = path.trim();
+            if (!normalizedPath || commits.length === 0) {
+                return { path: normalizedPath, entries: [], fetchedAt: Date.now() };
+            }
 
-        return {
-            path: normalizedPath,
-            entries,
-            fetchedAt: Date.now(),
-        };
+            const commitCandidates = commits.filter((commit) => Boolean(commit.hash?.trim()));
+            const resolved = await mapWithConcurrency<Commit, PullRequestFileHistoryEntry | null>(commitCandidates, 4, async (commit) => {
+                const commitHash = commit.hash?.trim();
+                if (!commitHash) return null;
+
+                const commitRes = await request(`/repos/${prRef.workspace}/${prRef.repo}/commits/${commitHash}`);
+                const commitDetails = (await commitRes.json()) as GithubCommitDetails;
+                const matchingFile = (commitDetails.files ?? []).find((file) => matchGithubCommitFileForPath(file, normalizedPath));
+                if (!matchingFile) return null;
+
+                let patch = buildGithubSingleFilePatch(matchingFile);
+                if (!patch) {
+                    const diffRes = await request(`/repos/${prRef.workspace}/${prRef.repo}/commits/${commitHash}`, {
+                        headers: { Accept: "application/vnd.github.v3.diff" },
+                    });
+                    const diffText = await diffRes.text();
+                    patch = extractSingleFilePatchFromUnifiedDiff(diffText, normalizedPath);
+                }
+                if (!patch) return null;
+
+                const filePathAtCommit = matchingFile.filename?.trim() || matchingFile.previous_filename?.trim() || normalizedPath;
+                const status = mapFileStatus((matchingFile.status ?? "modified").toLowerCase());
+                return {
+                    versionId: `${normalizedPath}:${commitHash}`,
+                    commitHash,
+                    commitDate: commit.date,
+                    commitMessage: commit.message,
+                    authorDisplayName: commit.author?.user?.displayName ?? commit.author?.raw,
+                    filePathAtCommit,
+                    status,
+                    patch,
+                };
+            });
+            const entries = resolved.filter((entry): entry is PullRequestFileHistoryEntry => entry !== null).slice(0, limit);
+
+            return {
+                path: normalizedPath,
+                entries,
+                fetchedAt: Date.now(),
+            };
+        });
     },
 };
 

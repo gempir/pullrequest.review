@@ -1,5 +1,6 @@
 import { type Collection, createCollection, localOnlyCollectionOptions } from "@tanstack/db";
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
+import { fireAndForgetAppEffect, runAppEffect, tryEffectPromise } from "@/lib/effect/runtime";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 
 export type StorageTier = "state" | "permanent";
@@ -724,17 +725,19 @@ function readPermanentRecord<T extends Record<string, unknown>>(id: string): (T 
     };
 }
 
-async function writePermanentRecord(id: string, value: Record<string, unknown>, context: string) {
+function writePermanentRecordEffect(id: string, value: Record<string, unknown>, context: string) {
     const now = Date.now();
-    await upsertRecord(
-        getAppPreferencesCollection(),
-        {
-            id,
-            value,
-            updatedAt: now,
-            expiresAt: null,
-        },
-        context,
+    return tryEffectPromise(`Failed to persist record ${context}`, () =>
+        upsertRecord(
+            getAppPreferencesCollection(),
+            {
+                id,
+                value,
+                updatedAt: now,
+                expiresAt: null,
+            },
+            context,
+        ),
     );
 }
 
@@ -809,21 +812,30 @@ async function runLegacyResetIfNeeded() {
     );
 }
 
-export function ensureDataCollectionsReady() {
-    if (!appDataReadyPromise) {
-        appDataReadyPromise = initRxdbCollections()
-            .catch((error) => {
-                console.error("Failed to initialize data collections in IndexedDB, falling back to in-memory collections.", error);
-                ensureCollectionsInitialized();
-                appDataFallbackActive = true;
-            })
-            .then(async () => {
-                await runLegacyResetIfNeeded();
-                await sweepExpiredStateCollections();
-            });
-    }
+export function ensureDataCollectionsReadyEffect() {
+    return tryEffectPromise("Failed to initialize data collections", async () => {
+        if (!appDataReadyPromise) {
+            appDataReadyPromise = initRxdbCollections()
+                .catch((error) => {
+                    console.error("Failed to initialize data collections in IndexedDB, falling back to in-memory collections.", error);
+                    ensureCollectionsInitialized();
+                    appDataFallbackActive = true;
+                })
+                .then(async () => {
+                    await runLegacyResetIfNeeded();
+                    await sweepExpiredStateCollections();
+                });
+        }
 
-    return appDataReadyPromise;
+        await appDataReadyPromise;
+    });
+}
+
+export function ensureDataCollectionsReady() {
+    return runAppEffect(ensureDataCollectionsReadyEffect(), {
+        label: "Ensure data collections are ready",
+        logError: false,
+    });
 }
 
 function normalizeReposByHost(reposByHost: Record<GitHost, RepoRef[]>): Record<GitHost, RepoRef[]> {
@@ -859,7 +871,10 @@ export function readAppearanceSettingsRecord() {
 }
 
 export function writeAppearanceSettingsRecord(settings: Omit<AppearanceSettingsRecord, "id" | "updatedAt" | "expiresAt">) {
-    writePermanentRecord(APPEARANCE_RECORD_ID, settings as Record<string, unknown>, APPEARANCE_RECORD_ID);
+    fireAndForgetAppEffect(writePermanentRecordEffect(APPEARANCE_RECORD_ID, settings as Record<string, unknown>, APPEARANCE_RECORD_ID), {
+        label: "Write appearance settings",
+        logError: false,
+    });
 }
 
 export function readDiffOptionsRecord() {
@@ -867,7 +882,10 @@ export function readDiffOptionsRecord() {
 }
 
 export function writeDiffOptionsRecord(options: Omit<DiffOptionsRecord, "id" | "updatedAt" | "expiresAt">) {
-    writePermanentRecord(DIFF_OPTIONS_RECORD_ID, options as Record<string, unknown>, DIFF_OPTIONS_RECORD_ID);
+    fireAndForgetAppEffect(writePermanentRecordEffect(DIFF_OPTIONS_RECORD_ID, options as Record<string, unknown>, DIFF_OPTIONS_RECORD_ID), {
+        label: "Write diff options",
+        logError: false,
+    });
 }
 
 export function readTreeSettingsRecord() {
@@ -875,7 +893,10 @@ export function readTreeSettingsRecord() {
 }
 
 export function writeTreeSettingsRecord(settings: Omit<TreeSettingsRecord, "id" | "updatedAt" | "expiresAt">) {
-    writePermanentRecord(TREE_SETTINGS_RECORD_ID, settings as Record<string, unknown>, TREE_SETTINGS_RECORD_ID);
+    fireAndForgetAppEffect(writePermanentRecordEffect(TREE_SETTINGS_RECORD_ID, settings as Record<string, unknown>, TREE_SETTINGS_RECORD_ID), {
+        label: "Write tree settings",
+        logError: false,
+    });
 }
 
 export function readShortcutsRecord() {
@@ -883,7 +904,10 @@ export function readShortcutsRecord() {
 }
 
 export function writeShortcutsRecord(shortcuts: Omit<ShortcutsRecord, "id" | "updatedAt" | "expiresAt">) {
-    writePermanentRecord(SHORTCUTS_RECORD_ID, shortcuts as Record<string, unknown>, SHORTCUTS_RECORD_ID);
+    fireAndForgetAppEffect(writePermanentRecordEffect(SHORTCUTS_RECORD_ID, shortcuts as Record<string, unknown>, SHORTCUTS_RECORD_ID), {
+        label: "Write shortcut settings",
+        logError: false,
+    });
 }
 
 export function readHostPreferencesRecord() {
@@ -891,13 +915,19 @@ export function readHostPreferencesRecord() {
 }
 
 export function writeHostPreferencesRecord(data: { activeHost: GitHost; reposByHost: Record<GitHost, RepoRef[]> }) {
-    writePermanentRecord(
-        HOST_PREFERENCES_RECORD_ID,
+    fireAndForgetAppEffect(
+        writePermanentRecordEffect(
+            HOST_PREFERENCES_RECORD_ID,
+            {
+                activeHost: data.activeHost,
+                reposByHost: normalizeReposByHost(data.reposByHost),
+            },
+            HOST_PREFERENCES_RECORD_ID,
+        ),
         {
-            activeHost: data.activeHost,
-            reposByHost: normalizeReposByHost(data.reposByHost),
+            label: "Write host preferences",
+            logError: false,
         },
-        HOST_PREFERENCES_RECORD_ID,
     );
 }
 
@@ -911,8 +941,8 @@ export function readBitbucketAuthCredential() {
     };
 }
 
-export async function writeBitbucketAuthCredential(data: { email: string; apiToken: string }) {
-    await writePermanentRecord(
+function writeBitbucketAuthCredentialEffect(data: { email: string; apiToken: string }) {
+    return writePermanentRecordEffect(
         "bitbucket",
         {
             host: "bitbucket",
@@ -923,8 +953,21 @@ export async function writeBitbucketAuthCredential(data: { email: string; apiTok
     );
 }
 
+export async function writeBitbucketAuthCredential(data: { email: string; apiToken: string }) {
+    await runAppEffect(writeBitbucketAuthCredentialEffect(data), {
+        label: "Write Bitbucket credentials",
+        logError: false,
+    });
+}
+
 export function clearBitbucketAuthCredential() {
-    void deleteRecord(getAppPreferencesCollection(), "bitbucket", "auth:bitbucket");
+    fireAndForgetAppEffect(
+        tryEffectPromise("Failed to clear Bitbucket credentials", () => deleteRecord(getAppPreferencesCollection(), "bitbucket", "auth:bitbucket")),
+        {
+            label: "Clear Bitbucket credentials",
+            logError: false,
+        },
+    );
 }
 
 export function readGithubAuthCredential() {
@@ -936,8 +979,8 @@ export function readGithubAuthCredential() {
     };
 }
 
-export async function writeGithubAuthCredential(data: { token: string }) {
-    await writePermanentRecord(
+function writeGithubAuthCredentialEffect(data: { token: string }) {
+    return writePermanentRecordEffect(
         "github",
         {
             host: "github",
@@ -947,8 +990,21 @@ export async function writeGithubAuthCredential(data: { token: string }) {
     );
 }
 
+export async function writeGithubAuthCredential(data: { token: string }) {
+    await runAppEffect(writeGithubAuthCredentialEffect(data), {
+        label: "Write GitHub credentials",
+        logError: false,
+    });
+}
+
 export function clearGithubAuthCredential() {
-    void deleteRecord(getAppPreferencesCollection(), "github", "auth:github");
+    fireAndForgetAppEffect(
+        tryEffectPromise("Failed to clear GitHub credentials", () => deleteRecord(getAppPreferencesCollection(), "github", "auth:github")),
+        {
+            label: "Clear GitHub credentials",
+            logError: false,
+        },
+    );
 }
 
 function readStateRecord<T extends { expiresAt: number | null; id: string }>(collection: Collection<T, string>, id: string) {
@@ -971,20 +1027,34 @@ export function readReviewViewedVersionIds(scopeId: string) {
 export function writeReviewViewedVersionIds(scopeId: string, viewedVersionIds: Set<string>) {
     if (!scopeId) return;
     if (viewedVersionIds.size === 0) {
-        void deleteRecord(getReviewViewedStateCollection(), scopeId, `viewed:${scopeId}`);
+        fireAndForgetAppEffect(
+            tryEffectPromise(`Failed to clear viewed state ${scopeId}`, () => deleteRecord(getReviewViewedStateCollection(), scopeId, `viewed:${scopeId}`)),
+            {
+                label: `Clear viewed state ${scopeId}`,
+                logError: false,
+            },
+        );
         return;
     }
 
     const now = Date.now();
-    void upsertRecord(
-        getReviewViewedStateCollection(),
+    fireAndForgetAppEffect(
+        tryEffectPromise(`Failed to write viewed state ${scopeId}`, () =>
+            upsertRecord(
+                getReviewViewedStateCollection(),
+                {
+                    id: scopeId,
+                    viewedVersionIds: Array.from(viewedVersionIds),
+                    updatedAt: now,
+                    expiresAt: stateExpiresAt(now),
+                },
+                `viewed:${scopeId}`,
+            ),
+        ),
         {
-            id: scopeId,
-            viewedVersionIds: Array.from(viewedVersionIds),
-            updatedAt: now,
-            expiresAt: stateExpiresAt(now),
+            label: `Write viewed state ${scopeId}`,
+            logError: false,
         },
-        `viewed:${scopeId}`,
     );
 }
 
@@ -998,15 +1068,23 @@ export function readReviewDirectoryState(scopeId: string) {
 export function writeReviewDirectoryState(scopeId: string, expandedByPath: Record<string, boolean>) {
     if (!scopeId) return;
     const now = Date.now();
-    void upsertRecord(
-        getReviewDirectoryStateCollection(),
+    fireAndForgetAppEffect(
+        tryEffectPromise(`Failed to write directory state ${scopeId}`, () =>
+            upsertRecord(
+                getReviewDirectoryStateCollection(),
+                {
+                    id: scopeId,
+                    expandedByPath,
+                    updatedAt: now,
+                    expiresAt: stateExpiresAt(now),
+                },
+                `directory:${scopeId}`,
+            ),
+        ),
         {
-            id: scopeId,
-            expandedByPath,
-            updatedAt: now,
-            expiresAt: stateExpiresAt(now),
+            label: `Write directory state ${scopeId}`,
+            logError: false,
         },
-        `directory:${scopeId}`,
     );
 }
 
@@ -1016,15 +1094,23 @@ export function readReviewLayoutState() {
 
 export function writeReviewLayoutState(data: Omit<ReviewLayoutStateRecord, "id" | "updatedAt" | "expiresAt">) {
     const now = Date.now();
-    void upsertRecord(
-        getReviewLayoutStateCollection(),
+    fireAndForgetAppEffect(
+        tryEffectPromise("Failed to write review layout state", () =>
+            upsertRecord(
+                getReviewLayoutStateCollection(),
+                {
+                    id: REVIEW_LAYOUT_RECORD_ID,
+                    ...data,
+                    updatedAt: now,
+                    expiresAt: stateExpiresAt(now),
+                },
+                REVIEW_LAYOUT_RECORD_ID,
+            ),
+        ),
         {
-            id: REVIEW_LAYOUT_RECORD_ID,
-            ...data,
-            updatedAt: now,
-            expiresAt: stateExpiresAt(now),
+            label: "Write review layout state",
+            logError: false,
         },
-        REVIEW_LAYOUT_RECORD_ID,
     );
 }
 
@@ -1050,30 +1136,51 @@ export function writeInlineCommentDraftContent(scopeId: string, draft: InlineCom
     const draftId = inlineDraftRecordId(scopeId, draft);
 
     if (!content.trim()) {
-        void deleteRecord(draftCollection, draftId, draftId);
+        fireAndForgetAppEffect(
+            tryEffectPromise(`Failed to clear inline comment draft ${draftId}`, () => deleteRecord(draftCollection, draftId, draftId)),
+            {
+                label: `Clear inline comment draft ${draftId}`,
+                logError: false,
+            },
+        );
         return;
     }
 
     const now = Date.now();
-    void upsertRecord(
-        draftCollection,
+    fireAndForgetAppEffect(
+        tryEffectPromise(`Failed to write inline comment draft ${draftId}`, () =>
+            upsertRecord(
+                draftCollection,
+                {
+                    id: draftId,
+                    scopeId,
+                    path: draft.path,
+                    line: draft.line,
+                    side: draft.side,
+                    content,
+                    updatedAt: now,
+                    expiresAt: stateExpiresAt(now),
+                },
+                draftId,
+            ),
+        ),
         {
-            id: draftId,
-            scopeId,
-            path: draft.path,
-            line: draft.line,
-            side: draft.side,
-            content,
-            updatedAt: now,
-            expiresAt: stateExpiresAt(now),
+            label: `Write inline comment draft ${draftId}`,
+            logError: false,
         },
-        draftId,
     );
 }
 
 export function clearInlineCommentDraftContent(scopeId: string, draft: InlineCommentDraftLocation) {
     if (!scopeId) return;
-    void deleteRecord(getInlineCommentDraftsCollection(), inlineDraftRecordId(scopeId, draft), inlineDraftRecordId(scopeId, draft));
+    const draftId = inlineDraftRecordId(scopeId, draft);
+    fireAndForgetAppEffect(
+        tryEffectPromise(`Failed to clear inline comment draft ${draftId}`, () => deleteRecord(getInlineCommentDraftsCollection(), draftId, draftId)),
+        {
+            label: `Clear inline comment draft ${draftId}`,
+            logError: false,
+        },
+    );
 }
 
 export function readInlineCommentActiveDraft(scopeId: string): InlineCommentDraftLocation | null {
@@ -1090,24 +1197,40 @@ export function readInlineCommentActiveDraft(scopeId: string): InlineCommentDraf
 export function writeInlineCommentActiveDraft(scopeId: string, draft: InlineCommentDraftLocation) {
     if (!scopeId) return;
     const now = Date.now();
-    void upsertRecord(
-        getInlineCommentActiveDraftCollection(),
+    fireAndForgetAppEffect(
+        tryEffectPromise(`Failed to write active inline comment draft ${scopeId}`, () =>
+            upsertRecord(
+                getInlineCommentActiveDraftCollection(),
+                {
+                    id: scopeId,
+                    scopeId,
+                    path: draft.path,
+                    line: draft.line,
+                    side: draft.side,
+                    updatedAt: now,
+                    expiresAt: stateExpiresAt(now),
+                },
+                `inline-active:${scopeId}`,
+            ),
+        ),
         {
-            id: scopeId,
-            scopeId,
-            path: draft.path,
-            line: draft.line,
-            side: draft.side,
-            updatedAt: now,
-            expiresAt: stateExpiresAt(now),
+            label: `Write active inline comment draft ${scopeId}`,
+            logError: false,
         },
-        `inline-active:${scopeId}`,
     );
 }
 
 export function clearInlineCommentActiveDraft(scopeId: string) {
     if (!scopeId) return;
-    void deleteRecord(getInlineCommentActiveDraftCollection(), scopeId, `inline-active:${scopeId}`);
+    fireAndForgetAppEffect(
+        tryEffectPromise(`Failed to clear active inline comment draft ${scopeId}`, () =>
+            deleteRecord(getInlineCommentActiveDraftCollection(), scopeId, `inline-active:${scopeId}`),
+        ),
+        {
+            label: `Clear active inline comment draft ${scopeId}`,
+            logError: false,
+        },
+    );
 }
 
 export function listInlineCommentDrafts(scopeId: string): Array<InlineCommentDraftLocation & { content: string; updatedAt: number }> {
@@ -1175,86 +1298,104 @@ function getAppCollectionSummaries(): AppCollectionSummary[] {
     ];
 }
 
-export async function getDataCollectionsDebugSnapshot(now = Date.now()): Promise<DataCollectionsDebugSnapshot> {
-    ensureCollectionsInitialized();
+function getDataCollectionsDebugSnapshotEffect(now = Date.now()) {
+    return tryEffectPromise("Failed to collect data collection debug snapshot", async () => {
+        ensureCollectionsInitialized();
 
-    const tiers: Record<StorageTier, TierDebugSummary> = {
-        state: { count: 0, approxBytes: 0, oldestUpdatedAt: null, newestUpdatedAt: null },
-        permanent: { count: 0, approxBytes: 0, oldestUpdatedAt: null, newestUpdatedAt: null },
-    };
-
-    const collections: DataCollectionDebugSummary[] = [];
-    let totalRecords = 0;
-    let totalBytes = 0;
-
-    for (const summary of getAppCollectionSummaries()) {
-        const entry: DataCollectionDebugSummary = {
-            name: summary.name,
-            tier: summary.tier,
-            count: 0,
-            approxBytes: 0,
-            oldestUpdatedAt: null,
-            newestUpdatedAt: null,
-            oldestExpiresAt: null,
-            newestExpiresAt: null,
-            expiredCount: 0,
+        const tiers: Record<StorageTier, TierDebugSummary> = {
+            state: { count: 0, approxBytes: 0, oldestUpdatedAt: null, newestUpdatedAt: null },
+            permanent: { count: 0, approxBytes: 0, oldestUpdatedAt: null, newestUpdatedAt: null },
         };
 
-        for (const record of summary.collection.values()) {
-            entry.count += 1;
-            const bytes = approxRecordBytes(record);
-            entry.approxBytes += bytes;
+        const collections: DataCollectionDebugSummary[] = [];
+        let totalRecords = 0;
+        let totalBytes = 0;
 
-            entry.oldestUpdatedAt = entry.oldestUpdatedAt === null ? record.updatedAt : Math.min(entry.oldestUpdatedAt, record.updatedAt);
-            entry.newestUpdatedAt = entry.newestUpdatedAt === null ? record.updatedAt : Math.max(entry.newestUpdatedAt, record.updatedAt);
+        for (const summary of getAppCollectionSummaries()) {
+            const entry: DataCollectionDebugSummary = {
+                name: summary.name,
+                tier: summary.tier,
+                count: 0,
+                approxBytes: 0,
+                oldestUpdatedAt: null,
+                newestUpdatedAt: null,
+                oldestExpiresAt: null,
+                newestExpiresAt: null,
+                expiredCount: 0,
+            };
 
-            if (typeof record.expiresAt === "number") {
-                entry.oldestExpiresAt = entry.oldestExpiresAt === null ? record.expiresAt : Math.min(entry.oldestExpiresAt, record.expiresAt);
-                entry.newestExpiresAt = entry.newestExpiresAt === null ? record.expiresAt : Math.max(entry.newestExpiresAt, record.expiresAt);
-                if (record.expiresAt <= now) {
-                    entry.expiredCount += 1;
+            for (const record of summary.collection.values()) {
+                entry.count += 1;
+                const bytes = approxRecordBytes(record);
+                entry.approxBytes += bytes;
+
+                entry.oldestUpdatedAt = entry.oldestUpdatedAt === null ? record.updatedAt : Math.min(entry.oldestUpdatedAt, record.updatedAt);
+                entry.newestUpdatedAt = entry.newestUpdatedAt === null ? record.updatedAt : Math.max(entry.newestUpdatedAt, record.updatedAt);
+
+                if (typeof record.expiresAt === "number") {
+                    entry.oldestExpiresAt = entry.oldestExpiresAt === null ? record.expiresAt : Math.min(entry.oldestExpiresAt, record.expiresAt);
+                    entry.newestExpiresAt = entry.newestExpiresAt === null ? record.expiresAt : Math.max(entry.newestExpiresAt, record.expiresAt);
+                    if (record.expiresAt <= now) {
+                        entry.expiredCount += 1;
+                    }
                 }
             }
+
+            totalRecords += entry.count;
+            totalBytes += entry.approxBytes;
+            tiers[summary.tier].count += entry.count;
+            tiers[summary.tier].approxBytes += entry.approxBytes;
+            const tierSummary = tiers[summary.tier];
+            const tierOldest = tierSummary.oldestUpdatedAt;
+            const tierNewest = tierSummary.newestUpdatedAt;
+            tierSummary.oldestUpdatedAt =
+                tierOldest === null ? entry.oldestUpdatedAt : entry.oldestUpdatedAt === null ? tierOldest : Math.min(tierOldest, entry.oldestUpdatedAt);
+            tierSummary.newestUpdatedAt =
+                tierNewest === null ? entry.newestUpdatedAt : entry.newestUpdatedAt === null ? tierNewest : Math.max(tierNewest, entry.newestUpdatedAt);
+
+            collections.push(entry);
         }
 
-        totalRecords += entry.count;
-        totalBytes += entry.approxBytes;
-        tiers[summary.tier].count += entry.count;
-        tiers[summary.tier].approxBytes += entry.approxBytes;
-        const tierSummary = tiers[summary.tier];
-        const tierOldest = tierSummary.oldestUpdatedAt;
-        const tierNewest = tierSummary.newestUpdatedAt;
-        tierSummary.oldestUpdatedAt =
-            tierOldest === null ? entry.oldestUpdatedAt : entry.oldestUpdatedAt === null ? tierOldest : Math.min(tierOldest, entry.oldestUpdatedAt);
-        tierSummary.newestUpdatedAt =
-            tierNewest === null ? entry.newestUpdatedAt : entry.newestUpdatedAt === null ? tierNewest : Math.max(tierNewest, entry.newestUpdatedAt);
+        collections.sort((a, b) => a.name.localeCompare(b.name));
 
-        collections.push(entry);
-    }
+        const estimate = await storageEstimate();
 
-    collections.sort((a, b) => a.name.localeCompare(b.name));
+        return {
+            backendMode: (appDataFallbackActive ? "memory" : "indexeddb") as AppCollectionBackendMode,
+            persistenceDegraded: appDataPersistenceDegraded,
+            estimatedUsageBytes: estimate.usage,
+            estimatedQuotaBytes: estimate.quota,
+            totalRecords,
+            totalBytes,
+            lastSweepAt: lastAppDataSweepAt,
+            tiers,
+            collections,
+        };
+    });
+}
 
-    const estimate = await storageEstimate();
+export async function getDataCollectionsDebugSnapshot(now = Date.now()): Promise<DataCollectionsDebugSnapshot> {
+    return runAppEffect(getDataCollectionsDebugSnapshotEffect(now), {
+        label: "Collect data collection debug snapshot",
+        logError: false,
+    });
+}
 
-    return {
-        backendMode: appDataFallbackActive ? "memory" : "indexeddb",
-        persistenceDegraded: appDataPersistenceDegraded,
-        estimatedUsageBytes: estimate.usage,
-        estimatedQuotaBytes: estimate.quota,
-        totalRecords,
-        totalBytes,
-        lastSweepAt: lastAppDataSweepAt,
-        tiers,
-        collections,
-    };
+function clearExpiredDataNowEffect(now = Date.now()) {
+    return tryEffectPromise("Failed to clear expired data", async () => {
+        const appResult = await sweepExpiredStateCollections(now);
+        return {
+            removed: appResult.removed,
+            appRemoved: appResult.removed,
+        };
+    });
 }
 
 export async function clearExpiredDataNow(now = Date.now()) {
-    const appResult = await sweepExpiredStateCollections(now);
-    return {
-        removed: appResult.removed,
-        appRemoved: appResult.removed,
-    };
+    return runAppEffect(clearExpiredDataNowEffect(now), {
+        label: "Clear expired data",
+        logError: false,
+    });
 }
 
 async function __resetDataCollectionsForTests() {

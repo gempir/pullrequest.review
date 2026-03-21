@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ensureDataCollectionsReady, readShortcutsRecord, writeShortcutsRecord } from "@/lib/data/query-collections";
+import { ensureDataCollectionsReadyEffect, readShortcutsRecord, writeShortcutsRecord } from "@/lib/data/query-collections";
+import { runAppEffect } from "@/lib/effect/runtime";
 
 export interface ShortcutConfig {
     key: string;
@@ -94,7 +95,10 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let cancelled = false;
         void (async () => {
-            await ensureDataCollectionsReady();
+            await runAppEffect(ensureDataCollectionsReadyEffect(), {
+                label: "Hydrate keyboard shortcuts",
+                logError: false,
+            });
             if (cancelled) return;
             const stored = readShortcutsRecord();
             if (stored) {

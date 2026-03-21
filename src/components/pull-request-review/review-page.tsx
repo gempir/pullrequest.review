@@ -51,6 +51,7 @@ import { readViewedVersionIds, useViewedStorageKey, writeViewedVersionIds } from
 import { getSettingsTreeItems } from "@/components/settings-navigation";
 import { useAppearance } from "@/lib/appearance-context";
 import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
+import { runAppEffect } from "@/lib/effect/runtime";
 import { commentAnchorId, fileAnchorId } from "@/lib/file-anchors";
 import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
@@ -66,7 +67,7 @@ import {
     subscribeHostDataCollectionsVersion,
 } from "@/lib/git-host/query-collections";
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
-import { fetchPullRequestFileContents } from "@/lib/git-host/service";
+import { fetchPullRequestFileContentsEffect } from "@/lib/git-host/service";
 import type { GitHost, Comment as PullRequestComment } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { diffScopeStorageSegment, type ReviewDiffScopeSearch, resolveReviewDiffScope } from "@/lib/review-diff-scope";
@@ -822,8 +823,18 @@ function usePullRequestReviewPageView({
                 const oldPath = (fileDiff.prevName ?? fileDiff.name ?? filePath).trim();
                 const newPath = (fileDiff.name ?? fileDiff.prevName ?? filePath).trim();
                 const [oldContent, newContent] = await Promise.all([
-                    needsBase ? fetchPullRequestFileContents({ prRef, commit: effectiveBaseCommit, path: oldPath }) : Promise.resolve(""),
-                    needsHead ? fetchPullRequestFileContents({ prRef, commit: effectiveHeadCommit, path: newPath }) : Promise.resolve(""),
+                    needsBase
+                        ? runAppEffect(fetchPullRequestFileContentsEffect({ prRef, commit: effectiveBaseCommit, path: oldPath }), {
+                              label: `Load base file contents ${oldPath}`,
+                              logError: false,
+                          })
+                        : Promise.resolve(""),
+                    needsHead
+                        ? runAppEffect(fetchPullRequestFileContentsEffect({ prRef, commit: effectiveHeadCommit, path: newPath }), {
+                              label: `Load head file contents ${newPath}`,
+                              logError: false,
+                          })
+                        : Promise.resolve(""),
                 ]);
                 const readyOldLines = needsBase ? splitFileIntoLines(oldContent) : [];
                 const readyNewLines = needsHead ? splitFileIntoLines(newContent) : [];

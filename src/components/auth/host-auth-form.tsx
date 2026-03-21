@@ -2,6 +2,8 @@ import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { writeClipboardTextEffect } from "@/lib/effect/browser";
+import { runAppEffect } from "@/lib/effect/runtime";
 import { getHostLabel } from "@/lib/git-host/service";
 import type { GitHost } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
@@ -94,9 +96,15 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
                         size="sm"
                         className="h-7 px-2 text-[11px]"
                         onClick={() => {
-                            void navigator.clipboard.writeText(bitbucketScopeText);
-                            setCopiedScopes(true);
-                            window.setTimeout(() => setCopiedScopes(false), 1200);
+                            void runAppEffect(writeClipboardTextEffect(bitbucketScopeText), {
+                                label: "Copy Bitbucket scopes",
+                                logError: false,
+                            })
+                                .then(() => {
+                                    setCopiedScopes(true);
+                                    window.setTimeout(() => setCopiedScopes(false), 1200);
+                                })
+                                .catch(() => undefined);
                         }}
                     >
                         {copiedScopes ? "Copied" : "Copy scopes"}

@@ -1,6 +1,8 @@
+import { Effect } from "effect";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { ensureDataCollectionsReady, readHostPreferencesRecord, writeHostPreferencesRecord } from "@/lib/data/query-collections";
-import { getAuthStateForHost, loginToHost, logoutHost } from "@/lib/git-host/service";
+import { ensureDataCollectionsReadyEffect, readHostPreferencesRecord, writeHostPreferencesRecord } from "@/lib/data/query-collections";
+import { runAppEffect } from "@/lib/effect/runtime";
+import { getAuthStateForHostEffect, loginToHostEffect, logoutHostEffect } from "@/lib/git-host/service";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 
 const HOSTS: GitHost[] = ["bitbucket", "github"];
@@ -87,12 +89,19 @@ export function PrProvider({ children }: { children: ReactNode }) {
     });
 
     const refreshAuth = useCallback(async () => {
-        await ensureDataCollectionsReady();
-        const authStates = await Promise.all(
-            HOSTS.map(async (host) => ({
-                host,
-                state: await getAuthStateForHost(host),
-            })),
+        await runAppEffect(ensureDataCollectionsReadyEffect(), { label: "Hydrate data collections", logError: false });
+        const authStates = await runAppEffect(
+            Effect.all(
+                HOSTS.map((host) =>
+                    getAuthStateForHostEffect(host).pipe(
+                        Effect.map((state) => ({
+                            host,
+                            state,
+                        })),
+                    ),
+                ),
+            ),
+            { label: "Refresh auth state", logError: false },
         );
         const nextAuthByHost = emptyAuthByHost();
         for (const item of authStates) {
@@ -113,7 +122,7 @@ export function PrProvider({ children }: { children: ReactNode }) {
         let cancelled = false;
 
         void (async () => {
-            await ensureDataCollectionsReady();
+            await runAppEffect(ensureDataCollectionsReadyEffect(), { label: "Hydrate data collections", logError: false });
             if (cancelled) return;
 
             const nextReposByHost = {
@@ -121,11 +130,18 @@ export function PrProvider({ children }: { children: ReactNode }) {
                 github: parseRepos("github"),
             };
             const nextActiveHost = parseActiveHost();
-            const authStates = await Promise.all(
-                HOSTS.map(async (host) => ({
-                    host,
-                    state: await getAuthStateForHost(host),
-                })),
+            const authStates = await runAppEffect(
+                Effect.all(
+                    HOSTS.map((host) =>
+                        getAuthStateForHostEffect(host).pipe(
+                            Effect.map((state) => ({
+                                host,
+                                state,
+                            })),
+                        ),
+                    ),
+                ),
+                { label: "Load auth state", logError: false },
             );
             if (cancelled) return;
 
@@ -189,7 +205,10 @@ export function PrProvider({ children }: { children: ReactNode }) {
 
     const login = useCallback<PrContextType["login"]>(
         async (data) => {
-            await loginToHost(data);
+            await runAppEffect(loginToHostEffect(data), {
+                label: `Login to ${data.host}`,
+                logError: false,
+            });
             setState((prev) => ({ ...prev, activeHost: data.host }));
             await refreshAuth();
         },
@@ -198,7 +217,10 @@ export function PrProvider({ children }: { children: ReactNode }) {
 
     const logout = useCallback<PrContextType["logout"]>(async (host) => {
         if (host) {
-            await logoutHost({ host });
+            await runAppEffect(logoutHostEffect({ host }), {
+                label: `Logout from ${host}`,
+                logError: false,
+            });
             setState((prev) => ({
                 ...prev,
                 authByHost: { ...prev.authByHost, [host]: false },
@@ -207,7 +229,10 @@ export function PrProvider({ children }: { children: ReactNode }) {
             return;
         }
 
-        await Promise.all(HOSTS.map((entry) => logoutHost({ host: entry })));
+        await runAppEffect(Effect.all(HOSTS.map((entry) => logoutHostEffect({ host: entry }))), {
+            label: "Logout from all hosts",
+            logError: false,
+        });
         setState((prev) => ({
             ...prev,
             authByHost: emptyAuthByHost(),

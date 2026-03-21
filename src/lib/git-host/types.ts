@@ -1,3 +1,5 @@
+import type { Effect } from "effect";
+
 export type GitHost = "bitbucket" | "github";
 
 export interface RepoRef {
@@ -261,42 +263,43 @@ export interface AuthState {
 }
 
 export type LoginCredentials = { host: "bitbucket"; email: string; apiToken: string } | { host: "github"; token: string };
+type HostOperationEffect<T> = Effect.Effect<T, Error>;
 
 export interface GitHostClient {
     readonly host: GitHost;
     readonly capabilities: HostCapabilities;
-    getAuthState(): Promise<AuthState>;
-    login(credentials: LoginCredentials): Promise<AuthState>;
-    logout(): Promise<AuthState>;
-    listRepositories(): Promise<RepoRef[]>;
-    listPullRequestsForRepos(data: { repos: RepoRef[] }): Promise<Array<{ repo: RepoRef; pullRequests: PullRequestSummary[] }>>;
-    fetchPullRequestCriticalByRef(data: { prRef: PullRequestRef }): Promise<PullRequestCriticalBundle>;
-    fetchPullRequestDeferredByRef(data: { prRef: PullRequestRef }): Promise<PullRequestDeferredBundle>;
-    fetchPullRequestBundleByRef(data: { prRef: PullRequestRef }): Promise<PullRequestBundle>;
-    approvePullRequest(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
-    removePullRequestApproval(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
-    requestChanges(data: { prRef: PullRequestRef; body?: string }): Promise<{ ok: true }>;
-    declinePullRequest(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
-    markPullRequestAsDraft(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
-    mergePullRequest(data: { prRef: PullRequestRef } & MergeOptions): Promise<{ ok: true }>;
+    getAuthState(): HostOperationEffect<AuthState>;
+    login(credentials: LoginCredentials): HostOperationEffect<AuthState>;
+    logout(): HostOperationEffect<AuthState>;
+    listRepositories(): HostOperationEffect<RepoRef[]>;
+    listPullRequestsForRepos(data: { repos: RepoRef[] }): HostOperationEffect<Array<{ repo: RepoRef; pullRequests: PullRequestSummary[] }>>;
+    fetchPullRequestCriticalByRef(data: { prRef: PullRequestRef }): HostOperationEffect<PullRequestCriticalBundle>;
+    fetchPullRequestDeferredByRef(data: { prRef: PullRequestRef }): HostOperationEffect<PullRequestDeferredBundle>;
+    fetchPullRequestBundleByRef(data: { prRef: PullRequestRef }): HostOperationEffect<PullRequestBundle>;
+    approvePullRequest(data: { prRef: PullRequestRef }): HostOperationEffect<{ ok: true }>;
+    removePullRequestApproval(data: { prRef: PullRequestRef }): HostOperationEffect<{ ok: true }>;
+    requestChanges(data: { prRef: PullRequestRef; body?: string }): HostOperationEffect<{ ok: true }>;
+    declinePullRequest(data: { prRef: PullRequestRef }): HostOperationEffect<{ ok: true }>;
+    markPullRequestAsDraft(data: { prRef: PullRequestRef }): HostOperationEffect<{ ok: true }>;
+    mergePullRequest(data: { prRef: PullRequestRef } & MergeOptions): HostOperationEffect<{ ok: true }>;
     createPullRequestComment(
         data: {
             prRef: PullRequestRef;
         } & CommentPayload,
-    ): Promise<{ ok: true }>;
+    ): HostOperationEffect<{ ok: true }>;
     updatePullRequestComment(
         data: {
             prRef: PullRequestRef;
         } & CommentUpdatePayload,
-    ): Promise<{ ok: true }>;
-    resolvePullRequestComment(data: { prRef: PullRequestRef; commentId: number; resolve: boolean }): Promise<{ ok: true }>;
-    deletePullRequestComment(data: { prRef: PullRequestRef; commentId: number; hasInlineContext: boolean }): Promise<{ ok: true }>;
+    ): HostOperationEffect<{ ok: true }>;
+    resolvePullRequestComment(data: { prRef: PullRequestRef; commentId: number; resolve: boolean }): HostOperationEffect<{ ok: true }>;
+    deletePullRequestComment(data: { prRef: PullRequestRef; commentId: number; hasInlineContext: boolean }): HostOperationEffect<{ ok: true }>;
     fetchPullRequestCommitRangeDiff(data: {
         prRef: PullRequestRef;
         baseCommitHash: string;
         headCommitHash: string;
         selectedCommitHashes: string[];
-    }): Promise<PullRequestCommitRangeDiff>;
-    fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }): Promise<string>;
-    fetchPullRequestFileHistory(data: { prRef: PullRequestRef; path: string; commits: Commit[]; limit?: number }): Promise<PullRequestFileHistory>;
+    }): HostOperationEffect<PullRequestCommitRangeDiff>;
+    fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }): HostOperationEffect<string>;
+    fetchPullRequestFileHistory(data: { prRef: PullRequestRef; path: string; commits: Commit[]; limit?: number }): HostOperationEffect<PullRequestFileHistory>;
 }

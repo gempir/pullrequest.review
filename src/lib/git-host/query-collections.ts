@@ -1,12 +1,13 @@
 import { type Collection, createCollection, localOnlyCollectionOptions } from "@tanstack/db";
+import { runAppEffect } from "@/lib/effect/runtime";
 import {
-    fetchPullRequestBundleByRef,
-    fetchPullRequestCommitRangeDiff,
-    fetchPullRequestCriticalByRef,
-    fetchPullRequestDeferredByRef,
-    fetchPullRequestFileHistory,
-    fetchRepoPullRequestsForHost,
-    listRepositoriesForHost,
+    fetchPullRequestBundleByRefEffect,
+    fetchPullRequestCommitRangeDiffEffect,
+    fetchPullRequestCriticalByRefEffect,
+    fetchPullRequestDeferredByRefEffect,
+    fetchPullRequestFileHistoryEffect,
+    fetchRepoPullRequestsForHostEffect,
+    listRepositoriesForHostEffect,
 } from "@/lib/git-host/service";
 import type {
     Commit,
@@ -604,7 +605,10 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: 
         setFetchActivity(scopeId, scopeLabel, true);
         try {
             if (!staged) {
-                const bundle = await fetchPullRequestBundleByRef({ prRef });
+                const bundle = await runAppEffect(fetchPullRequestBundleByRefEffect({ prRef }), {
+                    label: `Fetch legacy pull request bundle ${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId}`,
+                    logError: false,
+                });
                 if (requestId !== requestSerial) return;
                 const fetchedAt = Date.now();
                 const legacyRecord = {
@@ -621,7 +625,10 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: 
             } else {
                 const collection = getHostDataCollection("pullRequestBundles");
                 const existingRecord = collection.get(bundleId);
-                const critical = await fetchPullRequestCriticalByRef({ prRef });
+                const critical = await runAppEffect(fetchPullRequestCriticalByRefEffect({ prRef }), {
+                    label: `Fetch critical pull request bundle ${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId}`,
+                    logError: false,
+                });
                 if (requestId !== requestSerial) return;
                 const stagedCriticalRecord = serializePullRequestCriticalBundle(critical, existingRecord);
                 await upsertRecord("pullRequestBundles", stagedCriticalRecord);
@@ -632,7 +639,10 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: 
                 const deferredScopeLabel = `${scopeLabel} [deferred]`;
                 setFetchActivity(deferredScopeId, deferredScopeLabel, true);
                 try {
-                    const deferred = await fetchPullRequestDeferredByRef({ prRef });
+                    const deferred = await runAppEffect(fetchPullRequestDeferredByRefEffect({ prRef }), {
+                        label: `Fetch deferred pull request bundle ${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId}`,
+                        logError: false,
+                    });
                     if (requestId !== requestSerial) return;
                     const currentRecord = collection.get(bundleId) ?? stagedCriticalRecord;
                     const mergedRecord = mergePullRequestDeferredBundle(currentRecord, deferred);
@@ -711,12 +721,18 @@ export function getPullRequestCommitRangeDiffCollection({
         utils.isFetching = true;
         setFetchActivity(scopeId, scopeLabel, true);
         try {
-            const rangeDiff = await fetchPullRequestCommitRangeDiff({
-                prRef,
-                baseCommitHash: normalizedBase,
-                headCommitHash: normalizedHead,
-                selectedCommitHashes: normalizedSelectedHashes,
-            });
+            const rangeDiff = await runAppEffect(
+                fetchPullRequestCommitRangeDiffEffect({
+                    prRef,
+                    baseCommitHash: normalizedBase,
+                    headCommitHash: normalizedHead,
+                    selectedCommitHashes: normalizedSelectedHashes,
+                }),
+                {
+                    label: `Fetch pull request commit range diff ${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId}`,
+                    logError: false,
+                },
+            );
             await upsertRecord("pullRequestCommitRangeDiffs", serializePullRequestCommitRangeDiffRecord(rangeDiff));
             utils.lastError = undefined;
             utils.dataUpdatedAt = Date.now();
@@ -766,12 +782,18 @@ export function getPullRequestFileHistoryCollection({
         utils.isFetching = true;
         setFetchActivity(scopeId, scopeLabel, true);
         try {
-            const history = await fetchPullRequestFileHistory({
-                prRef,
-                path: normalizedPath,
-                commits: commits.map((commit) => ({ ...commit })),
-                limit,
-            });
+            const history = await runAppEffect(
+                fetchPullRequestFileHistoryEffect({
+                    prRef,
+                    path: normalizedPath,
+                    commits: commits.map((commit) => ({ ...commit })),
+                    limit,
+                }),
+                {
+                    label: `Fetch pull request file history ${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId}:${normalizedPath}`,
+                    logError: false,
+                },
+            );
             await upsertRecord(
                 "pullRequestFileHistories",
                 serializePullRequestFileHistoryRecord({
@@ -871,7 +893,10 @@ export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHo
                     const hostScopeLabel = `Repository pull requests (${host}; ${repos.length} repos)`;
                     setFetchActivity(hostScopeId, hostScopeLabel, true);
                     try {
-                        return await fetchRepoPullRequestsForHost({ host, repos });
+                        return await runAppEffect(fetchRepoPullRequestsForHostEffect({ host, repos }), {
+                            label: `Fetch repository pull requests for ${host}`,
+                            logError: false,
+                        });
                     } finally {
                         setFetchActivity(hostScopeId, hostScopeLabel, false);
                     }
@@ -941,7 +966,10 @@ export function getRepositoryCollection(host: GitHost) {
         utils.isFetching = true;
         setFetchActivity(scopeId, scopeLabel, true);
         try {
-            const repositories = await listRepositoriesForHost({ host });
+            const repositories = await runAppEffect(listRepositoriesForHostEffect({ host }), {
+                label: `List repositories for ${host}`,
+                logError: false,
+            });
             const timestamp = Date.now();
             const nextRecords = repositories.map(normalizeRepoRef).map((repository) => ({
                 ...repository,

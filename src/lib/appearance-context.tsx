@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { ensureDataCollectionsReady, readAppearanceSettingsRecord, writeAppearanceSettingsRecord } from "@/lib/data/query-collections";
+import { ensureDataCollectionsReadyEffect, readAppearanceSettingsRecord, writeAppearanceSettingsRecord } from "@/lib/data/query-collections";
+import { runAppEffect } from "@/lib/effect/runtime";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue, fontFamilyToCss } from "@/lib/font-options";
 
 type AppThemeMode = "auto" | "light" | "dark";
@@ -103,7 +104,10 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let cancelled = false;
         void (async () => {
-            await ensureDataCollectionsReady();
+            await runAppEffect(ensureDataCollectionsReadyEffect(), {
+                label: "Hydrate appearance settings",
+                logError: false,
+            });
             if (cancelled) return;
             const parsed = parseStoredSettings(readAppearanceSettingsRecord());
             if (parsed) {

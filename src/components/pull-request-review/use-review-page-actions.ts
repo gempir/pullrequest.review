@@ -1,16 +1,18 @@
 import { useMutation } from "@tanstack/react-query";
 import { type MutableRefObject, useCallback } from "react";
+import { writeClipboardTextEffect } from "@/lib/effect/browser";
+import { runAppEffect } from "@/lib/effect/runtime";
 import {
-    approvePullRequest,
-    createPullRequestComment,
-    declinePullRequest,
-    deletePullRequestComment,
-    markPullRequestAsDraft,
-    mergePullRequest,
-    removePullRequestApproval,
-    requestChangesOnPullRequest,
-    resolvePullRequestComment,
-    updatePullRequestComment,
+    approvePullRequestEffect,
+    createPullRequestCommentEffect,
+    declinePullRequestEffect,
+    deletePullRequestCommentEffect,
+    markPullRequestAsDraftEffect,
+    mergePullRequestEffect,
+    removePullRequestApprovalEffect,
+    requestChangesOnPullRequestEffect,
+    resolvePullRequestCommentEffect,
+    updatePullRequestCommentEffect,
 } from "@/lib/git-host/service";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
@@ -93,7 +95,7 @@ export function useReviewPageActions({
     const approveMutation = useMutation({
         mutationFn: () => {
             const prRef = ensurePrRef();
-            return approvePullRequest({ prRef });
+            return runAppEffect(approvePullRequestEffect({ prRef }), { label: "Approve pull request", logError: false });
         },
         onSuccess: async () => {
             setActionError(null);
@@ -107,7 +109,7 @@ export function useReviewPageActions({
     const removeApprovalMutation = useMutation({
         mutationFn: () => {
             const prRef = ensurePrRef();
-            return removePullRequestApproval({ prRef });
+            return runAppEffect(removePullRequestApprovalEffect({ prRef }), { label: "Remove pull request approval", logError: false });
         },
         onSuccess: async () => {
             setActionError(null);
@@ -121,7 +123,7 @@ export function useReviewPageActions({
     const requestChangesMutation = useMutation({
         mutationFn: () => {
             const prRef = ensurePrRef();
-            return requestChangesOnPullRequest({ prRef });
+            return runAppEffect(requestChangesOnPullRequestEffect({ prRef }), { label: "Request pull request changes", logError: false });
         },
         onSuccess: async () => {
             setActionError(null);
@@ -135,12 +137,15 @@ export function useReviewPageActions({
     const mergeMutation = useMutation({
         mutationFn: () => {
             const prRef = ensurePrRef();
-            return mergePullRequest({
-                prRef,
-                message: mergeMessage,
-                mergeStrategy,
-                closeSourceBranch,
-            });
+            return runAppEffect(
+                mergePullRequestEffect({
+                    prRef,
+                    message: mergeMessage,
+                    mergeStrategy,
+                    closeSourceBranch,
+                }),
+                { label: "Merge pull request", logError: false },
+            );
         },
         onSuccess: async () => {
             setMergeOpen(false);
@@ -155,7 +160,7 @@ export function useReviewPageActions({
     const declineMutation = useMutation({
         mutationFn: () => {
             const prRef = ensurePrRef();
-            return declinePullRequest({ prRef });
+            return runAppEffect(declinePullRequestEffect({ prRef }), { label: "Decline pull request", logError: false });
         },
         onSuccess: async () => {
             setActionError(null);
@@ -169,7 +174,7 @@ export function useReviewPageActions({
     const markDraftMutation = useMutation({
         mutationFn: () => {
             const prRef = ensurePrRef();
-            return markPullRequestAsDraft({ prRef });
+            return runAppEffect(markPullRequestAsDraftEffect({ prRef }), { label: "Mark pull request as draft", logError: false });
         },
         onSuccess: async () => {
             setActionError(null);
@@ -184,26 +189,32 @@ export function useReviewPageActions({
         mutationFn: (payload: { path?: string; content: string; line?: number; side?: CommentLineSide; parentId?: number }) => {
             const prRef = ensurePrRef();
             if (payload.parentId) {
-                return createPullRequestComment({
-                    prRef,
-                    content: payload.content,
-                    parentId: payload.parentId,
-                });
+                return runAppEffect(
+                    createPullRequestCommentEffect({
+                        prRef,
+                        content: payload.content,
+                        parentId: payload.parentId,
+                    }),
+                    { label: "Create thread reply", logError: false },
+                );
             }
             if (!payload.path) {
                 throw new Error("Comment path is required for inline comments");
             }
-            return createPullRequestComment({
-                prRef,
-                content: payload.content,
-                inline: payload.line
-                    ? {
-                          path: payload.path,
-                          to: payload.side === "deletions" ? undefined : payload.line,
-                          from: payload.side === "deletions" ? payload.line : undefined,
-                      }
-                    : { path: payload.path },
-            });
+            return runAppEffect(
+                createPullRequestCommentEffect({
+                    prRef,
+                    content: payload.content,
+                    inline: payload.line
+                        ? {
+                              path: payload.path,
+                              to: payload.side === "deletions" ? undefined : payload.line,
+                              from: payload.side === "deletions" ? payload.line : undefined,
+                          }
+                        : { path: payload.path },
+                }),
+                { label: "Create pull request comment", logError: false },
+            );
         },
         onMutate: (vars) => {
             const optimisticCommentId = onOptimisticCommentCreate(vars);
@@ -246,11 +257,14 @@ export function useReviewPageActions({
                 }
                 throw new Error("Comment resolution is not supported for this host");
             }
-            return resolvePullRequestComment({
-                prRef,
-                commentId: payload.commentId,
-                resolve: payload.resolve,
-            });
+            return runAppEffect(
+                resolvePullRequestCommentEffect({
+                    prRef,
+                    commentId: payload.commentId,
+                    resolve: payload.resolve,
+                }),
+                { label: "Resolve pull request comment", logError: false },
+            );
         },
         onSuccess: async () => {
             await refreshPullRequest();
@@ -266,12 +280,15 @@ export function useReviewPageActions({
                 requestAuth("write");
                 throw new Error("Sign in required");
             }
-            return updatePullRequestComment({
-                prRef,
-                commentId: payload.commentId,
-                content: payload.content,
-                hasInlineContext: payload.hasInlineContext,
-            });
+            return runAppEffect(
+                updatePullRequestCommentEffect({
+                    prRef,
+                    commentId: payload.commentId,
+                    content: payload.content,
+                    hasInlineContext: payload.hasInlineContext,
+                }),
+                { label: "Update pull request comment", logError: false },
+            );
         },
         onSuccess: async () => {
             await refreshPullRequest();
@@ -287,11 +304,14 @@ export function useReviewPageActions({
                 requestAuth("write");
                 throw new Error("Sign in required");
             }
-            return deletePullRequestComment({
-                prRef,
-                commentId: payload.commentId,
-                hasInlineContext: payload.hasInlineContext,
-            });
+            return runAppEffect(
+                deletePullRequestCommentEffect({
+                    prRef,
+                    commentId: payload.commentId,
+                    hasInlineContext: payload.hasInlineContext,
+                }),
+                { label: "Delete pull request comment", logError: false },
+            );
         },
         onSuccess: async () => {
             await refreshPullRequest();
@@ -405,7 +425,10 @@ export function useReviewPageActions({
                 return;
             }
             try {
-                await navigator.clipboard.writeText(path);
+                await runAppEffect(writeClipboardTextEffect(path), {
+                    label: "Copy pull request file path",
+                    logError: false,
+                });
                 setActionError(null);
                 setCopiedPath(path);
                 if (copyResetTimeoutRef.current !== null) {
@@ -428,7 +451,10 @@ export function useReviewPageActions({
                 return;
             }
             try {
-                await navigator.clipboard.writeText(branchName);
+                await runAppEffect(writeClipboardTextEffect(branchName), {
+                    label: "Copy source branch name",
+                    logError: false,
+                });
                 setActionError(null);
                 setCopiedSourceBranch(true);
                 if (copySourceBranchResetTimeoutRef.current !== null) {

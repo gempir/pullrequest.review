@@ -1,8 +1,9 @@
 import type { BaseDiffOptions } from "@pierre/diffs";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { ensureDataCollectionsReady, readDiffOptionsRecord, writeDiffOptionsRecord } from "@/lib/data/query-collections";
+import { ensureDataCollectionsReadyEffect, readDiffOptionsRecord, writeDiffOptionsRecord } from "@/lib/data/query-collections";
 import { registerExtendedDiffThemes } from "@/lib/diff-theme-registration";
 import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
+import { runAppEffect } from "@/lib/effect/runtime";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue } from "@/lib/font-options";
 
 export interface DiffOptions {
@@ -102,7 +103,10 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let cancelled = false;
         void (async () => {
-            await ensureDataCollectionsReady();
+            await runAppEffect(ensureDataCollectionsReadyEffect(), {
+                label: "Hydrate diff options",
+                logError: false,
+            });
             if (cancelled) return;
             const parsed = parseStoredOptions(readDiffOptionsRecord());
             if (parsed) {

@@ -1,64 +1,66 @@
+import { Effect } from "effect";
 import { getHostCapabilities, getHostClient } from "@/lib/git-host/registry";
 import type { Commit, GitHost, PullRequestRef, RepoRef } from "@/lib/git-host/types";
 
-export async function fetchRepoPullRequestsForHost(data: { host: GitHost; repos: RepoRef[] }) {
+export function fetchRepoPullRequestsForHostEffect(data: { host: GitHost; repos: RepoRef[] }) {
     if (data.repos.length === 0) {
-        return [] as Array<{
-            repo: RepoRef;
-            pullRequests: {
-                id: number;
-                title: string;
-                state: string;
-                links?: { html?: { href?: string } };
-                author?: { displayName?: string };
-            }[];
-        }>;
+        return Effect.succeed(
+            [] as Array<{
+                repo: RepoRef;
+                pullRequests: {
+                    id: number;
+                    title: string;
+                    state: string;
+                    links?: { html?: { href?: string } };
+                    author?: { displayName?: string };
+                }[];
+            }>,
+        );
     }
-    const client = getHostClient(data.host);
-    return client.listPullRequestsForRepos({ repos: data.repos });
+    return getHostClient(data.host).listPullRequestsForRepos({ repos: data.repos });
 }
 
-export async function listRepositoriesForHost(data: { host: GitHost }) {
+export function listRepositoriesForHostEffect(data: { host: GitHost }) {
     return getHostClient(data.host).listRepositories();
 }
 
-export async function fetchPullRequestBundleByRef(data: { prRef: PullRequestRef }) {
+export function fetchPullRequestBundleByRefEffect(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).fetchPullRequestBundleByRef(data);
 }
 
-export async function fetchPullRequestCriticalByRef(data: { prRef: PullRequestRef }) {
+export function fetchPullRequestCriticalByRefEffect(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).fetchPullRequestCriticalByRef(data);
 }
 
-export async function fetchPullRequestDeferredByRef(data: { prRef: PullRequestRef }) {
+export function fetchPullRequestDeferredByRefEffect(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).fetchPullRequestDeferredByRef(data);
 }
 
-export async function approvePullRequest(data: { prRef: PullRequestRef }) {
+export function approvePullRequestEffect(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).approvePullRequest(data);
 }
 
-export async function removePullRequestApproval(data: { prRef: PullRequestRef }) {
+export function removePullRequestApprovalEffect(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).removePullRequestApproval(data);
 }
 
-export async function requestChangesOnPullRequest(data: { prRef: PullRequestRef; body?: string }) {
+export function requestChangesOnPullRequestEffect(data: { prRef: PullRequestRef; body?: string }) {
     return getHostClient(data.prRef.host).requestChanges(data);
 }
 
-export async function declinePullRequest(data: { prRef: PullRequestRef }) {
+export function declinePullRequestEffect(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).declinePullRequest(data);
 }
 
-export async function markPullRequestAsDraft(data: { prRef: PullRequestRef }) {
+export function markPullRequestAsDraftEffect(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).markPullRequestAsDraft(data);
 }
 
-export async function mergePullRequest(data: { prRef: PullRequestRef; closeSourceBranch?: boolean; message?: string; mergeStrategy?: string }) {
+export function mergePullRequestEffect(data: { prRef: PullRequestRef; closeSourceBranch?: boolean; message?: string; mergeStrategy?: string }) {
     return getHostClient(data.prRef.host).mergePullRequest(data);
 }
 
-export async function createPullRequestComment(data: {
+export function createPullRequestCommentEffect(data: {
     prRef: PullRequestRef;
     content: string;
     inline?: { path: string; to?: number; from?: number };
@@ -67,19 +69,19 @@ export async function createPullRequestComment(data: {
     return getHostClient(data.prRef.host).createPullRequestComment(data);
 }
 
-export async function updatePullRequestComment(data: { prRef: PullRequestRef; commentId: number; content: string; hasInlineContext: boolean }) {
+export function updatePullRequestCommentEffect(data: { prRef: PullRequestRef; commentId: number; content: string; hasInlineContext: boolean }) {
     return getHostClient(data.prRef.host).updatePullRequestComment(data);
 }
 
-export async function resolvePullRequestComment(data: { prRef: PullRequestRef; commentId: number; resolve: boolean }) {
+export function resolvePullRequestCommentEffect(data: { prRef: PullRequestRef; commentId: number; resolve: boolean }) {
     return getHostClient(data.prRef.host).resolvePullRequestComment(data);
 }
 
-export async function deletePullRequestComment(data: { prRef: PullRequestRef; commentId: number; hasInlineContext: boolean }) {
+export function deletePullRequestCommentEffect(data: { prRef: PullRequestRef; commentId: number; hasInlineContext: boolean }) {
     return getHostClient(data.prRef.host).deletePullRequestComment(data);
 }
 
-export async function fetchPullRequestCommitRangeDiff(data: {
+export function fetchPullRequestCommitRangeDiffEffect(data: {
     prRef: PullRequestRef;
     baseCommitHash: string;
     headCommitHash: string;
@@ -88,11 +90,11 @@ export async function fetchPullRequestCommitRangeDiff(data: {
     return getHostClient(data.prRef.host).fetchPullRequestCommitRangeDiff(data);
 }
 
-export async function fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }) {
+export function fetchPullRequestFileContentsEffect(data: { prRef: PullRequestRef; commit: string; path: string }) {
     return getHostClient(data.prRef.host).fetchPullRequestFileContents(data);
 }
 
-export async function fetchPullRequestFileHistory(data: { prRef: PullRequestRef; path: string; commits: Commit[]; limit?: number }) {
+export function fetchPullRequestFileHistoryEffect(data: { prRef: PullRequestRef; path: string; commits: Commit[]; limit?: number }) {
     return getHostClient(data.prRef.host).fetchPullRequestFileHistory(data);
 }
 
@@ -100,15 +102,15 @@ export function getCapabilitiesForHost(host: GitHost) {
     return getHostCapabilities(host);
 }
 
-export async function getAuthStateForHost(host: GitHost) {
+export function getAuthStateForHostEffect(host: GitHost) {
     return getHostClient(host).getAuthState();
 }
 
-export async function loginToHost(data: { host: "bitbucket"; email: string; apiToken: string } | { host: "github"; token: string }) {
+export function loginToHostEffect(data: { host: "bitbucket"; email: string; apiToken: string } | { host: "github"; token: string }) {
     return getHostClient(data.host).login(data);
 }
 
-export async function logoutHost(data: { host: GitHost }) {
+export function logoutHostEffect(data: { host: GitHost }) {
     return getHostClient(data.host).logout();
 }
 

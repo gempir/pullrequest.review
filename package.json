@@ -19,6 +19,8 @@
         "react-doctor": "react-doctor -y --verbose --offline"
     },
     "dependencies": {
+        "@effect/platform": "^0.96.0",
+        "@effect/platform-browser": "^0.76.0",
         "@pierre/diffs": "^1.0.10",
         "@platejs/basic-nodes": "^52.0.11",
         "@radix-ui/react-collapsible": "^1.1.12",
@@ -45,6 +47,7 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "dayjs": "^1.11.19",
+        "effect": "^3.21.0",
         "geist": "^1.7.0",
         "lucide-react": "^0.542.0",
         "platejs": "^52.0.17",

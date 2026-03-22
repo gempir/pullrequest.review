@@ -104,7 +104,8 @@ export type PullRequestHistoryEventType =
     | "updated"
     | "closed"
     | "merged"
-    | "reopened";
+    | "reopened"
+    | "deletedBranch";
 
 export interface PullRequestHistoryEvent {
     id: string;

@@ -15,6 +15,8 @@ export interface ShortcutConfig {
 interface Shortcuts {
     nextUnviewedFile: ShortcutConfig;
     previousUnviewedFile: ShortcutConfig;
+    openFileTree: ShortcutConfig;
+    openCommentsSidebar: ShortcutConfig;
     scrollDown: ShortcutConfig;
     scrollUp: ShortcutConfig;
     nextFile: ShortcutConfig;
@@ -35,6 +37,16 @@ const DEFAULT_SHORTCUTS: Shortcuts = {
         key: "h",
         modifiers: { shift: true },
         description: "Navigate to previous unviewed file",
+    },
+    openFileTree: {
+        key: "f",
+        modifiers: {},
+        description: "Open file tree",
+    },
+    openCommentsSidebar: {
+        key: "c",
+        modifiers: {},
+        description: "Open comments sidebar",
     },
     scrollDown: {
         key: "j",
@@ -174,6 +186,8 @@ export function isEditableShortcutTarget(target: EventTarget | null): boolean {
 export function useKeyboardNavigation({
     onNextUnviewedFile,
     onPreviousUnviewedFile,
+    onOpenFileTree,
+    onOpenCommentsSidebar,
     onScrollDown,
     onScrollUp,
     onNextFile,
@@ -185,6 +199,8 @@ export function useKeyboardNavigation({
 }: {
     onNextUnviewedFile?: () => void;
     onPreviousUnviewedFile?: () => void;
+    onOpenFileTree?: () => void;
+    onOpenCommentsSidebar?: () => void;
     onScrollDown?: () => void;
     onScrollUp?: () => void;
     onNextFile?: () => void;
@@ -199,6 +215,8 @@ export function useKeyboardNavigation({
     const handlersRef = useRef({
         onNextUnviewedFile,
         onPreviousUnviewedFile,
+        onOpenFileTree,
+        onOpenCommentsSidebar,
         onScrollDown,
         onScrollUp,
         onNextFile,
@@ -217,6 +235,8 @@ export function useKeyboardNavigation({
         handlersRef.current = {
             onNextUnviewedFile,
             onPreviousUnviewedFile,
+            onOpenFileTree,
+            onOpenCommentsSidebar,
             onScrollDown,
             onScrollUp,
             onNextFile,
@@ -229,6 +249,8 @@ export function useKeyboardNavigation({
     }, [
         onNextUnviewedFile,
         onPreviousUnviewedFile,
+        onOpenFileTree,
+        onOpenCommentsSidebar,
         onScrollDown,
         onScrollUp,
         onNextFile,
@@ -261,6 +283,12 @@ export function useKeyboardNavigation({
             } else if (matchesShortcut(event, activeShortcuts.previousUnviewedFile)) {
                 event.preventDefault();
                 handlers.onPreviousUnviewedFile?.();
+            } else if (matchesShortcut(event, activeShortcuts.openFileTree)) {
+                event.preventDefault();
+                handlers.onOpenFileTree?.();
+            } else if (matchesShortcut(event, activeShortcuts.openCommentsSidebar)) {
+                event.preventDefault();
+                handlers.onOpenCommentsSidebar?.();
             } else if (matchesShortcut(event, activeShortcuts.scrollDown)) {
                 event.preventDefault();
                 handlers.onScrollDown?.();

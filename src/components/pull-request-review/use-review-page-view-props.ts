@@ -14,6 +14,7 @@ export function useReviewPageViewProps({
     pullRequestUrl,
     showSettingsPanel,
     activeFile,
+    fileLineStats,
     searchQuery,
     showUnviewedOnly,
     unviewedFileCount,
@@ -72,6 +73,7 @@ export function useReviewPageViewProps({
     pullRequestUrl?: string;
     showSettingsPanel: boolean;
     activeFile?: string;
+    fileLineStats: ReadonlyMap<string, { added: number; removed: number }>;
     searchQuery: string;
     showUnviewedOnly: boolean;
     unviewedFileCount: number;
@@ -129,6 +131,7 @@ export function useReviewPageViewProps({
             loading: treeLoading,
             showSettingsPanel,
             activeFile,
+            fileLineStats,
             searchQuery,
             showUnviewedOnly,
             unviewedFileCount,
@@ -164,6 +167,7 @@ export function useReviewPageViewProps({
             showUnviewedOnly,
             activeFile,
             unviewedFileCount,
+            fileLineStats,
             treeCollapsed,
             treeWidth,
             viewedFiles,

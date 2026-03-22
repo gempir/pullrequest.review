@@ -23,6 +23,7 @@ interface FileTreeProps {
     path: string;
     level?: number;
     kinds?: ReadonlyMap<string, ChangeKind>;
+    lineStatsByPath?: ReadonlyMap<string, { added: number; removed: number }>;
     activeFile?: string;
     filterQuery?: string;
     allowedFiles?: ReadonlySet<string>;
@@ -92,10 +93,23 @@ function settingsIcon(path: string) {
     return null;
 }
 
+function TreeLineStat({ prefix, value, className }: { prefix: "+" | "-"; value: number | undefined; className: string }) {
+    if (!value) {
+        return <span className={className}>&nbsp;</span>;
+    }
+    return (
+        <span className={className}>
+            {prefix}
+            {value}
+        </span>
+    );
+}
+
 export function FileTree({
     path,
     level = 0,
     kinds,
+    lineStatsByPath,
     activeFile,
     filterQuery,
     allowedFiles,
@@ -146,6 +160,7 @@ export function FileTree({
                             level={level}
                             treeIndentSize={treeIndentSize}
                             kinds={resolvedKinds}
+                            lineStatsByPath={lineStatsByPath}
                             activeFile={active}
                             filterQuery={filterQuery}
                             allowedFiles={allowedFiles}
@@ -164,6 +179,7 @@ export function FileTree({
                         level={level}
                         treeIndentSize={treeIndentSize}
                         kinds={resolvedKinds}
+                        lineStatsByPath={lineStatsByPath}
                         active={active}
                         viewed={viewedFiles?.has(node.path)}
                         onFileClick={onFileClick}
@@ -180,6 +196,7 @@ function DirectoryNode({
     level,
     treeIndentSize,
     kinds,
+    lineStatsByPath,
     activeFile,
     filterQuery,
     allowedFiles,
@@ -193,6 +210,7 @@ function DirectoryNode({
     level: number;
     treeIndentSize: number;
     kinds: ReadonlyMap<string, ChangeKind>;
+    lineStatsByPath?: ReadonlyMap<string, { added: number; removed: number }>;
     activeFile?: string;
     filterQuery?: string;
     allowedFiles?: ReadonlySet<string>;
@@ -272,6 +290,7 @@ function DirectoryNode({
                         path={displayNode.path}
                         level={level + 1}
                         kinds={kinds}
+                        lineStatsByPath={lineStatsByPath}
                         activeFile={activeFile}
                         filterQuery={filterQuery}
                         allowedFiles={allowedFiles}
@@ -292,6 +311,7 @@ const FileNodeRow = memo(function FileNodeRow({
     level,
     treeIndentSize,
     kinds,
+    lineStatsByPath,
     active,
     viewed,
     onFileClick,
@@ -301,6 +321,7 @@ const FileNodeRow = memo(function FileNodeRow({
     level: number;
     treeIndentSize: number;
     kinds: ReadonlyMap<string, ChangeKind>;
+    lineStatsByPath?: ReadonlyMap<string, { added: number; removed: number }>;
     active?: string;
     viewed?: boolean;
     onFileClick?: (node: FileNode) => void;
@@ -314,17 +335,19 @@ const FileNodeRow = memo(function FileNodeRow({
     const isSettingsNode = node.type === "file" && isSettingsPath(node.path);
     const isActive = node.path === active;
     const isUnviewedFile = showUnviewedIndicator && node.type !== "summary" && !isSettingsNode && !isHomeNode && !viewed;
+    const lineStats = node.type === "file" ? lineStatsByPath?.get(node.path) : undefined;
+    const showLineStats = node.type === "file" && !isSettingsNode && !isHomeNode && !isPullRequestNode && Boolean(lineStatsByPath);
 
     return (
         <button
             type="button"
             data-tree-path={node.path}
             className={cn(
-                "w-full min-w-0 flex items-center gap-3 py-1 text-left",
+                "relative w-full min-w-0 flex items-center gap-3 py-1 text-left",
                 "hover:bg-surface-2 active:bg-surface-3 transition-colors cursor-pointer",
                 isActive ? "bg-surface-2 text-foreground border-l-2 border-l-accent" : "text-muted-foreground border-l-2 border-l-transparent",
             )}
-            style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
+            style={{ paddingLeft: `${4 + level * treeIndentSize}px`, paddingRight: showLineStats ? "3rem" : undefined }}
             onClick={() => {
                 tree.setActiveFile(node.path);
                 onFileClick?.(node);
@@ -348,6 +371,15 @@ const FileNodeRow = memo(function FileNodeRow({
                 )}
             </span>
             <span className={cn("flex-1 min-w-0 truncate pr-2 text-foreground", isUnviewedFile ? "text-status-renamed" : "")}>{node.name}</span>
+            {showLineStats ? (
+                <span
+                    className="pointer-events-none absolute right-2 top-1/2 inline-flex h-5 w-8 -translate-y-1/2 flex-col items-end justify-center font-mono tabular-nums leading-none"
+                    style={{ fontSize: "8px", lineHeight: 1 }}
+                >
+                    <TreeLineStat prefix="+" value={lineStats?.added} className="text-status-added" />
+                    <TreeLineStat prefix="-" value={lineStats?.removed} className="text-status-removed" />
+                </span>
+            ) : null}
         </button>
     );
 }, areFileNodeRowPropsEqual);
@@ -358,6 +390,7 @@ function areFileNodeRowPropsEqual(
         level: number;
         treeIndentSize: number;
         kinds: ReadonlyMap<string, ChangeKind>;
+        lineStatsByPath?: ReadonlyMap<string, { added: number; removed: number }>;
         active?: string;
         viewed?: boolean;
         onFileClick?: (node: FileNode) => void;
@@ -368,6 +401,7 @@ function areFileNodeRowPropsEqual(
         level: number;
         treeIndentSize: number;
         kinds: ReadonlyMap<string, ChangeKind>;
+        lineStatsByPath?: ReadonlyMap<string, { added: number; removed: number }>;
         active?: string;
         viewed?: boolean;
         onFileClick?: (node: FileNode) => void;
@@ -380,10 +414,14 @@ function areFileNodeRowPropsEqual(
     if (previous.viewed !== next.viewed) return false;
     if (previous.onFileClick !== next.onFileClick) return false;
     if (previous.showUnviewedIndicator !== next.showUnviewedIndicator) return false;
+    if (previous.lineStatsByPath !== next.lineStatsByPath) return false;
     const previousWasActive = previous.active === previous.node.path;
     const nextIsActive = next.active === next.node.path;
     if (previousWasActive !== nextIsActive) return false;
     const previousKind = previous.node.type === "summary" ? undefined : previous.kinds.get(previous.node.path);
     const nextKind = next.node.type === "summary" ? undefined : next.kinds.get(next.node.path);
-    return previousKind === nextKind;
+    if (previousKind !== nextKind) return false;
+    const previousLineStats = previous.node.type === "file" ? previous.lineStatsByPath?.get(previous.node.path) : undefined;
+    const nextLineStats = next.node.type === "file" ? next.lineStatsByPath?.get(next.node.path) : undefined;
+    return previousLineStats?.added === nextLineStats?.added && previousLineStats?.removed === nextLineStats?.removed;
 }

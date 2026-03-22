@@ -186,7 +186,13 @@ export function LandingMainContent({
                             <GitPullRequest className="size-4" />
                             <span className="text-[13px]">No repositories selected.</span>
                         </div>
-                        <Button onClick={() => onOpenRepositorySelection(activeHost)}>Select Repositories</Button>
+                        <Button
+                            variant="outline"
+                            className="h-8 rounded-sm border-border-muted bg-background font-mono text-[12px] tracking-wide hover:bg-surface-2"
+                            onClick={() => onOpenRepositorySelection(activeHost)}
+                        >
+                            Select Repositories
+                        </Button>
                     </div>
                 ) : isRepoPullRequestLoading ? (
                     <div className="rounded-md border border-border-muted bg-surface-1 p-4 max-w-2xl">
@@ -205,7 +211,11 @@ export function LandingMainContent({
                 ) : sortedRootPullRequests.length === 0 ? (
                     <div className="rounded-md border border-border-muted bg-surface-1 p-8 text-center space-y-3 max-w-2xl">
                         <p className="text-[13px] text-muted-foreground">No pull requests in selected repositories.</p>
-                        <Button variant="outline" onClick={() => onOpenRepositorySelection(activeHost)}>
+                        <Button
+                            variant="outline"
+                            className="h-8 rounded-sm border-border-muted bg-background font-mono text-[12px] tracking-wide hover:bg-surface-2"
+                            onClick={() => onOpenRepositorySelection(activeHost)}
+                        >
                             Manage Repositories
                         </Button>
                     </div>

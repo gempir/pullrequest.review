@@ -106,7 +106,13 @@ export function validateReviewDiffScopeSearch(search: unknown): ReviewDiffScopeS
     const from = normalizeCommitHash(raw.from);
     const to = normalizeCommitHash(raw.to);
     if (from && to) {
+        if (from === to) {
+            return { from };
+        }
         return { from, to };
+    }
+    if (from) {
+        return { from };
     }
     return {};
 }
@@ -115,7 +121,7 @@ export function resolveReviewDiffScope({ search, commits, destinationCommitHash 
     const allCommits = orderCommitsOldestFirst(commits);
     const visibleCommits = allCommits;
     const visibleIndex = new Map(visibleCommits.map((commit, index) => [commit.hash, index] as const));
-    const hasRangeSelection = Boolean(search.from && search.to);
+    const hasRangeSelection = Boolean(search.from);
     if (!hasRangeSelection) {
         return {
             mode: "full",
@@ -128,7 +134,7 @@ export function resolveReviewDiffScope({ search, commits, destinationCommitHash 
     }
 
     const fromHash = search.from;
-    const toHash = search.to;
+    const toHash = search.to ?? fromHash;
     const fromIndex = fromHash ? visibleIndex.get(fromHash) : undefined;
     const toIndex = toHash ? visibleIndex.get(toHash) : undefined;
     if (fromIndex === undefined || toIndex === undefined) {
@@ -167,10 +173,15 @@ export function resolveReviewDiffScope({ search, commits, destinationCommitHash 
         selectedCommitHashes,
         baseCommitHash,
         headCommitHash,
-        normalizedSearch: {
-            from: visibleCommits[startIndex]?.hash,
-            to: visibleCommits[endIndex]?.hash,
-        },
+        normalizedSearch:
+            startIndex === endIndex
+                ? {
+                      from: visibleCommits[startIndex]?.hash,
+                  }
+                : {
+                      from: visibleCommits[startIndex]?.hash,
+                      to: visibleCommits[endIndex]?.hash,
+                  },
     };
 }
 

@@ -180,14 +180,14 @@ export function useReviewScopedData({
 
     useEffect(() => {
         if (!onReviewDiffScopeSearchChange) return;
-        if (resolvedScope.mode !== "full" || !resolvedScope.fallbackReason || !diffScopeSearch.from || !diffScopeSearch.to) return;
+        if (resolvedScope.mode !== "full" || !resolvedScope.fallbackReason || !diffScopeSearch.from) return;
         const notice =
             resolvedScope.fallbackReason === "invalid_range"
                 ? "Selected commit range is unavailable. Switched to full diff."
                 : "Commit range base/head could not be resolved. Switched to full diff.";
         setScopeNotice(notice);
         onReviewDiffScopeSearchChange({});
-    }, [diffScopeSearch.from, diffScopeSearch.to, onReviewDiffScopeSearchChange, resolvedScope]);
+    }, [diffScopeSearch.from, onReviewDiffScopeSearchChange, resolvedScope]);
 
     useEffect(() => {
         if (!commitRangeScopedCollection) return;

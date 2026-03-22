@@ -921,8 +921,12 @@ export function useReviewPageController({
             const endIndex = indexes[indexes.length - 1];
             const from = resolvedScope.visibleCommits[startIndex]?.hash;
             const to = resolvedScope.visibleCommits[endIndex]?.hash;
-            if (!from || !to) {
+            if (!from) {
                 onReviewDiffScopeSearchChange({});
+                return;
+            }
+            if (!to) {
+                onReviewDiffScopeSearchChange({ from });
                 return;
             }
             const contiguousSize = endIndex - startIndex + 1;
@@ -931,7 +935,7 @@ export function useReviewPageController({
             } else {
                 setScopeNotice(null);
             }
-            onReviewDiffScopeSearchChange({ from, to });
+            onReviewDiffScopeSearchChange(startIndex === endIndex ? { from } : { from, to });
         },
         [onReviewDiffScopeSearchChange, resolvedScope.visibleCommits, setScopeNotice, visibleCommitIndexByHash],
     );

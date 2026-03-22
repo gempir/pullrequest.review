@@ -129,6 +129,16 @@ interface GithubReview {
     submitted_at?: string;
 }
 
+type GithubReviewThreadNode = {
+    id?: string;
+    isResolved?: boolean;
+    comments?: {
+        nodes?: Array<{
+            databaseId?: number | null;
+        }>;
+    };
+};
+
 interface GithubIssueEvent {
     id: number;
     event?: string;
@@ -732,10 +742,17 @@ function mapIssueComment(comment: GithubIssueComment): Comment {
     };
 }
 
-function mapReviewComment(comment: GithubReviewComment): Comment {
+function mapReviewComment(
+    comment: GithubReviewComment,
+    metadata?: {
+        resolvedRootCommentIds?: ReadonlySet<number>;
+        threadIdByRootCommentId?: ReadonlyMap<number, string>;
+    },
+): Comment {
     const line = comment.line ?? comment.original_line;
     const isLeft = comment.side === "LEFT";
     const content = mapCommentContent(comment.body, comment.body_text, comment.body_html);
+    const isRootComment = !comment.in_reply_to_id;
     return {
         id: comment.id,
         createdAt: comment.created_at,
@@ -751,6 +768,8 @@ function mapReviewComment(comment: GithubReviewComment): Comment {
             from: isLeft ? line : undefined,
         },
         parent: comment.in_reply_to_id ? { id: comment.in_reply_to_id } : undefined,
+        resolution: isRootComment && metadata?.resolvedRootCommentIds?.has(comment.id) ? {} : undefined,
+        hostThreadId: isRootComment ? metadata?.threadIdByRootCommentId?.get(comment.id) : undefined,
     };
 }
 
@@ -783,9 +802,48 @@ function normalizeGithubReviewCommentParents(reviewComments: GithubReviewComment
     });
 }
 
-function mergeIssueAndReviewComments(issue: GithubIssueComment[], review: GithubReviewComment[]) {
-    const normalizedReviewComments = normalizeGithubReviewCommentParents(review);
-    const all: Comment[] = [...issue.map(mapIssueComment), ...normalizedReviewComments.map(mapReviewComment)];
+function buildGithubReviewThreadMetadata(normalizedReviewComments: GithubReviewComment[], reviewThreads: GithubReviewThreadNode[]) {
+    const rootCommentIdByCommentId = new Map<number, number>();
+    for (const comment of normalizedReviewComments) {
+        rootCommentIdByCommentId.set(comment.id, comment.in_reply_to_id ?? comment.id);
+    }
+
+    const resolvedRootCommentIds = new Set<number>();
+    const threadIdByRootCommentId = new Map<number, string>();
+
+    for (const thread of reviewThreads) {
+        const rootCommentId = thread.comments?.nodes?.reduce<number | undefined>((resolvedRootId, node) => {
+            if (resolvedRootId) return resolvedRootId;
+            const databaseId = node.databaseId;
+            if (typeof databaseId !== "number") return resolvedRootId;
+            return rootCommentIdByCommentId.get(databaseId) ?? resolvedRootId;
+        }, undefined);
+        if (!rootCommentId) continue;
+
+        const threadId = thread.id?.trim();
+        if (threadId && !threadIdByRootCommentId.has(rootCommentId)) {
+            threadIdByRootCommentId.set(rootCommentId, threadId);
+        }
+        if (thread.isResolved) {
+            resolvedRootCommentIds.add(rootCommentId);
+        }
+    }
+
+    return {
+        resolvedRootCommentIds,
+        threadIdByRootCommentId,
+    };
+}
+
+function mergeIssueAndReviewComments(
+    issue: GithubIssueComment[],
+    normalizedReviewComments: GithubReviewComment[],
+    metadata?: {
+        resolvedRootCommentIds?: ReadonlySet<number>;
+        threadIdByRootCommentId?: ReadonlyMap<number, string>;
+    },
+) {
+    const all: Comment[] = [...issue.map(mapIssueComment), ...normalizedReviewComments.map((comment) => mapReviewComment(comment, metadata))];
 
     all.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
 
@@ -798,6 +856,9 @@ export const githubNormalization = {
     mapPullRequestDetails,
     mapIssueEventToHistory,
     mapReviewStateToStatus,
+    normalizeGithubReviewCommentParents,
+    buildGithubReviewThreadMetadata,
+    mergeIssueAndReviewComments,
 };
 
 async function fetchGithubPullRequestCritical(prRef: { workspace: string; repo: string; pullRequestId: string }): Promise<PullRequestCriticalBundle> {
@@ -842,6 +903,96 @@ async function fetchGithubPullRequestDeferred(prRef: { workspace: string; repo: 
         listPaginated<GithubReview>(`${basePath}/reviews`),
         listPaginated<GithubIssueEvent>(`/repos/${prRef.workspace}/${prRef.repo}/issues/${prRef.pullRequestId}/events`).catch(() => []),
     ]);
+    const normalizedReviewComments = normalizeGithubReviewCommentParents(reviewComments);
+
+    const reviewThreadMetadata = isAuthenticated
+        ? await (async () => {
+              const reviewThreads: GithubReviewThreadNode[] = [];
+              let after: string | null = null;
+              const pullRequestNumber = Number(prRef.pullRequestId);
+              if (!Number.isInteger(pullRequestNumber) || pullRequestNumber <= 0) {
+                  return {
+                      resolvedRootCommentIds: new Set<number>(),
+                      threadIdByRootCommentId: new Map<number, string>(),
+                  };
+              }
+
+              do {
+                  const response = await request(
+                      "/graphql",
+                      {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                              query: `
+                                  query ReviewThreadsByPullRequest($owner: String!, $repo: String!, $pullRequestNumber: Int!, $after: String) {
+                                      repository(owner: $owner, name: $repo) {
+                                          pullRequest(number: $pullRequestNumber) {
+                                              reviewThreads(first: 100, after: $after) {
+                                                  nodes {
+                                                      id
+                                                      isResolved
+                                                      comments(first: 100) {
+                                                          nodes {
+                                                              databaseId
+                                                          }
+                                                      }
+                                                  }
+                                                  pageInfo {
+                                                      hasNextPage
+                                                      endCursor
+                                                  }
+                                              }
+                                          }
+                                      }
+                                  }
+                              `,
+                              variables: {
+                                  owner: prRef.workspace,
+                                  repo: prRef.repo,
+                                  pullRequestNumber,
+                                  after,
+                              },
+                          }),
+                      },
+                      { requireAuth: true },
+                  );
+                  const payload = (await response.json()) as {
+                      errors?: Array<{ message?: string }>;
+                      data?: {
+                          repository?: {
+                              pullRequest?: {
+                                  reviewThreads?: {
+                                      nodes?: GithubReviewThreadNode[];
+                                      pageInfo?: {
+                                          hasNextPage?: boolean;
+                                          endCursor?: string | null;
+                                      };
+                                  };
+                              };
+                          };
+                      };
+                  };
+                  const firstError = payload.errors?.[0]?.message;
+                  if (firstError) {
+                      throw new Error(firstError);
+                  }
+
+                  const reviewThreadsConnection = payload.data?.repository?.pullRequest?.reviewThreads;
+                  reviewThreads.push(...(reviewThreadsConnection?.nodes ?? []));
+                  const pageInfo = reviewThreadsConnection?.pageInfo;
+                  after = pageInfo?.hasNextPage ? (pageInfo.endCursor?.trim() ?? null) : null;
+              } while (after);
+
+              return buildGithubReviewThreadMetadata(normalizedReviewComments, reviewThreads);
+          })().catch(() => ({
+              resolvedRootCommentIds: new Set<number>(),
+              threadIdByRootCommentId: new Map<number, string>(),
+          }))
+        : {
+              resolvedRootCommentIds: new Set<number>(),
+              threadIdByRootCommentId: new Map<number, string>(),
+          };
 
     let currentLogin: string | undefined;
     let currentAvatarUrl: string | undefined;
@@ -876,7 +1027,7 @@ async function fetchGithubPullRequestDeferred(prRef: { workspace: string; repo: 
             repo: prRef.repo,
             pullRequestId: prRef.pullRequestId,
         },
-        comments: mergeIssueAndReviewComments(issueComments, reviewComments),
+        comments: mergeIssueAndReviewComments(issueComments, normalizedReviewComments, reviewThreadMetadata),
         history: mapHistory(pr, issueComments, reviews, issueEvents),
         reviewers: mapReviewers(pr, reviews),
         buildStatuses: mapBuildStatuses(checks, combinedStatus),

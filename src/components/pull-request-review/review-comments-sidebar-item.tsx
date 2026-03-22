@@ -3,9 +3,9 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import { formatCommentTimestamp } from "@/components/pull-request-review/review-formatters";
 import type { CommentThread } from "@/components/pull-request-review/review-threads";
 import type { ReviewSidebarThreadItem } from "@/components/pull-request-review/use-review-page-derived";
+import { Timestamp } from "@/components/timestamp";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -144,9 +144,9 @@ export function ReviewCommentsSidebarItem({ item, onSelect, canResolveThread, re
                 <div className="flex items-start gap-2">
                     <CommentAvatar name={authorName} url={rootComment.user?.avatarUrl} />
                     <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
                             <span className="font-medium text-[12px] text-foreground">{authorName}</span>
-                            <span>{formatCommentTimestamp(rootComment.createdAt)}</span>
+                            <Timestamp value={rootComment.createdAt} />
                             <span className="ml-auto shrink-0">
                                 <ThreadStatusButton
                                     isResolved={item.isResolved}

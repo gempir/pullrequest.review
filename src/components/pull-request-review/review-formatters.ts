@@ -1,76 +1,5 @@
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import type { DiffStatEntry, PullRequestBuildStatus } from "@/lib/git-host/types";
-
-const RELATIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000;
-const COMMENT_RELATIVE_THRESHOLD_HOURS = 24;
-
-dayjs.extend(relativeTime);
-
-function formatDate(value?: string) {
-    if (!value) return "Unknown";
-    try {
-        return new Intl.DateTimeFormat("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-        }).format(new Date(value));
-    } catch {
-        return value;
-    }
-}
-
-export function formatRecentTimestamp(value?: string) {
-    if (!value) return "Unknown";
-    const parsed = dayjs(value);
-    if (!parsed.isValid()) return value;
-    const now = dayjs();
-    const ageHours = Math.abs(now.diff(parsed, "hour", true));
-    if (ageHours >= 1 && ageHours < 12) {
-        const diffMinutes = parsed.diff(now, "minute");
-        const absMinutes = Math.abs(diffMinutes);
-        const hours = Math.floor(absMinutes / 60);
-        const minutes = absMinutes % 60;
-        const compact = `${hours}h ${minutes}m`;
-        return diffMinutes < 0 ? `${compact} ago` : `in ${compact}`;
-    }
-    if (ageHours < COMMENT_RELATIVE_THRESHOLD_HOURS) {
-        return parsed.fromNow();
-    }
-    return parsed.format("MMM DD, YYYY HH:mm");
-}
-
-export function formatCommentTimestamp(value?: string) {
-    return formatRecentTimestamp(value);
-}
-
-function formatRelative(value: Date, now: Date) {
-    const diffMs = value.getTime() - now.getTime();
-    const absMs = Math.abs(diffMs);
-    const rtf = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" });
-
-    if (absMs < 60_000) {
-        return rtf.format(Math.round(diffMs / 1_000), "second");
-    }
-    if (absMs < 3_600_000) {
-        return rtf.format(Math.round(diffMs / 60_000), "minute");
-    }
-    return rtf.format(Math.round(diffMs / 3_600_000), "hour");
-}
-
-export function formatNavbarDate(value?: string) {
-    if (!value) return "Unknown";
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return value;
-    const now = new Date();
-    const ageMs = Math.abs(now.getTime() - parsed.getTime());
-    if (ageMs < RELATIVE_THRESHOLD_MS) {
-        return formatRelative(parsed, now);
-    }
-    return formatDate(value);
-}
+import { formatTimestampLabel } from "@/lib/timestamp";
 
 export function navbarStateClass(state?: string) {
     const normalized = state?.toLowerCase() ?? "";
@@ -141,7 +70,7 @@ export function buildRunningTime(build: PullRequestBuildStatus) {
         return `${formatDuration(Date.now() - started.getTime())} running`;
     }
     if (hasCompleted) {
-        return formatNavbarDate(build.completedAt);
+        return formatTimestampLabel(build.completedAt);
     }
     return "n/a";
 }

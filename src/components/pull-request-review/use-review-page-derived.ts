@@ -1,12 +1,13 @@
 import { type FileDiffOptions, getFiletypeFromFileName, type OnDiffLineEnterLeaveProps, parsePatchFiles } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatNavbarDate, linesUpdated, normalizeNavbarState } from "@/components/pull-request-review/review-formatters";
+import { linesUpdated, normalizeNavbarState } from "@/components/pull-request-review/review-formatters";
 import { useDiffHighlighterState } from "@/components/pull-request-review/use-review-page-effects";
 import type { FileNode } from "@/lib/file-tree-context";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { useReviewComputeWorker } from "@/lib/review-performance/review-compute-worker-context";
+import { timestampValue } from "@/lib/timestamp";
 import {
     buildReviewDerivedCacheKey,
     buildReviewScopeCacheKey,
@@ -77,12 +78,6 @@ function normalizeDiffSelectionPath(path: string) {
         return trimmed.slice(2);
     }
     return trimmed;
-}
-
-function timestampValue(value?: string) {
-    if (!value) return 0;
-    const parsed = new Date(value).getTime();
-    return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function latestActivityAt(thread: CommentThread) {
@@ -432,10 +427,7 @@ export function useReviewPageDerived({
     );
 
     const lineStats = useMemo(() => linesUpdated(prData?.diffstat ?? []), [prData?.diffstat]);
-    const navbarStatusDate = useMemo(() => {
-        if (!pullRequest) return "Unknown";
-        return formatNavbarDate(pullRequest.mergedAt ?? pullRequest.closedAt ?? pullRequest.updatedAt);
-    }, [pullRequest]);
+    const navbarStatusTimestamp = useMemo(() => pullRequest?.mergedAt ?? pullRequest?.closedAt ?? pullRequest?.updatedAt, [pullRequest]);
     const navbarState = useMemo(() => normalizeNavbarState(pullRequest), [pullRequest]);
 
     const fileLineStats = useMemo(() => {
@@ -585,7 +577,7 @@ export function useReviewPageDerived({
         threadsByPath,
         selectedFileLevelThreads,
         lineStats,
-        navbarStatusDate,
+        navbarStatusTimestamp,
         navbarState,
         fileLineStats,
         handleDiffLineEnter,

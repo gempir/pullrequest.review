@@ -1,4 +1,4 @@
-import { CircleCheck, MessageSquare } from "lucide-react";
+import { CircleCheck } from "lucide-react";
 import type { MouseEventHandler } from "react";
 import { useMemo, useState } from "react";
 import { ReviewCommentsSidebarPanel } from "@/components/pull-request-review/review-comments-sidebar-panel";
@@ -76,17 +76,9 @@ export function ReviewCommentsSidebar({
             width={width}
             collapsed={collapsed}
             title="Comments"
+            count={unresolvedCount}
             onToggleCollapsed={onToggleCollapsed}
             onStartResize={onStartResize}
-            headerActions={
-                <div className="flex items-center gap-2">
-                    <span className="rounded border border-border bg-surface-1 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
-                        {unresolvedCount > 999 ? "999+" : unresolvedCount}
-                    </span>
-                    <span className="text-[12px] font-medium uppercase tracking-wide text-foreground">Comments</span>
-                    <MessageSquare className="size-3.5 text-muted-foreground" />
-                </div>
-            }
             secondaryHeader={
                 <div className="flex h-full items-center">
                     <Tooltip>
@@ -110,7 +102,7 @@ export function ReviewCommentsSidebar({
                                 ) : null}
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent>{includeResolved ? "Hiding resolved comments" : "Include resolved comments"}</TooltipContent>
+                        <TooltipContent side="bottom">{includeResolved ? "Hiding resolved comments" : "Include resolved comments"}</TooltipContent>
                     </Tooltip>
                     <Input
                         className="h-full bg-chrome text-[12px] text-right placeholder:text-right flex-1 min-w-0 border-0 rounded-none focus-visible:border-0 focus-visible:ring-0"

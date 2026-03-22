@@ -1,14 +1,15 @@
 import {
     Check,
+    ChevronRight,
     Copy,
     Github,
     GitMerge,
     GlassWater,
     Loader2,
     Menu,
+    MessageSquare,
     Minus,
     PanelLeftOpen,
-    PanelRightOpen,
     PenSquare,
     TriangleAlert,
     X,
@@ -36,6 +37,7 @@ type ReviewTopNavbarProps = {
     isRefreshing: boolean;
     treeCollapsed: boolean;
     rightSidebarCollapsed: boolean;
+    unresolvedCommentCount: number;
     host: GitHost;
     pullRequestUrl?: string;
     sourceBranch: string;
@@ -71,6 +73,7 @@ export function ReviewTopNavbar({
     isRefreshing,
     treeCollapsed,
     rightSidebarCollapsed,
+    unresolvedCommentCount,
     host,
     pullRequestUrl,
     sourceBranch,
@@ -101,6 +104,7 @@ export function ReviewTopNavbar({
     onOpenMerge,
 }: ReviewTopNavbarProps) {
     const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
+    const commentsBadgeValue = unresolvedCommentCount > 99 ? "99+" : unresolvedCommentCount.toString();
 
     return (
         <div
@@ -171,12 +175,7 @@ export function ReviewTopNavbar({
                                         asChild
                                         variant="ghost"
                                         size="sm"
-                                        className={cn(
-                                            "h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
-                                            host === "github"
-                                                ? "hover:bg-surface-1 hover:text-status-renamed"
-                                                : "hover:bg-surface-1 hover:text-host-bitbucket-accent",
-                                        )}
+                                        className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                                     >
                                         <a
                                             href={pullRequestUrl}
@@ -184,7 +183,7 @@ export function ReviewTopNavbar({
                                             rel="noreferrer"
                                             aria-label={host === "github" ? "Open pull request in GitHub" : "Open pull request in Bitbucket"}
                                         >
-                                            {host === "github" ? <Github className="size-4" /> : <GlassWater className="size-4" />}
+                                            {host === "github" ? <Github className="size-3.5" /> : <GlassWater className="size-3.5" />}
                                         </a>
                                     </Button>
                                 </TooltipTrigger>
@@ -196,9 +195,7 @@ export function ReviewTopNavbar({
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className={cn(
-                                        "h-full min-w-24 rounded-none px-3 bg-chrome text-foreground hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
-                                    )}
+                                    className="h-full min-w-28 rounded-none px-3 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground data-[state=open]:bg-surface-1 data-[state=open]:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                                     disabled={actionBusy}
                                     aria-label="Pull request actions"
                                 >
@@ -270,20 +267,27 @@ export function ReviewTopNavbar({
                             </DropdownMenuContent>
                         </DropdownMenu>
                         {rightSidebarCollapsed ? (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
-                                        onClick={onExpandRightSidebar}
-                                        aria-label="Expand comments sidebar"
-                                    >
-                                        <PanelRightOpen className="size-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">Expand comments sidebar</TooltipContent>
-                            </Tooltip>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                onClick={onExpandRightSidebar}
+                                aria-label={`Expand comments sidebar (${unresolvedCommentCount} unresolved comments)`}
+                            >
+                                <span className="flex items-center justify-center gap-0.5">
+                                    <span className="relative flex size-6 items-center justify-center">
+                                        <MessageSquare className="size-[14px] -scale-x-100" />
+                                        {unresolvedCommentCount > 0 ? (
+                                            <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">
+                                                {commentsBadgeValue}
+                                            </span>
+                                        ) : null}
+                                    </span>
+                                    <span className="flex size-3 items-center justify-center" aria-hidden="true">
+                                        <ChevronRight className="size-3" />
+                                    </span>
+                                </span>
+                            </Button>
                         ) : null}
                     </div>
                 </div>

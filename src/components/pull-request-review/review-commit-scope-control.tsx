@@ -1,4 +1,5 @@
 import { GitCompare } from "lucide-react";
+import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { ReviewDiffScopeMode } from "@/lib/review-diff-scope";
@@ -7,7 +8,7 @@ import { cn } from "@/lib/utils";
 type CommitOption = {
     hash: string;
     label: string;
-    timestamp: string;
+    timestamp?: string;
     message?: string;
 };
 
@@ -89,7 +90,7 @@ export function ReviewCommitScopeControl({
                                                     <span className={cn("min-w-0 truncate font-mono", selected ? "text-foreground" : "text-foreground/90")}>
                                                         {option.label}
                                                     </span>
-                                                    <span className="ml-auto shrink-0 text-right tabular-nums text-muted-foreground">{option.timestamp}</span>
+                                                    <Timestamp value={option.timestamp} className="ml-auto shrink-0 text-right" />
                                                 </div>
                                                 <div className="truncate text-[11px] text-muted-foreground">{option.message || "(no message)"}</div>
                                             </div>

@@ -29,7 +29,15 @@ export function createReviewPageUiStore() {
 
 export function useReviewPageUiValue<T>(store: Store<ReviewPageUiState>, selector: (state: ReviewPageUiState) => T) {
     return useSyncExternalStore(
-        store.subscribe,
+        (onStoreChange) => {
+            const cleanup = store.subscribe(onStoreChange) as { unsubscribe?: () => void } | (() => void);
+            if (typeof cleanup === "function") {
+                return cleanup;
+            }
+            return () => {
+                cleanup.unsubscribe?.();
+            };
+        },
         () => selector(store.state),
         () => selector(store.state),
     );

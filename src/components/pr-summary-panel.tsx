@@ -17,32 +17,28 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { Timestamp } from "@/components/timestamp";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Commit, PullRequestBundle, PullRequestHistoryEvent } from "@/lib/git-host/types";
+import { timestampValue } from "@/lib/timestamp";
 import { cn } from "@/lib/utils";
 
-function formatDate(value?: string) {
-    if (!value) return "Unknown";
-    try {
-        return new Intl.DateTimeFormat("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-        }).format(new Date(value));
-    } catch {
-        return value;
-    }
-}
+const TIMELINE_META_TEXT_CLASS = "text-[11px] leading-4";
+const TIMELINE_TIMESTAMP_CLASS = "pt-px text-right";
+const TIMELINE_CONNECTOR_CENTER_CLASS = "left-[15.5px]";
 
 function shortHash(value: string) {
     return value.slice(0, 8);
 }
 
-function timestamp(value?: string) {
-    if (!value) return 0;
-    const parsed = new Date(value).getTime();
-    return Number.isNaN(parsed) ? 0 : parsed;
+function parseAuthorIdentity(raw?: string) {
+    const text = raw?.trim();
+    if (!text) return { label: undefined, email: undefined };
+    const match = text.match(/^(.*?)\s*<([^>]+)>$/);
+    if (!match) return { label: text, email: undefined };
+    const label = match[1]?.trim() || match[2]?.trim();
+    const email = match[2]?.trim();
+    return { label: label || undefined, email: email || undefined };
 }
 
 function isMergedDevelopCommit(message?: string) {
@@ -92,6 +88,10 @@ function historyEventTitle(type: PullRequestHistoryEvent["type"]) {
         default:
             return null;
     }
+}
+
+function shouldRenderHistoryDetails(type: PullRequestHistoryEvent["type"]) {
+    return !["reviewRequested", "reviewerAdded", "reviewerRemoved", "updated", "closed", "merged", "reopened", "opened"].includes(type);
 }
 
 function timelineIconClass(kind: "description" | "history" | "commitGroup", type?: PullRequestHistoryEvent["type"]) {
@@ -229,6 +229,15 @@ type CommitAuthorGroup = {
     commits: Commit[];
 };
 
+function TimelineConnector({ showAbove, showBelow }: { showAbove: boolean; showBelow: boolean }) {
+    return (
+        <>
+            {showAbove ? <div className={cn("absolute top-0 h-1 w-px bg-border-muted", TIMELINE_CONNECTOR_CENTER_CLASS)} /> : null}
+            {showBelow ? <div className={cn("absolute top-9 bottom-0 w-px bg-border-muted", TIMELINE_CONNECTOR_CENTER_CLASS)} /> : null}
+        </>
+    );
+}
+
 function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?: string; history: PullRequestHistoryEvent[]; commits: Commit[] }) {
     const timelineSources: Array<
         | { id: string; kind: "history"; timestamp: number; order: number; event: PullRequestHistoryEvent }
@@ -239,7 +248,7 @@ function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?:
         timelineSources.push({
             id: event.id,
             kind: "history",
-            timestamp: timestamp(event.createdAt),
+            timestamp: timestampValue(event.createdAt),
             order: index,
             event,
         });
@@ -249,7 +258,7 @@ function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?:
         timelineSources.push({
             id: commit.hash,
             kind: "commit",
-            timestamp: timestamp(commit.date),
+            timestamp: timestampValue(commit.date),
             order: history.length + index,
             commit,
         });
@@ -292,11 +301,16 @@ function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?:
 }
 
 function commitAuthorName(commit: Commit) {
-    return commit.author?.user?.displayName ?? commit.author?.raw ?? "Unknown";
+    const parsed = parseAuthorIdentity(commit.author?.raw);
+    return commit.author?.user?.displayName ?? parsed.label ?? commit.author?.raw ?? "Unknown";
 }
 
 function commitAuthorAvatarUrl(commit: Commit) {
     return commit.author?.user?.avatarUrl;
+}
+
+function commitAuthorEmail(commit: Commit) {
+    return parseAuthorIdentity(commit.author?.raw).email;
 }
 
 function commitAuthorKey(commit: Commit) {
@@ -325,13 +339,15 @@ function groupCommitsByAuthor(commits: Commit[]) {
 }
 
 function DescriptionTimelineItem({
-    connectorClass,
+    showConnectorAbove,
+    showConnectorBelow,
     authorName,
     authorAvatarUrl,
     createdAt,
     description,
 }: {
-    connectorClass: string | null;
+    showConnectorAbove: boolean;
+    showConnectorBelow: boolean;
     authorName?: string;
     authorAvatarUrl?: string;
     createdAt?: string;
@@ -339,7 +355,7 @@ function DescriptionTimelineItem({
 }) {
     return (
         <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
-            {connectorClass ? <div className={connectorClass} /> : null}
+            <TimelineConnector showAbove={showConnectorAbove} showBelow={showConnectorBelow} />
             <div className="relative z-10 pt-1">
                 <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("description"))}>
                     <ScrollText className="size-4" />
@@ -347,11 +363,11 @@ function DescriptionTimelineItem({
             </div>
             <div className="min-w-0 pt-1">
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
-                    <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4">
+                    <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
                         <Avatar name={authorName} url={authorAvatarUrl} />
                         <span className="font-medium text-foreground">{authorName ?? "Unknown"}</span>
                     </div>
-                    <span className="pt-px text-right text-[10px] text-muted-foreground">{formatDate(createdAt)}</span>
+                    <Timestamp value={createdAt} className={TIMELINE_TIMESTAMP_CLASS} />
                 </div>
                 <div className="px-2">
                     <div className="rounded-md border border-border-muted bg-surface-1 p-3">
@@ -363,12 +379,22 @@ function DescriptionTimelineItem({
     );
 }
 
-function CommitGroupTimelineItem({ connectorClass, entry }: { connectorClass: string | null; entry: CommitGroupTimelineEntry }) {
+function CommitGroupTimelineItem({
+    showConnectorAbove,
+    showConnectorBelow,
+    entry,
+    host,
+}: {
+    showConnectorAbove: boolean;
+    showConnectorBelow: boolean;
+    entry: CommitGroupTimelineEntry;
+    host: PullRequestBundle["prRef"]["host"];
+}) {
     const commitGroups = groupCommitsByAuthor(entry.commits);
 
     return (
         <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
-            {connectorClass ? <div className={connectorClass} /> : null}
+            <TimelineConnector showAbove={showConnectorAbove} showBelow={showConnectorBelow} />
             <div className="relative z-10 pt-1">
                 <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("commitGroup"))}>
                     <GitCommitHorizontal className="size-4" />
@@ -379,11 +405,14 @@ function CommitGroupTimelineItem({ connectorClass, entry }: { connectorClass: st
                     {commitGroups.map((group) => (
                         <div key={`${entry.id}-${group.id}`} className="min-w-0">
                             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
-                                <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4">
-                                    <Avatar name={group.authorName} url={group.avatarUrl} />
-                                    <span className="font-medium text-foreground">{group.authorName}</span>
+                                <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
+                                    <CommitAuthorIdentity host={host} group={group} />
                                 </div>
-                                <span className="pt-px text-right text-[10px] text-transparent select-none">{formatDate(group.commits[0]?.date)}</span>
+                                <Timestamp
+                                    value={group.commits[0]?.date}
+                                    className={cn(TIMELINE_TIMESTAMP_CLASS, "invisible select-none")}
+                                    withTooltip={false}
+                                />
                             </div>
                             <div className="px-2">
                                 <div className="space-y-1">
@@ -404,7 +433,7 @@ function CommitGroupTimelineItem({ connectorClass, entry }: { connectorClass: st
                                                             {message ?? "(no message)"}
                                                         </span>
                                                     </div>
-                                                    <span className="text-right text-[10px] text-muted-foreground">{formatDate(commit.date)}</span>
+                                                    <Timestamp value={commit.date} className={TIMELINE_TIMESTAMP_CLASS} />
                                                 </div>
                                             </div>
                                         );
@@ -419,8 +448,32 @@ function CommitGroupTimelineItem({ connectorClass, entry }: { connectorClass: st
     );
 }
 
+function CommitAuthorIdentity({ host, group }: { host: PullRequestBundle["prRef"]["host"]; group: CommitAuthorGroup }) {
+    const email = host === "bitbucket" ? commitAuthorEmail(group.commits[0]) : undefined;
+    const content = (
+        <div className="min-w-0 inline-flex items-center gap-2">
+            <Avatar name={group.authorName} url={group.avatarUrl} />
+            <span className="truncate font-medium text-foreground">{group.authorName}</span>
+        </div>
+    );
+
+    if (!email) {
+        return content;
+    }
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <div className="min-w-0">{content}</div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{email}</TooltipContent>
+        </Tooltip>
+    );
+}
+
 function HistoryTimelineItem({
-    connectorClass,
+    showConnectorAbove,
+    showConnectorBelow,
     event,
     resolvedComment,
     onSelectComment,
@@ -428,7 +481,8 @@ function HistoryTimelineItem({
     resolveCommentPending,
     onResolveThread,
 }: {
-    connectorClass: string | null;
+    showConnectorAbove: boolean;
+    showConnectorBelow: boolean;
     event: PullRequestHistoryEvent;
     resolvedComment?: PullRequestBundle["comments"][number];
     onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
@@ -454,7 +508,7 @@ function HistoryTimelineItem({
 
     return (
         <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
-            {connectorClass ? <div className={connectorClass} /> : null}
+            <TimelineConnector showAbove={showConnectorAbove} showBelow={showConnectorBelow} />
             <div className="relative z-10 pt-1">
                 <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("history", event.type))}>
                     <HistoryIcon className="size-4" />
@@ -463,12 +517,12 @@ function HistoryTimelineItem({
             <div className="min-w-0 pt-1">
                 <div className="w-full rounded-md text-left">
                     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
-                        <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4">
+                        <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
                             <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} />
                             <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
                             {eventTitle ? <span className="text-muted-foreground">{eventTitle}</span> : null}
                         </div>
-                        <span className="pt-px text-right text-[10px] text-muted-foreground">{formatDate(event.createdAt)}</span>
+                        <Timestamp value={event.createdAt} className={TIMELINE_TIMESTAMP_CLASS} />
                     </div>
                     {event.comment?.path ? (
                         <div className="flex items-center gap-2 px-2 pt-1">
@@ -498,7 +552,7 @@ function HistoryTimelineItem({
                             ) : null}
                         </div>
                     ) : null}
-                    {event.details && !["reviewRequested", "reviewerAdded", "reviewerRemoved", "updated"].includes(event.type) ? (
+                    {event.details && shouldRenderHistoryDetails(event.type) ? (
                         <div className="px-2 pt-1 text-[13px] text-muted-foreground break-words">{event.details}</div>
                     ) : null}
                     {event.content || event.contentHtml ? (
@@ -531,6 +585,7 @@ export function PullRequestSummaryPanel({
     headerTitle,
     diffStats,
     headerRight,
+    footerRight,
     onSelectComment,
     canResolveThread,
     resolveCommentPending,
@@ -540,12 +595,13 @@ export function PullRequestSummaryPanel({
     headerTitle?: string;
     diffStats?: { added: number; removed: number };
     headerRight?: ReactNode;
+    footerRight?: ReactNode;
     onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     canResolveThread?: boolean;
     resolveCommentPending?: boolean;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
 }) {
-    const { pr, commits, history } = bundle;
+    const { pr, commits, history, prRef } = bundle;
     const baseHistory: PullRequestHistoryEvent[] = history ?? [];
     const commentById = new Map(bundle.comments.map((comment) => [comment.id, comment] as const));
     const commentHistoryById = new Map<number, PullRequestHistoryEvent>();
@@ -602,8 +658,8 @@ export function PullRequestSummaryPanel({
         }
         return true;
     });
-    const orderedHistory = [...visibleHistory].sort((a, b) => timestamp(a.createdAt) - timestamp(b.createdAt));
-    const orderedCommits = [...commits].sort((a, b) => timestamp(a.date) - timestamp(b.date));
+    const orderedHistory = [...visibleHistory].sort((a, b) => timestampValue(a.createdAt) - timestampValue(b.createdAt));
+    const orderedCommits = [...commits].sort((a, b) => timestampValue(a.date) - timestampValue(b.date));
     const timelineEntries = buildTimelineEntries({
         prCreatedAt: pr.createdAt,
         history: orderedHistory,
@@ -630,24 +686,20 @@ export function PullRequestSummaryPanel({
                     {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
                 </div>
             ) : null}
-            <div className="p-2.5">
+            <div className="px-2.5 pb-48 pt-2.5">
                 <div className="space-y-0">
                     {timelineEntries.map((entry, index) => {
                         const isFirst = index === 0;
                         const isLast = index === timelineEntries.length - 1;
-                        const connectorClass = isFirst
-                            ? isLast
-                                ? null
-                                : "absolute bottom-0 left-[17px] top-9 w-px bg-border-muted"
-                            : isLast
-                              ? "absolute bottom-9 left-[17px] top-0 w-px bg-border-muted"
-                              : "absolute inset-y-0 left-[17px] w-px bg-border-muted";
+                        const showConnectorAbove = !isFirst;
+                        const showConnectorBelow = !isLast;
 
                         if (entry.kind === "description") {
                             return (
                                 <DescriptionTimelineItem
                                     key={entry.id}
-                                    connectorClass={connectorClass}
+                                    showConnectorAbove={showConnectorAbove}
+                                    showConnectorBelow={showConnectorBelow}
                                     authorName={pr.author?.displayName}
                                     authorAvatarUrl={pr.author?.avatarUrl}
                                     createdAt={pr.createdAt}
@@ -657,13 +709,22 @@ export function PullRequestSummaryPanel({
                         }
 
                         if (entry.kind === "commitGroup") {
-                            return <CommitGroupTimelineItem key={entry.id} connectorClass={connectorClass} entry={entry} />;
+                            return (
+                                <CommitGroupTimelineItem
+                                    key={entry.id}
+                                    showConnectorAbove={showConnectorAbove}
+                                    showConnectorBelow={showConnectorBelow}
+                                    entry={entry}
+                                    host={prRef.host}
+                                />
+                            );
                         }
 
                         return (
                             <HistoryTimelineItem
                                 key={entry.id}
-                                connectorClass={connectorClass}
+                                showConnectorAbove={showConnectorAbove}
+                                showConnectorBelow={showConnectorBelow}
                                 event={entry.event}
                                 resolvedComment={typeof entry.event.comment?.id === "number" ? commentById.get(entry.event.comment.id) : undefined}
                                 onSelectComment={onSelectComment}
@@ -674,6 +735,7 @@ export function PullRequestSummaryPanel({
                         );
                     })}
                 </div>
+                {footerRight ? <div className="mt-3 border-t border-border-muted pt-3">{footerRight}</div> : null}
             </div>
         </div>
     );

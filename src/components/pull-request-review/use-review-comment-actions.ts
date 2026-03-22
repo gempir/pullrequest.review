@@ -43,7 +43,7 @@ export function useReviewCommentActions({
                 return createPullRequestComment({ prRef, content: payload.content, parentId: payload.parentId });
             }
             if (!payload.path) {
-                throw new Error("Comment path is required for inline comments");
+                return createPullRequestComment({ prRef, content: payload.content });
             }
             return createPullRequestComment({
                 prRef,
@@ -165,6 +165,20 @@ export function useReviewCommentActions({
         },
         [actionPolicy.canCommentInline, actionPolicy.disabledReason.commentInline, authCanWrite, createCommentMutation, requestAuth, setActionError],
     );
+    const submitPullRequestComment = useCallback(
+        (content: string) => {
+            if (!actionPolicy.canCommentInline) {
+                setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
+                if (!authCanWrite) requestAuth("write");
+                return false;
+            }
+            const trimmed = content.trim();
+            if (!trimmed) return false;
+            createCommentMutation.mutate({ content: trimmed });
+            return true;
+        },
+        [actionPolicy.canCommentInline, actionPolicy.disabledReason.commentInline, authCanWrite, createCommentMutation, requestAuth, setActionError],
+    );
     const submitCommentEdit = useCallback(
         (commentId: number, content: string, hasInlineContext: boolean) => {
             const trimmed = content.trim();
@@ -180,6 +194,7 @@ export function useReviewCommentActions({
         resolveCommentMutation,
         submitCommentEdit,
         submitInlineComment,
+        submitPullRequestComment,
         submitThreadReply,
         updateCommentMutation,
     };

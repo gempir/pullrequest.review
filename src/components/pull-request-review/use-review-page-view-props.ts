@@ -22,7 +22,7 @@ export function useReviewPageViewProps({
     pullRequest,
     isRefreshing,
     navbarState,
-    navbarStatusDate,
+    navbarStatusTimestamp,
     buildStatuses,
     actionPolicy,
     currentUserReviewStatus,
@@ -77,10 +77,10 @@ export function useReviewPageViewProps({
     unviewedFileCount: number;
     allowedPathSet: Set<string>;
     viewedFiles: Set<string>;
-    pullRequest: { source?: { branch?: { name?: string } }; destination?: { branch?: { name?: string } } };
+    pullRequest: { source?: { branch?: { name?: string } }; destination?: { branch?: { name?: string } }; draft?: boolean };
     isRefreshing: boolean;
     navbarState: string;
-    navbarStatusDate: string;
+    navbarStatusTimestamp?: string;
     buildStatuses: MainViewProps["navbarProps"]["buildStatuses"];
     actionPolicy: { canApprove: boolean; canRequestChanges: boolean; canMerge: boolean; canDecline: boolean; canMarkDraft: boolean };
     currentUserReviewStatus: "approved" | "changesRequested" | "none";
@@ -182,13 +182,14 @@ export function useReviewPageViewProps({
             sourceBranch: pullRequest?.source?.branch?.name ?? "source",
             destinationBranch: pullRequest?.destination?.branch?.name ?? "target",
             navbarState,
-            navbarStatusDate,
+            navbarStatusTimestamp,
             buildStatuses,
             canApprove: actionPolicy.canApprove,
             canRequestChanges: actionPolicy.canRequestChanges,
             canMerge: actionPolicy.canMerge,
             canDecline: actionPolicy.canDecline,
             canMarkDraft: actionPolicy.canMarkDraft,
+            isDraft: Boolean(pullRequest?.draft),
             currentUserReviewStatus,
             isApprovePending: approvePending,
             isRequestChangesPending: requestChangesPending,
@@ -218,12 +219,13 @@ export function useReviewPageViewProps({
             currentUserReviewStatus,
             declinePending,
             isRefreshing,
+            pullRequest?.draft,
             markDraftPending,
             host,
             rightSidebarCollapsed,
             pullRequestUrl,
             navbarState,
-            navbarStatusDate,
+            navbarStatusTimestamp,
             onApprove,
             onDecline,
             onCopySourceBranch,

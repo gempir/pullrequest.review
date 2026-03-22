@@ -4,8 +4,9 @@ import { GitHostIcon } from "@/components/git-host-icon";
 import { RepositorySelector } from "@/components/repository-selector";
 import { SettingsPanelContentOnly } from "@/components/settings-menu";
 import { settingsPathForTab, settingsTabFromPath } from "@/components/settings-navigation";
+import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
-import { formatRootListDate, type SortedRootPullRequest } from "@/features/landing/model/landing-model";
+import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
 import { getHostLabel } from "@/lib/git-host/service";
 import type { GitHost, PullRequestSummary, RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
@@ -39,14 +40,12 @@ function PullRequestListItem({
     host,
     repo,
     pullRequest,
-    updatedDateLabel,
     showRepoLabel,
     onOpenPullRequest,
 }: {
     host: GitHost;
     repo: RepoRef;
     pullRequest: PullRequestSummary;
-    updatedDateLabel: string | null;
     showRepoLabel: boolean;
     onOpenPullRequest: (repo: RepoRef, pullRequestId: string) => void;
 }) {
@@ -67,7 +66,11 @@ function PullRequestListItem({
             >
                 <div className="flex items-start justify-between gap-3">
                     <div className="truncate font-medium text-foreground">{pullRequest.title}</div>
-                    {updatedDateLabel ? <span className="shrink-0 text-[10px] text-muted-foreground">Updated {updatedDateLabel}</span> : null}
+                    {pullRequest.updatedAt ? (
+                        <span className="shrink-0 text-muted-foreground">
+                            Updated <Timestamp value={pullRequest.updatedAt} />
+                        </span>
+                    ) : null}
                 </div>
                 <div className="mt-0.5 text-[11px] text-muted-foreground">
                     #{pullRequest.id} - {pullRequest.author?.displayName ?? "Unknown author"}
@@ -76,7 +79,11 @@ function PullRequestListItem({
                     <span>
                         {pullRequest.source?.branch?.name ?? "source"} -&gt; {pullRequest.destination?.branch?.name ?? "target"}
                     </span>
-                    {formatRootListDate(pullRequest.createdAt) ? <span className="shrink-0">Created {formatRootListDate(pullRequest.createdAt)}</span> : null}
+                    {pullRequest.createdAt ? (
+                        <span className="shrink-0">
+                            Created <Timestamp value={pullRequest.createdAt} />
+                        </span>
+                    ) : null}
                 </div>
             </button>
         </div>
@@ -151,15 +158,15 @@ export function LandingMainContent({
                                     onSave={(nextRepos) => onSaveSelectedRepos(activeHost, nextRepos)}
                                 />
                                 <div className="flex justify-end">
-                                    <Button variant="outline" onClick={() => onClearRepos(activeHost)}>
+                                    <Button variant="outline" className="rounded-md" onClick={() => onClearRepos(activeHost)}>
                                         Clear {getHostLabel(activeHost)} repositories
                                     </Button>
                                 </div>
-                                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 space-y-3">
                                     <div className="text-[12px] text-muted-foreground">Danger zone</div>
                                     <Button
                                         variant="outline"
-                                        className="text-destructive hover:bg-destructive/10"
+                                        className="rounded-md border-destructive/30 text-destructive hover:bg-destructive/10"
                                         onClick={() => {
                                             if (!window.confirm(`Disconnect ${getHostLabel(activeHost)} and clear its repositories?`)) return;
                                             onDisconnectHost(activeHost);
@@ -216,7 +223,6 @@ export function LandingMainContent({
                                         host={host}
                                         repo={repo}
                                         pullRequest={pullRequest}
-                                        updatedDateLabel={updatedDateLabel}
                                         showRepoLabel={showRepoLabel}
                                         onOpenPullRequest={onOpenPullRequest}
                                     />

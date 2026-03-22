@@ -1,3 +1,4 @@
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
     Check,
     Circle,
@@ -20,6 +21,7 @@ import remarkGfm from "remark-gfm";
 import { Timestamp } from "@/components/timestamp";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Commit, PullRequestBundle, PullRequestHistoryEvent } from "@/lib/git-host/types";
+import type { ReviewDiffScopeSearch } from "@/lib/review-diff-scope";
 import { timestampValue } from "@/lib/timestamp";
 import { cn } from "@/lib/utils";
 
@@ -390,6 +392,12 @@ function CommitGroupTimelineItem({
     entry: CommitGroupTimelineEntry;
     host: PullRequestBundle["prRef"]["host"];
 }) {
+    const { hash, pathname } = useRouterState({
+        select: (state) => ({
+            hash: state.location.hash,
+            pathname: state.location.pathname,
+        }),
+    });
     const commitGroups = groupCommitsByAuthor(entry.commits);
 
     return (
@@ -419,16 +427,25 @@ function CommitGroupTimelineItem({
                                     {group.commits.map((commit) => {
                                         const message = commit.summary?.raw ?? commit.message;
                                         const mergedDevelop = isMergedDevelopCommit(message);
+                                        const commitSearch = { from: commit.hash } satisfies ReviewDiffScopeSearch;
 
                                         return (
                                             <div key={commit.hash} className={cn("py-0.5", mergedDevelop ? "text-muted-foreground opacity-70" : "")}>
                                                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-[13px] leading-5">
                                                     <div className="min-w-0 flex items-center gap-2 overflow-hidden">
-                                                        <span
-                                                            className={cn("shrink-0 font-mono", mergedDevelop ? "text-status-added/80" : "text-status-renamed")}
+                                                        <Link
+                                                            to={pathname}
+                                                            hash={hash}
+                                                            search={() => commitSearch}
+                                                            replace
+                                                            className={cn(
+                                                                "shrink-0 rounded-sm font-mono underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                                                                mergedDevelop ? "text-status-added/80" : "text-status-renamed",
+                                                            )}
+                                                            title={`Show changes for ${commit.hash}`}
                                                         >
                                                             {shortHash(commit.hash)}
-                                                        </span>
+                                                        </Link>
                                                         <span className={cn("truncate", mergedDevelop ? "text-muted-foreground" : "text-foreground")}>
                                                             {message ?? "(no message)"}
                                                         </span>

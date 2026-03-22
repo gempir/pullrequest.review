@@ -136,6 +136,9 @@ export function ReviewSingleModeView({
                     headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
                     diffStats={lineStats}
                     onSelectComment={onHistoryCommentNavigate}
+                    canResolveThread={canResolveThread}
+                    resolveCommentPending={resolveCommentPending}
+                    onResolveThread={onResolveThread}
                     headerRight={
                         <div className="flex items-center gap-1">
                             <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />

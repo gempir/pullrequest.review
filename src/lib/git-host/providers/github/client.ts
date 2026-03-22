@@ -595,6 +595,17 @@ function mapIssueEventToHistory(event: GithubIssueEvent): PullRequestHistoryEven
             details: event.requested_reviewer?.login,
         };
     }
+    if (kind === "head_ref_deleted") {
+        return {
+            id: `github-issue-event-${event.id}`,
+            type: "deletedBranch",
+            createdAt: event.created_at,
+            actor: {
+                displayName: event.actor?.login,
+                avatarUrl: event.actor?.avatar_url,
+            },
+        };
+    }
     if (kind === "ready_for_review" || kind === "renamed" || kind === "head_ref_force_pushed") {
         return {
             id: `github-issue-event-${event.id}`,
@@ -632,8 +643,11 @@ function mapHistory(pr: GithubPull, issueComments: GithubIssueComment[], reviews
         if (mapped) events.push(mapped);
     }
 
-    events.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
-    return events;
+    const mergedTimestamps = new Set(events.filter((event) => event.type === "merged" && event.createdAt).map((event) => event.createdAt as string));
+    const dedupedEvents = events.filter((event) => !(event.type === "closed" && event.createdAt && mergedTimestamps.has(event.createdAt)));
+
+    dedupedEvents.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+    return dedupedEvents;
 }
 
 function mapCheckRunState(checkRun: GithubCheckRun): PullRequestBuildStatus["state"] {

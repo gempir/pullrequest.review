@@ -1,4 +1,17 @@
-import { Check, Circle, GitCommitHorizontal, GitMerge, MessageSquare, PenSquare, ScrollText, UserMinus, UserPlus, X } from "lucide-react";
+import {
+    Check,
+    Circle,
+    GitCommitHorizontal,
+    GitMerge,
+    GitPullRequestClosed,
+    MessageSquare,
+    PenSquare,
+    ScrollText,
+    Trash2,
+    UserMinus,
+    UserPlus,
+    X,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -52,8 +65,9 @@ function historyIcon(type: PullRequestHistoryEvent["type"]) {
             return Check;
         case "changesRequested":
         case "reviewDismissed":
-        case "closed":
             return X;
+        case "closed":
+            return GitPullRequestClosed;
         case "reviewRequested":
         case "reviewerAdded":
             return UserPlus;
@@ -61,11 +75,22 @@ function historyIcon(type: PullRequestHistoryEvent["type"]) {
             return UserMinus;
         case "merged":
             return GitMerge;
+        case "deletedBranch":
+            return Trash2;
         case "updated":
             return PenSquare;
         case "opened":
         case "reopened":
             return ScrollText;
+    }
+}
+
+function historyEventTitle(type: PullRequestHistoryEvent["type"]) {
+    switch (type) {
+        case "deletedBranch":
+            return "deleted branch";
+        default:
+            return null;
     }
 }
 
@@ -78,12 +103,15 @@ function timelineIconClass(kind: "description" | "history" | "commitGroup", type
     }
     switch (type) {
         case "approved":
-        case "merged":
             return "border-status-added/40 bg-status-added/15 text-status-added";
+        case "merged":
+            return "border-status-renamed/40 bg-status-renamed/15 text-status-renamed";
         case "changesRequested":
         case "reviewDismissed":
         case "closed":
             return "border-status-removed/40 bg-status-removed/15 text-status-removed";
+        case "deletedBranch":
+            return "border-border-muted bg-surface-2 text-muted-foreground";
         case "reviewRequested":
         case "reviewerAdded":
             return "border-status-renamed/40 bg-status-renamed/15 text-status-renamed";
@@ -422,6 +450,7 @@ function HistoryTimelineItem({
         });
     };
     const HistoryIcon = historyIcon(event.type);
+    const eventTitle = historyEventTitle(event.type);
 
     return (
         <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
@@ -437,6 +466,7 @@ function HistoryTimelineItem({
                         <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4">
                             <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} />
                             <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
+                            {eventTitle ? <span className="text-muted-foreground">{eventTitle}</span> : null}
                         </div>
                         <span className="pt-px text-right text-[10px] text-muted-foreground">{formatDate(event.createdAt)}</span>
                     </div>

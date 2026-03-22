@@ -606,8 +606,9 @@ function applyFullContext(fileDiff: FileDiffMetadata, context: { oldLines: strin
     return {
         ...fileDiff,
         hunks,
-        oldLines: context.oldLines,
-        newLines: context.newLines,
+        isPartial: false,
+        deletionLines: context.oldLines,
+        additionLines: context.newLines,
     };
 }
 

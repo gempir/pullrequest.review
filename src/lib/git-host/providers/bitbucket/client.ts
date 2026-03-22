@@ -547,7 +547,6 @@ function mapActivityToHistory(activity: BitbucketActivityEntry, index: number): 
                 displayName: activity.update.author?.display_name,
                 avatarUrl: getAvatarUrl(activity.update.author),
             },
-            details: activity.update.state,
         };
     }
     return null;

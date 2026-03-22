@@ -17,28 +17,15 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { Timestamp } from "@/components/timestamp";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Commit, PullRequestBundle, PullRequestHistoryEvent } from "@/lib/git-host/types";
+import { timestampValue } from "@/lib/timestamp";
 import { cn } from "@/lib/utils";
 
 const TIMELINE_META_TEXT_CLASS = "text-[11px] leading-4";
-const TIMELINE_TIMESTAMP_CLASS = "pt-px text-right text-[11px] leading-4 text-muted-foreground";
+const TIMELINE_TIMESTAMP_CLASS = "pt-px text-right";
 const TIMELINE_CONNECTOR_CENTER_CLASS = "left-[15.5px]";
-
-function formatDate(value?: string) {
-    if (!value) return "Unknown";
-    try {
-        return new Intl.DateTimeFormat("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-        }).format(new Date(value));
-    } catch {
-        return value;
-    }
-}
 
 function shortHash(value: string) {
     return value.slice(0, 8);
@@ -52,12 +39,6 @@ function parseAuthorIdentity(raw?: string) {
     const label = match[1]?.trim() || match[2]?.trim();
     const email = match[2]?.trim();
     return { label: label || undefined, email: email || undefined };
-}
-
-function timestamp(value?: string) {
-    if (!value) return 0;
-    const parsed = new Date(value).getTime();
-    return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 function isMergedDevelopCommit(message?: string) {
@@ -267,7 +248,7 @@ function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?:
         timelineSources.push({
             id: event.id,
             kind: "history",
-            timestamp: timestamp(event.createdAt),
+            timestamp: timestampValue(event.createdAt),
             order: index,
             event,
         });
@@ -277,7 +258,7 @@ function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?:
         timelineSources.push({
             id: commit.hash,
             kind: "commit",
-            timestamp: timestamp(commit.date),
+            timestamp: timestampValue(commit.date),
             order: history.length + index,
             commit,
         });
@@ -386,7 +367,7 @@ function DescriptionTimelineItem({
                         <Avatar name={authorName} url={authorAvatarUrl} />
                         <span className="font-medium text-foreground">{authorName ?? "Unknown"}</span>
                     </div>
-                    <span className={TIMELINE_TIMESTAMP_CLASS}>{formatDate(createdAt)}</span>
+                    <Timestamp value={createdAt} className={TIMELINE_TIMESTAMP_CLASS} />
                 </div>
                 <div className="px-2">
                     <div className="rounded-md border border-border-muted bg-surface-1 p-3">
@@ -427,7 +408,11 @@ function CommitGroupTimelineItem({
                                 <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
                                     <CommitAuthorIdentity host={host} group={group} />
                                 </div>
-                                <span className={cn(TIMELINE_TIMESTAMP_CLASS, "text-transparent select-none")}>{formatDate(group.commits[0]?.date)}</span>
+                                <Timestamp
+                                    value={group.commits[0]?.date}
+                                    className={cn(TIMELINE_TIMESTAMP_CLASS, "invisible select-none")}
+                                    withTooltip={false}
+                                />
                             </div>
                             <div className="px-2">
                                 <div className="space-y-1">
@@ -448,7 +433,7 @@ function CommitGroupTimelineItem({
                                                             {message ?? "(no message)"}
                                                         </span>
                                                     </div>
-                                                    <span className={TIMELINE_TIMESTAMP_CLASS}>{formatDate(commit.date)}</span>
+                                                    <Timestamp value={commit.date} className={TIMELINE_TIMESTAMP_CLASS} />
                                                 </div>
                                             </div>
                                         );
@@ -537,7 +522,7 @@ function HistoryTimelineItem({
                             <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
                             {eventTitle ? <span className="text-muted-foreground">{eventTitle}</span> : null}
                         </div>
-                        <span className={TIMELINE_TIMESTAMP_CLASS}>{formatDate(event.createdAt)}</span>
+                        <Timestamp value={event.createdAt} className={TIMELINE_TIMESTAMP_CLASS} />
                     </div>
                     {event.comment?.path ? (
                         <div className="flex items-center gap-2 px-2 pt-1">
@@ -673,8 +658,8 @@ export function PullRequestSummaryPanel({
         }
         return true;
     });
-    const orderedHistory = [...visibleHistory].sort((a, b) => timestamp(a.createdAt) - timestamp(b.createdAt));
-    const orderedCommits = [...commits].sort((a, b) => timestamp(a.date) - timestamp(b.date));
+    const orderedHistory = [...visibleHistory].sort((a, b) => timestampValue(a.createdAt) - timestampValue(b.createdAt));
+    const orderedCommits = [...commits].sort((a, b) => timestampValue(a.date) - timestampValue(b.date));
     const timelineEntries = buildTimelineEntries({
         prCreatedAt: pr.createdAt,
         history: orderedHistory,

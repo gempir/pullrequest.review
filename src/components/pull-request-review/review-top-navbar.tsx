@@ -22,11 +22,14 @@ import {
     buildStatusLabel,
     navbarStateClass,
 } from "@/components/pull-request-review/review-formatters";
+import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { GitHost, PullRequestBuildStatus } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
+
+const BUILD_TIME_STYLE = { fontFamily: "var(--mono-font-family)" } as const;
 
 type ReviewTopNavbarProps = {
     loading: boolean;
@@ -38,7 +41,7 @@ type ReviewTopNavbarProps = {
     sourceBranch: string;
     destinationBranch: string;
     navbarState: string;
-    navbarStatusDate: string;
+    navbarStatusTimestamp?: string;
     buildStatuses?: PullRequestBuildStatus[];
     canApprove: boolean;
     canRequestChanges: boolean;
@@ -73,7 +76,7 @@ export function ReviewTopNavbar({
     sourceBranch,
     destinationBranch,
     navbarState,
-    navbarStatusDate,
+    navbarStatusTimestamp,
     buildStatuses,
     canApprove,
     canRequestChanges,
@@ -156,7 +159,7 @@ export function ReviewTopNavbar({
                         <span>-&gt;</span>
                         <span className="max-w-[180px] truncate text-foreground">{destinationBranch}</span>
                         <span className={cn("px-1.5 py-0.5 border uppercase text-[10px] rounded", navbarStateClass(navbarState))}>{navbarState}</span>
-                        <span className="truncate">{navbarStatusDate}</span>
+                        <Timestamp value={navbarStatusTimestamp} className="max-w-[120px] truncate align-middle" />
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 
@@ -336,7 +339,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                                             >
                                                 {rowIcon}
                                             </span>
-                                            <span className="w-20 shrink-0 text-muted-foreground">{buildRunningTime(build)}</span>
+                                            <BuildTimeLabel build={build} />
                                             <span className="truncate text-foreground">{build.name}</span>
                                         </a>
                                     );
@@ -351,7 +354,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                                         >
                                             {rowIcon}
                                         </span>
-                                        <span className="w-20 shrink-0 text-muted-foreground">{buildRunningTime(build)}</span>
+                                        <BuildTimeLabel build={build} />
                                         <span className="truncate text-foreground">{build.name}</span>
                                     </div>
                                 );
@@ -394,7 +397,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                                         >
                                             {icon}
                                         </span>
-                                        <span className="w-20 shrink-0 text-muted-foreground">{buildRunningTime(build)}</span>
+                                        <BuildTimeLabel build={build} />
                                         <span className="truncate text-foreground">{build.name}</span>
                                     </a>
                                 ) : (
@@ -407,7 +410,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                                         >
                                             {icon}
                                         </span>
-                                        <span className="w-20 shrink-0 text-muted-foreground">{buildRunningTime(build)}</span>
+                                        <BuildTimeLabel build={build} />
                                         <span className="truncate text-foreground">{build.name}</span>
                                     </div>
                                 )}
@@ -438,5 +441,22 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                 })
             )}
         </div>
+    );
+}
+
+function BuildTimeLabel({ build }: { build: PullRequestBuildStatus }) {
+    const startedAt = build.startedAt ? new Date(build.startedAt) : null;
+    const completedAt = build.completedAt ? new Date(build.completedAt) : null;
+    const hasStarted = Boolean(startedAt && !Number.isNaN(startedAt.getTime()));
+    const hasCompleted = Boolean(completedAt && !Number.isNaN(completedAt.getTime()));
+
+    if (hasCompleted && !hasStarted) {
+        return <Timestamp value={build.completedAt} tooltipSide="bottom" className="w-20 shrink-0" />;
+    }
+
+    return (
+        <span className="w-20 shrink-0 text-[9px] leading-4 text-muted-foreground" style={BUILD_TIME_STYLE}>
+            {buildRunningTime(build)}
+        </span>
     );
 }

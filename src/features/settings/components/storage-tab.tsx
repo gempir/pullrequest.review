@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
 import { clearExpiredDataNow, type DataCollectionsDebugSnapshot, getDataCollectionsDebugSnapshot, type StorageTier } from "@/lib/data/query-collections";
 import { getReviewPerfSnapshot, type ReviewPerfSnapshot } from "@/lib/review-performance/metrics";
@@ -9,11 +10,6 @@ function formatBytes(bytes: number | null) {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
-
-function formatTimestamp(timestamp: number | null) {
-    if (!timestamp || !Number.isFinite(timestamp)) return "n/a";
-    return new Date(timestamp).toLocaleString();
 }
 
 export function StorageTab() {
@@ -125,7 +121,7 @@ export function StorageTab() {
                             <div className="p-2">
                                 <div>Collections backend: {state.snapshot.backendMode}</div>
                                 <div>Persistence degraded: {state.snapshot.persistenceDegraded ? "yes" : "no"}</div>
-                                <div>Last sweep: {formatTimestamp(state.snapshot.lastSweepAt)}</div>
+                                <div>Last sweep: {state.snapshot.lastSweepAt ? <Timestamp value={state.snapshot.lastSweepAt} /> : "n/a"}</div>
                             </div>
                             <div className="p-2">
                                 <div>Total records: {state.snapshot.totalRecords}</div>
@@ -153,8 +149,8 @@ export function StorageTab() {
                                         <div className="font-medium capitalize">{tier}</div>
                                         <div>Records: {summary.count}</div>
                                         <div>Bytes: {formatBytes(summary.approxBytes)}</div>
-                                        <div>Oldest: {formatTimestamp(summary.oldestUpdatedAt)}</div>
-                                        <div>Newest: {formatTimestamp(summary.newestUpdatedAt)}</div>
+                                        <div>Oldest: {summary.oldestUpdatedAt ? <Timestamp value={summary.oldestUpdatedAt} /> : "n/a"}</div>
+                                        <div>Newest: {summary.newestUpdatedAt ? <Timestamp value={summary.newestUpdatedAt} /> : "n/a"}</div>
                                     </div>
                                 ) : null;
                             })}
@@ -175,8 +171,8 @@ export function StorageTab() {
                                     <div>Records: {summary.count}</div>
                                     <div>Bytes: {formatBytes(summary.approxBytes)}</div>
                                     <div>Expired: {summary.expiredCount}</div>
-                                    <div>Oldest: {formatTimestamp(summary.oldestUpdatedAt)}</div>
-                                    <div>Newest: {formatTimestamp(summary.newestUpdatedAt)}</div>
+                                    <div>Oldest: {summary.oldestUpdatedAt ? <Timestamp value={summary.oldestUpdatedAt} /> : "n/a"}</div>
+                                    <div>Newest: {summary.newestUpdatedAt ? <Timestamp value={summary.newestUpdatedAt} /> : "n/a"}</div>
                                 </div>
                             ))}
                         </div>

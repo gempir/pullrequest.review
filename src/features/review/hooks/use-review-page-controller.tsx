@@ -3,7 +3,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, type SetStateAction, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReviewCommentsSidebar } from "@/components/pull-request-review/review-comments-sidebar";
 import { ReviewCommitScopeControl } from "@/components/pull-request-review/review-commit-scope-control";
-import { formatRecentTimestamp } from "@/components/pull-request-review/review-formatters";
 import { createReviewPageUiStore, useReviewPageUiValue } from "@/components/pull-request-review/review-page.store";
 import { ReviewPageDiffContent } from "@/components/pull-request-review/review-page-diff-content";
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
@@ -355,7 +354,7 @@ export function useReviewPageController({
         sidebarThreads,
         selectedFileLevelThreads,
         lineStats,
-        navbarStatusDate,
+        navbarStatusTimestamp,
         navbarState,
         fileLineStats,
         handleDiffLineEnter,
@@ -883,7 +882,7 @@ export function useReviewPageController({
             [...resolvedScope.visibleCommits].reverse().map((commit) => ({
                 hash: commit.hash,
                 label: commit.hash.slice(0, 8),
-                timestamp: formatRecentTimestamp(commit.date),
+                timestamp: commit.date,
                 message: commit.summary?.raw?.trim() || commit.message?.trim() || "(no message)",
             })),
         [resolvedScope.visibleCommits],
@@ -980,7 +979,7 @@ export function useReviewPageController({
         pullRequest: pullRequest ?? {},
         isRefreshing: isPrQueryFetching,
         navbarState,
-        navbarStatusDate,
+        navbarStatusTimestamp,
         buildStatuses: prData?.buildStatuses,
         actionPolicy,
         currentUserReviewStatus,

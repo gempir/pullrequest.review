@@ -251,7 +251,7 @@ function DirectoryNode({
             <button
                 type="button"
                 className={cn(
-                    "group w-full min-w-0 flex items-center gap-3 py-1 text-left",
+                    "group w-full min-w-0 flex items-center gap-3 py-1 text-left outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
                     "hover:bg-surface-2 active:bg-surface-3 transition-colors cursor-pointer",
                     isActive ? "bg-surface-2 text-foreground border-l-2 border-l-accent" : "text-muted-foreground border-l-2 border-l-transparent",
                 )}
@@ -343,7 +343,7 @@ const FileNodeRow = memo(function FileNodeRow({
             type="button"
             data-tree-path={node.path}
             className={cn(
-                "relative w-full min-w-0 flex items-center gap-3 py-1 text-left",
+                "relative w-full min-w-0 flex items-center gap-3 py-1 text-left outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
                 "hover:bg-surface-2 active:bg-surface-3 transition-colors cursor-pointer",
                 isActive ? "bg-surface-2 text-foreground border-l-2 border-l-accent" : "text-muted-foreground border-l-2 border-l-transparent",
             )}

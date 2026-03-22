@@ -1,4 +1,4 @@
-import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useState } from "react";
+import { type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction, useCallback, useEffect, useState } from "react";
 import { readReviewLayoutState, writeReviewLayoutState } from "@/lib/data/query-collections";
 
 type ReviewViewMode = "single" | "all";
@@ -14,11 +14,11 @@ type UseReviewLayoutPreferencesReturn = {
     treeWidth: number;
     setTreeWidth: (next: number) => void;
     treeCollapsed: boolean;
-    setTreeCollapsed: (next: boolean) => void;
+    setTreeCollapsed: Dispatch<SetStateAction<boolean>>;
     rightSidebarWidth: number;
     setRightSidebarWidth: (next: number) => void;
     rightSidebarCollapsed: boolean;
-    setRightSidebarCollapsed: (next: boolean) => void;
+    setRightSidebarCollapsed: Dispatch<SetStateAction<boolean>>;
     viewMode: ReviewViewMode;
     setViewMode: (next: ReviewViewMode) => void;
     viewModeHydrated: boolean;

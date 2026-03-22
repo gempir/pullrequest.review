@@ -85,6 +85,12 @@ export function ShortcutsTab() {
                     shortcut={shortcuts.previousUnviewedFile}
                     onChange={(config) => updateShortcut("previousUnviewedFile", config)}
                 />
+                <ShortcutRow label="Open File Tree" shortcut={shortcuts.openFileTree} onChange={(config) => updateShortcut("openFileTree", config)} />
+                <ShortcutRow
+                    label="Open Comments Sidebar"
+                    shortcut={shortcuts.openCommentsSidebar}
+                    onChange={(config) => updateShortcut("openCommentsSidebar", config)}
+                />
                 <ShortcutRow label="Scroll Down" shortcut={shortcuts.scrollDown} onChange={(config) => updateShortcut("scrollDown", config)} />
                 <ShortcutRow label="Scroll Up" shortcut={shortcuts.scrollUp} onChange={(config) => updateShortcut("scrollUp", config)} />
                 <ShortcutRow label="Next File" shortcut={shortcuts.nextFile} onChange={(config) => updateShortcut("nextFile", config)} />

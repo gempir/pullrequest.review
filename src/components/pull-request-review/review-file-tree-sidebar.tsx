@@ -1,6 +1,7 @@
-import { Eye, EyeOff, FolderMinus, FolderPlus, PanelLeftClose } from "lucide-react";
+import { Eye, EyeOff, FolderMinus, FolderPlus } from "lucide-react";
 import { type MouseEventHandler, useCallback, useEffect, useRef } from "react";
 import { FileTree } from "@/components/file-tree";
+import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,12 +134,12 @@ export function ReviewFileTreeSidebar({
                         rightContent={
                             <Button
                                 variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                                size="icon-sm"
+                                className="h-7 w-11 px-0 text-muted-foreground hover:text-foreground"
                                 onClick={onCollapseTree}
                                 aria-label="Collapse file tree"
                             >
-                                <PanelLeftClose className="size-3.5" />
+                                <ReviewFileTreeToggleIcon direction="collapse" />
                             </Button>
                         }
                     />
@@ -173,7 +174,7 @@ export function ReviewFileTreeSidebar({
                                             ) : null}
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>
+                                    <TooltipContent side="bottom">{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -188,7 +189,7 @@ export function ReviewFileTreeSidebar({
                                             <FolderMinus className="size-3.5" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Collapse all directories</TooltipContent>
+                                    <TooltipContent side="bottom">Collapse all directories</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -203,7 +204,7 @@ export function ReviewFileTreeSidebar({
                                             <FolderPlus className="size-3.5" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Expand all directories</TooltipContent>
+                                    <TooltipContent side="bottom">Expand all directories</TooltipContent>
                                 </Tooltip>
                             </>
                         ) : null}

@@ -16,6 +16,7 @@ type ReviewFileTreeSidebarProps = {
     loading: boolean;
     showSettingsPanel: boolean;
     activeFile?: string;
+    fileLineStats?: ReadonlyMap<string, { added: number; removed: number }>;
     searchQuery: string;
     showUnviewedOnly: boolean;
     unviewedFileCount: number;
@@ -40,6 +41,7 @@ export function ReviewFileTreeSidebar({
     loading,
     showSettingsPanel,
     activeFile,
+    fileLineStats,
     searchQuery,
     showUnviewedOnly,
     unviewedFileCount,
@@ -213,6 +215,7 @@ export function ReviewFileTreeSidebar({
                             <div data-component="tree">
                                 <FileTree
                                     path=""
+                                    lineStatsByPath={fileLineStats}
                                     filterQuery={searchQuery}
                                     allowedFiles={allowedPathSet}
                                     viewedFiles={viewedFiles}

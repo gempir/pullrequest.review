@@ -76,7 +76,7 @@ export function ReviewCommentsSidebar({
             width={width}
             collapsed={collapsed}
             title="Comments"
-            count={unresolvedCount}
+            count={threads.length}
             onToggleCollapsed={onToggleCollapsed}
             onStartResize={onStartResize}
             secondaryHeader={

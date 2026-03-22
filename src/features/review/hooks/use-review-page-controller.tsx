@@ -8,7 +8,8 @@ import { ReviewPageDiffContent } from "@/components/pull-request-review/review-p
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
 import { ReviewPageLoadingView } from "@/components/pull-request-review/review-page-loading-view";
 import { ReviewPageMainView } from "@/components/pull-request-review/review-page-main-view";
-import { hashString, type InlineCommentLineTarget, type SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
+import { getCommentPath, hashString, type InlineCommentLineTarget, type SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
+import { buildCommentThreads } from "@/components/pull-request-review/review-threads";
 import { useInlineCommentDrafts } from "@/components/pull-request-review/use-inline-comment-drafts";
 import { useReviewLayoutPreferences } from "@/components/pull-request-review/use-review-layout-preferences";
 import { useReviewPageActions } from "@/components/pull-request-review/use-review-page-actions";
@@ -231,6 +232,7 @@ export function useReviewPageController({
     const suppressHashSyncRef = useRef(false);
     const pendingCommentScrollRef = useRef<number | null>(null);
     const firstDiffRenderedKeyRef = useRef<string>("");
+    const autoCollapseCommentsSidebarContextRef = useRef<string>("");
     const missingDiffRecoveryRef = useRef<{ contextKey: string; attempts: number; lastRecoverySignature: string }>({
         contextKey: "",
         attempts: 0,
@@ -402,6 +404,21 @@ export function useReviewPageController({
         viewedStorageKey,
     });
     const unresolvedSidebarThreadCount = sidebarThreads.filter((thread) => !thread.isResolved).length;
+    const loadedUnresolvedSidebarThreadCount = buildCommentThreads(prData?.comments ?? []).filter((thread) => {
+        const rootComment = thread.root.comment;
+        return !rootComment.deleted && !rootComment.resolution && Boolean(getCommentPath(rootComment));
+    }).length;
+
+    useEffect(() => {
+        if (!prData) return;
+        if (isPrQueryFetching) return;
+        if (autoCollapseCommentsSidebarContextRef.current === prContextKey) return;
+
+        autoCollapseCommentsSidebarContextRef.current = prContextKey;
+        if (loadedUnresolvedSidebarThreadCount === 0) {
+            setRightSidebarCollapsed(true);
+        }
+    }, [isPrQueryFetching, loadedUnresolvedSidebarThreadCount, prContextKey, prData, setRightSidebarCollapsed]);
 
     useEffect(() => {
         if (!prData) return;
@@ -970,6 +987,7 @@ export function useReviewPageController({
         treeWidth,
         treeCollapsed,
         rightSidebarCollapsed,
+        unresolvedCommentCount: unresolvedSidebarThreadCount,
         treeLoading,
         host,
         pullRequestUrl,

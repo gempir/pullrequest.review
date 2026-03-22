@@ -1,10 +1,10 @@
-import { ScrollText } from "lucide-react";
+import { Check, GitCommitHorizontal, GitMerge, MessageSquare, PenSquare, ScrollText, UserMinus, UserPlus, X } from "lucide-react";
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import type { PullRequestBundle, PullRequestHistoryEvent } from "@/lib/git-host/types";
+import type { Commit, PullRequestBundle, PullRequestHistoryEvent } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
 
 function formatDate(value?: string) {
@@ -26,6 +26,12 @@ function shortHash(value: string) {
     return value.slice(0, 8);
 }
 
+function timestamp(value?: string) {
+    if (!value) return 0;
+    const parsed = new Date(value).getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 function isMergedDevelopCommit(message?: string) {
     return /^merged develop\b/i.test((message ?? "").trim());
 }
@@ -41,29 +47,79 @@ function initials(value?: string) {
 function eventLabel(type: PullRequestHistoryEvent["type"]) {
     switch (type) {
         case "comment":
-            return "Comment";
+            return "commented";
         case "approved":
-            return "Approved";
+            return "approved this pull request";
         case "changesRequested":
-            return "Changes Requested";
+            return "requested changes";
         case "reviewRequested":
-            return "Review Requested";
+            return "requested a review";
         case "reviewDismissed":
-            return "Review Dismissed";
+            return "dismissed a review";
         case "reviewerAdded":
-            return "Reviewer Added";
+            return "added a reviewer";
         case "reviewerRemoved":
-            return "Reviewer Removed";
+            return "removed a reviewer";
         case "opened":
-            return "Opened";
+            return "opened this pull request";
         case "updated":
-            return "Updated";
+            return "updated this pull request";
         case "closed":
-            return "Closed";
+            return "closed this pull request";
         case "merged":
-            return "Merged";
+            return "merged this pull request";
         case "reopened":
-            return "Reopened";
+            return "reopened this pull request";
+    }
+}
+
+function historyIcon(type: PullRequestHistoryEvent["type"]) {
+    switch (type) {
+        case "comment":
+            return MessageSquare;
+        case "approved":
+            return Check;
+        case "changesRequested":
+        case "reviewDismissed":
+        case "closed":
+            return X;
+        case "reviewRequested":
+        case "reviewerAdded":
+            return UserPlus;
+        case "reviewerRemoved":
+            return UserMinus;
+        case "merged":
+            return GitMerge;
+        case "updated":
+            return PenSquare;
+        case "opened":
+        case "reopened":
+            return ScrollText;
+    }
+}
+
+function timelineIconClass(kind: "description" | "history" | "commitGroup", type?: PullRequestHistoryEvent["type"]) {
+    if (kind === "description") {
+        return "border-border-muted bg-surface-2 text-foreground";
+    }
+    if (kind === "commitGroup") {
+        return "border-border-muted bg-surface-2 text-status-renamed";
+    }
+    switch (type) {
+        case "approved":
+        case "merged":
+            return "border-status-added/40 bg-status-added/15 text-status-added";
+        case "changesRequested":
+        case "reviewDismissed":
+        case "closed":
+            return "border-status-removed/40 bg-status-removed/15 text-status-removed";
+        case "reviewRequested":
+        case "reviewerAdded":
+            return "border-status-renamed/40 bg-status-renamed/15 text-status-renamed";
+        case "comment":
+            return "border-border-muted bg-surface-2 text-foreground";
+        default:
+            return "border-border-muted bg-surface-2 text-muted-foreground";
     }
 }
 
@@ -97,20 +153,6 @@ function MarkdownBlock({ text }: { text: string }) {
     );
 }
 
-function Section({ title, children, headerRight }: { title?: string; children: ReactNode; headerRight?: ReactNode }) {
-    return (
-        <section>
-            {title || headerRight ? (
-                <div className="h-8 px-2.5 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-                    {title ? <span>{title}</span> : null}
-                    {headerRight ? <span className="ml-auto">{headerRight}</span> : null}
-                </div>
-            ) : null}
-            <div>{children}</div>
-        </section>
-    );
-}
-
 function Avatar({ name, url, sizeClass = "size-5" }: { name?: string; url?: string; sizeClass?: string }) {
     if (url) {
         return <img src={url} alt={name ?? "avatar"} className={cn(sizeClass, "rounded-full object-cover shrink-0")} />;
@@ -135,6 +177,103 @@ function extractHistoryCommentId(event: PullRequestHistoryEvent) {
     if (!match) return null;
     const parsed = Number(match[1]);
     return Number.isNaN(parsed) ? null : parsed;
+}
+
+type DescriptionTimelineEntry = {
+    id: string;
+    kind: "description";
+};
+
+type HistoryTimelineEntry = {
+    id: string;
+    kind: "history";
+    event: PullRequestHistoryEvent;
+};
+
+type CommitGroupTimelineEntry = {
+    id: string;
+    kind: "commitGroup";
+    commits: Commit[];
+};
+
+type TimelineEntry = DescriptionTimelineEntry | HistoryTimelineEntry | CommitGroupTimelineEntry;
+
+function formatHistoryDetails(event: PullRequestHistoryEvent) {
+    if (event.type === "reviewRequested" && event.details) {
+        return `requested review from ${event.details}`;
+    }
+    if (event.type === "reviewerAdded" && event.details) {
+        return `added ${event.details} as reviewer`;
+    }
+    if (event.type === "reviewerRemoved" && event.details) {
+        return `removed ${event.details} from reviewers`;
+    }
+    if (event.type === "updated" && event.details) {
+        return `${eventLabel(event.type)} (${event.details})`;
+    }
+    return eventLabel(event.type);
+}
+
+function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?: string; history: PullRequestHistoryEvent[]; commits: Commit[] }) {
+    const timelineSources: Array<
+        | { id: string; kind: "history"; timestamp: number; order: number; event: PullRequestHistoryEvent }
+        | { id: string; kind: "commit"; timestamp: number; order: number; commit: Commit }
+    > = [];
+
+    history.forEach((event, index) => {
+        timelineSources.push({
+            id: event.id,
+            kind: "history",
+            timestamp: timestamp(event.createdAt),
+            order: index,
+            event,
+        });
+    });
+
+    commits.forEach((commit, index) => {
+        timelineSources.push({
+            id: commit.hash,
+            kind: "commit",
+            timestamp: timestamp(commit.date),
+            order: history.length + index,
+            commit,
+        });
+    });
+
+    timelineSources.sort((a, b) => {
+        if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
+        return a.order - b.order;
+    });
+
+    const groupedEntries: TimelineEntry[] = [{ id: `pr-description-${prCreatedAt ?? "unknown"}`, kind: "description" }];
+    let pendingCommitGroup: Commit[] = [];
+
+    const flushPendingCommitGroup = () => {
+        if (pendingCommitGroup.length === 0) return;
+        groupedEntries.push({
+            id: `commit-group-${pendingCommitGroup[0]?.hash ?? "unknown"}`,
+            kind: "commitGroup",
+            commits: pendingCommitGroup,
+        });
+        pendingCommitGroup = [];
+    };
+
+    for (const item of timelineSources) {
+        if (item.kind === "commit") {
+            pendingCommitGroup.push(item.commit);
+            continue;
+        }
+        flushPendingCommitGroup();
+        groupedEntries.push({
+            id: item.id,
+            kind: "history",
+            event: item.event,
+        });
+    }
+
+    flushPendingCommitGroup();
+
+    return groupedEntries;
 }
 
 export function PullRequestSummaryPanel({
@@ -199,14 +338,20 @@ export function PullRequestSummaryPanel({
         resolvedHistory.push(fallbackEvent);
     }
     const visibleHistory = resolvedHistory.filter((event) => {
+        if (event.type === "opened") return false;
         if (event.type === "reopened") return false;
         if (event.type === "comment" && !event.content && !event.contentHtml && !event.comment?.path) {
             return false;
         }
         return true;
     });
-    const orderedHistory = [...visibleHistory].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
-    const orderedCommits = [...commits].sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
+    const orderedHistory = [...visibleHistory].sort((a, b) => timestamp(a.createdAt) - timestamp(b.createdAt));
+    const orderedCommits = [...commits].sort((a, b) => timestamp(a.date) - timestamp(b.date));
+    const timelineEntries = buildTimelineEntries({
+        prCreatedAt: pr.createdAt,
+        history: orderedHistory,
+        commits: orderedCommits,
+    });
 
     return (
         <div className="pr-diff-font" style={{ fontFamily: "var(--comment-font-family)" }}>
@@ -228,108 +373,149 @@ export function PullRequestSummaryPanel({
                     {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
                 </div>
             ) : null}
-            <div className="p-2.5 space-y-2.5">
-                <section>
-                    <div className="p-2.5">
-                        {pr.description?.trim() ? (
-                            <MarkdownBlock text={pr.description} />
-                        ) : (
-                            <div className="text-[13px] text-muted-foreground">No description.</div>
-                        )}
-                    </div>
-                </section>
+            <div className="p-2.5">
+                <div className="space-y-0">
+                    {timelineEntries.map((entry, index) => {
+                        const isLast = index === timelineEntries.length - 1;
 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                    <Section>
-                        {orderedHistory.length > 0 ? (
-                            <div className="space-y-2">
-                                {orderedHistory.map((event) => {
-                                    const canNavigateToComment = Boolean(event.comment?.path && onSelectComment);
-                                    const handleClick = () => {
-                                        if (!canNavigateToComment || !event.comment?.path) return;
-                                        onSelectComment?.({
-                                            path: event.comment.path,
-                                            line: event.comment.line,
-                                            side: event.comment.side,
-                                            commentId: event.comment.id,
-                                        });
-                                    };
-                                    return (
-                                        <button
-                                            key={event.id}
-                                            type="button"
-                                            onClick={handleClick}
-                                            disabled={!canNavigateToComment}
-                                            className={cn(
-                                                "w-full rounded-md px-2.5 py-2 text-left border",
-                                                canNavigateToComment
-                                                    ? "bg-surface-1 border-border-muted transition-colors hover:bg-surface-2 hover:border-border focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                    : "bg-surface-1 border-border-muted cursor-default",
-                                            )}
-                                        >
-                                            <div className="space-y-1.5">
-                                                <div className="flex items-center gap-2 text-[11px]">
-                                                    <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} sizeClass="size-4" />
-                                                    <span className="text-foreground">{eventLabel(event.type)}</span>
-                                                    <span className="text-muted-foreground">{event.actor?.displayName ?? "Unknown"}</span>
-                                                    {event.comment?.path ? <span className="text-accent font-mono truncate">{event.comment.path}</span> : null}
-                                                    <span className="ml-auto text-muted-foreground">{formatDate(event.createdAt)}</span>
-                                                </div>
-                                                {event.details ? <div className="text-[13px] text-muted-foreground break-words">{event.details}</div> : null}
-                                                {event.content || event.contentHtml ? (
-                                                    <div>
-                                                        <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />
+                        if (entry.kind === "description") {
+                            return (
+                                <div key={entry.id} className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
+                                    {!isLast ? <div className="absolute bottom-0 left-[17px] top-9 w-px bg-border-muted" /> : null}
+                                    <div className="relative z-10 pt-1">
+                                        <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("description"))}>
+                                            <ScrollText className="size-4" />
+                                        </div>
+                                    </div>
+                                    <div className="min-w-0 rounded-md border border-border-muted bg-surface-1 p-3">
+                                        <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-5">
+                                            <Avatar name={pr.author?.displayName} url={pr.author?.avatarUrl} />
+                                            <span className="font-medium text-foreground">{pr.author?.displayName ?? "Unknown"}</span>
+                                            <span className="text-muted-foreground">opened this pull request</span>
+                                            <span className="text-muted-foreground">{formatDate(pr.createdAt)}</span>
+                                        </div>
+                                        {pr.description?.trim() ? (
+                                            <MarkdownBlock text={pr.description} />
+                                        ) : (
+                                            <div className="text-[13px] text-muted-foreground">No description.</div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        }
+
+                        if (entry.kind === "commitGroup") {
+                            return (
+                                <div key={entry.id} className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
+                                    {!isLast ? <div className="absolute bottom-0 left-[17px] top-9 w-px bg-border-muted" /> : null}
+                                    <div className="relative z-10 pt-1">
+                                        <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("commitGroup"))}>
+                                            <GitCommitHorizontal className="size-4" />
+                                        </div>
+                                    </div>
+                                    <div className="min-w-0 overflow-hidden rounded-md border border-border-muted bg-surface-1">
+                                        {entry.commits.map((commit, commitIndex) => {
+                                            const message = commit.summary?.raw ?? commit.message;
+                                            const mergedDevelop = isMergedDevelopCommit(message);
+                                            const authorName = commit.author?.user?.displayName ?? commit.author?.raw ?? "Unknown";
+
+                                            return (
+                                                <div
+                                                    key={commit.hash}
+                                                    className={cn(
+                                                        "px-3 py-2",
+                                                        commitIndex > 0 ? "border-t border-border-muted" : "",
+                                                        mergedDevelop ? "bg-status-added/10 text-muted-foreground opacity-70" : "",
+                                                    )}
+                                                >
+                                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-5">
+                                                        <Avatar name={authorName} url={commit.author?.user?.avatarUrl} />
+                                                        <span className="font-medium text-foreground">{authorName}</span>
+                                                        <span className={cn("font-mono", mergedDevelop ? "text-status-added/80" : "text-status-renamed")}>
+                                                            {shortHash(commit.hash)}
+                                                        </span>
+                                                        <span className="text-muted-foreground">{formatDate(commit.date)}</span>
                                                     </div>
-                                                ) : null}
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="text-[13px] text-muted-foreground">No history yet.</div>
-                        )}
-                    </Section>
+                                                    <div
+                                                        className={cn(
+                                                            "pl-7 pt-1 text-[13px] break-words",
+                                                            mergedDevelop ? "text-muted-foreground" : "text-foreground",
+                                                        )}
+                                                    >
+                                                        {message ?? "(no message)"}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        }
 
-                    <Section>
-                        {orderedCommits.length > 0 ? (
-                            <div className="space-y-1.5">
-                                {orderedCommits.map((commit) => {
-                                    const message = commit.summary?.raw ?? commit.message;
-                                    const mergedDevelop = isMergedDevelopCommit(message);
-                                    return (
-                                        <div
-                                            key={commit.hash}
-                                            className={cn(
-                                                "grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,3fr)_88px] gap-2 rounded-md bg-surface-1 border border-border-muted px-2 py-1.5 text-[11px]",
-                                                mergedDevelop ? "bg-status-added/10 text-muted-foreground opacity-70" : "",
-                                            )}
-                                        >
-                                            <div className="min-w-0 flex items-center gap-2">
-                                                <Avatar
-                                                    name={commit.author?.user?.displayName ?? commit.author?.raw}
-                                                    url={commit.author?.user?.avatarUrl}
-                                                    sizeClass="size-4"
-                                                />
-                                                <span className="truncate text-foreground">
-                                                    {commit.author?.user?.displayName ?? commit.author?.raw ?? "Unknown"}
+                        const { event } = entry;
+                        const canNavigateToComment = Boolean(event.comment?.path && onSelectComment);
+                        const handleClick = () => {
+                            if (!canNavigateToComment || !event.comment?.path) return;
+                            onSelectComment?.({
+                                path: event.comment.path,
+                                line: event.comment.line,
+                                side: event.comment.side,
+                                commentId: event.comment.id,
+                            });
+                        };
+                        const HistoryIcon = historyIcon(event.type);
+
+                        return (
+                            <div key={entry.id} className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
+                                {!isLast ? <div className="absolute bottom-0 left-[17px] top-9 w-px bg-border-muted" /> : null}
+                                <div className="relative z-10 pt-1">
+                                    <div
+                                        className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("history", event.type))}
+                                    >
+                                        <HistoryIcon className="size-4" />
+                                    </div>
+                                </div>
+                                <div className="min-w-0 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={handleClick}
+                                        disabled={!canNavigateToComment}
+                                        className={cn(
+                                            "w-full rounded-md px-2 py-1.5 text-left",
+                                            canNavigateToComment
+                                                ? "transition-colors hover:bg-surface-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                : "cursor-default",
+                                        )}
+                                    >
+                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-5">
+                                            <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} />
+                                            <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
+                                            <span className="text-muted-foreground">{formatHistoryDetails(event)}</span>
+                                            <span className="text-muted-foreground">{formatDate(event.createdAt)}</span>
+                                        </div>
+                                        {event.comment?.path ? (
+                                            <div className="pl-7 pt-1">
+                                                <span className="inline-flex rounded border border-border-muted bg-surface-1 px-1.5 py-0.5 font-mono text-[11px] text-accent">
+                                                    {event.comment.path}
+                                                    {event.comment.line ? `:${event.comment.line}` : ""}
                                                 </span>
                                             </div>
-                                            <span className={cn("font-mono", mergedDevelop ? "text-status-added/80" : "text-status-renamed")}>
-                                                {shortHash(commit.hash)}
-                                            </span>
-                                            <span className={cn("truncate", mergedDevelop ? "text-muted-foreground" : "text-foreground")}>
-                                                {message ?? "(no message)"}
-                                            </span>
-                                            <span className="text-right text-muted-foreground">{formatDate(commit.date)}</span>
-                                        </div>
-                                    );
-                                })}
+                                        ) : null}
+                                        {event.details && !["reviewRequested", "reviewerAdded", "reviewerRemoved", "updated"].includes(event.type) ? (
+                                            <div className="pl-7 pt-1 text-[13px] text-muted-foreground break-words">{event.details}</div>
+                                        ) : null}
+                                        {event.content || event.contentHtml ? (
+                                            <div className="pl-7 pt-2">
+                                                <div className="rounded-md border border-border-muted bg-surface-1 p-3">
+                                                    <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </button>
+                                </div>
                             </div>
-                        ) : (
-                            <div className="text-[13px] text-muted-foreground">No commits found.</div>
-                        )}
-                    </Section>
+                        );
+                    })}
                 </div>
             </div>
         </div>

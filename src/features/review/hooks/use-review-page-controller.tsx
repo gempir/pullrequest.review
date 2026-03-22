@@ -971,6 +971,7 @@ export function useReviewPageController({
         pullRequestUrl,
         showSettingsPanel,
         activeFile,
+        fileLineStats,
         searchQuery,
         showUnviewedOnly,
         unviewedFileCount,

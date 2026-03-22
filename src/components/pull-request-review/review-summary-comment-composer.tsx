@@ -53,13 +53,13 @@ export function ReviewSummaryCommentComposer({
         <div className="flex gap-3">
             <CommentAvatar name={currentUserDisplayName ?? "You"} url={currentUserAvatarUrl} />
             <div className="min-w-0 flex-1 space-y-2">
-                <div className="text-[12px] font-medium text-foreground">Add a comment</div>
                 <CommentEditor
                     value={value}
                     placeholder="Add your comment here..."
                     disabled={isSubmitting || !canComment}
                     onChange={setValue}
                     onSubmit={handleSubmit}
+                    contentStyle={{ minHeight: "5rem" }}
                 />
                 <div className="flex items-center gap-2 pt-1">
                     <Button

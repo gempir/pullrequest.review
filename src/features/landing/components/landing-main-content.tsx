@@ -151,15 +151,15 @@ export function LandingMainContent({
                                     onSave={(nextRepos) => onSaveSelectedRepos(activeHost, nextRepos)}
                                 />
                                 <div className="flex justify-end">
-                                    <Button variant="outline" onClick={() => onClearRepos(activeHost)}>
+                                    <Button variant="outline" className="rounded-md" onClick={() => onClearRepos(activeHost)}>
                                         Clear {getHostLabel(activeHost)} repositories
                                     </Button>
                                 </div>
-                                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 space-y-3">
                                     <div className="text-[12px] text-muted-foreground">Danger zone</div>
                                     <Button
                                         variant="outline"
-                                        className="text-destructive hover:bg-destructive/10"
+                                        className="rounded-md border-destructive/30 text-destructive hover:bg-destructive/10"
                                         onClick={() => {
                                             if (!window.confirm(`Disconnect ${getHostLabel(activeHost)} and clear its repositories?`)) return;
                                             onDisconnectHost(activeHost);

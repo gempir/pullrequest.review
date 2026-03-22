@@ -85,6 +85,7 @@ export function useReviewPageActions({
         closeSourceBranch,
         ensurePrRef,
         isApprovedByCurrentUser,
+        isDraft: Boolean(pullRequest?.draft),
         mergeMessage,
         mergeStrategy,
         refreshPullRequest,
@@ -98,6 +99,7 @@ export function useReviewPageActions({
         resolveCommentMutation,
         submitCommentEdit,
         submitInlineComment,
+        submitPullRequestComment,
         submitThreadReply,
         updateCommentMutation,
     } = useReviewCommentActions({
@@ -139,6 +141,7 @@ export function useReviewPageActions({
         handleDeclinePullRequest,
         handleMarkPullRequestAsDraft,
         submitInlineComment,
+        submitPullRequestComment,
         submitThreadReply,
         submitCommentEdit,
         handleCopyPath,

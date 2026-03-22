@@ -59,72 +59,80 @@ export function RepositorySelector({
     }, [entries, query]);
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 rounded-md border border-border-muted bg-surface-1 p-4">
             <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
                 <FolderGit className="size-4" />
                 <span>Select repositories to include on the landing page.</span>
             </div>
 
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input placeholder="Filter repositories..." value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+            <div className="rounded-md border border-border-muted bg-background">
+                <div className="relative border-b border-border-muted">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Filter repositories..."
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        className="h-10 rounded-none border-0 bg-transparent pl-9 focus-visible:ring-0"
+                    />
+                </div>
+
+                {isRepositoryLoading ? (
+                    <div className="p-8 text-center text-muted-foreground text-[13px]">
+                        <div className="flex items-center justify-center gap-2">
+                            <Loader2 className="size-4 animate-spin" />
+                            <span>Loading repositories...</span>
+                        </div>
+                    </div>
+                ) : repositoryError ? (
+                    <div className="m-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-destructive text-[13px]">
+                        <div className="flex items-center gap-2">
+                            <AlertCircle className="size-4" />
+                            <span>{repositoryError instanceof Error ? repositoryError.message : "Failed to load repositories"}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="max-h-80 overflow-auto p-2">
+                        <div className="space-y-1">
+                            {filtered.map((repo) => {
+                                const checked = selected.has(repo.fullName);
+                                return (
+                                    <label
+                                        key={repo.fullName}
+                                        className="flex cursor-pointer items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-[13px] transition-colors hover:border-border-muted hover:bg-surface-2"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            className="size-4 shrink-0 rounded-[3px] border border-border-muted bg-muted accent-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                            checked={checked}
+                                            onChange={(e) => {
+                                                setSelected((prev) => {
+                                                    const next = new Set(prev);
+                                                    if (e.target.checked) next.add(repo.fullName);
+                                                    else next.delete(repo.fullName);
+                                                    return next;
+                                                });
+                                            }}
+                                        />
+                                        <span className="flex-1 truncate font-mono text-[12px] text-foreground">{repo.fullName}</span>
+                                    </label>
+                                );
+                            })}
+                            {filtered.length === 0 && (
+                                <div className="px-4 py-8 text-center text-muted-foreground text-[13px]">No repositories match your filter.</div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {isRepositoryLoading ? (
-                <div className="bg-background p-8 text-center text-muted-foreground text-[13px]">
-                    <div className="flex items-center justify-center gap-2">
-                        <Loader2 className="size-4 animate-spin" />
-                        <span>Loading repositories...</span>
-                    </div>
-                </div>
-            ) : repositoryError ? (
-                <div className="bg-destructive/10 p-4 text-destructive text-[13px]">
-                    <div className="flex items-center gap-2">
-                        <AlertCircle className="size-4" />
-                        <span>{repositoryError instanceof Error ? repositoryError.message : "Failed to load repositories"}</span>
-                    </div>
-                </div>
-            ) : (
-                <div className="bg-background max-h-80 overflow-auto">
-                    <div>
-                        {filtered.map((repo) => {
-                            const checked = selected.has(repo.fullName);
-                            return (
-                                <label
-                                    key={repo.fullName}
-                                    className="flex items-center gap-3 px-4 py-2.5 text-[13px] hover:bg-surface-2 cursor-pointer transition-colors"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        className="size-4 shrink-0 rounded-[2px] bg-muted accent-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        checked={checked}
-                                        onChange={(e) => {
-                                            setSelected((prev) => {
-                                                const next = new Set(prev);
-                                                if (e.target.checked) next.add(repo.fullName);
-                                                else next.delete(repo.fullName);
-                                                return next;
-                                            });
-                                        }}
-                                    />
-                                    <span className="flex-1 truncate font-mono text-xs">{repo.fullName}</span>
-                                </label>
-                            );
-                        })}
-                        {filtered.length === 0 && (
-                            <div className="px-4 py-8 text-center text-muted-foreground text-[13px]">No repositories match your filter.</div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-end gap-2 pt-1">
                 {onCancel && (
-                    <Button variant="outline" onClick={onCancel}>
+                    <Button variant="outline" className="rounded-md" onClick={onCancel}>
                         Cancel
                     </Button>
                 )}
                 <Button
+                    className="rounded-md"
                     onClick={() => {
                         const selectedRepos = entries.filter((repo) => selected.has(repo.fullName));
                         onSave(selectedRepos);

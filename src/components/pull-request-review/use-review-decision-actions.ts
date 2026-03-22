@@ -4,6 +4,7 @@ import {
     approvePullRequest,
     declinePullRequest,
     markPullRequestAsDraft,
+    markPullRequestReady,
     mergePullRequest,
     removePullRequestApproval,
     requestChangesOnPullRequest,
@@ -17,6 +18,7 @@ type UseReviewDecisionActionsParams = {
     closeSourceBranch: boolean;
     ensurePrRef: () => NonNullable<PullRequestBundle["prRef"]>;
     isApprovedByCurrentUser: boolean;
+    isDraft: boolean;
     mergeMessage: string;
     mergeStrategy: string;
     refreshPullRequest: () => Promise<void>;
@@ -31,6 +33,7 @@ export function useReviewDecisionActions({
     closeSourceBranch,
     ensurePrRef,
     isApprovedByCurrentUser,
+    isDraft,
     mergeMessage,
     mergeStrategy,
     refreshPullRequest,
@@ -96,13 +99,13 @@ export function useReviewDecisionActions({
         },
     });
     const markDraftMutation = useMutation({
-        mutationFn: () => markPullRequestAsDraft({ prRef: ensurePrRef() }),
+        mutationFn: () => (isDraft ? markPullRequestReady({ prRef: ensurePrRef() }) : markPullRequestAsDraft({ prRef: ensurePrRef() })),
         onSuccess: async () => {
             setActionError(null);
             await refreshPullRequest();
         },
         onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to mark pull request as draft");
+            setActionError(error instanceof Error ? error.message : isDraft ? "Failed to mark pull request as ready" : "Failed to mark pull request as draft");
         },
     });
 
@@ -138,12 +141,12 @@ export function useReviewDecisionActions({
     const handleMarkPullRequestAsDraft = useCallback(() => {
         if (!actionPolicy.canMarkDraft) {
             if (!authCanWrite) requestAuth("write");
-            else setActionError(actionPolicy.disabledReason.markDraft ?? "Mark as draft is not available");
+            else setActionError(actionPolicy.disabledReason.markDraft ?? (isDraft ? "Mark as ready is not available" : "Mark as draft is not available"));
             return;
         }
         if (markDraftMutation.isPending) return;
         markDraftMutation.mutate();
-    }, [actionPolicy.canMarkDraft, actionPolicy.disabledReason.markDraft, authCanWrite, markDraftMutation, requestAuth, setActionError]);
+    }, [actionPolicy.canMarkDraft, actionPolicy.disabledReason.markDraft, authCanWrite, isDraft, markDraftMutation, requestAuth, setActionError]);
 
     return {
         approveMutation,

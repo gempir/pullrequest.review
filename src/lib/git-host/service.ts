@@ -54,6 +54,10 @@ export async function markPullRequestAsDraft(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).markPullRequestAsDraft(data);
 }
 
+export async function markPullRequestReady(data: { prRef: PullRequestRef }) {
+    return getHostClient(data.prRef.host).markPullRequestReady(data);
+}
+
 export async function mergePullRequest(data: { prRef: PullRequestRef; closeSourceBranch?: boolean; message?: string; mergeStrategy?: string }) {
     return getHostClient(data.prRef.host).mergePullRequest(data);
 }

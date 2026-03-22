@@ -1,7 +1,7 @@
 import type { FileDiffOptions } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { Check, CheckCheck, Copy } from "lucide-react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
 import { DiffContextButton, type DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import { FileVersionSelect, type FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
@@ -66,6 +66,7 @@ type ReviewSingleModeViewProps = {
     onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
     fileContextState: Record<string, DiffContextState>;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
+    summaryFooter?: ReactNode;
 };
 
 export function ReviewSingleModeView({
@@ -117,6 +118,7 @@ export function ReviewSingleModeView({
     onLoadFullFileContext,
     fileContextState,
     onHistoryCommentNavigate,
+    summaryFooter,
 }: ReviewSingleModeViewProps) {
     const hasFullContext = selectedFilePath ? fileContextState[selectedFilePath]?.status === "ready" : false;
     const isSelectedVersionViewed = selectedFileVersionId
@@ -139,6 +141,7 @@ export function ReviewSingleModeView({
                     canResolveThread={canResolveThread}
                     resolveCommentPending={resolveCommentPending}
                     onResolveThread={onResolveThread}
+                    footerRight={summaryFooter}
                     headerRight={
                         <div className="flex items-center gap-1">
                             <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />

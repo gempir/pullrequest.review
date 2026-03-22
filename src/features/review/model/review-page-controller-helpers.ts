@@ -90,8 +90,10 @@ export function commentMatchKey(comment: Pick<PullRequestComment, "content" | "i
     if (parentId > 0) {
         return `reply:${parentId}|${content}`;
     }
-    const path = comment.inline?.path ?? "";
+    if (!comment.inline?.path) {
+        return `comment:${content}`;
+    }
     const line = comment.inline?.to ?? comment.inline?.from ?? 0;
     const side = comment.inline?.from ? "deletions" : "additions";
-    return `root:${path}|${line}|${side}|${content}`;
+    return `inline:${comment.inline.path}|${line}|${side}|${content}`;
 }

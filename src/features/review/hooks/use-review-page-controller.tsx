@@ -3,7 +3,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, type SetStateAction, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReviewCommentsSidebar } from "@/components/pull-request-review/review-comments-sidebar";
 import { ReviewCommitScopeControl } from "@/components/pull-request-review/review-commit-scope-control";
-import { formatRecentTimestamp } from "@/components/pull-request-review/review-formatters";
 import { createReviewPageUiStore, useReviewPageUiValue } from "@/components/pull-request-review/review-page.store";
 import { ReviewPageDiffContent } from "@/components/pull-request-review/review-page-diff-content";
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
@@ -355,7 +354,7 @@ export function useReviewPageController({
         sidebarThreads,
         selectedFileLevelThreads,
         lineStats,
-        navbarStatusDate,
+        navbarStatusTimestamp,
         navbarState,
         fileLineStats,
         handleDiffLineEnter,
@@ -609,6 +608,7 @@ export function useReviewPageController({
         handleDeclinePullRequest,
         handleMarkPullRequestAsDraft,
         submitInlineComment,
+        submitPullRequestComment,
         submitThreadReply,
         submitCommentEdit,
         handleCopyPath,
@@ -882,7 +882,7 @@ export function useReviewPageController({
             [...resolvedScope.visibleCommits].reverse().map((commit) => ({
                 hash: commit.hash,
                 label: commit.hash.slice(0, 8),
-                timestamp: formatRecentTimestamp(commit.date),
+                timestamp: commit.date,
                 message: commit.summary?.raw?.trim() || commit.message?.trim() || "(no message)",
             })),
         [resolvedScope.visibleCommits],
@@ -979,7 +979,7 @@ export function useReviewPageController({
         pullRequest: pullRequest ?? {},
         isRefreshing: isPrQueryFetching,
         navbarState,
-        navbarStatusDate,
+        navbarStatusTimestamp,
         buildStatuses: prData?.buildStatuses,
         actionPolicy,
         currentUserReviewStatus,
@@ -1108,6 +1108,7 @@ export function useReviewPageController({
                     prData={prData}
                     pullRequestTitle={pullRequestTitle}
                     currentUserDisplayName={pullRequest?.currentUser?.displayName}
+                    currentUserAvatarUrl={pullRequest?.currentUser?.avatarUrl}
                     lineStats={lineStats}
                     isSummarySelected={isSummarySelected}
                     selectedFilePath={selectedFilePath}
@@ -1193,6 +1194,23 @@ export function useReviewPageController({
                     onDiffLineLeave={handleDiffLineLeave}
                     scrollElementRef={diffScrollRef}
                     pendingScrollPath={allModePendingScrollPath}
+                    canApprove={actionPolicy.canApprove}
+                    canRequestChanges={actionPolicy.canRequestChanges}
+                    canMerge={actionPolicy.canMerge}
+                    canDecline={actionPolicy.canDecline}
+                    canMarkDraft={actionPolicy.canMarkDraft}
+                    isDraft={Boolean(pullRequest?.draft)}
+                    currentUserReviewStatus={currentUserReviewStatus}
+                    isApprovePending={approveMutation.isPending || removeApprovalMutation.isPending}
+                    isRequestChangesPending={requestChangesMutation.isPending}
+                    isDeclinePending={declineMutation.isPending}
+                    isMarkDraftPending={markDraftMutation.isPending}
+                    onApprove={handleApprovePullRequest}
+                    onRequestChanges={handleRequestChangesPullRequest}
+                    onDecline={handleDeclinePullRequest}
+                    onMarkDraft={handleMarkPullRequestAsDraft}
+                    onOpenMerge={() => setMergeOpen(true)}
+                    onSubmitSummaryComment={submitPullRequestComment}
                 />
             }
             mergeDialogProps={mergeDialogProps}

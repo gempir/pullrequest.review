@@ -1091,6 +1091,49 @@ export const githubClient: GitHostClient = {
         }
         return { ok: true as const };
     },
+    async markPullRequestReady(data) {
+        const pullPath = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}`;
+        const pullResponse = await request(pullPath, {}, { requireAuth: true });
+        const pull = (await pullResponse.json()) as GithubPull;
+        if (!pull.node_id) {
+            throw new Error("GitHub pull request node id is unavailable");
+        }
+
+        const mutation = `
+            mutation MarkPullRequestReadyForReview($pullRequestId: ID!) {
+                markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) {
+                    pullRequest {
+                        id
+                    }
+                }
+            }
+        `;
+
+        const response = await request(
+            "/graphql",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    query: mutation,
+                    variables: { pullRequestId: pull.node_id },
+                }),
+            },
+            { requireAuth: true },
+        );
+        const payload = (await response.json()) as {
+            errors?: Array<{ message?: string }>;
+            data?: { markPullRequestReadyForReview?: { pullRequest?: { id?: string } } };
+        };
+        const firstError = payload.errors?.[0]?.message;
+        if (firstError) {
+            throw new Error(firstError);
+        }
+        if (!payload.data?.markPullRequestReadyForReview?.pullRequest?.id) {
+            throw new Error("GitHub did not confirm ready-for-review conversion");
+        }
+        return { ok: true as const };
+    },
     async mergePullRequest(data) {
         const path = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}/merge`;
         const mergeMethod = data.mergeStrategy?.trim() || "merge";

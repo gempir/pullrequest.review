@@ -101,7 +101,7 @@ function normalizePullRequestRecord(record: unknown): {
     };
 }
 
-export function formatRootListDate(value?: string) {
+function formatRootListDate(value?: string) {
     if (!value) return null;
     const parsed = Date.parse(value);
     if (Number.isNaN(parsed)) return null;

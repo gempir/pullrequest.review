@@ -5,8 +5,8 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
-import { formatCommentTimestamp } from "@/components/pull-request-review/review-formatters";
 import { type CommentThread, type CommentThreadNode, threadCommentCount } from "@/components/pull-request-review/review-threads";
+import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { commentAnchorId } from "@/lib/file-anchors";
@@ -402,9 +402,9 @@ function ThreadReplyNode({
                 ) : null}
                 <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-5" />
                 <div className="relative z-10 flex-1 space-y-0.5">
-                    <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                         <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
-                        <span>{formatCommentTimestamp(reply.createdAt)}</span>
+                        <Timestamp value={reply.createdAt} />
                         {reply.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                     </div>
                     {isEditingOnNode ? (
@@ -569,9 +569,9 @@ function ThreadRootCommentCard({
         >
             <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} />
             <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                     <span className="font-medium text-foreground text-[12px]">{rootComment.user?.displayName ?? "Unknown"}</span>
-                    <span>{formatCommentTimestamp(rootComment.createdAt)}</span>
+                    <Timestamp value={rootComment.createdAt} />
                     {rootComment.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                     <div className="ml-auto flex items-center gap-2">
                         <ThreadStatusButton

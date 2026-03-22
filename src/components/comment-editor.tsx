@@ -2,8 +2,10 @@ import { BoldPlugin, CodePlugin, ItalicPlugin } from "@platejs/basic-nodes/react
 import { Bold, Code2, Italic, Link as LinkIcon, List, Quote } from "lucide-react";
 import type { Value } from "platejs";
 import { Plate, PlateContent, usePlateEditor } from "platejs/react";
+import type { CSSProperties } from "react";
 import { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 function normalizeDraftText(text: string): string {
     const normalized = text.replaceAll("\r\n", "\n");
@@ -44,6 +46,8 @@ export function CommentEditor({
     onChange,
     onSubmit,
     onReady,
+    contentClassName,
+    contentStyle,
 }: {
     value: string;
     placeholder: string;
@@ -51,6 +55,8 @@ export function CommentEditor({
     onChange: (next: string) => void;
     onSubmit: () => void;
     onReady?: (focus: () => void) => void;
+    contentClassName?: string;
+    contentStyle?: CSSProperties;
 }) {
     const initialValue = useMemo(() => textToValue(value), [value]);
     const editor = usePlateEditor({
@@ -71,9 +77,9 @@ export function CommentEditor({
     }, [editor, onReady]);
 
     return (
-        <div className="bg-surface-1 border border-border-muted rounded-md overflow-hidden">
+        <div className="group/editor flex flex-col rounded-md bg-surface-1">
             <Plate editor={editor} onChange={({ value: nextValue }) => onChange(valueToText(nextValue))}>
-                <div className="flex items-center gap-1 px-1.5 py-1 border-b border-border-muted">
+                <div className="flex items-center gap-1 rounded-t-md border-x border-t border-border-muted px-1.5 py-1">
                     <Button
                         type="button"
                         variant="ghost"
@@ -160,18 +166,23 @@ export function CommentEditor({
                     </Button>
                 </div>
 
-                <PlateContent
-                    readOnly={disabled}
-                    placeholder={placeholder}
-                    style={{ fontFamily: "var(--comment-font-family)" }}
-                    onKeyDown={(event) => {
-                        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                            event.preventDefault();
-                            onSubmit();
-                        }
-                    }}
-                    className="block h-[3.5rem] w-full overflow-y-auto px-3 py-2 text-[13px] leading-relaxed transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 whitespace-pre-wrap break-words [&_p]:m-0"
-                />
+                <div className="rounded-b-md border border-border-muted transition-colors group-focus-within/editor:border-input">
+                    <PlateContent
+                        readOnly={disabled}
+                        placeholder={placeholder}
+                        style={{ fontFamily: "var(--comment-font-family)", minHeight: "3.75rem", ...contentStyle }}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                                event.preventDefault();
+                                onSubmit();
+                            }
+                        }}
+                        className={cn(
+                            "block w-full overflow-y-auto px-3 py-2 text-[13px] leading-relaxed transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 whitespace-pre-wrap break-words [&_p]:m-0",
+                            contentClassName,
+                        )}
+                    />
+                </div>
             </Plate>
         </div>
     );

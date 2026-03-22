@@ -1,5 +1,5 @@
 import { ChevronDown, Loader2 } from "lucide-react";
-import { formatRecentTimestamp } from "@/components/pull-request-review/review-formatters";
+import { Timestamp } from "@/components/timestamp";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
@@ -12,11 +12,6 @@ export type FileVersionSelectOption = {
     commitDate?: string;
     state?: "loading" | "error";
 };
-
-function formatCommitDate(commitDate?: string) {
-    if (!commitDate) return null;
-    return formatRecentTimestamp(commitDate);
-}
 
 export function FileVersionSelect({
     value,
@@ -32,7 +27,6 @@ export function FileVersionSelect({
     const selected = options.find((option) => option.id === value) ?? options[0];
     if (!selected) return null;
     const isLoadingHistory = options.some((option) => option.state === "loading");
-    const selectedDate = formatCommitDate(selected.commitDate);
 
     return (
         <DropdownMenu onOpenChange={onOpenChange}>
@@ -45,7 +39,7 @@ export function FileVersionSelect({
                     {isLoadingHistory ? <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" /> : null}
                     <span className="min-w-0 flex-1 text-left">
                         <span className={cn("block truncate", selected.unread ? "text-status-renamed" : "text-foreground")}>{selected.label}</span>
-                        {selectedDate ? <span className="block truncate text-[10px] text-muted-foreground">{selectedDate}</span> : null}
+                        {selected.commitDate ? <Timestamp value={selected.commitDate} className="block truncate" /> : null}
                     </span>
                     <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
                 </button>
@@ -75,9 +69,7 @@ export function FileVersionSelect({
                                         {option.label}
                                         {option.latest && option.label !== "Latest" ? <span className="ml-1 text-muted-foreground">(latest)</span> : null}
                                     </span>
-                                    {option.commitDate ? (
-                                        <span className="shrink-0 text-[10px] text-muted-foreground">{formatCommitDate(option.commitDate)}</span>
-                                    ) : null}
+                                    {option.commitDate ? <Timestamp value={option.commitDate} className="shrink-0" /> : null}
                                 </span>
                                 {option.commitMessage ? <span className="block truncate text-[10px] text-muted-foreground">{option.commitMessage}</span> : null}
                             </span>

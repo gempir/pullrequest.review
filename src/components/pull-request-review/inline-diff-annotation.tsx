@@ -67,18 +67,18 @@ export function InlineDiffAnnotation({
                         onChange={(nextValue) => setInlineDraftContent(metadata.draft, nextValue)}
                         onSubmit={onSubmitInlineComment}
                     />
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pt-1">
                         <Button
-                            variant="outline"
+                            variant="default"
                             size="sm"
-                            className="h-7 gap-1.5"
+                            className="h-8 rounded-md gap-1.5 px-3"
                             disabled={createCommentPending || !canCommentInline}
                             onClick={onSubmitInlineComment}
                         >
                             <SendHorizontal className="size-3.5" />
                             Comment
                         </Button>
-                        <Button variant="outline" size="sm" className="h-7 gap-1.5" onClick={() => onCancelInlineDraft(metadata.draft)}>
+                        <Button variant="outline" size="sm" className="h-8 rounded-md gap-1.5 px-3" onClick={() => onCancelInlineDraft(metadata.draft)}>
                             <X className="size-3.5" />
                             Cancel
                         </Button>

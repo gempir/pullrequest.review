@@ -279,6 +279,7 @@ export interface GitHostClient {
     requestChanges(data: { prRef: PullRequestRef; body?: string }): Promise<{ ok: true }>;
     declinePullRequest(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     markPullRequestAsDraft(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
+    markPullRequestReady(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     mergePullRequest(data: { prRef: PullRequestRef } & MergeOptions): Promise<{ ok: true }>;
     createPullRequestComment(
         data: {

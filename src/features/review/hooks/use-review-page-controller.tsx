@@ -681,6 +681,8 @@ export function useReviewPageController({
         setActiveFile,
         showSettingsPanel,
         setShowSettingsPanel,
+        setTreeCollapsed,
+        setRightSidebarCollapsed,
         setCollapsedAllModeFiles,
         setIsSummaryCollapsedInAllMode,
         toggleViewedForPath,

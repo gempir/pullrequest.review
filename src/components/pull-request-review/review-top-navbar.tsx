@@ -9,13 +9,13 @@ import {
     Menu,
     MessageSquare,
     Minus,
-    PanelLeftOpen,
     PenSquare,
     TriangleAlert,
     X,
     XCircle,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
 import {
     aggregateBuildState,
     buildRunningTime,
@@ -36,6 +36,7 @@ type ReviewTopNavbarProps = {
     loading: boolean;
     isRefreshing: boolean;
     treeCollapsed: boolean;
+    unviewedFileCount: number;
     rightSidebarCollapsed: boolean;
     unresolvedCommentCount: number;
     host: GitHost;
@@ -72,6 +73,7 @@ export function ReviewTopNavbar({
     loading,
     isRefreshing,
     treeCollapsed,
+    unviewedFileCount,
     rightSidebarCollapsed,
     unresolvedCommentCount,
     host,
@@ -105,6 +107,7 @@ export function ReviewTopNavbar({
 }: ReviewTopNavbarProps) {
     const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
     const commentsBadgeValue = unresolvedCommentCount > 99 ? "99+" : unresolvedCommentCount.toString();
+    const unviewedBadgeValue = unviewedFileCount > 99 ? "99+" : unviewedFileCount.toString();
 
     return (
         <div
@@ -118,11 +121,11 @@ export function ReviewTopNavbar({
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                            className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                             onClick={onExpandTree}
-                            aria-label="Expand file tree"
+                            aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
                         >
-                            <PanelLeftOpen className="size-3.5" />
+                            <ReviewFileTreeToggleIcon direction="expand" badgeValue={unviewedFileCount > 0 ? unviewedBadgeValue : null} />
                         </Button>
                     ) : null}
                     <span className="text-[11px] text-muted-foreground">Loading pull request...</span>
@@ -134,11 +137,11 @@ export function ReviewTopNavbar({
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                                className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                                 onClick={onExpandTree}
-                                aria-label="Expand file tree"
+                                aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
                             >
-                                <PanelLeftOpen className="size-3.5" />
+                                <ReviewFileTreeToggleIcon direction="expand" badgeValue={unviewedFileCount > 0 ? unviewedBadgeValue : null} />
                             </Button>
                         ) : null}
                         {commitScopeSlot ? <div className="shrink-0">{commitScopeSlot}</div> : null}

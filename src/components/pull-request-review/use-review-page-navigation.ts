@@ -15,6 +15,8 @@ type UseReviewPageNavigationProps = {
     setActiveFile: (next: string | undefined) => void;
     showSettingsPanel: boolean;
     setShowSettingsPanel: (next: boolean) => void;
+    setTreeCollapsed: Dispatch<SetStateAction<boolean>>;
+    setRightSidebarCollapsed: Dispatch<SetStateAction<boolean>>;
     setCollapsedAllModeFiles: Dispatch<SetStateAction<Record<string, boolean>>>;
     setIsSummaryCollapsedInAllMode: Dispatch<SetStateAction<boolean>>;
     toggleViewedForPath: (path: string) => void;
@@ -36,6 +38,8 @@ export function useReviewPageNavigation({
     setActiveFile,
     showSettingsPanel,
     setShowSettingsPanel,
+    setTreeCollapsed,
+    setRightSidebarCollapsed,
     setCollapsedAllModeFiles,
     setIsSummaryCollapsedInAllMode,
     toggleViewedForPath,
@@ -158,6 +162,8 @@ export function useReviewPageNavigation({
     useKeyboardNavigation({
         onNextUnviewedFile: () => selectAdjacentUnviewedFile("next"),
         onPreviousUnviewedFile: () => selectAdjacentUnviewedFile("previous"),
+        onOpenFileTree: () => setTreeCollapsed((collapsed) => !collapsed),
+        onOpenCommentsSidebar: () => setRightSidebarCollapsed((collapsed) => !collapsed),
         onNextFile: () => selectFromPaths(treeOrderedVisiblePaths, "next"),
         onPreviousFile: () => selectFromPaths(treeOrderedVisiblePaths, "previous"),
         onMarkFileViewed: () => {

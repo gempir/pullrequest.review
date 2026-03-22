@@ -600,6 +600,7 @@ export function PullRequestSummaryPanel({
     headerTitle,
     diffStats,
     headerRight,
+    footerRight,
     onSelectComment,
     canResolveThread,
     resolveCommentPending,
@@ -609,6 +610,7 @@ export function PullRequestSummaryPanel({
     headerTitle?: string;
     diffStats?: { added: number; removed: number };
     headerRight?: ReactNode;
+    footerRight?: ReactNode;
     onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     canResolveThread?: boolean;
     resolveCommentPending?: boolean;
@@ -748,6 +750,7 @@ export function PullRequestSummaryPanel({
                         );
                     })}
                 </div>
+                {footerRight ? <div className="mt-3 border-t border-border-muted pt-3">{footerRight}</div> : null}
             </div>
         </div>
     );

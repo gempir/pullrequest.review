@@ -77,7 +77,7 @@ export function useReviewPageViewProps({
     unviewedFileCount: number;
     allowedPathSet: Set<string>;
     viewedFiles: Set<string>;
-    pullRequest: { source?: { branch?: { name?: string } }; destination?: { branch?: { name?: string } } };
+    pullRequest: { source?: { branch?: { name?: string } }; destination?: { branch?: { name?: string } }; draft?: boolean };
     isRefreshing: boolean;
     navbarState: string;
     navbarStatusDate: string;
@@ -189,6 +189,7 @@ export function useReviewPageViewProps({
             canMerge: actionPolicy.canMerge,
             canDecline: actionPolicy.canDecline,
             canMarkDraft: actionPolicy.canMarkDraft,
+            isDraft: Boolean(pullRequest?.draft),
             currentUserReviewStatus,
             isApprovePending: approvePending,
             isRequestChangesPending: requestChangesPending,
@@ -218,6 +219,7 @@ export function useReviewPageViewProps({
             currentUserReviewStatus,
             declinePending,
             isRefreshing,
+            pullRequest?.draft,
             markDraftPending,
             host,
             rightSidebarCollapsed,

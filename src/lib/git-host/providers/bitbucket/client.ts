@@ -58,6 +58,7 @@ interface BitbucketPullRequestRaw {
     title: string;
     description?: string;
     state: string;
+    draft?: boolean;
     comment_count?: number;
     task_count?: number;
     created_on?: string;
@@ -388,6 +389,7 @@ function mapPullRequest(pr: BitbucketPullRequestRaw, currentUser: BitbucketUser 
         title: pr.title,
         description: pr.description,
         state: pr.state,
+        draft: Boolean(pr.draft),
         commentCount: pr.comment_count,
         taskCount: pr.task_count,
         createdAt: pr.created_on,
@@ -658,7 +660,7 @@ export const bitbucketClient: GitHostClient = {
         requestChangesAvailable: true,
         removeApprovalAvailable: true,
         declineAvailable: true,
-        markDraftAvailable: false,
+        markDraftAvailable: true,
     },
     async getAuthState(): Promise<AuthState> {
         const credentials = readCredentials();
@@ -796,8 +798,33 @@ export const bitbucketClient: GitHostClient = {
         });
         return { ok: true as const };
     },
-    async markPullRequestAsDraft() {
-        throw new Error("Mark as draft is not supported for Bitbucket in this app.");
+    async markPullRequestAsDraft(data) {
+        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}`;
+        await request(url, {
+            method: "PUT",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                draft: true,
+            }),
+        });
+        return { ok: true as const };
+    },
+    async markPullRequestReady(data) {
+        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}`;
+        await request(url, {
+            method: "PUT",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                draft: false,
+            }),
+        });
+        return { ok: true as const };
     },
     async mergePullRequest(data) {
         const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/merge`;

@@ -21,7 +21,6 @@ export function buildReviewActionPolicy(data: {
     isDraft?: boolean;
 }): ReviewActionPolicy {
     const isOpen = (data.prState ?? "").toUpperCase() === "OPEN";
-    const isDraft = Boolean(data.isDraft);
     const reasons: ReviewActionPolicy["disabledReason"] = {};
     const needsAuthReason = "Authentication required";
 
@@ -57,13 +56,11 @@ export function buildReviewActionPolicy(data: {
         reasons.decline = "Pull request is not open";
     }
 
-    const canMarkDraft = canWrite && data.capabilities.markDraftAvailable && isOpen && !isDraft;
+    const canMarkDraft = canWrite && data.capabilities.markDraftAvailable && isOpen;
     if (!data.capabilities.markDraftAvailable) {
         reasons.markDraft = "Not supported by host";
     } else if (!isOpen) {
         reasons.markDraft = "Pull request is not open";
-    } else if (isDraft) {
-        reasons.markDraft = "Already draft";
     }
 
     const canCommentInline = canWrite && isOpen;

@@ -201,7 +201,14 @@ export function ReviewAllModeView({
                         </div>
                     </div>
                     {!isSummaryCollapsedInAllMode && (
-                        <PullRequestSummaryPanel bundle={prData} diffStats={lineStats} onSelectComment={onHistoryCommentNavigate} />
+                        <PullRequestSummaryPanel
+                            bundle={prData}
+                            diffStats={lineStats}
+                            onSelectComment={onHistoryCommentNavigate}
+                            canResolveThread={canResolveThread}
+                            resolveCommentPending={resolveCommentPending}
+                            onResolveThread={onResolveThread}
+                        />
                     )}
                 </div>
             ) : null}

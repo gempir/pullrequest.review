@@ -1,4 +1,4 @@
-import { Check, GitCommitHorizontal, GitMerge, MessageSquare, PenSquare, ScrollText, UserMinus, UserPlus, X } from "lucide-react";
+import { Check, Circle, GitCommitHorizontal, GitMerge, MessageSquare, PenSquare, ScrollText, UserMinus, UserPlus, X } from "lucide-react";
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -44,35 +44,6 @@ function initials(value?: string) {
     return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 }
 
-function eventLabel(type: PullRequestHistoryEvent["type"]) {
-    switch (type) {
-        case "comment":
-            return "commented";
-        case "approved":
-            return "approved this pull request";
-        case "changesRequested":
-            return "requested changes";
-        case "reviewRequested":
-            return "requested a review";
-        case "reviewDismissed":
-            return "dismissed a review";
-        case "reviewerAdded":
-            return "added a reviewer";
-        case "reviewerRemoved":
-            return "removed a reviewer";
-        case "opened":
-            return "opened this pull request";
-        case "updated":
-            return "updated this pull request";
-        case "closed":
-            return "closed this pull request";
-        case "merged":
-            return "merged this pull request";
-        case "reopened":
-            return "reopened this pull request";
-    }
-}
-
 function historyIcon(type: PullRequestHistoryEvent["type"]) {
     switch (type) {
         case "comment":
@@ -103,7 +74,7 @@ function timelineIconClass(kind: "description" | "history" | "commitGroup", type
         return "border-border-muted bg-surface-2 text-foreground";
     }
     if (kind === "commitGroup") {
-        return "border-border-muted bg-surface-2 text-status-renamed";
+        return "border-border-muted bg-surface-2 text-foreground";
     }
     switch (type) {
         case "approved":
@@ -153,7 +124,7 @@ function MarkdownBlock({ text }: { text: string }) {
     );
 }
 
-function Avatar({ name, url, sizeClass = "size-5" }: { name?: string; url?: string; sizeClass?: string }) {
+function Avatar({ name, url, sizeClass = "size-4" }: { name?: string; url?: string; sizeClass?: string }) {
     if (url) {
         return <img src={url} alt={name ?? "avatar"} className={cn(sizeClass, "rounded-full object-cover shrink-0")} />;
     }
@@ -167,6 +138,31 @@ function Avatar({ name, url, sizeClass = "size-5" }: { name?: string; url?: stri
         >
             {initials(name)}
         </span>
+    );
+}
+
+function ResolveCircleButton({ isResolved, disabled, onToggle }: { isResolved: boolean; disabled: boolean; onToggle: () => void }) {
+    return (
+        <button
+            type="button"
+            className="group/status relative inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={(event) => {
+                event.stopPropagation();
+                onToggle();
+            }}
+            disabled={disabled}
+            aria-label={isResolved ? "Unresolve" : "Resolve"}
+            title={isResolved ? "Unresolve" : "Resolve"}
+        >
+            <Circle className="size-4" />
+            <Check
+                className={cn(
+                    "absolute size-2.5 transition-opacity",
+                    isResolved ? "opacity-100" : "opacity-0",
+                    !isResolved && !disabled ? "group-hover/status:opacity-50" : "",
+                )}
+            />
+        </button>
     );
 }
 
@@ -198,21 +194,12 @@ type CommitGroupTimelineEntry = {
 
 type TimelineEntry = DescriptionTimelineEntry | HistoryTimelineEntry | CommitGroupTimelineEntry;
 
-function formatHistoryDetails(event: PullRequestHistoryEvent) {
-    if (event.type === "reviewRequested" && event.details) {
-        return `requested review from ${event.details}`;
-    }
-    if (event.type === "reviewerAdded" && event.details) {
-        return `added ${event.details} as reviewer`;
-    }
-    if (event.type === "reviewerRemoved" && event.details) {
-        return `removed ${event.details} from reviewers`;
-    }
-    if (event.type === "updated" && event.details) {
-        return `${eventLabel(event.type)} (${event.details})`;
-    }
-    return eventLabel(event.type);
-}
+type CommitAuthorGroup = {
+    id: string;
+    authorName: string;
+    avatarUrl?: string;
+    commits: Commit[];
+};
 
 function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?: string; history: PullRequestHistoryEvent[]; commits: Commit[] }) {
     const timelineSources: Array<
@@ -276,21 +263,261 @@ function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?:
     return groupedEntries;
 }
 
+function commitAuthorName(commit: Commit) {
+    return commit.author?.user?.displayName ?? commit.author?.raw ?? "Unknown";
+}
+
+function commitAuthorAvatarUrl(commit: Commit) {
+    return commit.author?.user?.avatarUrl;
+}
+
+function commitAuthorKey(commit: Commit) {
+    return `${commitAuthorName(commit)}::${commitAuthorAvatarUrl(commit) ?? ""}`;
+}
+
+function groupCommitsByAuthor(commits: Commit[]) {
+    const groups: CommitAuthorGroup[] = [];
+
+    for (const commit of commits) {
+        const key = commitAuthorKey(commit);
+        const previousGroup = groups[groups.length - 1];
+        if (previousGroup && previousGroup.id === key) {
+            previousGroup.commits.push(commit);
+            continue;
+        }
+        groups.push({
+            id: key,
+            authorName: commitAuthorName(commit),
+            avatarUrl: commitAuthorAvatarUrl(commit),
+            commits: [commit],
+        });
+    }
+
+    return groups;
+}
+
+function DescriptionTimelineItem({
+    connectorClass,
+    authorName,
+    authorAvatarUrl,
+    createdAt,
+    description,
+}: {
+    connectorClass: string | null;
+    authorName?: string;
+    authorAvatarUrl?: string;
+    createdAt?: string;
+    description?: string;
+}) {
+    return (
+        <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
+            {connectorClass ? <div className={connectorClass} /> : null}
+            <div className="relative z-10 pt-1">
+                <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("description"))}>
+                    <ScrollText className="size-4" />
+                </div>
+            </div>
+            <div className="min-w-0 pt-1">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
+                    <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4">
+                        <Avatar name={authorName} url={authorAvatarUrl} />
+                        <span className="font-medium text-foreground">{authorName ?? "Unknown"}</span>
+                    </div>
+                    <span className="pt-px text-right text-[10px] text-muted-foreground">{formatDate(createdAt)}</span>
+                </div>
+                <div className="px-2">
+                    <div className="rounded-md border border-border-muted bg-surface-1 p-3">
+                        {description?.trim() ? <MarkdownBlock text={description} /> : <div className="text-[13px] text-muted-foreground">No description.</div>}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function CommitGroupTimelineItem({ connectorClass, entry }: { connectorClass: string | null; entry: CommitGroupTimelineEntry }) {
+    const commitGroups = groupCommitsByAuthor(entry.commits);
+
+    return (
+        <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
+            {connectorClass ? <div className={connectorClass} /> : null}
+            <div className="relative z-10 pt-1">
+                <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("commitGroup"))}>
+                    <GitCommitHorizontal className="size-4" />
+                </div>
+            </div>
+            <div className="min-w-0 pt-1">
+                <div className="space-y-3">
+                    {commitGroups.map((group) => (
+                        <div key={`${entry.id}-${group.id}`} className="min-w-0">
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
+                                <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4">
+                                    <Avatar name={group.authorName} url={group.avatarUrl} />
+                                    <span className="font-medium text-foreground">{group.authorName}</span>
+                                </div>
+                                <span className="pt-px text-right text-[10px] text-transparent select-none">{formatDate(group.commits[0]?.date)}</span>
+                            </div>
+                            <div className="px-2">
+                                <div className="space-y-1">
+                                    {group.commits.map((commit) => {
+                                        const message = commit.summary?.raw ?? commit.message;
+                                        const mergedDevelop = isMergedDevelopCommit(message);
+
+                                        return (
+                                            <div key={commit.hash} className={cn("py-0.5", mergedDevelop ? "text-muted-foreground opacity-70" : "")}>
+                                                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-[13px] leading-5">
+                                                    <div className="min-w-0 flex items-center gap-2 overflow-hidden">
+                                                        <span
+                                                            className={cn("shrink-0 font-mono", mergedDevelop ? "text-status-added/80" : "text-status-renamed")}
+                                                        >
+                                                            {shortHash(commit.hash)}
+                                                        </span>
+                                                        <span className={cn("truncate", mergedDevelop ? "text-muted-foreground" : "text-foreground")}>
+                                                            {message ?? "(no message)"}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-right text-[10px] text-muted-foreground">{formatDate(commit.date)}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function HistoryTimelineItem({
+    connectorClass,
+    event,
+    resolvedComment,
+    onSelectComment,
+    canResolveThread,
+    resolveCommentPending,
+    onResolveThread,
+}: {
+    connectorClass: string | null;
+    event: PullRequestHistoryEvent;
+    resolvedComment?: PullRequestBundle["comments"][number];
+    onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
+    canResolveThread?: boolean;
+    resolveCommentPending?: boolean;
+    onResolveThread?: (commentId: number, resolve: boolean) => void;
+}) {
+    const canNavigateToComment = Boolean(event.comment?.path && onSelectComment);
+    const commentId = typeof event.comment?.id === "number" ? event.comment.id : undefined;
+    const isResolved = Boolean(resolvedComment?.resolution);
+    const canToggleResolve = Boolean(event.comment?.path) && typeof commentId === "number" && Boolean(onResolveThread) && Boolean(canResolveThread);
+    const handleClick = () => {
+        if (!canNavigateToComment || !event.comment?.path) return;
+        onSelectComment?.({
+            path: event.comment.path,
+            line: event.comment.line,
+            side: event.comment.side,
+            commentId: event.comment.id,
+        });
+    };
+    const HistoryIcon = historyIcon(event.type);
+
+    return (
+        <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
+            {connectorClass ? <div className={connectorClass} /> : null}
+            <div className="relative z-10 pt-1">
+                <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("history", event.type))}>
+                    <HistoryIcon className="size-4" />
+                </div>
+            </div>
+            <div className="min-w-0 pt-1">
+                <div className="w-full rounded-md text-left">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
+                        <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4">
+                            <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} />
+                            <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
+                        </div>
+                        <span className="pt-px text-right text-[10px] text-muted-foreground">{formatDate(event.createdAt)}</span>
+                    </div>
+                    {event.comment?.path ? (
+                        <div className="flex items-center gap-2 px-2 pt-1">
+                            {canNavigateToComment ? (
+                                <button
+                                    type="button"
+                                    onClick={handleClick}
+                                    className="inline-flex rounded border border-border-muted bg-surface-1 px-1.5 py-0.5 font-mono text-[11px] text-accent transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                >
+                                    {event.comment.path}
+                                    {event.comment.line ? `:${event.comment.line}` : ""}
+                                </button>
+                            ) : (
+                                <span className="inline-flex rounded border border-border-muted bg-surface-1 px-1.5 py-0.5 font-mono text-[11px] text-accent">
+                                    {event.comment.path}
+                                    {event.comment.line ? `:${event.comment.line}` : ""}
+                                </span>
+                            )}
+                            {canToggleResolve && typeof commentId === "number" ? (
+                                <span className="ml-auto">
+                                    <ResolveCircleButton
+                                        isResolved={isResolved}
+                                        disabled={Boolean(resolveCommentPending)}
+                                        onToggle={() => onResolveThread?.(commentId, !isResolved)}
+                                    />
+                                </span>
+                            ) : null}
+                        </div>
+                    ) : null}
+                    {event.details && !["reviewRequested", "reviewerAdded", "reviewerRemoved", "updated"].includes(event.type) ? (
+                        <div className="px-2 pt-1 text-[13px] text-muted-foreground break-words">{event.details}</div>
+                    ) : null}
+                    {event.content || event.contentHtml ? (
+                        canNavigateToComment ? (
+                            <button
+                                type="button"
+                                onClick={handleClick}
+                                className="block w-full rounded-md px-2 pb-2 pt-2 text-left transition-colors hover:bg-surface-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            >
+                                <div className="rounded-md border border-border-muted bg-surface-1 p-3">
+                                    <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />
+                                </div>
+                            </button>
+                        ) : (
+                            <div className="px-2 pb-2 pt-2">
+                                <div className="rounded-md border border-border-muted bg-surface-1 p-3">
+                                    <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />
+                                </div>
+                            </div>
+                        )
+                    ) : null}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export function PullRequestSummaryPanel({
     bundle,
     headerTitle,
     diffStats,
     headerRight,
     onSelectComment,
+    canResolveThread,
+    resolveCommentPending,
+    onResolveThread,
 }: {
     bundle: PullRequestBundle;
     headerTitle?: string;
     diffStats?: { added: number; removed: number };
     headerRight?: ReactNode;
     onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
+    canResolveThread?: boolean;
+    resolveCommentPending?: boolean;
+    onResolveThread?: (commentId: number, resolve: boolean) => void;
 }) {
     const { pr, commits, history } = bundle;
     const baseHistory: PullRequestHistoryEvent[] = history ?? [];
+    const commentById = new Map(bundle.comments.map((comment) => [comment.id, comment] as const));
     const commentHistoryById = new Map<number, PullRequestHistoryEvent>();
     for (const event of baseHistory) {
         const commentId = extractHistoryCommentId(event);
@@ -376,144 +603,44 @@ export function PullRequestSummaryPanel({
             <div className="p-2.5">
                 <div className="space-y-0">
                     {timelineEntries.map((entry, index) => {
+                        const isFirst = index === 0;
                         const isLast = index === timelineEntries.length - 1;
+                        const connectorClass = isFirst
+                            ? isLast
+                                ? null
+                                : "absolute bottom-0 left-[17px] top-9 w-px bg-border-muted"
+                            : isLast
+                              ? "absolute bottom-9 left-[17px] top-0 w-px bg-border-muted"
+                              : "absolute inset-y-0 left-[17px] w-px bg-border-muted";
 
                         if (entry.kind === "description") {
                             return (
-                                <div key={entry.id} className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
-                                    {!isLast ? <div className="absolute bottom-0 left-[17px] top-9 w-px bg-border-muted" /> : null}
-                                    <div className="relative z-10 pt-1">
-                                        <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("description"))}>
-                                            <ScrollText className="size-4" />
-                                        </div>
-                                    </div>
-                                    <div className="min-w-0 rounded-md border border-border-muted bg-surface-1 p-3">
-                                        <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-5">
-                                            <Avatar name={pr.author?.displayName} url={pr.author?.avatarUrl} />
-                                            <span className="font-medium text-foreground">{pr.author?.displayName ?? "Unknown"}</span>
-                                            <span className="text-muted-foreground">opened this pull request</span>
-                                            <span className="text-muted-foreground">{formatDate(pr.createdAt)}</span>
-                                        </div>
-                                        {pr.description?.trim() ? (
-                                            <MarkdownBlock text={pr.description} />
-                                        ) : (
-                                            <div className="text-[13px] text-muted-foreground">No description.</div>
-                                        )}
-                                    </div>
-                                </div>
+                                <DescriptionTimelineItem
+                                    key={entry.id}
+                                    connectorClass={connectorClass}
+                                    authorName={pr.author?.displayName}
+                                    authorAvatarUrl={pr.author?.avatarUrl}
+                                    createdAt={pr.createdAt}
+                                    description={pr.description}
+                                />
                             );
                         }
 
                         if (entry.kind === "commitGroup") {
-                            return (
-                                <div key={entry.id} className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
-                                    {!isLast ? <div className="absolute bottom-0 left-[17px] top-9 w-px bg-border-muted" /> : null}
-                                    <div className="relative z-10 pt-1">
-                                        <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("commitGroup"))}>
-                                            <GitCommitHorizontal className="size-4" />
-                                        </div>
-                                    </div>
-                                    <div className="min-w-0 overflow-hidden rounded-md border border-border-muted bg-surface-1">
-                                        {entry.commits.map((commit, commitIndex) => {
-                                            const message = commit.summary?.raw ?? commit.message;
-                                            const mergedDevelop = isMergedDevelopCommit(message);
-                                            const authorName = commit.author?.user?.displayName ?? commit.author?.raw ?? "Unknown";
-
-                                            return (
-                                                <div
-                                                    key={commit.hash}
-                                                    className={cn(
-                                                        "px-3 py-2",
-                                                        commitIndex > 0 ? "border-t border-border-muted" : "",
-                                                        mergedDevelop ? "bg-status-added/10 text-muted-foreground opacity-70" : "",
-                                                    )}
-                                                >
-                                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-5">
-                                                        <Avatar name={authorName} url={commit.author?.user?.avatarUrl} />
-                                                        <span className="font-medium text-foreground">{authorName}</span>
-                                                        <span className={cn("font-mono", mergedDevelop ? "text-status-added/80" : "text-status-renamed")}>
-                                                            {shortHash(commit.hash)}
-                                                        </span>
-                                                        <span className="text-muted-foreground">{formatDate(commit.date)}</span>
-                                                    </div>
-                                                    <div
-                                                        className={cn(
-                                                            "pl-7 pt-1 text-[13px] break-words",
-                                                            mergedDevelop ? "text-muted-foreground" : "text-foreground",
-                                                        )}
-                                                    >
-                                                        {message ?? "(no message)"}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            );
+                            return <CommitGroupTimelineItem key={entry.id} connectorClass={connectorClass} entry={entry} />;
                         }
 
-                        const { event } = entry;
-                        const canNavigateToComment = Boolean(event.comment?.path && onSelectComment);
-                        const handleClick = () => {
-                            if (!canNavigateToComment || !event.comment?.path) return;
-                            onSelectComment?.({
-                                path: event.comment.path,
-                                line: event.comment.line,
-                                side: event.comment.side,
-                                commentId: event.comment.id,
-                            });
-                        };
-                        const HistoryIcon = historyIcon(event.type);
-
                         return (
-                            <div key={entry.id} className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
-                                {!isLast ? <div className="absolute bottom-0 left-[17px] top-9 w-px bg-border-muted" /> : null}
-                                <div className="relative z-10 pt-1">
-                                    <div
-                                        className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("history", event.type))}
-                                    >
-                                        <HistoryIcon className="size-4" />
-                                    </div>
-                                </div>
-                                <div className="min-w-0 pt-1">
-                                    <button
-                                        type="button"
-                                        onClick={handleClick}
-                                        disabled={!canNavigateToComment}
-                                        className={cn(
-                                            "w-full rounded-md px-2 py-1.5 text-left",
-                                            canNavigateToComment
-                                                ? "transition-colors hover:bg-surface-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                : "cursor-default",
-                                        )}
-                                    >
-                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-5">
-                                            <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} />
-                                            <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
-                                            <span className="text-muted-foreground">{formatHistoryDetails(event)}</span>
-                                            <span className="text-muted-foreground">{formatDate(event.createdAt)}</span>
-                                        </div>
-                                        {event.comment?.path ? (
-                                            <div className="pl-7 pt-1">
-                                                <span className="inline-flex rounded border border-border-muted bg-surface-1 px-1.5 py-0.5 font-mono text-[11px] text-accent">
-                                                    {event.comment.path}
-                                                    {event.comment.line ? `:${event.comment.line}` : ""}
-                                                </span>
-                                            </div>
-                                        ) : null}
-                                        {event.details && !["reviewRequested", "reviewerAdded", "reviewerRemoved", "updated"].includes(event.type) ? (
-                                            <div className="pl-7 pt-1 text-[13px] text-muted-foreground break-words">{event.details}</div>
-                                        ) : null}
-                                        {event.content || event.contentHtml ? (
-                                            <div className="pl-7 pt-2">
-                                                <div className="rounded-md border border-border-muted bg-surface-1 p-3">
-                                                    <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />
-                                                </div>
-                                            </div>
-                                        ) : null}
-                                    </button>
-                                </div>
-                            </div>
+                            <HistoryTimelineItem
+                                key={entry.id}
+                                connectorClass={connectorClass}
+                                event={entry.event}
+                                resolvedComment={typeof entry.event.comment?.id === "number" ? commentById.get(entry.event.comment.id) : undefined}
+                                onSelectComment={onSelectComment}
+                                canResolveThread={canResolveThread}
+                                resolveCommentPending={resolveCommentPending}
+                                onResolveThread={onResolveThread}
+                            />
                         );
                     })}
                 </div>

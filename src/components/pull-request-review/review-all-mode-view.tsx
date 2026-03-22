@@ -2,7 +2,7 @@ import type { FileDiffOptions, OnDiffLineEnterLeaveProps } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Check, CheckCheck, Copy, ScrollText } from "lucide-react";
-import type { CSSProperties, RefObject } from "react";
+import type { CSSProperties, ReactNode, RefObject } from "react";
 import { useEffect, useMemo } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
 import { DiffContextButton, type DiffContextState } from "@/components/pull-request-review/diff-context-button";
@@ -81,6 +81,7 @@ type ReviewAllModeViewProps = {
     fileContextState: Record<string, DiffContextState>;
     scrollElementRef: RefObject<HTMLDivElement | null>;
     pendingScrollPath: string | null;
+    summaryFooter?: ReactNode;
 };
 
 export function ReviewAllModeView({
@@ -142,6 +143,7 @@ export function ReviewAllModeView({
     fileContextState,
     scrollElementRef,
     pendingScrollPath,
+    summaryFooter,
 }: ReviewAllModeViewProps) {
     const diffListBottomPadding = "max(420px, 90vh)";
     const filePathsInOrder = useMemo(() => allModeDiffEntries.map((entry) => entry.filePath), [allModeDiffEntries]);
@@ -208,6 +210,7 @@ export function ReviewAllModeView({
                             canResolveThread={canResolveThread}
                             resolveCommentPending={resolveCommentPending}
                             onResolveThread={onResolveThread}
+                            footerRight={summaryFooter}
                         />
                     )}
                 </div>

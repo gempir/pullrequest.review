@@ -45,6 +45,7 @@ type ReviewTopNavbarProps = {
     canMerge: boolean;
     canDecline: boolean;
     canMarkDraft: boolean;
+    isDraft: boolean;
     currentUserReviewStatus: "approved" | "changesRequested" | "none";
     isApprovePending: boolean;
     isRequestChangesPending: boolean;
@@ -79,6 +80,7 @@ export function ReviewTopNavbar({
     canMerge,
     canDecline,
     canMarkDraft,
+    isDraft,
     currentUserReviewStatus,
     isApprovePending,
     isRequestChangesPending,
@@ -260,7 +262,7 @@ export function ReviewTopNavbar({
                                     onSelect={onMarkDraft}
                                 >
                                     <PenSquare className="size-4" />
-                                    Mark as Draft
+                                    {isDraft ? "Mark as Ready" : "Mark as Draft"}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>

@@ -9,6 +9,7 @@ export function useReviewPageViewProps({
     treeWidth,
     treeCollapsed,
     rightSidebarCollapsed,
+    unresolvedCommentCount,
     treeLoading,
     host,
     pullRequestUrl,
@@ -68,6 +69,7 @@ export function useReviewPageViewProps({
     treeWidth: number;
     treeCollapsed: boolean;
     rightSidebarCollapsed: boolean;
+    unresolvedCommentCount: number;
     treeLoading: boolean;
     host: GitHost;
     pullRequestUrl?: string;
@@ -181,6 +183,7 @@ export function useReviewPageViewProps({
             isRefreshing,
             treeCollapsed,
             rightSidebarCollapsed,
+            unresolvedCommentCount,
             host,
             pullRequestUrl,
             sourceBranch: pullRequest?.source?.branch?.name ?? "source",
@@ -227,6 +230,7 @@ export function useReviewPageViewProps({
             markDraftPending,
             host,
             rightSidebarCollapsed,
+            unresolvedCommentCount,
             pullRequestUrl,
             navbarState,
             navbarStatusTimestamp,

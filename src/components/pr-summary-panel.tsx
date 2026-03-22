@@ -701,7 +701,7 @@ export function PullRequestSummaryPanel({
                     {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
                 </div>
             ) : null}
-            <div className="p-2.5">
+            <div className="px-2.5 pb-48 pt-2.5">
                 <div className="space-y-0">
                     {timelineEntries.map((entry, index) => {
                         const isFirst = index === 0;

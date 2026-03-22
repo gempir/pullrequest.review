@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { PullRequestReviewPage } from "@/components/pull-request-review-page";
+import { PullRequestReviewPage } from "@/features/review/components/pull-request-review-page";
 import { usePrContext } from "@/lib/pr-context";
 import { type ReviewDiffScopeSearch, validateReviewDiffScopeSearch } from "@/lib/review-diff-scope";
 import { markReviewPerf } from "@/lib/review-performance/metrics";

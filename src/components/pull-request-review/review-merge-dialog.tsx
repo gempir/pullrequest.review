@@ -37,67 +37,89 @@ export function ReviewMergeDialog({
 }: ReviewMergeDialogProps) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg p-0">
-                <div className="h-10 border-b border-border bg-card px-2.5 pr-12 flex items-center">
-                    <DialogTitle className="text-[12px] font-medium leading-none">Merge pull request</DialogTitle>
+            <DialogContent className="max-w-[34rem] overflow-hidden border-border-muted bg-background p-0 shadow-2xl [&>button]:right-3 [&>button]:top-3 [&>button]:rounded-sm [&>button]:p-1 [&>button]:text-muted-foreground [&>button]:opacity-100 [&>button]:transition-colors [&>button]:hover:bg-surface-1 [&>button]:hover:text-foreground [&>button]:focus-visible:ring-1 [&>button]:focus-visible:ring-ring">
+                <div className="flex h-10 items-center border-b border-border-muted bg-chrome px-3 pr-12">
+                    <DialogTitle className="text-[13px] font-medium text-foreground">Merge pull request</DialogTitle>
                 </div>
 
-                <div className="space-y-3 px-2.5 py-3 text-[12px]">
-                    <div className="space-y-1.5">
-                        <Label htmlFor="merge-strategy" className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                            Merge strategy
-                        </Label>
-                        {mergeStrategies?.length ? (
-                            <Select value={mergeStrategy} onValueChange={onMergeStrategyChange}>
-                                <SelectTrigger id="merge-strategy" className="h-8 w-full text-[12px] font-mono" size="sm">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {mergeStrategies.map((strategy) => (
-                                        <SelectItem key={strategy} value={strategy} className="text-[12px] font-mono">
-                                            {strategy}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        ) : (
+                <div className="space-y-3 px-3 py-3 text-[12px]">
+                    <div className="space-y-3 border border-border-muted bg-surface-1/40 p-3">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="merge-strategy" className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                Merge strategy
+                            </Label>
+                            {mergeStrategies?.length ? (
+                                <Select value={mergeStrategy} onValueChange={onMergeStrategyChange}>
+                                    <SelectTrigger
+                                        id="merge-strategy"
+                                        className="h-9 w-full rounded-sm border-border-muted bg-background text-[12px] shadow-none"
+                                        size="default"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-sm border-border-muted bg-background">
+                                        {mergeStrategies.map((strategy) => (
+                                            <SelectItem key={strategy} value={strategy} className="text-[12px]">
+                                                {strategy}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Input
+                                    id="merge-strategy"
+                                    className="h-9 rounded-sm border-border-muted bg-background text-[12px]"
+                                    value={mergeStrategy}
+                                    onChange={(e) => onMergeStrategyChange(e.target.value)}
+                                    placeholder="merge_commit"
+                                />
+                            )}
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label htmlFor="merge-message" className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                Merge message
+                            </Label>
                             <Input
-                                id="merge-strategy"
-                                className="h-8 text-[12px] font-mono"
-                                value={mergeStrategy}
-                                onChange={(e) => onMergeStrategyChange(e.target.value)}
-                                placeholder="merge_commit"
+                                id="merge-message"
+                                className="h-9 rounded-sm border-border-muted bg-background text-[12px]"
+                                value={mergeMessage}
+                                onChange={(e) => onMergeMessageChange(e.target.value)}
+                                placeholder="Optional merge message"
                             />
-                        )}
+                        </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="merge-message" className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                            Merge message
-                        </Label>
-                        <Input
-                            id="merge-message"
-                            className="h-8 text-[12px]"
-                            value={mergeMessage}
-                            onChange={(e) => onMergeMessageChange(e.target.value)}
-                            placeholder="Optional merge message"
+                    <label
+                        htmlFor="close-branch"
+                        className="flex cursor-pointer items-center justify-between gap-3 border border-border-muted bg-surface-1/40 p-3"
+                    >
+                        <div className="space-y-1">
+                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Post-merge</div>
+                            <div className="text-[12px] text-foreground">Close source branch</div>
+                        </div>
+                        <Switch
+                            checked={closeSourceBranch}
+                            onCheckedChange={onCloseSourceBranchChange}
+                            id="close-branch"
+                            className="data-[state=checked]:bg-status-renamed data-[state=unchecked]:bg-background"
                         />
-                    </div>
+                    </label>
 
-                    <div className="flex items-center gap-2 border border-border px-2 py-1.5">
-                        <Switch checked={closeSourceBranch} onCheckedChange={onCloseSourceBranchChange} id="close-branch" size="sm" />
-                        <Label htmlFor="close-branch" className="text-[12px]">
-                            Close source branch
-                        </Label>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
-                        <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-                            <X className="size-4" />
+                    <div className="flex items-center justify-end gap-2 border-t border-border-muted pt-3">
+                        <Button variant="outline" size="sm" className="h-8 rounded-sm text-[11px]" onClick={() => onOpenChange(false)}>
+                            <X className="size-3.5" />
                             Cancel
                         </Button>
-                        <Button size="sm" disabled={isMerging || !canMerge} onClick={onMerge}>
-                            {isMerging ? <Loader2 className="size-4 animate-spin" /> : <GitMerge className="size-4" />} Merge
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-sm border-status-renamed/35 text-[11px] text-status-renamed hover:bg-status-renamed/12 hover:text-status-renamed"
+                            disabled={isMerging || !canMerge}
+                            onClick={onMerge}
+                        >
+                            {isMerging ? <Loader2 className="size-3.5 animate-spin" /> : <GitMerge className="size-3.5" />}
+                            {isMerging ? "Merging..." : "Merge"}
                         </Button>
                     </div>
                 </div>

@@ -201,8 +201,8 @@ export function useKeyboardNavigation({
     onPreviousUnviewedFile?: () => void;
     onOpenFileTree?: () => void;
     onOpenCommentsSidebar?: () => void;
-    onScrollDown?: () => void;
-    onScrollUp?: () => void;
+    onScrollDown?: (event: KeyboardEvent) => void;
+    onScrollUp?: (event: KeyboardEvent) => void;
     onNextFile?: () => void;
     onPreviousFile?: () => void;
     onMarkFileViewed?: () => void;
@@ -291,10 +291,10 @@ export function useKeyboardNavigation({
                 handlers.onOpenCommentsSidebar?.();
             } else if (matchesShortcut(event, activeShortcuts.scrollDown)) {
                 event.preventDefault();
-                handlers.onScrollDown?.();
+                handlers.onScrollDown?.(event);
             } else if (matchesShortcut(event, activeShortcuts.scrollUp)) {
                 event.preventDefault();
-                handlers.onScrollUp?.();
+                handlers.onScrollUp?.(event);
             } else if (matchesShortcut(event, activeShortcuts.nextFile)) {
                 event.preventDefault();
                 handlers.onNextFile?.();

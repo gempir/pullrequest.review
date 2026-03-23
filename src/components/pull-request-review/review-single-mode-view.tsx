@@ -132,7 +132,11 @@ export function ReviewSingleModeView({
             : singleFileDiffOptions;
     if (isSummarySelected) {
         return (
-            <div id={fileAnchorId(PR_SUMMARY_PATH)} className="h-full w-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
+            <div
+                id={fileAnchorId(PR_SUMMARY_PATH)}
+                data-component="summary-page"
+                className="diff-content-scroll h-full w-full min-w-0 max-w-full overflow-y-auto overflow-x-hidden"
+            >
                 <PullRequestSummaryPanel
                     bundle={prData}
                     headerTitle={pullRequestTitle || PR_SUMMARY_NAME}

@@ -67,7 +67,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/oauth/callback': typeof OauthCallbackRoute
-  '/$host': typeof HostIndexRoute
+  '/$host/': typeof HostIndexRoute
   '/$workspace/$repo/pull-requests/$pullRequestId': typeof WorkspaceRepoPullRequestsPullRequestIdRouteWithChildren
   '/$workspace/$repo/pull/$pullRequestId': typeof WorkspaceRepoPullPullRequestIdRouteWithChildren
   '/$workspace/$repo/pull-requests/$pullRequestId/diff': typeof WorkspaceRepoPullRequestsPullRequestIdDiffRoute
@@ -100,7 +100,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/oauth/callback'
-    | '/$host'
+    | '/$host/'
     | '/$workspace/$repo/pull-requests/$pullRequestId'
     | '/$workspace/$repo/pull/$pullRequestId'
     | '/$workspace/$repo/pull-requests/$pullRequestId/diff'
@@ -155,7 +155,7 @@ declare module '@tanstack/react-router' {
     '/$host/': {
       id: '/$host/'
       path: '/$host'
-      fullPath: '/$host'
+      fullPath: '/$host/'
       preLoaderRoute: typeof HostIndexRouteImport
       parentRoute: typeof rootRouteImport
     }

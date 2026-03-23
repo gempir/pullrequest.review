@@ -127,6 +127,19 @@ export function useReviewPageNavigation({
         return diffScrollRef.current;
     }, [diffScrollRef, viewMode]);
 
+    const scrollByShortcut = useCallback(
+        (direction: 1 | -1, event: KeyboardEvent) => {
+            const target = getScrollTarget();
+            if (!target) return;
+            const isHeldKey = event.repeat;
+            target.scrollBy({
+                top: direction * (isHeldKey ? 180 : 120),
+                behavior: isHeldKey ? "auto" : "smooth",
+            });
+        },
+        [getScrollTarget],
+    );
+
     const selectAdjacentUnviewedFile = useCallback(
         (direction: "next" | "previous") => {
             const step = direction === "next" ? 1 : -1;
@@ -185,8 +198,8 @@ export function useReviewPageNavigation({
         },
         onApprovePullRequest,
         onRequestChangesPullRequest,
-        onScrollDown: () => getScrollTarget()?.scrollBy({ top: 120, behavior: "smooth" }),
-        onScrollUp: () => getScrollTarget()?.scrollBy({ top: -120, behavior: "smooth" }),
+        onScrollDown: (event) => scrollByShortcut(1, event),
+        onScrollUp: (event) => scrollByShortcut(-1, event),
     });
 
     const toggleViewed = useCallback(

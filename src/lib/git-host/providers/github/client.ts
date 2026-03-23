@@ -252,6 +252,7 @@ async function request(path: string, init: RequestInit = {}, options: { requireA
 
     const response = await fetch(path.startsWith("http") ? path : `${API_BASE}${path}`, {
         ...init,
+        cache: "no-store",
         headers,
     });
 

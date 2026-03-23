@@ -216,7 +216,7 @@ async function request(url: string, init: RequestInit = {}) {
         Authorization: authHeaderOrThrow(),
         ...(init.headers as Record<string, string>),
     };
-    const response = await fetch(url, { ...init, headers });
+    const response = await fetch(url, { ...init, cache: "no-store", headers });
     if (!response.ok) {
         const body = await parseFailure(response);
         throw new HostApiError(`Bitbucket API request failed (${response.status} ${response.statusText})`, {

@@ -63,8 +63,7 @@ export function buildReviewActionPolicy(data: {
         reasons.markDraft = "Pull request is not open";
     }
 
-    const canCommentInline = canWrite && isOpen;
-    if (!isOpen) reasons.commentInline = "Pull request is not open";
+    const canCommentInline = canWrite;
 
     const canResolveThread = canWrite && data.capabilities.supportsThreadResolution && isOpen;
     if (!data.capabilities.supportsThreadResolution) {

@@ -130,9 +130,21 @@ export function ReviewSingleModeView({
                 ? singleFileDiffOptions
                 : { ...singleFileDiffOptions, hunkSeparators: "line-info" as const }
             : singleFileDiffOptions;
+    const canOpenInlineDraft = canCommentInline && !selectedFileReadOnlyHistorical;
+    const interactiveSingleFileDiffOptions = canOpenInlineDraft
+        ? resolvedFileDiffOptions
+        : {
+              ...resolvedFileDiffOptions,
+              onLineEnter: undefined,
+              onLineLeave: undefined,
+          };
     if (isSummarySelected) {
         return (
-            <div id={fileAnchorId(PR_SUMMARY_PATH)} className="h-full w-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
+            <div
+                id={fileAnchorId(PR_SUMMARY_PATH)}
+                data-component="summary-page"
+                className="diff-content-scroll h-full w-full min-w-0 max-w-full overflow-y-auto overflow-x-hidden"
+            >
                 <PullRequestSummaryPanel
                     bundle={prData}
                     headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
@@ -230,7 +242,7 @@ export function ReviewSingleModeView({
                 {diffHighlighterReady ? (
                     <FileDiff
                         fileDiff={toRenderableFileDiff(selectedFileDiff)}
-                        options={resolvedFileDiffOptions}
+                        options={interactiveSingleFileDiffOptions}
                         className="compact-diff commentable-diff pr-diff-font"
                         style={diffTypographyStyle}
                         lineAnnotations={selectedFileReadOnlyHistorical ? [] : singleFileAnnotations}

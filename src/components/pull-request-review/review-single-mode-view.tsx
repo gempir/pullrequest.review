@@ -138,6 +138,7 @@ export function ReviewSingleModeView({
               onLineEnter: undefined,
               onLineLeave: undefined,
           };
+    const singleDiffRenderKey = `${selectedFilePath}:${selectedFileVersionId ?? "latest"}:${selectedFileReadOnlyHistorical ? "historical" : "current"}`;
     if (isSummarySelected) {
         return (
             <div
@@ -241,6 +242,7 @@ export function ReviewSingleModeView({
             <div className="diff-content-scroll min-h-0 min-w-0 w-full max-w-full flex-1 overflow-x-auto">
                 {diffHighlighterReady ? (
                     <FileDiff
+                        key={singleDiffRenderKey}
                         fileDiff={toRenderableFileDiff(selectedFileDiff)}
                         options={interactiveSingleFileDiffOptions}
                         className="compact-diff commentable-diff pr-diff-font"

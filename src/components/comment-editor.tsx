@@ -3,7 +3,7 @@ import { Bold, Code2, Italic, Link as LinkIcon, List, Quote } from "lucide-react
 import type { Value } from "platejs";
 import { Plate, PlateContent, usePlateEditor } from "platejs/react";
 import type { CSSProperties } from "react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useEffectEvent, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +63,9 @@ export function CommentEditor({
         plugins: [BoldPlugin, ItalicPlugin, CodePlugin],
         value: initialValue,
     });
+    const notifyReady = useEffectEvent((focus: () => void) => {
+        onReady?.(focus);
+    });
 
     useEffect(() => {
         const current = valueToText(editor.children as Value);
@@ -71,10 +74,10 @@ export function CommentEditor({
     }, [editor, value]);
 
     useEffect(() => {
-        onReady?.(() => {
+        notifyReady(() => {
             editor.tf.focus({ edge: "endEditor" });
         });
-    }, [editor, onReady]);
+    }, [editor]);
 
     return (
         <div className="group/editor flex flex-col rounded-md bg-surface-1">

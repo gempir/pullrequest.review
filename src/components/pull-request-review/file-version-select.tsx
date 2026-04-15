@@ -36,12 +36,15 @@ export function FileVersionSelect({
                     className="h-7 min-w-[110px] max-w-[190px] rounded-md border border-input bg-surface-1 px-2 text-[11px] font-mono flex items-center gap-1.5 outline-none transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:ring-1 focus-visible:ring-ring"
                     aria-label="Select file version"
                 >
-                    {isLoadingHistory ? <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" /> : null}
                     <span className="min-w-0 flex-1 text-left">
                         <span className={cn("block truncate", selected.unread ? "text-status-renamed" : "text-foreground")}>{selected.label}</span>
                         {selected.commitDate ? <Timestamp value={selected.commitDate} className="block truncate" /> : null}
                     </span>
-                    <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                    {isLoadingHistory ? (
+                        <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+                    ) : (
+                        <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                    )}
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="bottom" align="start" sideOffset={4} className="w-[26rem] max-h-[min(70vh,32rem)] overflow-y-auto p-0">

@@ -13,14 +13,14 @@ import {
     HOSTS,
     hostFromLandingTreePath,
 } from "@/features/landing/model/landing-model";
-import { type FileNode, useFileTree } from "@/lib/file-tree-context";
+import { useFileTree } from "@/lib/file-tree-context";
 import { getRepoPullRequestCollection, getRepositoryCollection } from "@/lib/git-host/query-collections";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
 
 export function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }: { initialHost?: GitHost; initialDiffPanel?: DiffPanel } = {}) {
     const navigate = useNavigate();
-    const { setTree, setKinds, activeFile, setActiveFile } = useFileTree();
+    const { activeFile, setActiveFile } = useFileTree();
     const { authByHost, activeHost, setActiveHost, reposByHost, setReposForHost, clearReposForHost, logout } = usePrContext();
 
     const [showSettingsPanel, setShowSettingsPanel] = useState(false);
@@ -82,28 +82,12 @@ export function useLandingPageView({ initialHost, initialDiffPanel = "pull-reque
     const pullRequestsByRepo = useMemo(() => buildPullRequestsByRepo(groupedPullRequests), [groupedPullRequests]);
     const sortedRootPullRequests = useMemo(() => buildSortedRootPullRequests(groupedPullRequests), [groupedPullRequests]);
     const pullRequestTree = useMemo(() => buildPullRequestTree(reposByHost, pullRequestsByRepo, searchQuery), [pullRequestsByRepo, reposByHost, searchQuery]);
-
-    const syncTreeFromPanel = useCallback(() => {
-        if (showSettingsPanel) {
-            const settingsNodes: FileNode[] = settingsTreeItems.map((item) => ({
-                name: item.name,
-                path: item.path,
-                type: "file",
-            }));
-            setTree(settingsNodes);
-            setKinds(new Map());
-            return;
-        }
-        setTree(pullRequestTree.root);
-        setKinds(new Map());
+    useEffect(() => {
+        if (showSettingsPanel) return;
         if (!activeFile || (!activeFile.startsWith(HOST_PATH_PREFIX) && !pullRequestTree.pullRequestMeta.has(activeFile))) {
             setActiveFile(undefined);
         }
-    }, [activeFile, pullRequestTree, setActiveFile, setKinds, setTree, settingsTreeItems, showSettingsPanel]);
-
-    useEffect(() => {
-        syncTreeFromPanel();
-    }, [syncTreeFromPanel]);
+    }, [activeFile, pullRequestTree.pullRequestMeta, setActiveFile, showSettingsPanel]);
 
     useEffect(() => {
         if (!showSettingsPanel) return;

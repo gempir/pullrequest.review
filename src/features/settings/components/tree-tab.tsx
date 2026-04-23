@@ -3,8 +3,14 @@ import { NumberStepperInput } from "@/components/ui/number-stepper-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useAppearance } from "@/lib/appearance-context";
-import { useFileTree } from "@/lib/file-tree-context";
+import { type TreeDensityValue, useFileTree } from "@/lib/file-tree-context";
 import { FONT_FAMILY_OPTIONS, type FontFamilyValue } from "@/lib/font-options";
+
+const TREE_DENSITY_OPTIONS: Array<{ value: TreeDensityValue; label: string }> = [
+    { value: "compact", label: "Compact" },
+    { value: "default", label: "Default" },
+    { value: "relaxed", label: "Relaxed" },
+];
 
 export function TreeTab() {
     const appearance = useAppearance();
@@ -12,23 +18,20 @@ export function TreeTab() {
 
     return (
         <div className="max-w-3xl space-y-3">
-            <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                    <Label htmlFor="tree-compact-single-child" className="text-[12px] text-foreground">
-                        Compact single-child folder chains
-                    </Label>
-                    <p className="text-[11px] text-muted-foreground">Example: services/foo/bar/file.php as services/foo/bar.</p>
-                </div>
-                <Switch
-                    id="tree-compact-single-child"
-                    checked={fileTree.compactSingleChildDirectories}
-                    onCheckedChange={fileTree.setCompactSingleChildDirectories}
-                    size="sm"
-                />
-            </div>
             <div className="max-w-56 space-y-1">
-                <Label className="text-[12px] text-muted-foreground">Indentation Size</Label>
-                <NumberStepperInput value={fileTree.treeIndentSize} min={8} max={24} step={1} onValueChange={fileTree.setTreeIndentSize} />
+                <Label className="text-[12px] text-muted-foreground">Density</Label>
+                <Select value={fileTree.treeDensity} onValueChange={(value) => fileTree.setTreeDensity(value as TreeDensityValue)}>
+                    <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {TREE_DENSITY_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value} className="text-[12px]">
+                                {option.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
             <div className="flex items-start justify-between gap-3">
                 <Label htmlFor="tree-custom-typography" className="text-[12px] text-foreground">

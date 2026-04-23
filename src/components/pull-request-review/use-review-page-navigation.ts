@@ -10,7 +10,6 @@ type UseReviewPageNavigationProps = {
     viewMode: "single" | "all";
     treeOrderedVisiblePaths: string[];
     isPathViewed: (path: string) => boolean;
-    directoryPaths: string[];
     diffScrollRef: MutableRefObject<HTMLDivElement | null>;
     setActiveFile: (next: string | undefined) => void;
     showSettingsPanel: boolean;
@@ -21,7 +20,6 @@ type UseReviewPageNavigationProps = {
     setIsSummaryCollapsedInAllMode: Dispatch<SetStateAction<boolean>>;
     toggleViewedForPath: (path: string) => void;
     markViewedForPath: (path: string) => void;
-    setDirectoryExpandedMap: (next: Record<string, boolean>) => void;
     onProgrammaticAllModeRevealStart?: (path: string) => void;
     onApprovePullRequest: () => void;
     onRequestChangesPullRequest: () => void;
@@ -33,7 +31,6 @@ export function useReviewPageNavigation({
     viewMode,
     treeOrderedVisiblePaths,
     isPathViewed,
-    directoryPaths,
     diffScrollRef,
     setActiveFile,
     showSettingsPanel,
@@ -44,7 +41,6 @@ export function useReviewPageNavigation({
     setIsSummaryCollapsedInAllMode,
     toggleViewedForPath,
     markViewedForPath,
-    setDirectoryExpandedMap,
     onProgrammaticAllModeRevealStart,
     onApprovePullRequest,
     onRequestChangesPullRequest,
@@ -216,27 +212,9 @@ export function useReviewPageNavigation({
         [isPathViewed, setCollapsedAllModeFiles, toggleViewedForPath],
     );
 
-    const collapseAllDirectories = useCallback(() => {
-        const next: Record<string, boolean> = {};
-        for (const path of directoryPaths) {
-            next[path] = false;
-        }
-        setDirectoryExpandedMap(next);
-    }, [directoryPaths, setDirectoryExpandedMap]);
-
-    const expandAllDirectories = useCallback(() => {
-        const next: Record<string, boolean> = {};
-        for (const path of directoryPaths) {
-            next[path] = true;
-        }
-        setDirectoryExpandedMap(next);
-    }, [directoryPaths, setDirectoryExpandedMap]);
-
     return {
         handleToggleSettingsPanel,
         selectAndRevealFile,
         toggleViewed,
-        collapseAllDirectories,
-        expandAllDirectories,
     };
 }

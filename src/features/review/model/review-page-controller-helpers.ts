@@ -67,19 +67,6 @@ export function parseSingleFilePatch(patch: string) {
     return firstFile;
 }
 
-export function parentDirectories(path: string): string[] {
-    const parts = path.split("/").filter(Boolean);
-    if (parts.length <= 1) return [];
-    parts.pop();
-    const directories: string[] = [];
-    let current = "";
-    for (const part of parts) {
-        current = current ? `${current}/${part}` : part;
-        directories.push(current);
-    }
-    return directories;
-}
-
 export function sameScopeSearch(a: ReviewDiffScopeSearch, b: ReviewDiffScopeSearch) {
     return a.from === b.from && a.to === b.to;
 }

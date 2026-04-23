@@ -83,8 +83,7 @@ type DiffOptionsRecord = BaseCollectionRecord & {
 
 type TreeSettingsRecord = BaseCollectionRecord & {
     id: typeof TREE_SETTINGS_RECORD_ID;
-    compactSingleChildDirectories: boolean;
-    treeIndentSize: number;
+    treeDensity: "compact" | "default" | "relaxed";
 };
 
 type ShortcutConfigRecord = {
@@ -987,28 +986,6 @@ export function writeReviewViewedVersionIds(scopeId: string, viewedVersionIds: S
             expiresAt: stateExpiresAt(now),
         },
         `viewed:${scopeId}`,
-    );
-}
-
-export function readReviewDirectoryState(scopeId: string) {
-    if (!scopeId) return null;
-    const record = readStateRecord(getReviewDirectoryStateCollection(), scopeId);
-    if (!record) return null;
-    return { ...record.expandedByPath };
-}
-
-export function writeReviewDirectoryState(scopeId: string, expandedByPath: Record<string, boolean>) {
-    if (!scopeId) return;
-    const now = Date.now();
-    void upsertRecord(
-        getReviewDirectoryStateCollection(),
-        {
-            id: scopeId,
-            expandedByPath,
-            updatedAt: now,
-            expiresAt: stateExpiresAt(now),
-        },
-        `directory:${scopeId}`,
     );
 }
 

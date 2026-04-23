@@ -1,15 +1,13 @@
+import type { FileTreeDirectoryHandle, GitStatusEntry } from "@pierre/trees";
 import { Eye, EyeOff, FolderMinus, FolderPlus } from "lucide-react";
-import { type MouseEventHandler, useCallback, useEffect, useRef } from "react";
-import { FileTree } from "@/components/file-tree";
+import { type MouseEventHandler, useCallback } from "react";
+import { AppFileTreeView, type FileTreeEntry, useAppFileTreeModel } from "@/components/file-tree";
 import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
-const TREE_REVEAL_EDGE_MARGIN_PX = 50;
 
 type ReviewFileTreeSidebarProps = {
     treeWidth: number;
@@ -17,11 +15,13 @@ type ReviewFileTreeSidebarProps = {
     loading: boolean;
     showSettingsPanel: boolean;
     activeFile?: string;
+    treeEntries: FileTreeEntry[];
+    directoryPaths: string[];
+    reviewGitStatus: readonly GitStatusEntry[];
     fileLineStats?: ReadonlyMap<string, { added: number; removed: number }>;
     searchQuery: string;
     showUnviewedOnly: boolean;
     unviewedFileCount: number;
-    allowedPathSet: Set<string>;
     viewedFiles: Set<string>;
     onHome: () => void;
     onRefresh: () => Promise<void> | void;
@@ -29,9 +29,6 @@ type ReviewFileTreeSidebarProps = {
     onCollapseTree: () => void;
     onSearchQueryChange: (value: string) => void;
     onToggleUnviewedOnly: () => void;
-    onCollapseAllDirectories: () => void;
-    onExpandAllDirectories: () => void;
-    onToggleViewed: (path: string) => void;
     onFileClick: (path: string) => void;
     onStartTreeResize: MouseEventHandler<HTMLButtonElement>;
 };
@@ -42,11 +39,13 @@ export function ReviewFileTreeSidebar({
     loading,
     showSettingsPanel,
     activeFile,
+    treeEntries,
+    directoryPaths,
+    reviewGitStatus,
     fileLineStats,
     searchQuery,
     showUnviewedOnly,
     unviewedFileCount,
-    allowedPathSet,
     viewedFiles,
     onHome,
     onRefresh,
@@ -54,69 +53,54 @@ export function ReviewFileTreeSidebar({
     onCollapseTree,
     onSearchQueryChange,
     onToggleUnviewedOnly,
-    onCollapseAllDirectories,
-    onExpandAllDirectories,
-    onToggleViewed,
     onFileClick,
     onStartTreeResize,
 }: ReviewFileTreeSidebarProps) {
-    const treeViewportRef = useRef<HTMLDivElement>(null);
     const badgeValue = unviewedFileCount > 999 ? "999+" : unviewedFileCount.toString();
-    const handleFileClick = useCallback(
-        (path: string) => {
-            const previousScrollTop = treeViewportRef.current?.scrollTop ?? null;
-            onFileClick(path);
-            if (previousScrollTop === null) return;
-            requestAnimationFrame(() => {
-                if (!treeViewportRef.current) return;
-                treeViewportRef.current.scrollTop = previousScrollTop;
-            });
+    const model = useAppFileTreeModel({
+        entries: treeEntries,
+        selectedAppPath: activeFile,
+        searchQuery,
+        gitStatus: reviewGitStatus,
+        onSelectPath: onFileClick,
+        renderRowDecoration: ({ appPath, kind }) => {
+            if (showSettingsPanel || kind !== "file") return null;
+            const stats = fileLineStats?.get(appPath);
+            const isViewed = viewedFiles.has(appPath);
+            const hasStats = Boolean(stats) && ((stats?.added ?? 0) > 0 || (stats?.removed ?? 0) > 0);
+            if (hasStats) {
+                return {
+                    text: `+${stats?.added ?? 0} -${stats?.removed ?? 0}`,
+                    title: `Added ${stats?.added ?? 0} lines, removed ${stats?.removed ?? 0} lines`,
+                };
+            }
+            if (!isViewed) {
+                return {
+                    text: "new",
+                    title: "Unviewed file",
+                };
+            }
+            return null;
         },
-        [onFileClick],
-    );
-    useEffect(() => {
-        if (loading) return;
-        if (!activeFile) return;
-        const viewport = treeViewportRef.current;
-        if (!viewport) return;
+    });
 
-        let cancelled = false;
-        let attempts = 0;
-
-        const revealWhenReady = () => {
-            if (cancelled) return;
-            const currentViewport = treeViewportRef.current;
-            if (!currentViewport) return;
-
-            const escapedPath = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(activeFile) : activeFile.replace(/["\\]/g, "\\$&");
-            const item = currentViewport.querySelector<HTMLElement>(`[data-tree-path="${escapedPath}"]`);
-
-            if (!item) {
-                attempts += 1;
-                if (attempts < 12) {
-                    requestAnimationFrame(revealWhenReady);
-                }
-                return;
+    const handleCollapseAllDirectories = useCallback(() => {
+        for (const path of directoryPaths) {
+            const item = model.getItem(path);
+            if (item && "collapse" in item) {
+                (item as FileTreeDirectoryHandle).collapse();
             }
+        }
+    }, [directoryPaths, model]);
 
-            const viewportRect = currentViewport.getBoundingClientRect();
-            const itemRect = item.getBoundingClientRect();
-            const topBoundary = viewportRect.top + TREE_REVEAL_EDGE_MARGIN_PX;
-            const bottomBoundary = viewportRect.bottom - TREE_REVEAL_EDGE_MARGIN_PX;
-            if (itemRect.top < topBoundary) {
-                currentViewport.scrollTop -= topBoundary - itemRect.top;
-                return;
+    const handleExpandAllDirectories = useCallback(() => {
+        for (const path of directoryPaths) {
+            const item = model.getItem(path);
+            if (item && "expand" in item) {
+                (item as FileTreeDirectoryHandle).expand();
             }
-            if (itemRect.bottom > bottomBoundary) {
-                currentViewport.scrollTop += itemRect.bottom - bottomBoundary;
-            }
-        };
-
-        requestAnimationFrame(revealWhenReady);
-        return () => {
-            cancelled = true;
-        };
-    }, [activeFile, loading]);
+        }
+    }, [directoryPaths, model]);
 
     return (
         <aside
@@ -148,7 +132,7 @@ export function ReviewFileTreeSidebar({
                             className="h-full bg-chrome text-[12px] flex-1 min-w-0 border-0 rounded-none focus-visible:border-0 focus-visible:ring-0"
                             placeholder="search files"
                             value={searchQuery}
-                            onChange={(e) => onSearchQueryChange(e.target.value)}
+                            onChange={(event) => onSearchQueryChange(event.target.value)}
                             disabled={loading}
                         />
                         {!loading ? (
@@ -183,7 +167,7 @@ export function ReviewFileTreeSidebar({
                                             variant="ghost"
                                             size="sm"
                                             className="size-7 p-0 text-muted-foreground hover:text-foreground"
-                                            onClick={onCollapseAllDirectories}
+                                            onClick={handleCollapseAllDirectories}
                                             aria-label="Collapse all directories"
                                         >
                                             <FolderMinus className="size-3.5" />
@@ -198,7 +182,7 @@ export function ReviewFileTreeSidebar({
                                             variant="ghost"
                                             size="sm"
                                             className="size-7 p-0 text-muted-foreground hover:text-foreground"
-                                            onClick={onExpandAllDirectories}
+                                            onClick={handleExpandAllDirectories}
                                             aria-label="Expand all directories"
                                         >
                                             <FolderPlus className="size-3.5" />
@@ -212,19 +196,9 @@ export function ReviewFileTreeSidebar({
                     {loading ? (
                         <div className="flex-1 min-h-0 px-2 py-3 text-[12px] text-muted-foreground">Loading file tree...</div>
                     ) : (
-                        <ScrollArea className="flex-1 min-h-0" viewportClassName="tree-font-scope pb-2" viewportRef={treeViewportRef}>
-                            <div data-component="tree">
-                                <FileTree
-                                    path=""
-                                    lineStatsByPath={fileLineStats}
-                                    filterQuery={searchQuery}
-                                    allowedFiles={allowedPathSet}
-                                    viewedFiles={viewedFiles}
-                                    onToggleViewed={onToggleViewed}
-                                    onFileClick={(node) => handleFileClick(node.path)}
-                                />
-                            </div>
-                        </ScrollArea>
+                        <div className="flex-1 min-h-0 overflow-hidden tree-font-scope pb-2" data-component="tree">
+                            <AppFileTreeView model={model} />
+                        </div>
                     )}
                     <button
                         type="button"

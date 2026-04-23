@@ -1,29 +1,42 @@
+import type { CSSProperties } from "react";
+import { useMemo } from "react";
 import { FileTree } from "@/components/file-tree";
+import { getSettingsTreeItems } from "@/components/settings-navigation";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Input } from "@/components/ui/input";
-import type { FileNode } from "@/lib/file-tree-context";
+import type { LandingTreeEntry } from "@/features/landing/model/landing-model";
 
 export function LandingSidebar({
+    activeFile,
     showSettingsPanel,
     searchQuery,
-    pullRequestTreeRoot,
+    pullRequestTreeEntries,
     onSearchQueryChange,
     onHome,
     onRefresh,
     onToggleSettings,
     onFileClick,
-    onDirectoryClick,
 }: {
+    activeFile?: string;
     showSettingsPanel: boolean;
     searchQuery: string;
-    pullRequestTreeRoot: FileNode[];
+    pullRequestTreeEntries: LandingTreeEntry[];
     onSearchQueryChange: (value: string) => void;
     onHome: () => void;
     onRefresh: () => Promise<void>;
     onToggleSettings: () => void;
     onFileClick: (path: string) => void;
-    onDirectoryClick: (path: string) => boolean | undefined;
 }) {
+    const settingsTreeEntries = useMemo(
+        () =>
+            getSettingsTreeItems().map((item) => ({
+                appPath: item.path,
+                treePath: item.name,
+            })),
+        [],
+    );
+    const entries = showSettingsPanel ? settingsTreeEntries : pullRequestTreeEntries;
+
     return (
         <aside data-component="sidebar" className="w-[300px] shrink-0 bg-surface-1 border-r border-border-muted flex flex-col">
             <SidebarTopControls onHome={onHome} onRefresh={onRefresh} onSettings={onToggleSettings} settingsActive={showSettingsPanel} />
@@ -36,15 +49,15 @@ export function LandingSidebar({
                 />
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto" data-component="tree">
-                {!showSettingsPanel && pullRequestTreeRoot.length === 0 ? (
+                {!showSettingsPanel && pullRequestTreeEntries.length === 0 ? (
                     <div className="px-2 py-3 text-[12px] text-muted-foreground">No repositories or pull requests match.</div>
                 ) : (
                     <FileTree
-                        path=""
-                        filterQuery={searchQuery}
-                        showUnviewedIndicator={false}
-                        onFileClick={(node) => onFileClick(node.path)}
-                        onDirectoryClick={(node) => onDirectoryClick(node.path)}
+                        entries={entries}
+                        selectedAppPath={activeFile}
+                        searchQuery={searchQuery}
+                        onSelectPath={onFileClick}
+                        style={{ "--trees-bg-override": "var(--surface-1)" } as CSSProperties}
                     />
                 )}
             </div>

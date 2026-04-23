@@ -15,15 +15,15 @@ export function LandingPage({
     return (
         <div className="h-full min-h-0 flex bg-background">
             <LandingSidebar
+                activeFile={view.activeFile}
                 showSettingsPanel={view.showSettingsPanel}
                 searchQuery={view.searchQuery}
-                pullRequestTreeRoot={view.pullRequestTree.root}
+                pullRequestTreeEntries={view.pullRequestTree.entries}
                 onSearchQueryChange={view.setSearchQuery}
                 onHome={view.onHome}
                 onRefresh={view.refreshCurrentView}
                 onToggleSettings={view.onToggleSettings}
                 onFileClick={view.handleSidebarFileClick}
-                onDirectoryClick={view.handleSidebarDirectoryClick}
             />
             <LandingMainContent
                 showSettingsPanel={view.showSettingsPanel}

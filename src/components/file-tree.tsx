@@ -1,5 +1,5 @@
 import type { FileTreeRowDecoration, FileTreeRowDecorationContext, GitStatusEntry } from "@pierre/trees";
-import { FileTree as PierreFileTree, preparePresortedFileTreeInput } from "@pierre/trees";
+import { FileTree as PierreFileTree, prepareFileTreeInput } from "@pierre/trees";
 import { FileTree as PierreReactFileTree } from "@pierre/trees/react";
 import { type CSSProperties, useEffect, useMemo, useRef } from "react";
 import { type TreeDensityValue, useFileTree } from "@/lib/file-tree-context";
@@ -73,7 +73,7 @@ export function useAppFileTreeModel({ entries, selectedAppPath, searchQuery, git
     renderRowDecorationRef.current = renderRowDecoration;
 
     const treePaths = useMemo(() => entries.map((entry) => entry.treePath), [entries]);
-    const preparedInput = useMemo(() => preparePresortedFileTreeInput(treePaths), [treePaths]);
+    const preparedInput = useMemo(() => prepareFileTreeInput(treePaths), [treePaths]);
 
     useEffect(() => {
         appPathToTreePathRef.current = new Map(entries.map((entry) => [entry.appPath, entry.treePath]));

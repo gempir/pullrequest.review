@@ -5,8 +5,8 @@ import { AppFileTreeView, type FileTreeEntry, useAppFileTreeModel } from "@/comp
 import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { PR_SUMMARY_NAME } from "@/lib/pr-summary";
 import { cn } from "@/lib/utils";
 
 type ReviewFileTreeSidebarProps = {
@@ -60,9 +60,11 @@ export function ReviewFileTreeSidebar({
     const model = useAppFileTreeModel({
         entries: treeEntries,
         selectedAppPath: activeFile,
+        pinnedFirstTreePath: showSettingsPanel ? undefined : PR_SUMMARY_NAME,
         searchQuery,
         gitStatus: reviewGitStatus,
         onSelectPath: onFileClick,
+        onSearchQueryChange,
         renderRowDecoration: ({ appPath, kind }) => {
             if (showSettingsPanel || kind !== "file") return null;
             const stats = fileLineStats?.get(appPath);
@@ -102,6 +104,62 @@ export function ReviewFileTreeSidebar({
         }
     }, [directoryPaths, model]);
 
+    const treeHeader = !loading ? (
+        <div className="h-10 bg-chrome border-y border-border-muted flex items-center justify-end gap-1 pr-0.5" data-component="search-sidebar">
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                            "size-7 p-0 relative text-muted-foreground hover:text-foreground",
+                            showUnviewedOnly ? "bg-surface-2 text-foreground" : "",
+                        )}
+                        onClick={onToggleUnviewedOnly}
+                        aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
+                    >
+                        {showUnviewedOnly ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                        {unviewedFileCount > 0 ? (
+                            <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">{badgeValue}</span>
+                        ) : null}
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="size-7 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={handleCollapseAllDirectories}
+                        aria-label="Collapse all directories"
+                    >
+                        <FolderMinus className="size-3.5" />
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Collapse all directories</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="size-7 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={handleExpandAllDirectories}
+                        aria-label="Expand all directories"
+                    >
+                        <FolderPlus className="size-3.5" />
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Expand all directories</TooltipContent>
+            </Tooltip>
+        </div>
+    ) : null;
+
     return (
         <aside
             className={cn("relative shrink-0 bg-background flex flex-col overflow-hidden border-r border-border-muted")}
@@ -127,77 +185,11 @@ export function ReviewFileTreeSidebar({
                             </Button>
                         }
                     />
-                    <div className="h-10 bg-chrome border-b border-border-muted flex items-center" data-component="search-sidebar">
-                        <Input
-                            className="h-full bg-chrome text-[12px] flex-1 min-w-0 border-0 rounded-none focus-visible:border-0 focus-visible:ring-0"
-                            placeholder="search files"
-                            value={searchQuery}
-                            onChange={(event) => onSearchQueryChange(event.target.value)}
-                            disabled={loading}
-                        />
-                        {!loading ? (
-                            <>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className={cn(
-                                                "size-7 p-0 relative text-muted-foreground hover:text-foreground",
-                                                showUnviewedOnly ? "bg-surface-2 text-foreground" : "",
-                                            )}
-                                            onClick={onToggleUnviewedOnly}
-                                            aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
-                                        >
-                                            {showUnviewedOnly ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                                            {unviewedFileCount > 0 ? (
-                                                <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">
-                                                    {badgeValue}
-                                                </span>
-                                            ) : null}
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom">{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="size-7 p-0 text-muted-foreground hover:text-foreground"
-                                            onClick={handleCollapseAllDirectories}
-                                            aria-label="Collapse all directories"
-                                        >
-                                            <FolderMinus className="size-3.5" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom">Collapse all directories</TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="size-7 p-0 text-muted-foreground hover:text-foreground"
-                                            onClick={handleExpandAllDirectories}
-                                            aria-label="Expand all directories"
-                                        >
-                                            <FolderPlus className="size-3.5" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom">Expand all directories</TooltipContent>
-                                </Tooltip>
-                            </>
-                        ) : null}
-                    </div>
                     {loading ? (
                         <div className="flex-1 min-h-0 px-2 py-3 text-[12px] text-muted-foreground">Loading file tree...</div>
                     ) : (
                         <div className="flex-1 min-h-0 overflow-hidden tree-font-scope pb-2" data-component="tree">
-                            <AppFileTreeView model={model} />
+                            <AppFileTreeView header={treeHeader} model={model} />
                         </div>
                     )}
                     <button

@@ -5,24 +5,22 @@ import { SettingsPanelContentOnly } from "@/components/settings-menu";
 import { getSettingsTreeItems, settingsPathForTab, settingsTabFromPath } from "@/components/settings-navigation";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Input } from "@/components/ui/input";
-import { type FileNode, useFileTree } from "@/lib/file-tree-context";
+import { useFileTree } from "@/lib/file-tree-context";
 
 export function SettingsPage() {
     const navigate = useNavigate();
-    const { setTree, setKinds, activeFile, setActiveFile } = useFileTree();
+    const { activeFile, setActiveFile } = useFileTree();
     const [searchQuery, setSearchQuery] = useState("");
     const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
     const settingsPathSet = useMemo(() => new Set(settingsTreeItems.map((item) => item.path)), [settingsTreeItems]);
-
-    useEffect(() => {
-        const settingsNodes: FileNode[] = settingsTreeItems.map((item) => ({
-            name: item.name,
-            path: item.path,
-            type: "file",
-        }));
-        setTree(settingsNodes);
-        setKinds(new Map());
-    }, [setKinds, setTree, settingsTreeItems]);
+    const treeEntries = useMemo(
+        () =>
+            settingsTreeItems.map((item) => ({
+                appPath: item.path,
+                treePath: item.name,
+            })),
+        [settingsTreeItems],
+    );
 
     useEffect(() => {
         const firstSettingsPath = settingsTreeItems[0]?.path;
@@ -54,13 +52,11 @@ export function SettingsPage() {
 
                 <div className="flex-1 min-h-0 overflow-y-auto" data-component="tree">
                     <FileTree
-                        path=""
-                        filterQuery={searchQuery}
-                        showUnviewedIndicator={false}
-                        onFileClick={(node) => {
-                            if (settingsPathSet.has(node.path)) {
-                                setActiveFile(node.path);
-                            }
+                        entries={treeEntries}
+                        selectedAppPath={activeFile}
+                        searchQuery={searchQuery}
+                        onSelectPath={(path) => {
+                            if (settingsPathSet.has(path)) setActiveFile(path);
                         }}
                     />
                 </div>

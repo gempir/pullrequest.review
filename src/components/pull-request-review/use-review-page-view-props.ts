@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { useMemo } from "react";
+import type { FileTreeEntry } from "@/components/file-tree";
 import type { GitHost } from "@/lib/git-host/types";
 import type { ReviewPageMainView } from "./review-page-main-view";
 
@@ -15,11 +16,12 @@ export function useReviewPageViewProps({
     pullRequestUrl,
     showSettingsPanel,
     activeFile,
+    treeEntries,
+    directoryPaths,
     fileLineStats,
     searchQuery,
     showUnviewedOnly,
     unviewedFileCount,
-    allowedPathSet,
     viewedFiles,
     pullRequest,
     isRefreshing,
@@ -42,9 +44,6 @@ export function useReviewPageViewProps({
     onExpandRightSidebar,
     onSearchQueryChange,
     onToggleUnviewedOnly,
-    onCollapseAllDirectories,
-    onExpandAllDirectories,
-    onToggleViewed,
     onFileClick,
     onStartTreeResize,
     onCopySourceBranch,
@@ -75,11 +74,12 @@ export function useReviewPageViewProps({
     pullRequestUrl?: string;
     showSettingsPanel: boolean;
     activeFile?: string;
+    treeEntries: FileTreeEntry[];
+    directoryPaths: string[];
     fileLineStats: ReadonlyMap<string, { added: number; removed: number }>;
     searchQuery: string;
     showUnviewedOnly: boolean;
     unviewedFileCount: number;
-    allowedPathSet: Set<string>;
     viewedFiles: Set<string>;
     pullRequest: { source?: { branch?: { name?: string } }; destination?: { branch?: { name?: string } }; draft?: boolean };
     isRefreshing: boolean;
@@ -102,9 +102,6 @@ export function useReviewPageViewProps({
     onExpandRightSidebar: MainViewProps["navbarProps"]["onExpandRightSidebar"];
     onSearchQueryChange: MainViewProps["sidebarProps"]["onSearchQueryChange"];
     onToggleUnviewedOnly: MainViewProps["sidebarProps"]["onToggleUnviewedOnly"];
-    onCollapseAllDirectories: MainViewProps["sidebarProps"]["onCollapseAllDirectories"];
-    onExpandAllDirectories: MainViewProps["sidebarProps"]["onExpandAllDirectories"];
-    onToggleViewed: MainViewProps["sidebarProps"]["onToggleViewed"];
     onFileClick: MainViewProps["sidebarProps"]["onFileClick"];
     onStartTreeResize: MainViewProps["sidebarProps"]["onStartTreeResize"];
     onCopySourceBranch: MainViewProps["navbarProps"]["onCopySourceBranch"];
@@ -133,11 +130,12 @@ export function useReviewPageViewProps({
             loading: treeLoading,
             showSettingsPanel,
             activeFile,
+            treeEntries,
+            directoryPaths,
             fileLineStats,
             searchQuery,
             showUnviewedOnly,
             unviewedFileCount,
-            allowedPathSet,
             viewedFiles,
             onHome,
             onRefresh,
@@ -145,17 +143,11 @@ export function useReviewPageViewProps({
             onCollapseTree,
             onSearchQueryChange,
             onToggleUnviewedOnly,
-            onCollapseAllDirectories,
-            onExpandAllDirectories,
-            onToggleViewed,
             onFileClick,
             onStartTreeResize,
         }),
         [
-            allowedPathSet,
-            onCollapseAllDirectories,
             onCollapseTree,
-            onExpandAllDirectories,
             onFileClick,
             onHome,
             onRefresh,
@@ -163,11 +155,12 @@ export function useReviewPageViewProps({
             onStartTreeResize,
             onToggleSettings,
             onToggleUnviewedOnly,
-            onToggleViewed,
             searchQuery,
             showSettingsPanel,
             showUnviewedOnly,
             activeFile,
+            directoryPaths,
+            treeEntries,
             unviewedFileCount,
             fileLineStats,
             treeCollapsed,

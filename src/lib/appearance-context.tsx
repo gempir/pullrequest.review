@@ -64,7 +64,7 @@ function deriveTreeFontSize(treeUseCustomTypography: boolean, treeFontSize: numb
     if (treeUseCustomTypography) {
         return treeFontSize;
     }
-    const reduced = sansFontSize - 1;
+    const reduced = sansFontSize - 2;
     return normalizeFontSize(reduced, 10, 18);
 }
 
@@ -72,7 +72,7 @@ function deriveTreeLineHeight(treeUseCustomTypography: boolean, treeLineHeight: 
     if (treeUseCustomTypography) {
         return treeLineHeight;
     }
-    const reduced = sansLineHeight - 0.05;
+    const reduced = sansLineHeight - 0.1;
     return normalizeLineHeight(reduced, 1, 2.2);
 }
 

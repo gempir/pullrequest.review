@@ -4,12 +4,10 @@ export {
     listInlineCommentDrafts,
     readInlineCommentActiveDraft,
     readInlineCommentDraftContent,
-    readReviewDirectoryState,
     readReviewLayoutState,
     readReviewViewedVersionIds,
     writeInlineCommentActiveDraft,
     writeInlineCommentDraftContent,
-    writeReviewDirectoryState,
     writeReviewLayoutState,
     writeReviewViewedVersionIds,
 } from "./runtime";

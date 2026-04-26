@@ -1,12 +1,10 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { useWorkerPool } from "@pierre/diffs/react";
 import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
-import { readReviewDirectoryState, writeReviewDirectoryState } from "@/lib/data/query-collections";
 import { fileAnchorId } from "@/lib/file-anchors";
-import { buildKindMapForTree, buildTreeFromPaths, type ChangeKind, type FileNode } from "@/lib/file-tree-context";
 import type { PullRequestBundle } from "@/lib/git-host/types";
 import { clearableHashFromPath, parsePrFileHash } from "@/lib/pr-file-hash";
-import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
+import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 
 export function useReviewDocumentTitle({ isLoading, pullRequestTitle }: { isLoading: boolean; pullRequestTitle?: string }) {
     useEffect(() => {
@@ -40,49 +38,6 @@ export function useCopyTimeoutCleanup({
             }
         };
     }, [copyResetTimeoutRef, copySourceBranchResetTimeoutRef]);
-}
-
-export function useDirectoryStateStorage({
-    directoryStateStorageKey,
-    dirState,
-    dirStateHydrated,
-    setDirStateHydrated,
-    setDirectoryExpandedMap,
-}: {
-    directoryStateStorageKey: string;
-    dirState: Record<string, { expanded: boolean }>;
-    dirStateHydrated: boolean;
-    setDirStateHydrated: Dispatch<SetStateAction<boolean>>;
-    setDirectoryExpandedMap: (next: Record<string, boolean>) => void;
-}) {
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        setDirStateHydrated(false);
-        const stored = readReviewDirectoryState(directoryStateStorageKey);
-        if (!stored) {
-            setDirectoryExpandedMap({});
-            setDirStateHydrated(true);
-            return;
-        }
-
-        const next: Record<string, boolean> = {};
-        for (const [path, expanded] of Object.entries(stored)) {
-            if (!path) continue;
-            next[path] = expanded === true;
-        }
-        setDirectoryExpandedMap(next);
-        setDirStateHydrated(true);
-    }, [directoryStateStorageKey, setDirectoryExpandedMap, setDirStateHydrated]);
-
-    useEffect(() => {
-        if (!dirStateHydrated || typeof window === "undefined") return;
-        const toStore: Record<string, boolean> = {};
-        for (const [path, state] of Object.entries(dirState)) {
-            if (!path) continue;
-            toStore[path] = state.expanded;
-        }
-        writeReviewDirectoryState(directoryStateStorageKey, toStore);
-    }, [dirState, dirStateHydrated, directoryStateStorageKey]);
 }
 
 export function useDiffHighlighterState({ fileDiffs, theme, preloadLanguages }: { fileDiffs: FileDiffMetadata[]; theme: string; preloadLanguages: string[] }) {
@@ -123,93 +78,6 @@ export function useDiffHighlighterState({ fileDiffs, theme, preloadLanguages }: 
     }, [fileDiffs.length, languagesForPreload, theme, workerPool]);
 
     return { diffHighlighterReady: true, diffPlainTextFallback };
-}
-
-export function useReviewTreeModelSync({
-    showSettingsPanel,
-    settingsTreeItems,
-    prData,
-    setTree,
-    setKinds,
-    isTreePending,
-}: {
-    showSettingsPanel: boolean;
-    settingsTreeItems: Array<{ name: string; path: string }>;
-    prData: PullRequestBundle | undefined;
-    setTree: (nodes: FileNode[]) => void;
-    setKinds: (next: ReadonlyMap<string, ChangeKind>) => void;
-    isTreePending: boolean;
-}) {
-    const diffstatSyncKey = prData?.diffstat.map((entry) => `${entry.status}:${entry.new?.path ?? ""}:${entry.old?.path ?? ""}`).join("|") ?? "";
-
-    useEffect(() => {
-        if (showSettingsPanel) {
-            const settingsNodes: FileNode[] = settingsTreeItems.map((item) => ({
-                name: item.name,
-                path: item.path,
-                type: "file",
-            }));
-            setTree(settingsNodes);
-            setKinds(new Map());
-            return;
-        }
-        if (!prData) return;
-        const hasDiffEntries = diffstatSyncKey.length > 0;
-        if (isTreePending && !hasDiffEntries) {
-            // Keep the previous tree visible while the next diff scope loads.
-            return;
-        }
-
-        const diffEntries = hasDiffEntries ? prData.diffstat : [];
-        const paths = diffEntries.map((entry) => entry.new?.path ?? entry.old?.path).filter((path): path is string => Boolean(path));
-        const tree = buildTreeFromPaths(paths);
-        const summaryNode: FileNode = {
-            name: PR_SUMMARY_NAME,
-            path: PR_SUMMARY_PATH,
-            type: "summary",
-        };
-        const treeWithSummary = [summaryNode, ...tree];
-        const fileKinds = new Map<string, ChangeKind>();
-
-        for (const entry of diffEntries) {
-            const path = entry.new?.path ?? entry.old?.path;
-            if (!path) continue;
-            switch (entry.status) {
-                case "added":
-                    fileKinds.set(path, "add");
-                    break;
-                case "removed":
-                    fileKinds.set(path, "del");
-                    break;
-                case "modified":
-                case "renamed":
-                    fileKinds.set(path, "mix");
-                    break;
-            }
-        }
-
-        setTree(treeWithSummary);
-        setKinds(buildKindMapForTree(treeWithSummary, fileKinds));
-    }, [diffstatSyncKey, isTreePending, prData, setKinds, setTree, settingsTreeItems, showSettingsPanel]);
-}
-
-export function useReviewTreeReset({
-    setTree,
-    setKinds,
-    setActiveFile,
-    setSearchQuery,
-}: {
-    setTree: (nodes: FileNode[]) => void;
-    setKinds: (next: ReadonlyMap<string, ChangeKind>) => void;
-    setActiveFile: (next: string | undefined) => void;
-    setSearchQuery: Dispatch<SetStateAction<string>>;
-}) {
-    useEffect(() => {
-        setTree([]);
-        setKinds(new Map());
-        setActiveFile(undefined);
-        setSearchQuery("");
-    }, [setActiveFile, setKinds, setSearchQuery, setTree]);
 }
 
 export function useReviewActiveFileSync({

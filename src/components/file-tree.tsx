@@ -1,4 +1,11 @@
-import type { FileTreeRowDecoration, FileTreeRowDecorationContext, FileTreeSortComparator, FileTreeSortEntry, GitStatusEntry } from "@pierre/trees";
+import type {
+    FileTreeIcons,
+    FileTreeRowDecoration,
+    FileTreeRowDecorationContext,
+    FileTreeSortComparator,
+    FileTreeSortEntry,
+    GitStatusEntry,
+} from "@pierre/trees";
 import { FileTree as PierreFileTree, prepareFileTreeInput } from "@pierre/trees";
 import { FileTree as PierreReactFileTree } from "@pierre/trees/react";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef } from "react";
@@ -22,6 +29,7 @@ type UseAppFileTreeModelProps = {
     pinnedFirstTreePath?: string;
     searchQuery?: string;
     gitStatus?: readonly GitStatusEntry[];
+    icons?: FileTreeIcons;
     onSelectPath?: (appPath: string) => void;
     onSearchQueryChange?: (value: string) => void;
     renderRowDecoration?: (context: AppFileTreeRowDecorationContext) => FileTreeRowDecoration | null;
@@ -154,6 +162,7 @@ export function useAppFileTreeModel({
     pinnedFirstTreePath,
     searchQuery,
     gitStatus,
+    icons,
     onSelectPath,
     onSearchQueryChange,
     renderRowDecoration,
@@ -187,6 +196,7 @@ export function useAppFileTreeModel({
                 preparedInput,
                 density: toTreeDensity(treeDensity),
                 fileTreeSearchMode: "hide-non-matches",
+                icons,
                 initialExpansion: "open",
                 sort: treeSort,
                 onSelectionChange: (selectedPaths) => {
@@ -223,7 +233,7 @@ export function useAppFileTreeModel({
                 initialSearchQuery: initialSearchQueryRef.current,
                 unsafeCSS: TREE_UNSAFE_CSS,
             }),
-        [preparedInput, treeDensity, treeSort],
+        [icons, preparedInput, treeDensity, treeSort],
     );
 
     useEffect(() => {

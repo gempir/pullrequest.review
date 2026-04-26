@@ -160,14 +160,12 @@ export function useLandingPageView({ initialHost, initialDiffPanel = "pull-reque
                 setActiveFile(path);
                 return;
             }
-            if (path.startsWith(HOST_PATH_PREFIX)) {
-                const host = path.slice(HOST_PATH_PREFIX.length);
-                if (host === "bitbucket" || host === "github") {
-                    setShowSettingsPanel(false);
-                    setActiveHost(host);
-                    setDiffPanel("repositories");
-                    openRepositorySelection(host);
-                }
+            const hostTreePath = hostFromLandingTreePath(path);
+            if (hostTreePath) {
+                setShowSettingsPanel(false);
+                setActiveHost(hostTreePath);
+                setDiffPanel("repositories");
+                openRepositorySelection(hostTreePath);
                 return;
             }
             const meta = pullRequestTree.pullRequestMeta.get(path);
@@ -245,6 +243,9 @@ export function useLandingPageView({ initialHost, initialDiffPanel = "pull-reque
         },
         onSaveSelectedRepos: (host: GitHost, repos: RepoRef[]) => {
             setReposForHost(host, repos);
+            setShowSettingsPanel(false);
+            setDiffPanel("pull-requests");
+            setActiveFile(undefined);
             navigate({ to: "/" });
         },
         onDisconnectHost: (host: GitHost) => {

@@ -132,6 +132,15 @@ interface BitbucketRepoPage {
     next?: string;
 }
 
+interface BitbucketWorkspaceEntry {
+    workspace?: { slug?: string };
+}
+
+interface BitbucketWorkspacePage {
+    values: BitbucketWorkspaceEntry[];
+    next?: string;
+}
+
 interface BitbucketActivityEntry {
     approval?: {
         date?: string;
@@ -465,6 +474,38 @@ function normalizeRepo(repo: BitbucketRepoEntry): RepoRef | null {
     };
 }
 
+async function fetchAllBitbucketWorkspaces() {
+    const values: BitbucketWorkspaceEntry[] = [];
+    let nextUrl: string | undefined = "https://api.bitbucket.org/2.0/user/workspaces?pagelen=100";
+
+    while (nextUrl) {
+        const res = await request(nextUrl, {
+            headers: { Accept: "application/json" },
+        });
+        const page = (await res.json()) as BitbucketWorkspacePage;
+        values.push(...(page.values ?? []));
+        nextUrl = page.next;
+    }
+
+    return values.map((entry) => entry.workspace?.slug).filter((slug): slug is string => Boolean(slug));
+}
+
+async function fetchAllBitbucketRepositoriesForWorkspace(workspace: string) {
+    const values: BitbucketRepoEntry[] = [];
+    let nextUrl: string | undefined = `https://api.bitbucket.org/2.0/repositories/${workspace}?role=member&pagelen=100`;
+
+    while (nextUrl) {
+        const res = await request(nextUrl, {
+            headers: { Accept: "application/json" },
+        });
+        const page = (await res.json()) as BitbucketRepoPage;
+        values.push(...(page.values ?? []));
+        nextUrl = page.next;
+    }
+
+    return values;
+}
+
 function mapBuildState(state: string | undefined): PullRequestBuildStatus["state"] {
     const normalized = (state ?? "").toUpperCase();
     if (normalized === "SUCCESSFUL") return "success";
@@ -698,19 +739,16 @@ export const bitbucketClient: GitHostClient = {
         return { authenticated: false };
     },
     async listRepositories() {
-        const values: BitbucketRepoEntry[] = [];
-        let nextUrl: string | undefined = "https://api.bitbucket.org/2.0/repositories?role=member&pagelen=100";
+        const workspaces = await fetchAllBitbucketWorkspaces();
+        const repositoryPages = await mapWithConcurrency(workspaces, 4, fetchAllBitbucketRepositoriesForWorkspace);
+        const repositoriesById = new Map<string, RepoRef>();
 
-        while (nextUrl) {
-            const res = await request(nextUrl, {
-                headers: { Accept: "application/json" },
-            });
-            const page = (await res.json()) as BitbucketRepoPage;
-            values.push(...(page.values ?? []));
-            nextUrl = page.next;
+        for (const repo of repositoryPages.flat().map(normalizeRepo)) {
+            if (!repo) continue;
+            repositoriesById.set(`${repo.host}:${repo.fullName}`, repo);
         }
 
-        return values.map(normalizeRepo).filter((repo): repo is RepoRef => Boolean(repo));
+        return Array.from(repositoriesById.values()).sort((a, b) => a.fullName.localeCompare(b.fullName));
     },
     async listPullRequestsForRepos(data) {
         if (!data.repos.length) return [];

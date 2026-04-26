@@ -53,12 +53,13 @@ const TREE_HOST_STYLE: CSSProperties = {
     "--trees-accent-override": "var(--accent)",
     "--trees-search-bg-override": "var(--chrome)",
     "--trees-selected-bg-override": "color-mix(in oklab, var(--accent) 18%, transparent)",
+    "--trees-git-renamed-color-override": "var(--status-renamed)",
     "--trees-focus-ring-width-override": "0px",
     "--trees-border-radius-override": "0px",
     "--trees-item-margin-x-override": "0px",
     "--trees-item-padding-x-override": "4px",
     "--trees-level-gap-override": "4px",
-    "--trees-item-row-gap-override": "4px",
+    "--trees-item-row-gap-override": "2px",
     "--trees-padding-inline-override": "0px",
     "--trees-scrollbar-thumb-override": "var(--border)",
     "--trees-scrollbar-gutter-override": "0px",
@@ -116,6 +117,10 @@ const TREE_UNSAFE_CSS = `
     grid-row: 2;
     min-height: 0;
   }
+
+  [data-item-section='git'] {
+    display: none;
+  }
 `;
 
 function compareNaturalText(left: string, right: string) {
@@ -154,6 +159,12 @@ function normalizeSearchQuery(searchQuery?: string) {
 
 function toTreeDensity(density: TreeDensityValue) {
     return density;
+}
+
+function getTreeItemHeight(density: TreeDensityValue) {
+    if (density === "compact") return 20;
+    if (density === "relaxed") return 28;
+    return 24;
 }
 
 export function useAppFileTreeModel({
@@ -198,6 +209,7 @@ export function useAppFileTreeModel({
                 fileTreeSearchMode: "hide-non-matches",
                 icons,
                 initialExpansion: "open",
+                itemHeight: getTreeItemHeight(treeDensity),
                 sort: treeSort,
                 onSelectionChange: (selectedPaths) => {
                     const nextTreePath = selectedPaths.at(-1);

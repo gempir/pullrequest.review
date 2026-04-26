@@ -1,4 +1,3 @@
-import type { GitStatusEntry } from "@pierre/trees";
 import type { ComponentProps } from "react";
 import { useMemo } from "react";
 import type { FileTreeEntry } from "@/components/file-tree";
@@ -19,7 +18,6 @@ export function useReviewPageViewProps({
     activeFile,
     treeEntries,
     directoryPaths,
-    reviewGitStatus,
     fileLineStats,
     searchQuery,
     showUnviewedOnly,
@@ -78,7 +76,6 @@ export function useReviewPageViewProps({
     activeFile?: string;
     treeEntries: FileTreeEntry[];
     directoryPaths: string[];
-    reviewGitStatus: readonly GitStatusEntry[];
     fileLineStats: ReadonlyMap<string, { added: number; removed: number }>;
     searchQuery: string;
     showUnviewedOnly: boolean;
@@ -135,7 +132,6 @@ export function useReviewPageViewProps({
             activeFile,
             treeEntries,
             directoryPaths,
-            reviewGitStatus,
             fileLineStats,
             searchQuery,
             showUnviewedOnly,
@@ -164,7 +160,6 @@ export function useReviewPageViewProps({
             showUnviewedOnly,
             activeFile,
             directoryPaths,
-            reviewGitStatus,
             treeEntries,
             unviewedFileCount,
             fileLineStats,

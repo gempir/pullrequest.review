@@ -1,6 +1,5 @@
 import { type FileDiffOptions, getFiletypeFromFileName, type OnDiffLineEnterLeaveProps, parsePatchFiles } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
-import type { GitStatusEntry } from "@pierre/trees";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FileTreeEntry } from "@/components/file-tree";
 import { linesUpdated, normalizeNavbarState } from "@/components/pull-request-review/review-formatters";
@@ -340,30 +339,6 @@ export function useReviewPageDerived({
             })),
         ];
     }, [effectiveVisibleFilePaths, settingsTreeItems, showSettingsPanel]);
-    const reviewGitStatus = useMemo<GitStatusEntry[]>(() => {
-        if (showSettingsPanel) return [];
-        const statuses = new Map<string, GitStatusEntry["status"]>();
-        for (const entry of prData?.diffstat ?? []) {
-            const path = entry.new?.path ?? entry.old?.path;
-            if (!path || !visiblePathSet.has(path)) continue;
-            switch (entry.status) {
-                case "added":
-                    statuses.set(path, "added");
-                    break;
-                case "removed":
-                    statuses.set(path, "deleted");
-                    break;
-                case "modified":
-                    statuses.set(path, "modified");
-                    break;
-                case "renamed":
-                    statuses.set(path, "renamed");
-                    break;
-            }
-        }
-        return Array.from(statuses, ([path, status]) => ({ path, status }));
-    }, [prData?.diffstat, showSettingsPanel, visiblePathSet]);
-
     const allModeDiffEntries = useMemo(() => {
         const byPath = new Map<string, FileDiffMetadata>();
         const ordered: Array<{ filePath: string; fileDiff: FileDiffMetadata }> = [];
@@ -595,7 +570,6 @@ export function useReviewPageDerived({
         selectableDiffPathSet,
         visiblePathSet,
         treeEntries,
-        reviewGitStatus,
         directoryPaths,
         treeOrderedVisiblePaths,
         allModeDiffEntries,

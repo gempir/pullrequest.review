@@ -6,7 +6,7 @@ import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/revie
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { PR_SUMMARY_NAME } from "@/lib/pr-summary";
+import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { cn } from "@/lib/utils";
 
 type ReviewFileTreeSidebarProps = {
@@ -17,7 +17,6 @@ type ReviewFileTreeSidebarProps = {
     activeFile?: string;
     treeEntries: FileTreeEntry[];
     directoryPaths: string[];
-    reviewGitStatus: readonly GitStatusEntry[];
     fileLineStats?: ReadonlyMap<string, { added: number; removed: number }>;
     searchQuery: string;
     showUnviewedOnly: boolean;
@@ -70,7 +69,6 @@ export function ReviewFileTreeSidebar({
     activeFile,
     treeEntries,
     directoryPaths,
-    reviewGitStatus,
     fileLineStats,
     searchQuery,
     showUnviewedOnly,
@@ -87,19 +85,25 @@ export function ReviewFileTreeSidebar({
 }: ReviewFileTreeSidebarProps) {
     const badgeValue = unviewedFileCount > 999 ? "999+" : unviewedFileCount.toString();
     const diffStatIcons = useMemo(() => createDiffStatIcons(fileLineStats), [fileLineStats]);
+    const unviewedGitStatus = useMemo<GitStatusEntry[]>(() => {
+        if (showSettingsPanel) return [];
+        return treeEntries
+            .filter((entry) => entry.appPath !== PR_SUMMARY_PATH && !viewedFiles.has(entry.appPath))
+            .map((entry) => ({ path: entry.treePath, status: "renamed" }));
+    }, [showSettingsPanel, treeEntries, viewedFiles]);
     const model = useAppFileTreeModel({
         entries: treeEntries,
         selectedAppPath: activeFile,
         pinnedFirstTreePath: showSettingsPanel ? undefined : PR_SUMMARY_NAME,
         searchQuery,
-        gitStatus: reviewGitStatus,
+        gitStatus: unviewedGitStatus,
         icons: diffStatIcons,
         onSelectPath: onFileClick,
         onSearchQueryChange,
         renderRowDecoration: ({ appPath, kind }) => {
             if (showSettingsPanel || kind !== "file") return null;
+            if (appPath === PR_SUMMARY_PATH) return null;
             const stats = fileLineStats?.get(appPath);
-            const isViewed = viewedFiles.has(appPath);
             const hasStats = Boolean(stats) && ((stats?.added ?? 0) > 0 || (stats?.removed ?? 0) > 0);
             if (hasStats && stats) {
                 return {
@@ -110,12 +114,6 @@ export function ReviewFileTreeSidebar({
                         viewBox: `0 0 ${getDiffStatIconWidth(stats)} 16`,
                     },
                     title: `Added ${stats?.added ?? 0} lines, removed ${stats?.removed ?? 0} lines`,
-                };
-            }
-            if (!isViewed) {
-                return {
-                    text: "new",
-                    title: "Unviewed file",
                 };
             }
             return null;

@@ -1,7 +1,7 @@
-import type { FileTreeRowDecoration, FileTreeRowDecorationContext, GitStatusEntry } from "@pierre/trees";
+import type { FileTreeRowDecoration, FileTreeRowDecorationContext, FileTreeSortComparator, FileTreeSortEntry, GitStatusEntry } from "@pierre/trees";
 import { FileTree as PierreFileTree, prepareFileTreeInput } from "@pierre/trees";
 import { FileTree as PierreReactFileTree } from "@pierre/trees/react";
-import { type CSSProperties, useEffect, useMemo, useRef } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef } from "react";
 import { type TreeDensityValue, useFileTree } from "@/lib/file-tree-context";
 
 export type FileTreeEntry = {
@@ -19,14 +19,17 @@ export type AppFileTreeRowDecorationContext = {
 type UseAppFileTreeModelProps = {
     entries: readonly FileTreeEntry[];
     selectedAppPath?: string;
+    pinnedFirstTreePath?: string;
     searchQuery?: string;
     gitStatus?: readonly GitStatusEntry[];
     onSelectPath?: (appPath: string) => void;
+    onSearchQueryChange?: (value: string) => void;
     renderRowDecoration?: (context: AppFileTreeRowDecorationContext) => FileTreeRowDecoration | null;
 };
 
 type AppFileTreeProps = UseAppFileTreeModelProps & {
     className?: string;
+    header?: ReactNode;
     style?: CSSProperties;
 };
 
@@ -40,18 +43,101 @@ const TREE_HOST_STYLE: CSSProperties = {
     "--trees-bg-muted-override": "var(--surface-2)",
     "--trees-border-color-override": "var(--border-muted)",
     "--trees-accent-override": "var(--accent)",
+    "--trees-search-bg-override": "var(--chrome)",
     "--trees-selected-bg-override": "color-mix(in oklab, var(--accent) 18%, transparent)",
-    "--trees-selected-focused-border-color-override": "var(--accent)",
-    "--trees-focus-ring-color-override": "var(--accent)",
+    "--trees-focus-ring-width-override": "0px",
     "--trees-border-radius-override": "0px",
     "--trees-item-margin-x-override": "0px",
-    "--trees-item-padding-x-override": "6px",
-    "--trees-level-gap-override": "6px",
-    "--trees-item-row-gap-override": "6px",
-    "--trees-padding-inline-override": "8px",
+    "--trees-item-padding-x-override": "4px",
+    "--trees-level-gap-override": "4px",
+    "--trees-item-row-gap-override": "4px",
+    "--trees-padding-inline-override": "0px",
     "--trees-scrollbar-thumb-override": "var(--border)",
-    "--trees-scrollbar-gutter-override": "8px",
+    "--trees-scrollbar-gutter-override": "0px",
 } as CSSProperties;
+
+const TREE_UNSAFE_CSS = `
+  [role='tree'] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 40px minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  [data-type='header-slot'] {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  [data-type='item'][data-item-focused='true']::before,
+  [data-type='item']:focus-visible::before {
+    display: none;
+  }
+
+  [data-type='item'][data-item-focused='true'] [data-item-flattened-subitems],
+  [data-type='item']:focus-visible [data-item-flattened-subitems] {
+    --truncate-marker-block-inset: 0px;
+  }
+
+  [data-file-tree-search-container] {
+    grid-column: 1;
+    grid-row: 1;
+    padding-inline: 0;
+    margin-bottom: 0;
+    min-width: 0;
+  }
+
+  [data-file-tree-search-input] {
+    background-color: var(--chrome);
+    border-inline: 0;
+    border-top: 1px solid var(--trees-border-color);
+    border-bottom: 1px solid var(--trees-border-color);
+    height: 40px;
+    line-height: 40px;
+    margin-block: 0;
+  }
+
+  [data-file-tree-search-input]:focus-visible,
+  [data-file-tree-search-input][data-file-tree-search-input-fake-focus='true'] {
+    outline: none;
+  }
+
+  [data-file-tree-virtualized-scroll='true'] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-height: 0;
+  }
+`;
+
+function compareNaturalText(left: string, right: string) {
+    return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }) || left.localeCompare(right);
+}
+
+function compareLikeDefaultTreeSort(left: FileTreeSortEntry, right: FileTreeSortEntry) {
+    const sharedDepth = Math.min(left.segments.length, right.segments.length);
+    for (let depth = 0; depth < sharedDepth; depth += 1) {
+        const leftSegment = left.segments[depth];
+        const rightSegment = right.segments[depth];
+        if (leftSegment === rightSegment) continue;
+        const leftKind = depth === left.segments.length - 1 && !left.isDirectory ? "file" : "directory";
+        const rightKind = depth === right.segments.length - 1 && !right.isDirectory ? "file" : "directory";
+        if (leftKind !== rightKind) return leftKind === "directory" ? -1 : 1;
+        return compareNaturalText(leftSegment, rightSegment);
+    }
+    if (left.segments.length !== right.segments.length) return left.segments.length < right.segments.length ? -1 : 1;
+    if (left.isDirectory !== right.isDirectory) return left.isDirectory ? -1 : 1;
+    return 0;
+}
+
+function createTreeSort(pinnedFirstTreePath?: string): FileTreeSortComparator | "default" {
+    if (!pinnedFirstTreePath) return "default";
+    return (left, right) => {
+        if (left.path === pinnedFirstTreePath && right.path !== pinnedFirstTreePath) return -1;
+        if (right.path === pinnedFirstTreePath && left.path !== pinnedFirstTreePath) return 1;
+        return compareLikeDefaultTreeSort(left, right);
+    };
+}
 
 function normalizeSearchQuery(searchQuery?: string) {
     const trimmed = searchQuery?.trim() ?? "";
@@ -62,18 +148,33 @@ function toTreeDensity(density: TreeDensityValue) {
     return density;
 }
 
-export function useAppFileTreeModel({ entries, selectedAppPath, searchQuery, gitStatus, onSelectPath, renderRowDecoration }: UseAppFileTreeModelProps) {
+export function useAppFileTreeModel({
+    entries,
+    selectedAppPath,
+    pinnedFirstTreePath,
+    searchQuery,
+    gitStatus,
+    onSelectPath,
+    onSearchQueryChange,
+    renderRowDecoration,
+}: UseAppFileTreeModelProps) {
     const { treeDensity } = useFileTree();
     const appPathToTreePathRef = useRef(new Map<string, string>());
     const treePathToAppPathRef = useRef(new Map<string, string>());
+    const selectedAppPathRef = useRef(selectedAppPath);
+    const initialSearchQueryRef = useRef(normalizeSearchQuery(searchQuery) ?? "");
     const onSelectPathRef = useRef(onSelectPath);
+    const onSearchQueryChangeRef = useRef(onSearchQueryChange);
     const renderRowDecorationRef = useRef(renderRowDecoration);
 
+    selectedAppPathRef.current = selectedAppPath;
     onSelectPathRef.current = onSelectPath;
+    onSearchQueryChangeRef.current = onSearchQueryChange;
     renderRowDecorationRef.current = renderRowDecoration;
 
     const treePaths = useMemo(() => entries.map((entry) => entry.treePath), [entries]);
-    const preparedInput = useMemo(() => prepareFileTreeInput(treePaths), [treePaths]);
+    const treeSort = useMemo(() => createTreeSort(pinnedFirstTreePath), [pinnedFirstTreePath]);
+    const preparedInput = useMemo(() => prepareFileTreeInput(treePaths, { sort: treeSort }), [treePaths, treeSort]);
 
     useEffect(() => {
         appPathToTreePathRef.current = new Map(entries.map((entry) => [entry.appPath, entry.treePath]));
@@ -87,12 +188,23 @@ export function useAppFileTreeModel({ entries, selectedAppPath, searchQuery, git
                 density: toTreeDensity(treeDensity),
                 fileTreeSearchMode: "hide-non-matches",
                 initialExpansion: "open",
+                sort: treeSort,
                 onSelectionChange: (selectedPaths) => {
                     const nextTreePath = selectedPaths.at(-1);
                     if (!nextTreePath) return;
                     const nextAppPath = treePathToAppPathRef.current.get(nextTreePath);
-                    if (!nextAppPath) return;
+                    if (!nextAppPath) {
+                        const selectedTreePath = selectedAppPathRef.current ? appPathToTreePathRef.current.get(selectedAppPathRef.current) : undefined;
+                        if (selectedTreePath && selectedTreePath !== nextTreePath) {
+                            model.getItem(nextTreePath)?.deselect();
+                            model.getItem(selectedTreePath)?.select();
+                        }
+                        return;
+                    }
                     onSelectPathRef.current?.(nextAppPath);
+                },
+                onSearchChange: (value) => {
+                    onSearchQueryChangeRef.current?.(value ?? "");
                 },
                 renderRowDecoration: (context) => {
                     const appPath = treePathToAppPathRef.current.get(context.item.path);
@@ -107,8 +219,11 @@ export function useAppFileTreeModel({ entries, selectedAppPath, searchQuery, git
                     );
                 },
                 search: true,
+                searchBlurBehavior: "retain",
+                initialSearchQuery: initialSearchQueryRef.current,
+                unsafeCSS: TREE_UNSAFE_CSS,
             }),
-        [preparedInput, treeDensity],
+        [preparedInput, treeDensity, treeSort],
     );
 
     useEffect(() => {
@@ -116,10 +231,6 @@ export function useAppFileTreeModel({ entries, selectedAppPath, searchQuery, git
             model.cleanUp();
         };
     }, [model]);
-
-    useEffect(() => {
-        model.resetPaths(preparedInput.paths, { preparedInput });
-    }, [model, preparedInput]);
 
     useEffect(() => {
         model.setGitStatus(gitStatus);
@@ -138,19 +249,18 @@ export function useAppFileTreeModel({ entries, selectedAppPath, searchQuery, git
             model.getItem(selectedPath)?.deselect();
         }
         model.getItem(treePath)?.select();
-        model.focusNearestPath(treePath);
     }, [model, selectedAppPath]);
 
     return model;
 }
 
-export function AppFileTreeView({ className, model, style }: { className?: string; model: PierreFileTree; style?: CSSProperties }) {
+export function AppFileTreeView({ className, header, model, style }: { className?: string; header?: ReactNode; model: PierreFileTree; style?: CSSProperties }) {
     const hostStyle = useMemo(() => ({ ...TREE_HOST_STYLE, ...style }), [style]);
-    return <PierreReactFileTree className={className} model={model} style={hostStyle} />;
+    return <PierreReactFileTree className={className} header={header} model={model} style={hostStyle} />;
 }
 
 export function FileTree(props: AppFileTreeProps) {
-    const { className, style, ...modelProps } = props;
+    const { className, header, style, ...modelProps } = props;
     const model = useAppFileTreeModel(modelProps);
-    return <AppFileTreeView className={className} model={model} style={style} />;
+    return <AppFileTreeView className={className} header={header} model={model} style={style} />;
 }

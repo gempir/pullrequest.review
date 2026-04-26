@@ -1,6 +1,6 @@
-import type { FileTreeDirectoryHandle, GitStatusEntry } from "@pierre/trees";
+import type { FileTreeDirectoryHandle, FileTreeIcons, GitStatusEntry } from "@pierre/trees";
 import { Eye, EyeOff, FolderMinus, FolderPlus } from "lucide-react";
-import { type MouseEventHandler, useCallback } from "react";
+import { type MouseEventHandler, useCallback, useMemo } from "react";
 import { AppFileTreeView, type FileTreeEntry, useAppFileTreeModel } from "@/components/file-tree";
 import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
@@ -33,6 +33,35 @@ type ReviewFileTreeSidebarProps = {
     onStartTreeResize: MouseEventHandler<HTMLButtonElement>;
 };
 
+function getDiffStatIconName(stats: { added: number; removed: number }) {
+    return `file-tree-diff-stat-${stats.added}-${stats.removed}`;
+}
+
+function getDiffStatIconWidth(stats: { added: number; removed: number }) {
+    return Math.max(`+${stats.added}`.length, `-${stats.removed}`.length) * 5;
+}
+
+function createDiffStatSymbol(stats: { added: number; removed: number }) {
+    const name = getDiffStatIconName(stats);
+    const width = getDiffStatIconWidth(stats);
+    return `<symbol id="${name}" viewBox="0 0 ${width} 16"><text x="${width}" y="7" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="500" fill="var(--status-added)">+${stats.added}</text><text x="${width}" y="15" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="500" fill="var(--status-removed)">-${stats.removed}</text></symbol>`;
+}
+
+function createDiffStatIcons(fileLineStats?: ReadonlyMap<string, { added: number; removed: number }>): FileTreeIcons | undefined {
+    if (!fileLineStats) return undefined;
+    const symbols = new Map<string, string>();
+    for (const stats of fileLineStats.values()) {
+        if (stats.added <= 0 && stats.removed <= 0) continue;
+        symbols.set(getDiffStatIconName(stats), createDiffStatSymbol(stats));
+    }
+    if (symbols.size === 0) return undefined;
+    return {
+        set: "complete",
+        colored: true,
+        spriteSheet: `<svg xmlns="http://www.w3.org/2000/svg" style="display:none">${Array.from(symbols.values()).join("")}</svg>`,
+    };
+}
+
 export function ReviewFileTreeSidebar({
     treeWidth,
     treeCollapsed,
@@ -57,12 +86,14 @@ export function ReviewFileTreeSidebar({
     onStartTreeResize,
 }: ReviewFileTreeSidebarProps) {
     const badgeValue = unviewedFileCount > 999 ? "999+" : unviewedFileCount.toString();
+    const diffStatIcons = useMemo(() => createDiffStatIcons(fileLineStats), [fileLineStats]);
     const model = useAppFileTreeModel({
         entries: treeEntries,
         selectedAppPath: activeFile,
         pinnedFirstTreePath: showSettingsPanel ? undefined : PR_SUMMARY_NAME,
         searchQuery,
         gitStatus: reviewGitStatus,
+        icons: diffStatIcons,
         onSelectPath: onFileClick,
         onSearchQueryChange,
         renderRowDecoration: ({ appPath, kind }) => {
@@ -70,9 +101,14 @@ export function ReviewFileTreeSidebar({
             const stats = fileLineStats?.get(appPath);
             const isViewed = viewedFiles.has(appPath);
             const hasStats = Boolean(stats) && ((stats?.added ?? 0) > 0 || (stats?.removed ?? 0) > 0);
-            if (hasStats) {
+            if (hasStats && stats) {
                 return {
-                    text: `+${stats?.added ?? 0} -${stats?.removed ?? 0}`,
+                    icon: {
+                        name: getDiffStatIconName(stats),
+                        width: getDiffStatIconWidth(stats),
+                        height: 16,
+                        viewBox: `0 0 ${getDiffStatIconWidth(stats)} 16`,
+                    },
                     title: `Added ${stats?.added ?? 0} lines, removed ${stats?.removed ?? 0} lines`,
                 };
             }

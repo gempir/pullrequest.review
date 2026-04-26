@@ -1,427 +1,288 @@
-import {
-    ChevronDown,
-    ChevronRight,
-    Command,
-    Folder,
-    FolderOpen,
-    FolderTree,
-    GitPullRequest,
-    House,
-    MonitorCog,
-    ScrollText,
-    SlidersHorizontal,
-    SwatchBook,
-} from "lucide-react";
-import { memo, useMemo } from "react";
-import { GitHostIcon } from "@/components/git-host-icon";
-import { RepositoryFileIcon } from "@/components/repository-file-icon";
-import { type ChangeKind, type FileNode, useFileTree } from "@/lib/file-tree-context";
-import type { GitHost } from "@/lib/git-host/types";
-import { cn } from "@/lib/utils";
+import type {
+    FileTreeIcons,
+    FileTreeRowDecoration,
+    FileTreeRowDecorationContext,
+    FileTreeSortComparator,
+    FileTreeSortEntry,
+    GitStatusEntry,
+} from "@pierre/trees";
+import { FileTree as PierreFileTree, prepareFileTreeInput } from "@pierre/trees";
+import { FileTree as PierreReactFileTree } from "@pierre/trees/react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef } from "react";
+import { type TreeDensityValue, useFileTree } from "@/lib/file-tree-context";
 
-interface FileTreeProps {
-    path: string;
-    level?: number;
-    kinds?: ReadonlyMap<string, ChangeKind>;
-    lineStatsByPath?: ReadonlyMap<string, { added: number; removed: number }>;
-    activeFile?: string;
-    filterQuery?: string;
-    allowedFiles?: ReadonlySet<string>;
-    viewedFiles?: ReadonlySet<string>;
-    onToggleViewed?: (path: string) => void;
-    onFileClick?: (node: FileNode) => void;
-    onDirectoryClick?: (node: FileNode) => boolean | undefined;
-    showUnviewedIndicator?: boolean;
+export type FileTreeEntry = {
+    treePath: string;
+    appPath: string;
+};
+
+export type AppFileTreeRowDecorationContext = {
+    appPath: string;
+    treePath: string;
+    kind: "directory" | "file";
+    row: FileTreeRowDecorationContext["row"];
+};
+
+type UseAppFileTreeModelProps = {
+    entries: readonly FileTreeEntry[];
+    selectedAppPath?: string;
+    pinnedFirstTreePath?: string;
+    searchQuery?: string;
+    gitStatus?: readonly GitStatusEntry[];
+    icons?: FileTreeIcons;
+    onSelectPath?: (appPath: string) => void;
+    onSearchQueryChange?: (value: string) => void;
+    renderRowDecoration?: (context: AppFileTreeRowDecorationContext) => FileTreeRowDecoration | null;
+};
+
+type AppFileTreeProps = UseAppFileTreeModelProps & {
+    className?: string;
+    header?: ReactNode;
+    style?: CSSProperties;
+};
+
+const TREE_HOST_STYLE: CSSProperties = {
+    height: "100%",
+    "--trees-font-family-override": "var(--tree-font-family)",
+    "--trees-font-size-override": "var(--tree-font-size)",
+    "--trees-fg-override": "var(--foreground)",
+    "--trees-fg-muted-override": "var(--muted-foreground)",
+    "--trees-bg-override": "var(--background)",
+    "--trees-bg-muted-override": "var(--surface-2)",
+    "--trees-border-color-override": "var(--border-muted)",
+    "--trees-accent-override": "var(--accent)",
+    "--trees-search-bg-override": "var(--chrome)",
+    "--trees-selected-bg-override": "color-mix(in oklab, var(--accent) 18%, transparent)",
+    "--trees-git-renamed-color-override": "var(--status-renamed)",
+    "--trees-focus-ring-width-override": "0px",
+    "--trees-border-radius-override": "0px",
+    "--trees-item-margin-x-override": "0px",
+    "--trees-item-padding-x-override": "4px",
+    "--trees-level-gap-override": "4px",
+    "--trees-item-row-gap-override": "2px",
+    "--trees-padding-inline-override": "0px",
+    "--trees-scrollbar-thumb-override": "var(--border)",
+    "--trees-scrollbar-gutter-override": "0px",
+} as CSSProperties;
+
+const TREE_UNSAFE_CSS = `
+  [role='tree'] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 40px minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  [data-type='header-slot'] {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  [data-type='item'][data-item-focused='true']::before,
+  [data-type='item']:focus-visible::before {
+    display: none;
+  }
+
+  [data-type='item'][data-item-focused='true'] [data-item-flattened-subitems],
+  [data-type='item']:focus-visible [data-item-flattened-subitems] {
+    --truncate-marker-block-inset: 0px;
+  }
+
+  [data-file-tree-search-container] {
+    grid-column: 1;
+    grid-row: 1;
+    padding-inline: 0;
+    margin-bottom: 0;
+    min-width: 0;
+  }
+
+  [data-file-tree-search-input] {
+    background-color: var(--chrome);
+    border-inline: 0;
+    border-top: 1px solid var(--trees-border-color);
+    border-bottom: 1px solid var(--trees-border-color);
+    height: 40px;
+    line-height: 40px;
+    margin-block: 0;
+  }
+
+  [data-file-tree-search-input]:focus-visible,
+  [data-file-tree-search-input][data-file-tree-search-input-fake-focus='true'] {
+    outline: none;
+  }
+
+  [data-file-tree-virtualized-scroll='true'] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-height: 0;
+  }
+
+  [data-item-section='git'] {
+    display: none;
+  }
+`;
+
+function compareNaturalText(left: string, right: string) {
+    return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }) || left.localeCompare(right);
 }
 
-const SETTINGS_PATH_PREFIX = "__settings__/";
-const HOME_PATH = "__home__";
-const PR_PATH_PREFIX = "pr:";
-const REPO_PATH_PREFIX = "repo:";
-const HOST_PATH_PREFIX = "host:";
-
-function kindColor(kind: ChangeKind) {
-    switch (kind) {
-        case "add":
-            return "text-status-added";
-        case "del":
-            return "text-status-removed";
-        case "mix":
-            return "text-status-modified";
+function compareLikeDefaultTreeSort(left: FileTreeSortEntry, right: FileTreeSortEntry) {
+    const sharedDepth = Math.min(left.segments.length, right.segments.length);
+    for (let depth = 0; depth < sharedDepth; depth += 1) {
+        const leftSegment = left.segments[depth];
+        const rightSegment = right.segments[depth];
+        if (leftSegment === rightSegment) continue;
+        const leftKind = depth === left.segments.length - 1 && !left.isDirectory ? "file" : "directory";
+        const rightKind = depth === right.segments.length - 1 && !right.isDirectory ? "file" : "directory";
+        if (leftKind !== rightKind) return leftKind === "directory" ? -1 : 1;
+        return compareNaturalText(leftSegment, rightSegment);
     }
+    if (left.segments.length !== right.segments.length) return left.segments.length < right.segments.length ? -1 : 1;
+    if (left.isDirectory !== right.isDirectory) return left.isDirectory ? -1 : 1;
+    return 0;
 }
 
-function kindIconColor(kind?: ChangeKind) {
-    if (!kind) return "text-muted-foreground";
-    return kindColor(kind);
+function createTreeSort(pinnedFirstTreePath?: string): FileTreeSortComparator | "default" {
+    if (!pinnedFirstTreePath) return "default";
+    return (left, right) => {
+        if (left.path === pinnedFirstTreePath && right.path !== pinnedFirstTreePath) return -1;
+        if (right.path === pinnedFirstTreePath && left.path !== pinnedFirstTreePath) return 1;
+        return compareLikeDefaultTreeSort(left, right);
+    };
 }
 
-function isSettingsPath(path: string) {
-    return path.startsWith(SETTINGS_PATH_PREFIX);
+function normalizeSearchQuery(searchQuery?: string) {
+    const trimmed = searchQuery?.trim() ?? "";
+    return trimmed.length > 0 ? trimmed : null;
 }
 
-function isHomePath(path: string) {
-    return path === HOME_PATH;
+function toTreeDensity(density: TreeDensityValue) {
+    return density;
 }
 
-function isPullRequestPath(path: string) {
-    return path.startsWith(PR_PATH_PREFIX);
+function getTreeItemHeight(density: TreeDensityValue) {
+    if (density === "compact") return 20;
+    if (density === "relaxed") return 28;
+    return 24;
 }
 
-function isRepositoryPath(path: string) {
-    return path.startsWith(REPO_PATH_PREFIX);
-}
+export function useAppFileTreeModel({
+    entries,
+    selectedAppPath,
+    pinnedFirstTreePath,
+    searchQuery,
+    gitStatus,
+    icons,
+    onSelectPath,
+    onSearchQueryChange,
+    renderRowDecoration,
+}: UseAppFileTreeModelProps) {
+    const { treeDensity } = useFileTree();
+    const appPathToTreePathRef = useRef(new Map<string, string>());
+    const treePathToAppPathRef = useRef(new Map<string, string>());
+    const selectedAppPathRef = useRef(selectedAppPath);
+    const initialSearchQueryRef = useRef(normalizeSearchQuery(searchQuery) ?? "");
+    const onSelectPathRef = useRef(onSelectPath);
+    const onSearchQueryChangeRef = useRef(onSearchQueryChange);
+    const renderRowDecorationRef = useRef(renderRowDecoration);
 
-function isHostPath(path: string) {
-    return path.startsWith(HOST_PATH_PREFIX);
-}
+    selectedAppPathRef.current = selectedAppPath;
+    onSelectPathRef.current = onSelectPath;
+    onSearchQueryChangeRef.current = onSearchQueryChange;
+    renderRowDecorationRef.current = renderRowDecoration;
 
-function hostFromTreePath(path: string): GitHost | null {
-    const [, host] = path.split(":");
-    if (host === "github" || host === "bitbucket") return host;
-    return null;
-}
+    const treePaths = useMemo(() => entries.map((entry) => entry.treePath), [entries]);
+    const treeSort = useMemo(() => createTreeSort(pinnedFirstTreePath), [pinnedFirstTreePath]);
+    const preparedInput = useMemo(() => prepareFileTreeInput(treePaths, { sort: treeSort }), [treePaths, treeSort]);
 
-function settingsIcon(path: string) {
-    if (!isSettingsPath(path)) return null;
-    const tab = path.slice(SETTINGS_PATH_PREFIX.length);
-    if (tab === "appearance") return <SwatchBook className="size-3.5" />;
-    if (tab === "diff") return <SlidersHorizontal className="size-3.5" />;
-    if (tab === "tree") return <FolderTree className="size-3.5" />;
-    if (tab === "shortcuts") return <Command className="size-3.5" />;
-    if (tab === "workspace") return <MonitorCog className="size-3.5" />;
-    return null;
-}
+    useEffect(() => {
+        appPathToTreePathRef.current = new Map(entries.map((entry) => [entry.appPath, entry.treePath]));
+        treePathToAppPathRef.current = new Map(entries.map((entry) => [entry.treePath, entry.appPath]));
+    }, [entries]);
 
-function TreeLineStat({ prefix, value, className }: { prefix: "+" | "-"; value: number | undefined; className: string }) {
-    if (!value) {
-        return <span className={className}>&nbsp;</span>;
-    }
-    return (
-        <span className={className}>
-            {prefix}
-            {value}
-        </span>
-    );
-}
-
-export function FileTree({
-    path,
-    level = 0,
-    kinds,
-    lineStatsByPath,
-    activeFile,
-    filterQuery,
-    allowedFiles,
-    viewedFiles,
-    onToggleViewed,
-    onFileClick,
-    onDirectoryClick,
-    showUnviewedIndicator = true,
-}: FileTreeProps) {
-    const tree = useFileTree();
-    const resolvedKinds = kinds ?? tree.kinds;
-    const rawNodes = tree.getChildrenForPath(path);
-    const active = activeFile ?? tree.activeFile;
-    const treeIndentSize = tree.treeIndentSize;
-    const normalizedQuery = filterQuery?.trim().toLowerCase() ?? "";
-    const nodes = useMemo(() => {
-        const matchesNode = (node: FileNode): boolean => {
-            if (node.type === "summary") {
-                if (!normalizedQuery) return true;
-                const summarySearch = `${node.name} ${node.path}`.toLowerCase();
-                return summarySearch.includes(normalizedQuery);
-            }
-            if (node.type === "file") {
-                const queryMatch = !normalizedQuery || node.path.toLowerCase().includes(normalizedQuery);
-                const allowedMatch = !allowedFiles || allowedFiles.has(node.path);
-                return queryMatch && allowedMatch;
-            }
-            const children = tree.getChildrenForPath(node.path);
-            const host = hostFromTreePath(node.path);
-            if (host && children.length === 0) {
-                if (!normalizedQuery) return true;
-                const hostSearch = `${node.name} ${node.path}`.toLowerCase();
-                return hostSearch.includes(normalizedQuery);
-            }
-            return children.some(matchesNode);
-        };
-        return rawNodes.filter(matchesNode);
-    }, [allowedFiles, normalizedQuery, rawNodes, tree]);
-
-    return (
-        <div className="flex flex-col tree-font-scope">
-            {nodes.map((node) => {
-                if (node.type === "directory") {
+    const model = useMemo(
+        () =>
+            new PierreFileTree({
+                preparedInput,
+                density: toTreeDensity(treeDensity),
+                fileTreeSearchMode: "hide-non-matches",
+                icons,
+                initialExpansion: "open",
+                itemHeight: getTreeItemHeight(treeDensity),
+                sort: treeSort,
+                onSelectionChange: (selectedPaths) => {
+                    const nextTreePath = selectedPaths.at(-1);
+                    if (!nextTreePath) return;
+                    const nextAppPath = treePathToAppPathRef.current.get(nextTreePath);
+                    if (!nextAppPath) {
+                        const selectedTreePath = selectedAppPathRef.current ? appPathToTreePathRef.current.get(selectedAppPathRef.current) : undefined;
+                        if (selectedTreePath && selectedTreePath !== nextTreePath) {
+                            model.getItem(nextTreePath)?.deselect();
+                            model.getItem(selectedTreePath)?.select();
+                        }
+                        return;
+                    }
+                    onSelectPathRef.current?.(nextAppPath);
+                },
+                onSearchChange: (value) => {
+                    onSearchQueryChangeRef.current?.(value ?? "");
+                },
+                renderRowDecoration: (context) => {
+                    const appPath = treePathToAppPathRef.current.get(context.item.path);
+                    if (!appPath) return null;
                     return (
-                        <DirectoryNode
-                            key={node.path}
-                            node={node}
-                            level={level}
-                            treeIndentSize={treeIndentSize}
-                            kinds={resolvedKinds}
-                            lineStatsByPath={lineStatsByPath}
-                            activeFile={active}
-                            filterQuery={filterQuery}
-                            allowedFiles={allowedFiles}
-                            viewedFiles={viewedFiles}
-                            onToggleViewed={onToggleViewed}
-                            onFileClick={onFileClick}
-                            onDirectoryClick={onDirectoryClick}
-                            showUnviewedIndicator={showUnviewedIndicator}
-                        />
+                        renderRowDecorationRef.current?.({
+                            appPath,
+                            treePath: context.item.path,
+                            kind: context.item.kind,
+                            row: context.row,
+                        }) ?? null
                     );
-                }
-                return (
-                    <FileNodeRow
-                        key={node.path}
-                        node={node}
-                        level={level}
-                        treeIndentSize={treeIndentSize}
-                        kinds={resolvedKinds}
-                        lineStatsByPath={lineStatsByPath}
-                        active={active}
-                        viewed={viewedFiles?.has(node.path)}
-                        onFileClick={onFileClick}
-                        showUnviewedIndicator={showUnviewedIndicator}
-                    />
-                );
-            })}
-        </div>
+                },
+                search: true,
+                searchBlurBehavior: "retain",
+                initialSearchQuery: initialSearchQueryRef.current,
+                unsafeCSS: TREE_UNSAFE_CSS,
+            }),
+        [icons, preparedInput, treeDensity, treeSort],
     );
-}
 
-function DirectoryNode({
-    node,
-    level,
-    treeIndentSize,
-    kinds,
-    lineStatsByPath,
-    activeFile,
-    filterQuery,
-    allowedFiles,
-    viewedFiles,
-    onToggleViewed,
-    onFileClick,
-    onDirectoryClick,
-    showUnviewedIndicator,
-}: {
-    node: FileNode;
-    level: number;
-    treeIndentSize: number;
-    kinds: ReadonlyMap<string, ChangeKind>;
-    lineStatsByPath?: ReadonlyMap<string, { added: number; removed: number }>;
-    activeFile?: string;
-    filterQuery?: string;
-    allowedFiles?: ReadonlySet<string>;
-    viewedFiles?: ReadonlySet<string>;
-    onToggleViewed?: (path: string) => void;
-    onFileClick?: (node: FileNode) => void;
-    onDirectoryClick?: (node: FileNode) => boolean | undefined;
-    showUnviewedIndicator: boolean;
-}) {
-    const tree = useFileTree();
-    const compactEnabled = tree.compactSingleChildDirectories;
-    let displayNode = node;
-    const nameParts = [node.name];
+    useEffect(() => {
+        return () => {
+            model.cleanUp();
+        };
+    }, [model]);
 
-    // Keep host roots stable and visible in landing trees.
-    if (compactEnabled && !isHostPath(node.path)) {
-        while (true) {
-            const children = tree.getChildrenForPath(displayNode.path);
-            if (children.length !== 1) break;
-            const nextNode = children[0];
-            if (nextNode.type !== "directory") break;
-            nameParts.push(nextNode.name);
-            displayNode = nextNode;
+    useEffect(() => {
+        model.setGitStatus(gitStatus);
+    }, [gitStatus, model]);
+
+    useEffect(() => {
+        model.setSearch(normalizeSearchQuery(searchQuery));
+    }, [model, searchQuery]);
+
+    useEffect(() => {
+        if (!selectedAppPath) return;
+        const treePath = appPathToTreePathRef.current.get(selectedAppPath);
+        if (!treePath) return;
+        for (const selectedPath of model.getSelectedPaths()) {
+            if (selectedPath === treePath) continue;
+            model.getItem(selectedPath)?.deselect();
         }
-    }
+        model.getItem(treePath)?.select();
+    }, [model, selectedAppPath]);
 
-    const expanded = tree.isExpanded(displayNode.path);
-    const displayName = nameParts.join("/");
-    const host = hostFromTreePath(displayNode.path);
-    const isActive = activeFile === displayNode.path;
-    const isRepositoryNode = isRepositoryPath(displayNode.path);
-    const pullRequestCount = isRepositoryNode
-        ? tree.getChildrenForPath(displayNode.path).filter((child) => child.type === "file" && isPullRequestPath(child.path)).length
-        : 0;
-
-    return (
-        <div>
-            <button
-                type="button"
-                className={cn(
-                    "group w-full min-w-0 flex items-center gap-3 py-1 text-left outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
-                    "hover:bg-surface-2 active:bg-surface-3 transition-colors cursor-pointer",
-                    isActive ? "bg-surface-2 text-foreground border-l-2 border-l-accent" : "text-muted-foreground border-l-2 border-l-transparent",
-                )}
-                style={{ paddingLeft: `${4 + level * treeIndentSize}px` }}
-                onClick={() => {
-                    const handled = onDirectoryClick?.(displayNode);
-                    if (handled) return;
-                    tree.toggle(displayNode.path);
-                }}
-                aria-expanded={expanded}
-            >
-                <span className="relative size-4 flex items-center justify-center shrink-0 text-muted-foreground">
-                    <span className="group-hover:hidden">
-                        {isRepositoryNode ? (
-                            <span className="inline-flex h-4 min-w-[14px] items-center justify-center rounded border border-border-muted bg-surface-2 px-0.5 text-[9px] leading-none text-muted-foreground">
-                                {pullRequestCount}
-                            </span>
-                        ) : host ? (
-                            <GitHostIcon host={host} className="size-3.5" />
-                        ) : expanded ? (
-                            <FolderOpen className="size-3.5" />
-                        ) : (
-                            <Folder className="size-3.5" />
-                        )}
-                    </span>
-                    <span className="absolute inset-0 hidden items-center justify-center group-hover:flex">
-                        {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-                    </span>
-                </span>
-                <span className="flex-1 min-w-0 truncate text-foreground">{displayName}</span>
-            </button>
-            {expanded && (
-                <div className="relative">
-                    <div className="absolute top-0 bottom-0 w-px bg-border-muted" style={{ left: `${4 + level * treeIndentSize + 8}px` }} />
-                    <FileTree
-                        path={displayNode.path}
-                        level={level + 1}
-                        kinds={kinds}
-                        lineStatsByPath={lineStatsByPath}
-                        activeFile={activeFile}
-                        filterQuery={filterQuery}
-                        allowedFiles={allowedFiles}
-                        viewedFiles={viewedFiles}
-                        onToggleViewed={onToggleViewed}
-                        onFileClick={onFileClick}
-                        onDirectoryClick={onDirectoryClick}
-                        showUnviewedIndicator={showUnviewedIndicator}
-                    />
-                </div>
-            )}
-        </div>
-    );
+    return model;
 }
 
-const FileNodeRow = memo(function FileNodeRow({
-    node,
-    level,
-    treeIndentSize,
-    kinds,
-    lineStatsByPath,
-    active,
-    viewed,
-    onFileClick,
-    showUnviewedIndicator,
-}: {
-    node: FileNode;
-    level: number;
-    treeIndentSize: number;
-    kinds: ReadonlyMap<string, ChangeKind>;
-    lineStatsByPath?: ReadonlyMap<string, { added: number; removed: number }>;
-    active?: string;
-    viewed?: boolean;
-    onFileClick?: (node: FileNode) => void;
-    showUnviewedIndicator: boolean;
-}) {
-    const tree = useFileTree();
-    const kind = node.type === "summary" ? undefined : kinds.get(node.path);
-    const nodeSettingsIcon = node.type === "file" ? settingsIcon(node.path) : null;
-    const isHomeNode = isHomePath(node.path);
-    const isPullRequestNode = isPullRequestPath(node.path);
-    const isSettingsNode = node.type === "file" && isSettingsPath(node.path);
-    const isActive = node.path === active;
-    const isUnviewedFile = showUnviewedIndicator && node.type !== "summary" && !isSettingsNode && !isHomeNode && !viewed;
-    const lineStats = node.type === "file" ? lineStatsByPath?.get(node.path) : undefined;
-    const showLineStats = node.type === "file" && !isSettingsNode && !isHomeNode && !isPullRequestNode && Boolean(lineStatsByPath);
+export function AppFileTreeView({ className, header, model, style }: { className?: string; header?: ReactNode; model: PierreFileTree; style?: CSSProperties }) {
+    const hostStyle = useMemo(() => ({ ...TREE_HOST_STYLE, ...style }), [style]);
+    return <PierreReactFileTree className={className} header={header} model={model} style={hostStyle} />;
+}
 
-    return (
-        <button
-            type="button"
-            data-tree-path={node.path}
-            className={cn(
-                "relative w-full min-w-0 flex items-center gap-3 py-1 text-left outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
-                "hover:bg-surface-2 active:bg-surface-3 transition-colors cursor-pointer",
-                isActive ? "bg-surface-2 text-foreground border-l-2 border-l-accent" : "text-muted-foreground border-l-2 border-l-transparent",
-            )}
-            style={{ paddingLeft: `${4 + level * treeIndentSize}px`, paddingRight: showLineStats ? "3rem" : undefined }}
-            onClick={() => {
-                tree.setActiveFile(node.path);
-                onFileClick?.(node);
-            }}
-        >
-            <span className={cn("size-4 flex items-center justify-center shrink-0", kindIconColor(kind))}>
-                {node.type === "summary" ? (
-                    isHomeNode ? (
-                        <House className="size-3.5" />
-                    ) : (
-                        <ScrollText className="size-3.5" />
-                    )
-                ) : nodeSettingsIcon ? (
-                    nodeSettingsIcon
-                ) : isHomeNode ? (
-                    <House className="size-3.5" />
-                ) : isPullRequestNode ? (
-                    <GitPullRequest className="size-3.5" />
-                ) : (
-                    <RepositoryFileIcon fileName={node.name} className="size-3.5" />
-                )}
-            </span>
-            <span className={cn("flex-1 min-w-0 truncate pr-2 text-foreground", isUnviewedFile ? "text-status-renamed" : "")}>{node.name}</span>
-            {showLineStats ? (
-                <span
-                    className="pointer-events-none absolute right-2 top-1/2 inline-flex h-5 w-8 -translate-y-1/2 flex-col items-end justify-center font-mono tabular-nums leading-none"
-                    style={{ fontSize: "8px", lineHeight: 1 }}
-                >
-                    <TreeLineStat prefix="+" value={lineStats?.added} className="text-status-added" />
-                    <TreeLineStat prefix="-" value={lineStats?.removed} className="text-status-removed" />
-                </span>
-            ) : null}
-        </button>
-    );
-}, areFileNodeRowPropsEqual);
-
-function areFileNodeRowPropsEqual(
-    previous: Readonly<{
-        node: FileNode;
-        level: number;
-        treeIndentSize: number;
-        kinds: ReadonlyMap<string, ChangeKind>;
-        lineStatsByPath?: ReadonlyMap<string, { added: number; removed: number }>;
-        active?: string;
-        viewed?: boolean;
-        onFileClick?: (node: FileNode) => void;
-        showUnviewedIndicator: boolean;
-    }>,
-    next: Readonly<{
-        node: FileNode;
-        level: number;
-        treeIndentSize: number;
-        kinds: ReadonlyMap<string, ChangeKind>;
-        lineStatsByPath?: ReadonlyMap<string, { added: number; removed: number }>;
-        active?: string;
-        viewed?: boolean;
-        onFileClick?: (node: FileNode) => void;
-        showUnviewedIndicator: boolean;
-    }>,
-) {
-    if (previous.node !== next.node) return false;
-    if (previous.level !== next.level) return false;
-    if (previous.treeIndentSize !== next.treeIndentSize) return false;
-    if (previous.viewed !== next.viewed) return false;
-    if (previous.onFileClick !== next.onFileClick) return false;
-    if (previous.showUnviewedIndicator !== next.showUnviewedIndicator) return false;
-    if (previous.lineStatsByPath !== next.lineStatsByPath) return false;
-    const previousWasActive = previous.active === previous.node.path;
-    const nextIsActive = next.active === next.node.path;
-    if (previousWasActive !== nextIsActive) return false;
-    const previousKind = previous.node.type === "summary" ? undefined : previous.kinds.get(previous.node.path);
-    const nextKind = next.node.type === "summary" ? undefined : next.kinds.get(next.node.path);
-    if (previousKind !== nextKind) return false;
-    const previousLineStats = previous.node.type === "file" ? previous.lineStatsByPath?.get(previous.node.path) : undefined;
-    const nextLineStats = next.node.type === "file" ? next.lineStatsByPath?.get(next.node.path) : undefined;
-    return previousLineStats?.added === nextLineStats?.added && previousLineStats?.removed === nextLineStats?.removed;
+export function FileTree(props: AppFileTreeProps) {
+    const { className, header, style, ...modelProps } = props;
+    const model = useAppFileTreeModel(modelProps);
+    return <AppFileTreeView className={className} header={header} model={model} style={style} />;
 }

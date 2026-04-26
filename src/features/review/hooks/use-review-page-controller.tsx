@@ -18,15 +18,12 @@ import {
     useAllModeScrollSelection,
     useAutoMarkActiveFileViewed,
     useCopyTimeoutCleanup,
-    useDirectoryStateStorage,
     useEnsureSummarySelection,
     useInlineDraftFocus,
     useReviewActiveFileSync,
     useReviewDocumentTitle,
     useReviewFileHashSelection,
     useReviewFileHashSync,
-    useReviewTreeModelSync,
-    useReviewTreeReset,
     useSyncMergeStrategy,
 } from "@/components/pull-request-review/use-review-page-effects";
 import { useReviewPageNavigation } from "@/components/pull-request-review/use-review-page-navigation";
@@ -35,7 +32,7 @@ import { isRateLimitedError as isRateLimitedQueryError } from "@/components/pull
 import { getSettingsTreeItems } from "@/components/settings-navigation";
 import { useReviewFileContexts } from "@/features/review/data/use-review-file-contexts";
 import { useReviewScopedData } from "@/features/review/data/use-review-scoped-data";
-import { ALL_MODE_SCROLL_RETRY_DELAYS, ALL_MODE_STICKY_OFFSET, parentDirectories } from "@/features/review/model/review-page-controller-helpers";
+import { ALL_MODE_SCROLL_RETRY_DELAYS, ALL_MODE_STICKY_OFFSET } from "@/features/review/model/review-page-controller-helpers";
 import { useReviewFileVersions } from "@/features/review/state/use-review-file-versions";
 import { useReviewOptimisticComments } from "@/features/review/state/use-review-optimistic-comments";
 import { useAppearance } from "@/lib/appearance-context";
@@ -49,7 +46,6 @@ import type { GitHost } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import type { ReviewDiffScopeSearch } from "@/lib/review-diff-scope";
 import { markReviewPerf } from "@/lib/review-performance/metrics";
-import { makeDirectoryStateStorageKey } from "@/lib/review-storage";
 
 export interface PullRequestReviewPageProps {
     host: GitHost;
@@ -104,7 +100,7 @@ export function useReviewPageController({
         options.diffLineHeight,
         options.diffUseCustomTypography,
     ]);
-    const { root, dirState, setTree, setKinds, allFiles, activeFile, setActiveFile, setDirectoryExpandedMap, expand } = useFileTree();
+    const { activeFile, setActiveFile } = useFileTree();
     const {
         treeWidth,
         treeCollapsed,
@@ -220,7 +216,6 @@ export function useReviewPageController({
     const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<Record<string, boolean>>({});
     const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
-    const [dirStateHydrated, setDirStateHydrated] = useState(false);
     const [pendingCommentTick, setPendingCommentTick] = useState(0);
     const autoMarkedViewedVersionIdsRef = useRef<Set<string>>(new Set());
     const copyResetTimeoutRef = useRef<number | null>(null);
@@ -279,7 +274,6 @@ export function useReviewPageController({
     const isRateLimitedError = isRateLimitedQueryError(prQuery.error);
     useReviewDocumentTitle({ isLoading: isCriticalLoading, pullRequestTitle });
 
-    const directoryStateStorageKey = useMemo(() => makeDirectoryStateStorageKey(workspace, repo, pullRequestId), [pullRequestId, repo, workspace]);
     const { createOptimisticComment, prData, removeOptimisticComment, updateOptimisticCommentPending } = useReviewOptimisticComments({
         effectivePrData,
         prContextKey,
@@ -296,13 +290,6 @@ export function useReviewPageController({
     useCopyTimeoutCleanup({
         copyResetTimeoutRef,
         copySourceBranchResetTimeoutRef,
-    });
-    useDirectoryStateStorage({
-        directoryStateStorageKey,
-        dirState,
-        dirStateHydrated,
-        setDirStateHydrated,
-        setDirectoryExpandedMap,
     });
     const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
     const libOptions = toLibraryOptions(options);
@@ -345,7 +332,7 @@ export function useReviewPageController({
         settingsPathSet,
         selectableDiffPathSet,
         visiblePathSet,
-        allowedPathSet,
+        treeEntries,
         directoryPaths,
         treeOrderedVisiblePaths,
         allModeDiffEntries,
@@ -373,8 +360,6 @@ export function useReviewPageController({
         searchQuery,
         showSettingsPanel,
         viewedFiles,
-        root,
-        allFiles,
         settingsTreeItems,
         inlineComment,
         theme: options.theme,
@@ -544,20 +529,6 @@ export function useReviewPageController({
         [allModeSectionPaths],
     );
 
-    useReviewTreeReset({
-        setTree,
-        setKinds,
-        setActiveFile,
-        setSearchQuery,
-    });
-    useReviewTreeModelSync({
-        showSettingsPanel,
-        settingsTreeItems,
-        prData,
-        setTree,
-        setKinds,
-        isTreePending: treeLoading,
-    });
     useReviewActiveFileSync({
         showSettingsPanel,
         settingsTreeItems,
@@ -670,13 +641,12 @@ export function useReviewPageController({
         [deleteCommentMutation],
     );
 
-    const { handleToggleSettingsPanel, selectAndRevealFile, toggleViewed, collapseAllDirectories, expandAllDirectories } = useReviewPageNavigation({
+    const { handleToggleSettingsPanel, selectAndRevealFile, toggleViewed } = useReviewPageNavigation({
         activeFile,
         settingsPathSet,
         viewMode,
         treeOrderedVisiblePaths,
         isPathViewed,
-        directoryPaths,
         diffScrollRef,
         setActiveFile,
         showSettingsPanel,
@@ -687,7 +657,6 @@ export function useReviewPageController({
         setIsSummaryCollapsedInAllMode,
         toggleViewedForPath,
         markViewedForPath: markPathViewed,
-        setDirectoryExpandedMap,
         onProgrammaticAllModeRevealStart: handleProgrammaticAllModeRevealStart,
         onApprovePullRequest: handleApprovePullRequest,
         onRequestChangesPullRequest: handleRequestChangesPullRequest,
@@ -716,12 +685,6 @@ export function useReviewPageController({
         [selectAndRevealFile, setActiveFile, setShowSettingsPanel, viewMode],
     );
 
-    const revealTreePath = useCallback((path: string) => {
-        const escapedPath = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(path) : path.replace(/["\\]/g, "\\$&");
-        const pathElement = document.querySelector<HTMLElement>(`[data-tree-path="${escapedPath}"]`);
-        pathElement?.scrollIntoView({ block: "nearest" });
-    }, []);
-
     const handleObservedAllModePath = useCallback(
         (path: string, metadata: { isSticky: boolean }) => {
             const pendingScrollPath = allModePendingScrollPath;
@@ -732,9 +695,6 @@ export function useReviewPageController({
             const isProgrammaticReveal = pendingScrollPath === path;
             const isSameActiveFile = activeFile === path;
             if (path !== PR_SUMMARY_PATH) {
-                for (const directory of parentDirectories(path)) {
-                    expand(directory);
-                }
                 const shouldMarkViewed =
                     options.autoMarkViewedFiles &&
                     (metadata.isSticky || isProgrammaticReveal || (pendingScrollPath === null && path === lastAllModeSectionPath));
@@ -749,7 +709,6 @@ export function useReviewPageController({
             }
             if (isSameActiveFile) return;
             markReviewPerf("all_mode_scroll_update");
-            revealTreePath(path);
             suppressHashSyncRef.current = true;
             setActiveFile(path);
         },
@@ -757,11 +716,9 @@ export function useReviewPageController({
             activeFile,
             allModePendingScrollPath,
             clearAllModePendingScrollPath,
-            expand,
             lastAllModeSectionPath,
             markLatestPathViewed,
             options.autoMarkViewedFiles,
-            revealTreePath,
             setActiveFile,
         ],
     );
@@ -995,11 +952,12 @@ export function useReviewPageController({
         pullRequestUrl,
         showSettingsPanel,
         activeFile,
+        treeEntries,
+        directoryPaths,
         fileLineStats,
         searchQuery,
         showUnviewedOnly,
         unviewedFileCount,
-        allowedPathSet,
         viewedFiles,
         pullRequest: pullRequest ?? {},
         isRefreshing: isPrQueryFetching,
@@ -1022,9 +980,6 @@ export function useReviewPageController({
         onExpandRightSidebar: () => setRightSidebarCollapsed(false),
         onSearchQueryChange: setSearchQuery,
         onToggleUnviewedOnly: () => setShowUnviewedOnly((prev) => !prev),
-        onCollapseAllDirectories: collapseAllDirectories,
-        onExpandAllDirectories: expandAllDirectories,
-        onToggleViewed: toggleViewed,
         onFileClick: selectAndRevealFile,
         onStartTreeResize: startTreeResize,
         onCopySourceBranch: (branchName) => void handleCopySourceBranch(branchName),

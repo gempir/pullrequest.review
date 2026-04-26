@@ -1,18 +1,18 @@
 import { type FileDiffOptions, getFiletypeFromFileName, type OnDiffLineEnterLeaveProps, parsePatchFiles } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { FileTreeEntry } from "@/components/file-tree";
 import { linesUpdated, normalizeNavbarState } from "@/components/pull-request-review/review-formatters";
 import { useDiffHighlighterState } from "@/components/pull-request-review/use-review-page-effects";
-import type { FileNode } from "@/lib/file-tree-context";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
-import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
+import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { useReviewComputeWorker } from "@/lib/review-performance/review-compute-worker-context";
 import { timestampValue } from "@/lib/timestamp";
 import {
     buildReviewDerivedCacheKey,
     buildReviewScopeCacheKey,
     type CommentLineSide,
-    collectDirectoryPaths,
+    collectDirectoryPathsFromPaths,
     getCommentInlinePosition,
     getCommentPath,
     getFilePath,
@@ -97,8 +97,6 @@ export function useReviewPageDerived({
     searchQuery,
     showSettingsPanel,
     viewedFiles,
-    root,
-    allFiles,
     settingsTreeItems,
     inlineComment,
     theme,
@@ -113,9 +111,7 @@ export function useReviewPageDerived({
     searchQuery: string;
     showSettingsPanel: boolean;
     viewedFiles: Set<string>;
-    root: FileNode[];
-    allFiles: () => Array<{ path: string }>;
-    settingsTreeItems: Array<{ path: string }>;
+    settingsTreeItems: Array<{ name: string; path: string }>;
     inlineComment: InlineCommentDraft | null;
     theme: Parameters<typeof useDiffHighlighterState>[0]["theme"];
     compactDiffOptions: FileDiffOptions<undefined>;
@@ -326,15 +322,23 @@ export function useReviewPageDerived({
 
     const settingsPathSet = useMemo(() => new Set(settingsTreeItems.map((item) => item.path)), [settingsTreeItems]);
     const visiblePathSet = useMemo(() => new Set([PR_SUMMARY_PATH, ...effectiveVisibleFilePaths]), [effectiveVisibleFilePaths]);
-    const allowedPathSet = useMemo(() => (showSettingsPanel ? settingsPathSet : visiblePathSet), [settingsPathSet, showSettingsPanel, visiblePathSet]);
-
-    const treeFilePaths = useMemo(() => allFiles().map((file) => file.path), [allFiles]);
-    const directoryPaths = useMemo(() => collectDirectoryPaths(root), [root]);
-    const treeOrderedVisiblePaths = useMemo(() => {
-        if (treeFilePaths.length === 0) return [];
-        return treeFilePaths.filter((path) => visiblePathSet.has(path));
-    }, [treeFilePaths, visiblePathSet]);
-
+    const treeOrderedVisiblePaths = useMemo(() => [PR_SUMMARY_PATH, ...effectiveVisibleFilePaths], [effectiveVisibleFilePaths]);
+    const directoryPaths = useMemo(() => collectDirectoryPathsFromPaths(effectiveVisibleFilePaths), [effectiveVisibleFilePaths]);
+    const treeEntries = useMemo<FileTreeEntry[]>(() => {
+        if (showSettingsPanel) {
+            return settingsTreeItems.map((item) => ({
+                appPath: item.path,
+                treePath: item.name,
+            }));
+        }
+        return [
+            { appPath: PR_SUMMARY_PATH, treePath: PR_SUMMARY_NAME },
+            ...effectiveVisibleFilePaths.map((path) => ({
+                appPath: path,
+                treePath: path,
+            })),
+        ];
+    }, [effectiveVisibleFilePaths, settingsTreeItems, showSettingsPanel]);
     const allModeDiffEntries = useMemo(() => {
         const byPath = new Map<string, FileDiffMetadata>();
         const ordered: Array<{ filePath: string; fileDiff: FileDiffMetadata }> = [];
@@ -565,7 +569,7 @@ export function useReviewPageDerived({
         settingsPathSet,
         selectableDiffPathSet,
         visiblePathSet,
-        allowedPathSet,
+        treeEntries,
         directoryPaths,
         treeOrderedVisiblePaths,
         allModeDiffEntries,

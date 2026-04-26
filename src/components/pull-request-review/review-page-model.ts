@@ -1,6 +1,5 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { InlineCommentDraft } from "@/components/pull-request-review/use-inline-comment-drafts";
-import type { FileNode } from "@/lib/file-tree-context";
 import type { Comment as PullRequestComment, PullRequestRef } from "@/lib/git-host/types";
 import type { CommentThread } from "./review-threads";
 
@@ -45,17 +44,19 @@ export function getFilePath(fileDiff: FileDiffMetadata, index: number) {
     return fileDiff.name ?? fileDiff.prevName ?? String(index);
 }
 
-export function collectDirectoryPaths(nodes: FileNode[]) {
-    const paths: string[] = [];
-    const walk = (items: FileNode[]) => {
-        for (const node of items) {
-            if (node.type !== "directory") continue;
-            paths.push(node.path);
-            if (node.children?.length) walk(node.children);
+export function collectDirectoryPathsFromPaths(paths: readonly string[]) {
+    const directories = new Set<string>();
+    for (const path of paths) {
+        const parts = path.split("/").filter(Boolean);
+        if (parts.length <= 1) continue;
+        parts.pop();
+        let current = "";
+        for (const part of parts) {
+            current = current ? `${current}/${part}` : part;
+            directories.add(`${current}/`);
         }
-    };
-    walk(nodes);
-    return paths;
+    }
+    return Array.from(directories);
 }
 
 export function hashString(value: string) {

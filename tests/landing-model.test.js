@@ -82,7 +82,14 @@ describe("landing model", () => {
         ]);
 
         const tree = buildPullRequestTree(reposByHost, pullRequestsByRepo, "review");
-        expect(tree.root).toHaveLength(2);
+        expect(tree.entries).toHaveLength(5);
+        expect(tree.entries.map((entry) => entry.appPath)).toEqual([
+            "host:bitbucket",
+            "host:github",
+            "workspace:github:openai",
+            "repo:github:openai:codex",
+            "pr:github:openai:codex:12",
+        ]);
         expect(tree.pullRequestMeta.get("pr:github:openai:codex:12")).toEqual({
             host: "github",
             workspace: "openai",

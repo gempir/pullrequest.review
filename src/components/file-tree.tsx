@@ -161,6 +161,22 @@ function toTreeDensity(density: TreeDensityValue) {
     return density;
 }
 
+function normalizeTreeLookupPath(path: string) {
+    return path.replace(/\/+$/, "");
+}
+
+function createTreePathToAppPathMap(entries: readonly FileTreeEntry[]) {
+    const map = new Map<string, string>();
+    for (const entry of entries) {
+        map.set(entry.treePath, entry.appPath);
+        const normalizedTreePath = normalizeTreeLookupPath(entry.treePath);
+        if (normalizedTreePath) {
+            map.set(normalizedTreePath, entry.appPath);
+        }
+    }
+    return map;
+}
+
 function getTreeItemHeight(density: TreeDensityValue) {
     if (density === "compact") return 20;
     if (density === "relaxed") return 28;
@@ -197,8 +213,8 @@ export function useAppFileTreeModel({
     const preparedInput = useMemo(() => prepareFileTreeInput(treePaths, { sort: treeSort }), [treePaths, treeSort]);
 
     useEffect(() => {
-        appPathToTreePathRef.current = new Map(entries.map((entry) => [entry.appPath, entry.treePath]));
-        treePathToAppPathRef.current = new Map(entries.map((entry) => [entry.treePath, entry.appPath]));
+        appPathToTreePathRef.current = new Map(entries.map((entry) => [entry.appPath, normalizeTreeLookupPath(entry.treePath) || entry.treePath]));
+        treePathToAppPathRef.current = createTreePathToAppPathMap(entries);
     }, [entries]);
 
     const model = useMemo(

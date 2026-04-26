@@ -19,7 +19,13 @@ function useHostAuthFormState({ host, onSuccess }: { host: GitHost; onSuccess?: 
     const [error, setError] = useState<string | null>(null);
 
     const isBitbucket = host === "bitbucket";
-    const bitbucketScopeText = ["read:repository:bitbucket", "read:user:bitbucket", "read:pullrequest:bitbucket", "write:pullrequest:bitbucket"].join(", ");
+    const bitbucketScopeText = [
+        "read:workspace:bitbucket",
+        "read:repository:bitbucket",
+        "read:user:bitbucket",
+        "read:pullrequest:bitbucket",
+        "write:pullrequest:bitbucket",
+    ].join(", ");
     const authenticate = async () => {
         setError(null);
         setIsSubmitting(true);

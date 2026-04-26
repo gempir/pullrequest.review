@@ -111,3 +111,146 @@ describe("commit range diff providers", () => {
         ]);
     });
 });
+
+describe("Bitbucket repository listing", () => {
+    test("lists repositories via workspace-scoped endpoints", async () => {
+        writeBitbucketAuthCredential({ email: "user@example.com", apiToken: "token" });
+        const calls = [];
+        globalThis.fetch = async (input) => {
+            const url = String(input);
+            calls.push(url);
+
+            if (url === "https://api.bitbucket.org/2.0/user/workspaces?pagelen=100") {
+                return Response.json({
+                    values: [{ workspace: { slug: "acme" } }],
+                    next: "https://api.bitbucket.org/2.0/user/workspaces?page=2&pagelen=100",
+                });
+            }
+            if (url === "https://api.bitbucket.org/2.0/user/workspaces?page=2&pagelen=100") {
+                return Response.json({
+                    values: [{ workspace: { slug: "tools" } }],
+                });
+            }
+            if (url === "https://api.bitbucket.org/2.0/repositories/acme?role=member&pagelen=100") {
+                return Response.json({
+                    values: [
+                        {
+                            name: "API",
+                            full_name: "acme/api",
+                            slug: "api",
+                            workspace: { slug: "acme" },
+                        },
+                    ],
+                    next: "https://api.bitbucket.org/2.0/repositories/acme?page=2&role=member&pagelen=100",
+                });
+            }
+            if (url === "https://api.bitbucket.org/2.0/repositories/acme?page=2&role=member&pagelen=100") {
+                return Response.json({
+                    values: [
+                        {
+                            name: "Web",
+                            full_name: "acme/web",
+                            slug: "web",
+                            workspace: { slug: "acme" },
+                        },
+                    ],
+                });
+            }
+            if (url === "https://api.bitbucket.org/2.0/repositories/tools?role=member&pagelen=100") {
+                return Response.json({
+                    values: [
+                        {
+                            name: "Build",
+                            full_name: "tools/build",
+                            slug: "build",
+                            workspace: { slug: "tools" },
+                        },
+                    ],
+                });
+            }
+            return new Response("Not found", { status: 404 });
+        };
+
+        const repositories = await bitbucketClient.listRepositories();
+
+        expect(calls).toContain("https://api.bitbucket.org/2.0/user/workspaces?pagelen=100");
+        expect(calls).toContain("https://api.bitbucket.org/2.0/user/workspaces?page=2&pagelen=100");
+        expect(calls).toContain("https://api.bitbucket.org/2.0/repositories/acme?role=member&pagelen=100");
+        expect(calls).toContain("https://api.bitbucket.org/2.0/repositories/acme?page=2&role=member&pagelen=100");
+        expect(calls).toContain("https://api.bitbucket.org/2.0/repositories/tools?role=member&pagelen=100");
+        expect(repositories).toEqual([
+            {
+                host: "bitbucket",
+                workspace: "acme",
+                repo: "api",
+                fullName: "acme/api",
+                displayName: "API",
+            },
+            {
+                host: "bitbucket",
+                workspace: "acme",
+                repo: "web",
+                fullName: "acme/web",
+                displayName: "Web",
+            },
+            {
+                host: "bitbucket",
+                workspace: "tools",
+                repo: "build",
+                fullName: "tools/build",
+                displayName: "Build",
+            },
+        ]);
+    });
+
+    test("deduplicates repositories by host and full name", async () => {
+        writeBitbucketAuthCredential({ email: "user@example.com", apiToken: "token" });
+        globalThis.fetch = async (input) => {
+            const url = String(input);
+
+            if (url === "https://api.bitbucket.org/2.0/user/workspaces?pagelen=100") {
+                return Response.json({
+                    values: [{ workspace: { slug: "acme" } }],
+                });
+            }
+            if (url === "https://api.bitbucket.org/2.0/repositories/acme?role=member&pagelen=100") {
+                return Response.json({
+                    values: [
+                        {
+                            name: "API",
+                            full_name: "acme/api",
+                            slug: "api",
+                            workspace: { slug: "acme" },
+                        },
+                    ],
+                    next: "https://api.bitbucket.org/2.0/repositories/acme?page=2&role=member&pagelen=100",
+                });
+            }
+            if (url === "https://api.bitbucket.org/2.0/repositories/acme?page=2&role=member&pagelen=100") {
+                return Response.json({
+                    values: [
+                        {
+                            name: "API",
+                            full_name: "acme/api",
+                            slug: "api",
+                            workspace: { slug: "acme" },
+                        },
+                    ],
+                });
+            }
+            return new Response("Not found", { status: 404 });
+        };
+
+        const repositories = await bitbucketClient.listRepositories();
+
+        expect(repositories).toEqual([
+            {
+                host: "bitbucket",
+                workspace: "acme",
+                repo: "api",
+                fullName: "acme/api",
+                displayName: "API",
+            },
+        ]);
+    });
+});

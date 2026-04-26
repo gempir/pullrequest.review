@@ -139,7 +139,7 @@ function normalizeWorkspaceLabel(workspace: string, hostDomain: string) {
 }
 
 export function hostFromLandingTreePath(path: string): GitHost | null {
-    if (!path.startsWith(HOST_PATH_PREFIX) && !path.startsWith(WORKSPACE_PATH_PREFIX)) {
+    if (!path.startsWith(HOST_PATH_PREFIX) && !path.startsWith(WORKSPACE_PATH_PREFIX) && !path.startsWith("repo:")) {
         return null;
     }
     const [, host] = path.split(":");

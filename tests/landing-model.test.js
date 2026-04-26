@@ -83,12 +83,12 @@ describe("landing model", () => {
 
         const tree = buildPullRequestTree(reposByHost, pullRequestsByRepo, "review");
         expect(tree.entries).toHaveLength(5);
-        expect(tree.entries.map((entry) => entry.appPath)).toEqual([
-            "host:bitbucket",
-            "host:github",
-            "workspace:github:openai",
-            "repo:github:openai:codex",
-            "pr:github:openai:codex:12",
+        expect(tree.entries).toEqual([
+            { appPath: "host:bitbucket", treePath: "bitbucket.org/" },
+            { appPath: "host:github", treePath: "github.com/" },
+            { appPath: "workspace:github:openai", treePath: "github.com/openai/" },
+            { appPath: "repo:github:openai:codex", treePath: "github.com/openai/codex/" },
+            { appPath: "pr:github:openai:codex:12", treePath: "github.com/openai/codex/#12 Improve review UX" },
         ]);
         expect(tree.pullRequestMeta.get("pr:github:openai:codex:12")).toEqual({
             host: "github",
@@ -101,6 +101,7 @@ describe("landing model", () => {
     test("detects host path prefixes", () => {
         expect(hostFromLandingTreePath("host:github")).toBe("github");
         expect(hostFromLandingTreePath("workspace:bitbucket:acme")).toBe("bitbucket");
-        expect(hostFromLandingTreePath("repo:github:acme:ui")).toBeNull();
+        expect(hostFromLandingTreePath("repo:github:acme:ui")).toBe("github");
+        expect(hostFromLandingTreePath("pr:github:acme:ui:12")).toBeNull();
     });
 });

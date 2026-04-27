@@ -183,6 +183,26 @@ function getTreeItemHeight(density: TreeDensityValue) {
     return 24;
 }
 
+function areTreePathsEqual(left: readonly string[], right: readonly string[]) {
+    if (left.length !== right.length) return false;
+    for (let index = 0; index < left.length; index += 1) {
+        if (left[index] !== right[index]) return false;
+    }
+    return true;
+}
+
+function useStableTreePaths(entries: readonly FileTreeEntry[]) {
+    const treePathsRef = useRef<readonly string[]>([]);
+    return useMemo(() => {
+        const nextTreePaths = entries.map((entry) => entry.treePath);
+        if (areTreePathsEqual(treePathsRef.current, nextTreePaths)) {
+            return treePathsRef.current;
+        }
+        treePathsRef.current = nextTreePaths;
+        return nextTreePaths;
+    }, [entries]);
+}
+
 export function useAppFileTreeModel({
     entries,
     selectedAppPath,
@@ -208,7 +228,7 @@ export function useAppFileTreeModel({
     onSearchQueryChangeRef.current = onSearchQueryChange;
     renderRowDecorationRef.current = renderRowDecoration;
 
-    const treePaths = useMemo(() => entries.map((entry) => entry.treePath), [entries]);
+    const treePaths = useStableTreePaths(entries);
     const treeSort = useMemo(() => createTreeSort(pinnedFirstTreePath), [pinnedFirstTreePath]);
     const preparedInput = useMemo(() => prepareFileTreeInput(treePaths, { sort: treeSort }), [treePaths, treeSort]);
 

@@ -1,15 +1,9 @@
-import type {
-    FileTreeIcons,
-    FileTreeRowDecoration,
-    FileTreeRowDecorationContext,
-    FileTreeSortComparator,
-    FileTreeSortEntry,
-    GitStatusEntry,
-} from "@pierre/trees";
+import type { FileTreeIcons, FileTreeRowDecoration, FileTreeRowDecorationContext, FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree as PierreFileTree, prepareFileTreeInput } from "@pierre/trees";
 import { FileTree as PierreReactFileTree } from "@pierre/trees/react";
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef } from "react";
+import { type CSSProperties, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { type TreeDensityValue, useFileTree } from "@/lib/file-tree-context";
+import { compareFileTreeSortEntries } from "@/lib/file-tree-order";
 
 export type FileTreeEntry = {
     treePath: string;
@@ -123,32 +117,12 @@ const TREE_UNSAFE_CSS = `
   }
 `;
 
-function compareNaturalText(left: string, right: string) {
-    return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }) || left.localeCompare(right);
-}
-
-function compareLikeDefaultTreeSort(left: FileTreeSortEntry, right: FileTreeSortEntry) {
-    const sharedDepth = Math.min(left.segments.length, right.segments.length);
-    for (let depth = 0; depth < sharedDepth; depth += 1) {
-        const leftSegment = left.segments[depth];
-        const rightSegment = right.segments[depth];
-        if (leftSegment === rightSegment) continue;
-        const leftKind = depth === left.segments.length - 1 && !left.isDirectory ? "file" : "directory";
-        const rightKind = depth === right.segments.length - 1 && !right.isDirectory ? "file" : "directory";
-        if (leftKind !== rightKind) return leftKind === "directory" ? -1 : 1;
-        return compareNaturalText(leftSegment, rightSegment);
-    }
-    if (left.segments.length !== right.segments.length) return left.segments.length < right.segments.length ? -1 : 1;
-    if (left.isDirectory !== right.isDirectory) return left.isDirectory ? -1 : 1;
-    return 0;
-}
-
 function createTreeSort(pinnedFirstTreePath?: string): FileTreeSortComparator | "default" {
     if (!pinnedFirstTreePath) return "default";
     return (left, right) => {
         if (left.path === pinnedFirstTreePath && right.path !== pinnedFirstTreePath) return -1;
         if (right.path === pinnedFirstTreePath && left.path !== pinnedFirstTreePath) return 1;
-        return compareLikeDefaultTreeSort(left, right);
+        return compareFileTreeSortEntries(left, right);
     };
 }
 
@@ -189,6 +163,18 @@ function areTreePathsEqual(left: readonly string[], right: readonly string[]) {
         if (left[index] !== right[index]) return false;
     }
     return true;
+}
+
+function eventPathContainsTreeItem(event: MouseEvent<HTMLElement>) {
+    if (event.detail <= 0) return false;
+    return event.nativeEvent.composedPath().some((target) => target instanceof HTMLElement && target.dataset.type === "item");
+}
+
+function blurActiveTreeItem(hostElement: HTMLElement) {
+    const activeElement = hostElement.shadowRoot?.activeElement;
+    if (!(activeElement instanceof HTMLElement)) return;
+    if (activeElement.dataset.type !== "item") return;
+    activeElement.blur();
 }
 
 function useStableTreePaths(entries: readonly FileTreeEntry[]) {
@@ -314,7 +300,12 @@ export function useAppFileTreeModel({
 
 export function AppFileTreeView({ className, header, model, style }: { className?: string; header?: ReactNode; model: PierreFileTree; style?: CSSProperties }) {
     const hostStyle = useMemo(() => ({ ...TREE_HOST_STYLE, ...style }), [style]);
-    return <PierreReactFileTree className={className} header={header} model={model} style={hostStyle} />;
+    const handleClickCapture = useCallback((event: MouseEvent<HTMLElement>) => {
+        if (!eventPathContainsTreeItem(event)) return;
+        const hostElement = event.currentTarget;
+        requestAnimationFrame(() => blurActiveTreeItem(hostElement));
+    }, []);
+    return <PierreReactFileTree className={className} header={header} model={model} onClickCapture={handleClickCapture} style={hostStyle} />;
 }
 
 export function FileTree(props: AppFileTreeProps) {

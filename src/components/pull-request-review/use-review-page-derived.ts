@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FileTreeEntry } from "@/components/file-tree";
 import { linesUpdated, normalizeNavbarState } from "@/components/pull-request-review/review-formatters";
 import { useDiffHighlighterState } from "@/components/pull-request-review/use-review-page-effects";
+import { orderFileTreePaths } from "@/lib/file-tree-order";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { useReviewComputeWorker } from "@/lib/review-performance/review-compute-worker-context";
@@ -319,10 +320,11 @@ export function useReviewPageDerived({
         return values;
     }, [activeFile, normalizedSearch, prData?.diffstat, showUnviewedOnly, viewedFiles]);
     const effectiveVisibleFilePaths = visibleFilePaths.length > 0 ? visibleFilePaths : fallbackVisibleFilePaths;
+    const treeOrderedFilePaths = useMemo(() => orderFileTreePaths(effectiveVisibleFilePaths), [effectiveVisibleFilePaths]);
 
     const settingsPathSet = useMemo(() => new Set(settingsTreeItems.map((item) => item.path)), [settingsTreeItems]);
     const visiblePathSet = useMemo(() => new Set([PR_SUMMARY_PATH, ...effectiveVisibleFilePaths]), [effectiveVisibleFilePaths]);
-    const treeOrderedVisiblePaths = useMemo(() => [PR_SUMMARY_PATH, ...effectiveVisibleFilePaths], [effectiveVisibleFilePaths]);
+    const treeOrderedVisiblePaths = useMemo(() => [PR_SUMMARY_PATH, ...treeOrderedFilePaths], [treeOrderedFilePaths]);
     const directoryPaths = useMemo(() => collectDirectoryPathsFromPaths(effectiveVisibleFilePaths), [effectiveVisibleFilePaths]);
     const treeEntries = useMemo<FileTreeEntry[]>(() => {
         if (showSettingsPanel) {

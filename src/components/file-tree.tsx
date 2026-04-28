@@ -1,7 +1,7 @@
 import type { FileTreeIcons, FileTreeRowDecoration, FileTreeRowDecorationContext, FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree as PierreFileTree, prepareFileTreeInput } from "@pierre/trees";
 import { FileTree as PierreReactFileTree } from "@pierre/trees/react";
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef } from "react";
+import { type CSSProperties, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { type TreeDensityValue, useFileTree } from "@/lib/file-tree-context";
 import { compareFileTreeSortEntries } from "@/lib/file-tree-order";
 
@@ -165,6 +165,18 @@ function areTreePathsEqual(left: readonly string[], right: readonly string[]) {
     return true;
 }
 
+function eventPathContainsTreeItem(event: MouseEvent<HTMLElement>) {
+    if (event.detail <= 0) return false;
+    return event.nativeEvent.composedPath().some((target) => target instanceof HTMLElement && target.dataset.type === "item");
+}
+
+function blurActiveTreeItem(hostElement: HTMLElement) {
+    const activeElement = hostElement.shadowRoot?.activeElement;
+    if (!(activeElement instanceof HTMLElement)) return;
+    if (activeElement.dataset.type !== "item") return;
+    activeElement.blur();
+}
+
 function useStableTreePaths(entries: readonly FileTreeEntry[]) {
     const treePathsRef = useRef<readonly string[]>([]);
     return useMemo(() => {
@@ -288,7 +300,12 @@ export function useAppFileTreeModel({
 
 export function AppFileTreeView({ className, header, model, style }: { className?: string; header?: ReactNode; model: PierreFileTree; style?: CSSProperties }) {
     const hostStyle = useMemo(() => ({ ...TREE_HOST_STYLE, ...style }), [style]);
-    return <PierreReactFileTree className={className} header={header} model={model} style={hostStyle} />;
+    const handleClickCapture = useCallback((event: MouseEvent<HTMLElement>) => {
+        if (!eventPathContainsTreeItem(event)) return;
+        const hostElement = event.currentTarget;
+        requestAnimationFrame(() => blurActiveTreeItem(hostElement));
+    }, []);
+    return <PierreReactFileTree className={className} header={header} model={model} onClickCapture={handleClickCapture} style={hostStyle} />;
 }
 
 export function FileTree(props: AppFileTreeProps) {

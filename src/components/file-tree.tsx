@@ -177,6 +177,124 @@ function blurActiveTreeItem(hostElement: HTMLElement) {
     activeElement.blur();
 }
 
+function getTreeScrollElement(model: PierreFileTree) {
+    return model.getFileTreeContainer()?.shadowRoot?.querySelector<HTMLElement>("[data-file-tree-virtualized-scroll='true']") ?? null;
+}
+
+function getTreeItemElement(model: PierreFileTree, treePath: string) {
+    const shadowRoot = model.getFileTreeContainer()?.shadowRoot;
+    if (!shadowRoot) return null;
+    for (const item of shadowRoot.querySelectorAll<HTMLElement>("[data-type='item']")) {
+        if (item.dataset.itemPath === treePath) return item;
+    }
+    return null;
+}
+
+function getCenteredTreeScrollTop(scrollElement: HTMLElement, rowTop: number, rowHeight: number) {
+    const maxScrollTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+    return Math.max(0, Math.min(maxScrollTop, rowTop - (scrollElement.clientHeight - rowHeight) / 2));
+}
+
+function adjustRenderedTreePathIntoView(model: PierreFileTree, treePath: string) {
+    const scrollElement = getTreeScrollElement(model);
+    const itemElement = getTreeItemElement(model, treePath);
+    if (!scrollElement || !itemElement) return false;
+
+    const scrollRect = scrollElement.getBoundingClientRect();
+    const itemRect = itemElement.getBoundingClientRect();
+    if (itemRect.top < scrollRect.top || itemRect.bottom > scrollRect.bottom) {
+        const rowTop = scrollElement.scrollTop + itemRect.top - scrollRect.top;
+        scrollElement.scrollTop = getCenteredTreeScrollTop(scrollElement, rowTop, itemRect.height);
+        return true;
+    }
+    return true;
+}
+
+function revealTreePath(model: PierreFileTree, treePath: string, rowIndex: number | undefined) {
+    const scrollElement = getTreeScrollElement(model);
+    if (scrollElement && rowIndex !== undefined) {
+        const rowTop = rowIndex * model.getItemHeight();
+        const rowBottom = rowTop + model.getItemHeight();
+        const viewportBottom = scrollElement.scrollTop + scrollElement.clientHeight;
+        if (rowTop < scrollElement.scrollTop || rowBottom > viewportBottom) {
+            scrollElement.scrollTop = getCenteredTreeScrollTop(scrollElement, rowTop, model.getItemHeight());
+        }
+    }
+
+    requestAnimationFrame(() => {
+        if (adjustRenderedTreePathIntoView(model, treePath)) return;
+        requestAnimationFrame(() => {
+            adjustRenderedTreePathIntoView(model, treePath);
+        });
+    });
+}
+
+type TreeIndexNode = {
+    kind: "directory" | "file";
+    path: string;
+    children: Map<string, TreeIndexNode>;
+};
+
+function createTreeIndexNode(kind: TreeIndexNode["kind"], path: string): TreeIndexNode {
+    return { kind, path, children: new Map() };
+}
+
+function addTreeIndexPath(root: TreeIndexNode, treePath: string) {
+    const segments = treePath.split("/").filter(Boolean);
+    let node = root;
+    for (let index = 0; index < segments.length; index += 1) {
+        const segment = segments[index];
+        if (!segment) continue;
+        const isLast = index === segments.length - 1;
+        const kind = isLast && !treePath.endsWith("/") ? "file" : "directory";
+        const path = segments.slice(0, index + 1).join("/") + (kind === "directory" ? "/" : "");
+        const child = node.children.get(segment) ?? createTreeIndexNode(kind, path);
+        node.children.set(segment, child);
+        node = child;
+    }
+}
+
+function getFlattenedDirectoryNode(node: TreeIndexNode) {
+    let current = node;
+    while (current.children.size === 1) {
+        const child = current.children.values().next().value;
+        if (!child || child.kind !== "directory") break;
+        current = child;
+    }
+    return current;
+}
+
+function createVisibleTreePathIndex(treePaths: readonly string[]) {
+    const root = createTreeIndexNode("directory", "");
+    for (const treePath of treePaths) {
+        addTreeIndexPath(root, treePath);
+    }
+
+    const indexByPath = new Map<string, number>();
+    let rowIndex = 0;
+    const visit = (node: TreeIndexNode) => {
+        if (node.kind === "file") {
+            indexByPath.set(node.path, rowIndex);
+            rowIndex += 1;
+            return;
+        }
+
+        const visibleNode = getFlattenedDirectoryNode(node);
+        if (visibleNode.path) {
+            indexByPath.set(visibleNode.path, rowIndex);
+            rowIndex += 1;
+        }
+        for (const child of visibleNode.children.values()) {
+            visit(child);
+        }
+    };
+
+    for (const child of root.children.values()) {
+        visit(child);
+    }
+    return indexByPath;
+}
+
 function useStableTreePaths(entries: readonly FileTreeEntry[]) {
     const treePathsRef = useRef<readonly string[]>([]);
     return useMemo(() => {
@@ -205,6 +323,7 @@ export function useAppFileTreeModel({
     const treePathToAppPathRef = useRef(new Map<string, string>());
     const selectedAppPathRef = useRef(selectedAppPath);
     const initialSearchQueryRef = useRef(normalizeSearchQuery(searchQuery) ?? "");
+    const initialIconsRef = useRef(icons);
     const onSelectPathRef = useRef(onSelectPath);
     const onSearchQueryChangeRef = useRef(onSearchQueryChange);
     const renderRowDecorationRef = useRef(renderRowDecoration);
@@ -217,6 +336,7 @@ export function useAppFileTreeModel({
     const treePaths = useStableTreePaths(entries);
     const treeSort = useMemo(() => createTreeSort(pinnedFirstTreePath), [pinnedFirstTreePath]);
     const preparedInput = useMemo(() => prepareFileTreeInput(treePaths, { sort: treeSort }), [treePaths, treeSort]);
+    const visibleTreePathIndex = useMemo(() => createVisibleTreePathIndex(preparedInput.paths), [preparedInput]);
 
     useEffect(() => {
         appPathToTreePathRef.current = new Map(entries.map((entry) => [entry.appPath, normalizeTreeLookupPath(entry.treePath) || entry.treePath]));
@@ -229,7 +349,7 @@ export function useAppFileTreeModel({
                 preparedInput,
                 density: toTreeDensity(treeDensity),
                 fileTreeSearchMode: "hide-non-matches",
-                icons,
+                icons: initialIconsRef.current,
                 initialExpansion: "open",
                 itemHeight: getTreeItemHeight(treeDensity),
                 sort: treeSort,
@@ -267,7 +387,7 @@ export function useAppFileTreeModel({
                 initialSearchQuery: initialSearchQueryRef.current,
                 unsafeCSS: TREE_UNSAFE_CSS,
             }),
-        [icons, preparedInput, treeDensity, treeSort],
+        [preparedInput, treeDensity, treeSort],
     );
 
     useEffect(() => {
@@ -275,6 +395,10 @@ export function useAppFileTreeModel({
             model.cleanUp();
         };
     }, [model]);
+
+    useEffect(() => {
+        model.setIcons(icons);
+    }, [icons, model]);
 
     useEffect(() => {
         model.setGitStatus(gitStatus);
@@ -293,7 +417,8 @@ export function useAppFileTreeModel({
             model.getItem(selectedPath)?.deselect();
         }
         model.getItem(treePath)?.select();
-    }, [model, selectedAppPath]);
+        revealTreePath(model, treePath, visibleTreePathIndex.get(treePath));
+    }, [model, selectedAppPath, visibleTreePathIndex]);
 
     return model;
 }

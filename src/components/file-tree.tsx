@@ -32,6 +32,7 @@ type UseAppFileTreeModelProps = {
 type AppFileTreeProps = UseAppFileTreeModelProps & {
     className?: string;
     header?: ReactNode;
+    onTreeItemClick?: (treePath: string) => void;
     style?: CSSProperties;
 };
 
@@ -168,6 +169,15 @@ function areTreePathsEqual(left: readonly string[], right: readonly string[]) {
 function eventPathContainsTreeItem(event: MouseEvent<HTMLElement>) {
     if (event.detail <= 0) return false;
     return event.nativeEvent.composedPath().some((target) => target instanceof HTMLElement && target.dataset.type === "item");
+}
+
+function getTreeItemPathFromEvent(event: MouseEvent<HTMLElement>) {
+    for (const target of event.nativeEvent.composedPath()) {
+        if (!(target instanceof HTMLElement)) continue;
+        if (target.dataset.type !== "item") continue;
+        return target.dataset.itemPath ?? null;
+    }
+    return null;
 }
 
 function blurActiveTreeItem(hostElement: HTMLElement) {
@@ -423,18 +433,37 @@ export function useAppFileTreeModel({
     return model;
 }
 
-export function AppFileTreeView({ className, header, model, style }: { className?: string; header?: ReactNode; model: PierreFileTree; style?: CSSProperties }) {
+export function AppFileTreeView({
+    className,
+    header,
+    model,
+    onTreeItemClick,
+    style,
+}: {
+    className?: string;
+    header?: ReactNode;
+    model: PierreFileTree;
+    onTreeItemClick?: (treePath: string) => void;
+    style?: CSSProperties;
+}) {
     const hostStyle = useMemo(() => ({ ...TREE_HOST_STYLE, ...style }), [style]);
-    const handleClickCapture = useCallback((event: MouseEvent<HTMLElement>) => {
-        if (!eventPathContainsTreeItem(event)) return;
-        const hostElement = event.currentTarget;
-        requestAnimationFrame(() => blurActiveTreeItem(hostElement));
-    }, []);
+    const handleClickCapture = useCallback(
+        (event: MouseEvent<HTMLElement>) => {
+            if (!eventPathContainsTreeItem(event)) return;
+            const treePath = getTreeItemPathFromEvent(event);
+            if (treePath) {
+                onTreeItemClick?.(treePath);
+            }
+            const hostElement = event.currentTarget;
+            requestAnimationFrame(() => blurActiveTreeItem(hostElement));
+        },
+        [onTreeItemClick],
+    );
     return <PierreReactFileTree className={className} header={header} model={model} onClickCapture={handleClickCapture} style={hostStyle} />;
 }
 
 export function FileTree(props: AppFileTreeProps) {
-    const { className, header, style, ...modelProps } = props;
+    const { className, header, onTreeItemClick, style, ...modelProps } = props;
     const model = useAppFileTreeModel(modelProps);
-    return <AppFileTreeView className={className} header={header} model={model} style={style} />;
+    return <AppFileTreeView className={className} header={header} model={model} onTreeItemClick={onTreeItemClick} style={style} />;
 }

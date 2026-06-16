@@ -85,6 +85,7 @@ export function ReviewFileTreeSidebar({
 }: ReviewFileTreeSidebarProps) {
     const badgeValue = unviewedFileCount > 999 ? "999+" : unviewedFileCount.toString();
     const diffStatIcons = useMemo(() => createDiffStatIcons(fileLineStats), [fileLineStats]);
+    const treePathToAppPath = useMemo(() => new Map(treeEntries.map((entry) => [entry.treePath.replace(/\/+$/, ""), entry.appPath] as const)), [treeEntries]);
     const unviewedGitStatus = useMemo<GitStatusEntry[]>(() => {
         if (showSettingsPanel) return [];
         return treeEntries
@@ -223,7 +224,16 @@ export function ReviewFileTreeSidebar({
                         <div className="flex-1 min-h-0 px-2 py-3 text-[12px] text-muted-foreground">Loading file tree...</div>
                     ) : (
                         <div className="flex-1 min-h-0 overflow-hidden tree-font-scope pb-2" data-component="tree">
-                            <AppFileTreeView header={treeHeader} model={model} />
+                            <AppFileTreeView
+                                header={treeHeader}
+                                model={model}
+                                onTreeItemClick={(treePath) => {
+                                    const nextAppPath = treePathToAppPath.get(treePath.replace(/\/+$/, ""));
+                                    if (nextAppPath) {
+                                        onFileClick(nextAppPath);
+                                    }
+                                }}
+                            />
                         </div>
                     )}
                     <button

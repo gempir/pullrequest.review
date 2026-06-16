@@ -22,7 +22,7 @@ function parseStoredTreeDensity(value: unknown): TreeDensityValue {
 }
 
 function useFileTreeProviderValue(): FileTreeContextType {
-    const [activeFile, setActiveFile] = useState<string | undefined>();
+    const [activeFile, setActiveFileState] = useState<string | undefined>();
     const [treeDensity, setTreeDensityState] = useState<TreeDensityValue>(DEFAULT_TREE_DENSITY);
     const [hydrated, setHydrated] = useState(false);
 
@@ -47,6 +47,10 @@ function useFileTreeProviderValue(): FileTreeContextType {
         writeTreeSettingsRecord({ treeDensity });
     }, [hydrated, treeDensity]);
 
+    const setActiveFile = useCallback((path: string | undefined) => {
+        setActiveFileState(path);
+    }, []);
+
     const setTreeDensity = useCallback((density: TreeDensityValue) => {
         setTreeDensityState(parseStoredTreeDensity(density));
     }, []);
@@ -63,7 +67,7 @@ function useFileTreeProviderValue(): FileTreeContextType {
             setTreeDensity,
             resetTreePreferences,
         }),
-        [activeFile, resetTreePreferences, setTreeDensity, treeDensity],
+        [activeFile, resetTreePreferences, setActiveFile, setTreeDensity, treeDensity],
     );
 }
 

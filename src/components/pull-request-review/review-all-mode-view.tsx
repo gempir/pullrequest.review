@@ -206,10 +206,17 @@ export function ReviewAllModeView({
                         <PullRequestSummaryPanel
                             bundle={prData}
                             diffStats={lineStats}
+                            currentUserDisplayName={currentUserDisplayName}
                             onSelectComment={onHistoryCommentNavigate}
+                            createCommentPending={createCommentPending}
+                            canCommentInline={canCommentInline}
                             canResolveThread={canResolveThread}
                             resolveCommentPending={resolveCommentPending}
+                            updateCommentPending={updateCommentPending}
+                            onDeleteComment={onDeleteComment}
                             onResolveThread={onResolveThread}
+                            onReplyToThread={onReplyToThread}
+                            onEditComment={onEditComment}
                             footerRight={summaryFooter}
                         />
                     )}

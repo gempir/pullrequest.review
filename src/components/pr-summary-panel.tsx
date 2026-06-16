@@ -1,24 +1,30 @@
+import { type FileDiffMetadata, parsePatchFiles } from "@pierre/diffs";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
     Check,
     Circle,
+    Copy,
     GitCommitHorizontal,
     GitMerge,
     GitPullRequestClosed,
     MessageSquare,
     PenSquare,
+    Reply,
     ScrollText,
+    SendHorizontal,
     Trash2,
     UserMinus,
     UserPlus,
     X,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useMemo, useReducer } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { CommentEditor } from "@/components/comment-editor";
 import { Timestamp } from "@/components/timestamp";
+import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Commit, PullRequestBundle, PullRequestHistoryEvent } from "@/lib/git-host/types";
 import type { ReviewDiffScopeSearch } from "@/lib/review-diff-scope";
@@ -28,6 +34,21 @@ import { cn } from "@/lib/utils";
 const TIMELINE_META_TEXT_CLASS = "text-[11px] leading-4";
 const TIMELINE_TIMESTAMP_CLASS = "pt-px text-right";
 const TIMELINE_CONNECTOR_CENTER_CLASS = "left-[15.5px]";
+const COMMENT_DIFF_CONTEXT_LINES = 3;
+
+type CommentLineSide = NonNullable<PullRequestHistoryEvent["comment"]>["side"];
+
+type CommentDiffSnippetRow = {
+    type: "context" | "addition" | "deletion";
+    oldLine?: number;
+    newLine?: number;
+    content: string;
+    isTarget: boolean;
+};
+
+type CommentDiffSnippet = {
+    rows: CommentDiffSnippetRow[];
+};
 
 function shortHash(value: string) {
     return value.slice(0, 8);
@@ -96,6 +117,120 @@ function shouldRenderHistoryDetails(type: PullRequestHistoryEvent["type"]) {
     return !["reviewRequested", "reviewerAdded", "reviewerRemoved", "updated", "closed", "merged", "reopened", "opened"].includes(type);
 }
 
+function normalizeDiffPath(path: string) {
+    const trimmed = path.trim();
+    if (trimmed.startsWith("a/") || trimmed.startsWith("b/") || trimmed.startsWith("c/")) return trimmed.slice(2);
+    return trimmed;
+}
+
+function buildDiffByPath(diffText: string) {
+    const map = new Map<string, FileDiffMetadata>();
+    if (!diffText.trim()) return map;
+
+    const patches = parsePatchFiles(diffText);
+    patches.forEach((patch) => {
+        patch.files.forEach((fileDiff) => {
+            const paths = [fileDiff.name, fileDiff.prevName].filter((path): path is string => Boolean(path));
+            for (const path of paths) {
+                if (!map.has(path)) map.set(path, fileDiff);
+                const normalizedPath = normalizeDiffPath(path);
+                if (normalizedPath && !map.has(normalizedPath)) map.set(normalizedPath, fileDiff);
+            }
+        });
+    });
+
+    return map;
+}
+
+function diffRowMarker(type: CommentDiffSnippetRow["type"]) {
+    if (type === "addition") return "+";
+    if (type === "deletion") return "-";
+    return " ";
+}
+
+function diffRowClassName(row: CommentDiffSnippetRow) {
+    if (row.type === "addition") {
+        return row.isTarget ? "bg-status-added/18 text-foreground" : "bg-status-added/8 text-foreground";
+    }
+    if (row.type === "deletion") {
+        return row.isTarget ? "bg-status-removed/18 text-foreground" : "bg-status-removed/8 text-foreground";
+    }
+    return row.isTarget ? "bg-accent/12 text-foreground" : "text-muted-foreground";
+}
+
+function lineMatches(row: CommentDiffSnippetRow, line: number, side?: CommentLineSide) {
+    if (side === "deletions") return row.oldLine === line;
+    if (side === "additions") return row.newLine === line;
+    return row.newLine === line || row.oldLine === line;
+}
+
+function findCommentDiffSnippet(diffByPath: Map<string, FileDiffMetadata>, comment?: PullRequestHistoryEvent["comment"]): CommentDiffSnippet | undefined {
+    const path = comment?.path;
+    const line = comment?.line;
+    if (!path || typeof line !== "number") return undefined;
+
+    const fileDiff = diffByPath.get(path) ?? diffByPath.get(normalizeDiffPath(path));
+    if (!fileDiff) return undefined;
+
+    const windowRows: CommentDiffSnippetRow[] = [];
+
+    for (const hunk of fileDiff.hunks) {
+        for (const content of hunk.hunkContent) {
+            if (content.type === "context") {
+                for (let index = 0; index < content.lines; index += 1) {
+                    const additionLineIndex = content.additionLineIndex + index;
+                    const deletionLineIndex = content.deletionLineIndex + index;
+                    const row: CommentDiffSnippetRow = {
+                        type: "context",
+                        oldLine: hunk.deletionStart + (deletionLineIndex - hunk.deletionLineIndex),
+                        newLine: hunk.additionStart + (additionLineIndex - hunk.additionLineIndex),
+                        content: fileDiff.additionLines[additionLineIndex] ?? fileDiff.deletionLines[deletionLineIndex] ?? "",
+                        isTarget: false,
+                    };
+                    row.isTarget = lineMatches(row, line, comment.side);
+                    windowRows.push(row);
+                    if (row.isTarget) {
+                        return { rows: windowRows.slice(-COMMENT_DIFF_CONTEXT_LINES - 1) };
+                    }
+                }
+                continue;
+            }
+
+            for (let index = 0; index < content.deletions; index += 1) {
+                const deletionLineIndex = content.deletionLineIndex + index;
+                const row: CommentDiffSnippetRow = {
+                    type: "deletion",
+                    oldLine: hunk.deletionStart + (deletionLineIndex - hunk.deletionLineIndex),
+                    content: fileDiff.deletionLines[deletionLineIndex] ?? "",
+                    isTarget: false,
+                };
+                row.isTarget = lineMatches(row, line, comment.side);
+                windowRows.push(row);
+                if (row.isTarget) {
+                    return { rows: windowRows.slice(-COMMENT_DIFF_CONTEXT_LINES - 1) };
+                }
+            }
+
+            for (let index = 0; index < content.additions; index += 1) {
+                const additionLineIndex = content.additionLineIndex + index;
+                const row: CommentDiffSnippetRow = {
+                    type: "addition",
+                    newLine: hunk.additionStart + (additionLineIndex - hunk.additionLineIndex),
+                    content: fileDiff.additionLines[additionLineIndex] ?? "",
+                    isTarget: false,
+                };
+                row.isTarget = lineMatches(row, line, comment.side);
+                windowRows.push(row);
+                if (row.isTarget) {
+                    return { rows: windowRows.slice(-COMMENT_DIFF_CONTEXT_LINES - 1) };
+                }
+            }
+        }
+    }
+
+    return undefined;
+}
+
 function timelineIconClass(kind: "description" | "history" | "commitGroup", type?: PullRequestHistoryEvent["type"]) {
     if (kind === "description") {
         return "border-border-muted bg-surface-2 text-foreground";
@@ -154,6 +289,33 @@ function MarkdownBlock({ text }: { text: string }) {
     );
 }
 
+function CommentDiffSnippetBlock({ snippet, className }: { snippet: CommentDiffSnippet; className?: string }) {
+    return (
+        <div className={cn("overflow-hidden bg-background", className)}>
+            <div className="font-mono text-[11px] leading-5">
+                {snippet.rows.map((row) => (
+                    <div
+                        key={`${row.type}:${row.oldLine ?? "na"}:${row.newLine ?? "na"}:${row.content}`}
+                        className={cn("grid grid-cols-[52px_52px_18px_minmax(0,1fr)] gap-x-2 px-3", diffRowClassName(row))}
+                    >
+                        <span className="select-none text-right text-muted-foreground">{row.oldLine ?? ""}</span>
+                        <span className="select-none text-right text-muted-foreground">{row.newLine ?? ""}</span>
+                        <span
+                            className={cn(
+                                "select-none text-center",
+                                row.type === "addition" ? "text-status-added" : row.type === "deletion" ? "text-status-removed" : "text-muted-foreground",
+                            )}
+                        >
+                            {diffRowMarker(row.type)}
+                        </span>
+                        <span className="min-w-0 overflow-x-auto whitespace-pre">{row.content || " "}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function Avatar({ name, url, sizeClass = "size-4" }: { name?: string; url?: string; sizeClass?: string }) {
     if (url) {
         return <img src={url} alt={name ?? "avatar"} className={cn(sizeClass, "rounded-full object-cover shrink-0")} />;
@@ -171,28 +333,182 @@ function Avatar({ name, url, sizeClass = "size-4" }: { name?: string; url?: stri
     );
 }
 
-function ResolveCircleButton({ isResolved, disabled, onToggle }: { isResolved: boolean; disabled: boolean; onToggle: () => void }) {
+function normalizeName(value?: string) {
+    return value?.trim().toLowerCase() ?? "";
+}
+
+type HistoryCommentSurfaceState = {
+    isReplying: boolean;
+    replyValue: string;
+    isEditing: boolean;
+    editValue: string;
+    pathCopied: boolean;
+};
+
+type HistoryCommentSurfaceAction =
+    | { type: "setReplying"; value: boolean }
+    | { type: "setReplyValue"; value: string }
+    | { type: "setEditing"; value: boolean }
+    | { type: "setEditValue"; value: string }
+    | { type: "setPathCopied"; value: boolean };
+
+function historyCommentSurfaceReducer(state: HistoryCommentSurfaceState, action: HistoryCommentSurfaceAction): HistoryCommentSurfaceState {
+    switch (action.type) {
+        case "setReplying":
+            return { ...state, isReplying: action.value };
+        case "setReplyValue":
+            return { ...state, replyValue: action.value };
+        case "setEditing":
+            return { ...state, isEditing: action.value };
+        case "setEditValue":
+            return { ...state, editValue: action.value };
+        case "setPathCopied":
+            return { ...state, pathCopied: action.value };
+    }
+}
+
+function HistoryCommentPathHeader({ path, copied, onCopy }: { path: string; copied: boolean; onCopy: () => void }) {
     return (
-        <button
-            type="button"
-            className="group/status relative inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={(event) => {
-                event.stopPropagation();
-                onToggle();
-            }}
-            disabled={disabled}
-            aria-label={isResolved ? "Unresolve" : "Resolve"}
-            title={isResolved ? "Unresolve" : "Resolve"}
-        >
-            <Circle className="size-4" />
-            <Check
-                className={cn(
-                    "absolute size-2.5 transition-opacity",
-                    isResolved ? "opacity-100" : "opacity-0",
-                    !isResolved && !disabled ? "group-hover/status:opacity-50" : "",
-                )}
-            />
-        </button>
+        <div className="flex items-center gap-1.5 border-b border-border-muted px-2 py-0.5">
+            <span className="shrink-0 font-mono text-[10px] text-foreground">{path}</span>
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="size-5 text-muted-foreground hover:text-foreground"
+                data-comment-action-root="true"
+                aria-label="Copy file path"
+                title="Copy file path"
+                onClick={onCopy}
+            >
+                {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+            </Button>
+        </div>
+    );
+}
+
+function HistoryCommentActions({
+    isEditing,
+    isReplying,
+    canReply,
+    canEdit,
+    canToggleResolve,
+    canDelete,
+    isResolved,
+    createCommentPending,
+    resolveCommentPending,
+    updateCommentPending,
+    actionButtonClass,
+    actionIconClass,
+    onSubmitEdit,
+    onCancelEdit,
+    onSubmitReply,
+    onCancelReply,
+    onStartReply,
+    onStartEdit,
+    onToggleResolve,
+    onDelete,
+}: {
+    isEditing: boolean;
+    isReplying: boolean;
+    canReply: boolean;
+    canEdit: boolean;
+    canToggleResolve: boolean;
+    canDelete: boolean;
+    isResolved: boolean;
+    createCommentPending: boolean;
+    resolveCommentPending: boolean;
+    updateCommentPending: boolean;
+    actionButtonClass: string;
+    actionIconClass: string;
+    onSubmitEdit: () => void;
+    onCancelEdit: () => void;
+    onSubmitReply: () => void;
+    onCancelReply: () => void;
+    onStartReply: () => void;
+    onStartEdit: () => void;
+    onToggleResolve: () => void;
+    onDelete: () => void;
+}) {
+    if (!(canReply || canEdit || canToggleResolve || canDelete)) return null;
+
+    return (
+        <div className="mt-2 flex flex-wrap items-center gap-1" data-comment-action-root="true">
+            {isEditing ? (
+                <>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        disabled={updateCommentPending}
+                        onClick={onSubmitEdit}
+                    >
+                        <Check className="size-3.5" />
+                        Save
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        disabled={updateCommentPending}
+                        onClick={onCancelEdit}
+                    >
+                        <X className="size-3.5" />
+                        Cancel
+                    </Button>
+                </>
+            ) : isReplying ? (
+                <>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        disabled={createCommentPending}
+                        onClick={onSubmitReply}
+                    >
+                        <SendHorizontal className="size-3.5" />
+                        Comment
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        disabled={createCommentPending}
+                        onClick={onCancelReply}
+                    >
+                        <X className="size-3.5" />
+                        Cancel
+                    </Button>
+                </>
+            ) : (
+                <>
+                    {canReply ? (
+                        <Button variant="outline" size="sm" className={actionButtonClass} disabled={createCommentPending} onClick={onStartReply}>
+                            <Reply className={actionIconClass} />
+                            Reply
+                        </Button>
+                    ) : null}
+                    {canEdit ? (
+                        <Button variant="outline" size="sm" className={actionButtonClass} disabled={updateCommentPending} onClick={onStartEdit}>
+                            <PenSquare className={actionIconClass} />
+                            Edit
+                        </Button>
+                    ) : null}
+                    {canToggleResolve ? (
+                        <Button variant="outline" size="sm" className={actionButtonClass} disabled={resolveCommentPending} onClick={onToggleResolve}>
+                            <Circle className={actionIconClass} />
+                            {isResolved ? "Unresolve" : "Resolve"}
+                        </Button>
+                    ) : null}
+                    {canDelete ? (
+                        <Button variant="outline" size="sm" className={actionButtonClass} onClick={onDelete}>
+                            <Trash2 className={actionIconClass} />
+                            Delete
+                        </Button>
+                    ) : null}
+                </>
+            )}
+        </div>
     );
 }
 
@@ -488,30 +804,72 @@ function CommitAuthorIdentity({ host, group }: { host: PullRequestBundle["prRef"
     );
 }
 
-function HistoryTimelineItem({
-    showConnectorAbove,
-    showConnectorBelow,
+function HistoryCommentSurface({
     event,
+    diffSnippet,
     resolvedComment,
+    currentUserDisplayName,
     onSelectComment,
+    canCommentInline,
     canResolveThread,
+    createCommentPending,
     resolveCommentPending,
+    updateCommentPending,
+    onDeleteComment,
     onResolveThread,
+    onReplyToThread,
+    onEditComment,
 }: {
-    showConnectorAbove: boolean;
-    showConnectorBelow: boolean;
     event: PullRequestHistoryEvent;
+    diffSnippet?: CommentDiffSnippet;
     resolvedComment?: PullRequestBundle["comments"][number];
+    currentUserDisplayName?: string;
     onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
+    canCommentInline?: boolean;
     canResolveThread?: boolean;
+    createCommentPending?: boolean;
     resolveCommentPending?: boolean;
+    updateCommentPending?: boolean;
+    onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
+    onReplyToThread?: (commentId: number, content: string) => void;
+    onEditComment?: (commentId: number, content: string, hasInlineContext: boolean) => void;
 }) {
     const canNavigateToComment = Boolean(event.comment?.path && onSelectComment);
     const commentId = typeof event.comment?.id === "number" ? event.comment.id : undefined;
     const isResolved = Boolean(resolvedComment?.resolution);
     const canToggleResolve = Boolean(event.comment?.path) && typeof commentId === "number" && Boolean(onResolveThread) && Boolean(canResolveThread);
-    const handleClick = () => {
+    const hasInlineContext = Boolean(event.comment?.path);
+    const normalizedCurrentUser = normalizeName(currentUserDisplayName);
+    const canEdit = Boolean(
+        commentId && normalizedCurrentUser && normalizeName(resolvedComment?.user?.displayName || event.actor?.displayName) === normalizedCurrentUser,
+    );
+    const canDelete = canEdit && Boolean(commentId) && Boolean(onDeleteComment);
+    const canReply = Boolean(commentId) && Boolean(onReplyToThread) && Boolean(canCommentInline);
+    const [state, dispatch] = useReducer(historyCommentSurfaceReducer, {
+        isReplying: false,
+        replyValue: "",
+        isEditing: false,
+        editValue: resolvedComment?.content?.raw ?? event.content ?? "",
+        pathCopied: false,
+    });
+    const { isReplying, replyValue, isEditing, editValue, pathCopied } = state;
+
+    useEffect(() => {
+        if (isEditing) return;
+        dispatch({ type: "setEditValue", value: resolvedComment?.content?.raw ?? event.content ?? "" });
+    }, [event.content, isEditing, resolvedComment?.content?.raw]);
+
+    useEffect(() => {
+        if (!pathCopied) return;
+        const timeoutId = window.setTimeout(() => dispatch({ type: "setPathCopied", value: false }), 1200);
+        return () => window.clearTimeout(timeoutId);
+    }, [pathCopied]);
+
+    const handleClick = (mouseEvent?: React.MouseEvent<HTMLButtonElement>) => {
+        if ((mouseEvent?.target as HTMLElement | null)?.closest("[data-comment-action-root='true'], [data-comment-editor-root='true']")) {
+            return;
+        }
         if (!canNavigateToComment || !event.comment?.path) return;
         onSelectComment?.({
             path: event.comment.path,
@@ -520,8 +878,196 @@ function HistoryTimelineItem({
             commentId: event.comment.id,
         });
     };
+    const handleAttachedKeyDown = (keyEvent: React.KeyboardEvent<HTMLButtonElement>) => {
+        if (!canNavigateToComment) return;
+        if (keyEvent.key !== "Enter" && keyEvent.key !== " ") return;
+        keyEvent.preventDefault();
+        handleClick();
+    };
+    const handleReplySubmit = () => {
+        if (!commentId || !onReplyToThread) return;
+        const trimmed = replyValue.trim();
+        if (!trimmed) return;
+        onReplyToThread(commentId, trimmed);
+        dispatch({ type: "setReplyValue", value: "" });
+        dispatch({ type: "setReplying", value: false });
+    };
+    const handleEditSubmit = () => {
+        if (!commentId || !onEditComment) return;
+        const trimmed = editValue.trim();
+        if (!trimmed) return;
+        onEditComment(commentId, trimmed, hasInlineContext);
+        dispatch({ type: "setEditing", value: false });
+    };
+    const handleCopyPath = async () => {
+        if (!event.comment?.path || typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
+        await navigator.clipboard.writeText(event.comment.path);
+        dispatch({ type: "setPathCopied", value: true });
+    };
+    const actionButtonClass = "h-6 rounded-md border border-input bg-surface-1 gap-1 px-2 text-[10px] leading-none hover:bg-surface-2";
+    const actionIconClass = "size-2.5";
+
+    const body = (
+        <>
+            {event.comment?.path ? (
+                <HistoryCommentPathHeader
+                    path={event.comment.path}
+                    copied={pathCopied}
+                    onCopy={() => {
+                        void handleCopyPath();
+                    }}
+                />
+            ) : null}
+            {event.details && shouldRenderHistoryDetails(event.type) ? (
+                <div className="border-b border-border-muted px-2.5 py-2 text-[13px] text-muted-foreground break-words">{event.details}</div>
+            ) : null}
+            {diffSnippet ? <CommentDiffSnippetBlock snippet={diffSnippet} className="border-b border-border-muted" /> : null}
+            {event.content || event.contentHtml ? (
+                <div className="px-1.5 py-1">
+                    <div className="flex items-start gap-2 px-2 py-2">
+                        <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} sizeClass="size-6" />
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-start gap-2">
+                                <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                    <span className="truncate text-[13px] font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
+                                    <Timestamp value={event.createdAt} className="pt-0 text-[11px] text-muted-foreground" />
+                                </div>
+                                {canToggleResolve && typeof commentId === "number" && !isEditing && !isReplying ? (
+                                    <button
+                                        type="button"
+                                        className="inline-flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                        data-comment-action-root="true"
+                                        aria-label={isResolved ? "Unresolve thread" : "Resolve thread"}
+                                        title={isResolved ? "Unresolve thread" : "Resolve thread"}
+                                        disabled={Boolean(resolveCommentPending)}
+                                        onClick={() => onResolveThread?.(commentId, !isResolved)}
+                                    >
+                                        <Circle className={cn("size-4", isResolved ? "fill-current" : "")} />
+                                    </button>
+                                ) : null}
+                            </div>
+                            <div className="mt-1.5 min-w-0">
+                                {isEditing ? (
+                                    <div data-comment-editor-root="true">
+                                        <CommentEditor
+                                            value={editValue}
+                                            placeholder="Edit comment"
+                                            disabled={Boolean(updateCommentPending)}
+                                            onChange={(value) => dispatch({ type: "setEditValue", value })}
+                                            onSubmit={handleEditSubmit}
+                                            contentClassName="min-h-[72px]"
+                                        />
+                                    </div>
+                                ) : null}
+                                {isEditing ? null : <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />}
+                            </div>
+                            {isReplying ? (
+                                <div className="mt-2" data-comment-editor-root="true">
+                                    <CommentEditor
+                                        value={replyValue}
+                                        placeholder="Reply to thread"
+                                        disabled={Boolean(createCommentPending)}
+                                        onChange={(value) => dispatch({ type: "setReplyValue", value })}
+                                        onSubmit={handleReplySubmit}
+                                        contentClassName="min-h-[72px]"
+                                    />
+                                </div>
+                            ) : null}
+                            {typeof commentId === "number" ? (
+                                <HistoryCommentActions
+                                    isEditing={isEditing}
+                                    isReplying={isReplying}
+                                    canReply={canReply}
+                                    canEdit={canEdit}
+                                    canToggleResolve={canToggleResolve}
+                                    canDelete={canDelete}
+                                    isResolved={isResolved}
+                                    createCommentPending={Boolean(createCommentPending)}
+                                    resolveCommentPending={Boolean(resolveCommentPending)}
+                                    updateCommentPending={Boolean(updateCommentPending)}
+                                    actionButtonClass={actionButtonClass}
+                                    actionIconClass={actionIconClass}
+                                    onSubmitEdit={handleEditSubmit}
+                                    onCancelEdit={() => {
+                                        dispatch({ type: "setEditValue", value: resolvedComment?.content?.raw ?? event.content ?? "" });
+                                        dispatch({ type: "setEditing", value: false });
+                                    }}
+                                    onSubmitReply={handleReplySubmit}
+                                    onCancelReply={() => {
+                                        dispatch({ type: "setReplyValue", value: "" });
+                                        dispatch({ type: "setReplying", value: false });
+                                    }}
+                                    onStartReply={() => dispatch({ type: "setReplying", value: true })}
+                                    onStartEdit={() => {
+                                        dispatch({ type: "setReplying", value: false });
+                                        dispatch({ type: "setEditValue", value: resolvedComment?.content?.raw ?? event.content ?? "" });
+                                        dispatch({ type: "setEditing", value: true });
+                                    }}
+                                    onToggleResolve={() => onResolveThread?.(commentId, !isResolved)}
+                                    onDelete={() => onDeleteComment?.(commentId, hasInlineContext)}
+                                />
+                            ) : null}
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+        </>
+    );
+
+    if (canNavigateToComment) {
+        return (
+            <button
+                type="button"
+                className="group/comment mt-1 block w-full overflow-hidden rounded-md border border-border-muted bg-surface-1 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2"
+                onClick={(mouseEvent) => handleClick(mouseEvent)}
+                onKeyDown={handleAttachedKeyDown}
+            >
+                {body}
+            </button>
+        );
+    }
+
+    return <div className="group/comment mt-1 overflow-hidden rounded-md border border-border-muted bg-surface-1 transition-colors">{body}</div>;
+}
+
+function HistoryTimelineItem({
+    showConnectorAbove,
+    showConnectorBelow,
+    event,
+    diffSnippet,
+    resolvedComment,
+    currentUserDisplayName,
+    onSelectComment,
+    canCommentInline,
+    canResolveThread,
+    createCommentPending,
+    resolveCommentPending,
+    updateCommentPending,
+    onDeleteComment,
+    onResolveThread,
+    onReplyToThread,
+    onEditComment,
+}: {
+    showConnectorAbove: boolean;
+    showConnectorBelow: boolean;
+    event: PullRequestHistoryEvent;
+    diffSnippet?: CommentDiffSnippet;
+    resolvedComment?: PullRequestBundle["comments"][number];
+    currentUserDisplayName?: string;
+    onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
+    canCommentInline?: boolean;
+    canResolveThread?: boolean;
+    createCommentPending?: boolean;
+    resolveCommentPending?: boolean;
+    updateCommentPending?: boolean;
+    onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
+    onResolveThread?: (commentId: number, resolve: boolean) => void;
+    onReplyToThread?: (commentId: number, content: string) => void;
+    onEditComment?: (commentId: number, content: string, hasInlineContext: boolean) => void;
+}) {
     const HistoryIcon = historyIcon(event.type);
     const eventTitle = historyEventTitle(event.type);
+    const hasAttachedContent = Boolean(event.comment?.path || event.details || diffSnippet || event.content || event.contentHtml);
 
     return (
         <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
@@ -533,63 +1079,33 @@ function HistoryTimelineItem({
             </div>
             <div className="min-w-0 pt-1">
                 <div className="w-full rounded-md text-left">
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
-                        <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
-                            <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} />
-                            <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
-                            {eventTitle ? <span className="text-muted-foreground">{eventTitle}</span> : null}
-                        </div>
-                        <Timestamp value={event.createdAt} className={TIMELINE_TIMESTAMP_CLASS} />
-                    </div>
-                    {event.comment?.path ? (
-                        <div className="flex items-center gap-2 px-2 pt-1">
-                            {canNavigateToComment ? (
-                                <button
-                                    type="button"
-                                    onClick={handleClick}
-                                    className="inline-flex rounded border border-border-muted bg-surface-1 px-1.5 py-0.5 font-mono text-[11px] text-accent transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                >
-                                    {event.comment.path}
-                                    {event.comment.line ? `:${event.comment.line}` : ""}
-                                </button>
-                            ) : (
-                                <span className="inline-flex rounded border border-border-muted bg-surface-1 px-1.5 py-0.5 font-mono text-[11px] text-accent">
-                                    {event.comment.path}
-                                    {event.comment.line ? `:${event.comment.line}` : ""}
-                                </span>
-                            )}
-                            {canToggleResolve && typeof commentId === "number" ? (
-                                <span className="ml-auto">
-                                    <ResolveCircleButton
-                                        isResolved={isResolved}
-                                        disabled={Boolean(resolveCommentPending)}
-                                        onToggle={() => onResolveThread?.(commentId, !isResolved)}
-                                    />
-                                </span>
-                            ) : null}
-                        </div>
-                    ) : null}
-                    {event.details && shouldRenderHistoryDetails(event.type) ? (
-                        <div className="px-2 pt-1 text-[13px] text-muted-foreground break-words">{event.details}</div>
-                    ) : null}
-                    {event.content || event.contentHtml ? (
-                        canNavigateToComment ? (
-                            <button
-                                type="button"
-                                onClick={handleClick}
-                                className="block w-full rounded-md px-2 pb-2 pt-2 text-left transition-colors hover:bg-surface-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                            >
-                                <div className="rounded-md border border-border-muted bg-surface-1 p-3">
-                                    <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />
-                                </div>
-                            </button>
-                        ) : (
-                            <div className="px-2 pb-2 pt-2">
-                                <div className="rounded-md border border-border-muted bg-surface-1 p-3">
-                                    <MarkdownBlock text={event.contentHtml ?? event.content ?? ""} />
-                                </div>
+                    {!hasAttachedContent ? (
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
+                            <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
+                                <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} />
+                                <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
+                                {eventTitle ? <span className="text-muted-foreground">{eventTitle}</span> : null}
                             </div>
-                        )
+                            <Timestamp value={event.createdAt} className={TIMELINE_TIMESTAMP_CLASS} />
+                        </div>
+                    ) : null}
+                    {hasAttachedContent ? (
+                        <HistoryCommentSurface
+                            event={event}
+                            diffSnippet={diffSnippet}
+                            resolvedComment={resolvedComment}
+                            currentUserDisplayName={currentUserDisplayName}
+                            onSelectComment={onSelectComment}
+                            canCommentInline={canCommentInline}
+                            canResolveThread={canResolveThread}
+                            createCommentPending={createCommentPending}
+                            resolveCommentPending={resolveCommentPending}
+                            updateCommentPending={updateCommentPending}
+                            onDeleteComment={onDeleteComment}
+                            onResolveThread={onResolveThread}
+                            onReplyToThread={onReplyToThread}
+                            onEditComment={onEditComment}
+                        />
                     ) : null}
                 </div>
             </div>
@@ -603,22 +1119,37 @@ export function PullRequestSummaryPanel({
     diffStats,
     headerRight,
     footerRight,
+    currentUserDisplayName,
     onSelectComment,
+    createCommentPending,
+    canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    updateCommentPending,
+    onDeleteComment,
     onResolveThread,
+    onReplyToThread,
+    onEditComment,
 }: {
     bundle: PullRequestBundle;
     headerTitle?: string;
     diffStats?: { added: number; removed: number };
     headerRight?: ReactNode;
     footerRight?: ReactNode;
+    currentUserDisplayName?: string;
     onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
+    createCommentPending?: boolean;
+    canCommentInline?: boolean;
     canResolveThread?: boolean;
     resolveCommentPending?: boolean;
+    updateCommentPending?: boolean;
+    onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
+    onReplyToThread?: (commentId: number, content: string) => void;
+    onEditComment?: (commentId: number, content: string, hasInlineContext: boolean) => void;
 }) {
     const { pr, commits, history, prRef } = bundle;
+    const diffByPath = useMemo(() => buildDiffByPath(bundle.diff), [bundle.diff]);
     const baseHistory: PullRequestHistoryEvent[] = history ?? [];
     const commentById = new Map(bundle.comments.map((comment) => [comment.id, comment] as const));
     const commentHistoryById = new Map<number, PullRequestHistoryEvent>();
@@ -743,11 +1274,19 @@ export function PullRequestSummaryPanel({
                                 showConnectorAbove={showConnectorAbove}
                                 showConnectorBelow={showConnectorBelow}
                                 event={entry.event}
+                                diffSnippet={findCommentDiffSnippet(diffByPath, entry.event.comment)}
                                 resolvedComment={typeof entry.event.comment?.id === "number" ? commentById.get(entry.event.comment.id) : undefined}
+                                currentUserDisplayName={currentUserDisplayName}
                                 onSelectComment={onSelectComment}
+                                canCommentInline={canCommentInline}
                                 canResolveThread={canResolveThread}
+                                createCommentPending={createCommentPending}
                                 resolveCommentPending={resolveCommentPending}
+                                updateCommentPending={updateCommentPending}
+                                onDeleteComment={onDeleteComment}
                                 onResolveThread={onResolveThread}
+                                onReplyToThread={onReplyToThread}
+                                onEditComment={onEditComment}
                             />
                         );
                     })}

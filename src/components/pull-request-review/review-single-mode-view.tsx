@@ -150,10 +150,17 @@ export function ReviewSingleModeView({
                     bundle={prData}
                     headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
                     diffStats={lineStats}
+                    currentUserDisplayName={currentUserDisplayName}
                     onSelectComment={onHistoryCommentNavigate}
+                    createCommentPending={createCommentPending}
+                    canCommentInline={canCommentInline}
                     canResolveThread={canResolveThread}
                     resolveCommentPending={resolveCommentPending}
+                    updateCommentPending={updateCommentPending}
+                    onDeleteComment={onDeleteComment}
                     onResolveThread={onResolveThread}
+                    onReplyToThread={onReplyToThread}
+                    onEditComment={onEditComment}
                     footerRight={summaryFooter}
                     headerRight={
                         <div className="flex items-center gap-1">

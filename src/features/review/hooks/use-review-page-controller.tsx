@@ -528,6 +528,7 @@ export function useReviewPageController({
         () => (allModeSectionPaths.length > 0 ? allModeSectionPaths[allModeSectionPaths.length - 1] : null),
         [allModeSectionPaths],
     );
+    const isFileHashSelectionReady = selectableDiffPathSet.size > 0 || Boolean(prData && (prData.diffstat?.length ?? 0) === 0);
 
     useReviewActiveFileSync({
         showSettingsPanel,
@@ -849,7 +850,7 @@ export function useReviewPageController({
         showSettingsPanel,
         settingsPathSet,
         selectableFilePaths: selectableDiffPathSet,
-        isFileSelectionReady: treeOrderedVisiblePaths.length > 0,
+        isFileSelectionReady: isFileHashSelectionReady,
         suppressHashSyncRef,
     });
 

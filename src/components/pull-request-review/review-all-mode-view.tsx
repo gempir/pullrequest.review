@@ -317,6 +317,7 @@ export function ReviewAllModeView({
                                 <div className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">
                                     {diffHighlighterReady && displayedFileDiff ? (
                                         <FileDiff
+                                            key={`${filePath}:${selectedVersionId ?? "latest"}:${readOnlyHistorical ? "historical" : "current"}:${hasFullContext ? "full-context" : "patch-context"}`}
                                             fileDiff={toRenderableFileDiff(displayedFileDiff)}
                                             options={{
                                                 ...fileDiffOptions,

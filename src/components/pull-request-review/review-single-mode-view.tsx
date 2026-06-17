@@ -138,7 +138,7 @@ export function ReviewSingleModeView({
               onLineEnter: undefined,
               onLineLeave: undefined,
           };
-    const singleDiffRenderKey = `${selectedFilePath}:${selectedFileVersionId ?? "latest"}:${selectedFileReadOnlyHistorical ? "historical" : "current"}`;
+    const singleDiffRenderKey = `${selectedFilePath}:${selectedFileVersionId ?? "latest"}:${selectedFileReadOnlyHistorical ? "historical" : "current"}:${hasFullContext ? "full-context" : "patch-context"}`;
     if (isSummarySelected) {
         return (
             <div

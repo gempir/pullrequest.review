@@ -1,6 +1,6 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { useWorkerPool } from "@pierre/diffs/react";
-import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
+import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fileAnchorId } from "@/lib/file-anchors";
 import type { PullRequestBundle } from "@/lib/git-host/types";
 import { clearableHashFromPath, parsePrFileHash } from "@/lib/pr-file-hash";
@@ -129,7 +129,7 @@ export function useReviewFileHashSelection({
     selectableFilePaths: Set<string>;
     onHashPathResolved: (path: string) => void;
 }) {
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (typeof window === "undefined") return;
 
         const applyHashSelection = () => {

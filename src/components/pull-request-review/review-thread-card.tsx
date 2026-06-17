@@ -1,16 +1,12 @@
-import { Check, ChevronDown, ChevronRight, Circle, CircleCheck, PenSquare, Reply, SendHorizontal, Trash2, X } from "lucide-react";
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronRight, Circle } from "lucide-react";
+import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
 import { type CommentThread, type CommentThreadNode, threadCommentCount } from "@/components/pull-request-review/review-threads";
-import { Timestamp } from "@/components/timestamp";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { commentAnchorId } from "@/lib/file-anchors";
-import { cn } from "@/lib/utils";
 
 function initials(value?: string) {
     if (!value) return "??";
@@ -43,7 +39,7 @@ function CommentAvatar({ name, url, sizeClass = "size-6" }: { name?: string; url
 
 function CommentMarkdown({ text }: { text: string }) {
     return (
-        <div className="text-[13px] leading-relaxed" style={{ fontFamily: "var(--comment-font-family)" }}>
+        <div className="mt-2 text-[14px] leading-relaxed text-foreground" style={{ fontFamily: "var(--comment-font-family)" }}>
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize]}
@@ -71,32 +67,6 @@ function CommentMarkdown({ text }: { text: string }) {
     );
 }
 
-function ThreadStatusButton({ isResolved, disabled, onToggle }: { isResolved: boolean; disabled: boolean; onToggle: () => void }) {
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <button
-                    type="button"
-                    className="group/status relative inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={onToggle}
-                    disabled={disabled}
-                    aria-label={isResolved ? "Unresolve" : "Resolve"}
-                >
-                    <Circle className="size-4" />
-                    <Check
-                        className={cn(
-                            "absolute size-2.5 transition-opacity",
-                            isResolved ? "opacity-100" : "opacity-0",
-                            !isResolved && !disabled ? "group-hover/status:opacity-50" : "",
-                        )}
-                    />
-                </button>
-            </TooltipTrigger>
-            <TooltipContent>{isResolved ? "Unresolve" : "Resolve"}</TooltipContent>
-        </Tooltip>
-    );
-}
-
 function normalizeName(value?: string) {
     return value?.trim().toLowerCase() ?? "";
 }
@@ -110,21 +80,62 @@ function findCommentById(node: CommentThreadNode, commentId: number): CommentThr
     return null;
 }
 
-function buildParentIdMap(root: CommentThreadNode) {
-    const parentByCommentId = new Map<number, number | null>();
-    const visit = (node: CommentThreadNode, parentId: number | null) => {
-        parentByCommentId.set(node.comment.id, parentId);
-        for (const child of node.children) {
-            visit(child, node.comment.id);
-        }
-    };
-    visit(root, null);
-    return parentByCommentId;
+function formatCommentDate(value?: string) {
+    if (!value) return "";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return parsed.toISOString().slice(0, 10);
+}
+
+function formatCommentDateTime(value?: string) {
+    if (!value) return "";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return parsed.toLocaleString(undefined, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function ThreadResolveButton({
+    commentId,
+    isResolved,
+    disabled,
+    onResolveThread,
+}: {
+    commentId: number;
+    isResolved: boolean;
+    disabled: boolean;
+    onResolveThread: (commentId: number, resolve: boolean) => void;
+}) {
+    return (
+        <button
+            type="button"
+            className="group/status relative inline-flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => onResolveThread(commentId, !isResolved)}
+            disabled={disabled}
+            aria-label={isResolved ? "Unresolve thread" : "Resolve thread"}
+            title={isResolved ? "Unresolve thread" : "Resolve thread"}
+        >
+            <Circle className="size-4" />
+            <Check
+                className={[
+                    "absolute size-2.5 transition-opacity",
+                    isResolved ? "opacity-100" : "opacity-0",
+                    !isResolved && !disabled ? "group-hover/status:opacity-50" : "",
+                ].join(" ")}
+            />
+        </button>
+    );
 }
 
 type ThreadCardProps = {
     thread: CommentThread;
     allowNestedReplies?: boolean;
+    header?: ReactNode;
     canResolveThread: boolean;
     canCommentInline: boolean;
     createCommentPending: boolean;
@@ -144,23 +155,13 @@ type ThreadCardEditorState = {
     editValue: string;
 };
 
-type ActiveConnector = {
-    left: number;
-    top: number;
-    height: number;
-};
-
 type ThreadActionsProps = {
     commentId: number;
     hasInlineContext: boolean;
-    rootCommentId: number;
-    isResolved: boolean;
     canEdit: boolean;
     canDelete: boolean;
-    canResolveThread: boolean;
     canCommentInline: boolean;
     createCommentPending: boolean;
-    resolveCommentPending: boolean;
     updateCommentPending: boolean;
     replyTargetCommentId: number | null;
     editTargetCommentId: number | null;
@@ -170,21 +171,16 @@ type ThreadActionsProps = {
     onStartEdit: (commentId: number, hasInlineContext: boolean) => void;
     onSubmitEdit: (commentId: number, hasInlineContext: boolean) => void;
     onCancelEdit: () => void;
-    onResolveThread: (commentId: number, resolve: boolean) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
 };
 
 function ThreadActions({
     commentId,
     hasInlineContext,
-    rootCommentId,
-    isResolved,
     canEdit,
     canDelete,
-    canResolveThread,
     canCommentInline,
     createCommentPending,
-    resolveCommentPending,
     updateCommentPending,
     replyTargetCommentId,
     editTargetCommentId,
@@ -194,108 +190,85 @@ function ThreadActions({
     onStartEdit,
     onSubmitEdit,
     onCancelEdit,
-    onResolveThread,
     onDeleteComment,
 }: ThreadActionsProps) {
-    const actionButtonClass = "h-6 rounded-md border border-input bg-surface-1 gap-1 px-2 text-[10px] leading-none hover:bg-surface-2";
-    const actionIconClass = "size-2";
-    return (
-        <div className="flex flex-wrap items-center gap-1.5">
-            {editTargetCommentId === commentId ? (
-                <>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
-                        disabled={updateCommentPending}
-                        onClick={() => onSubmitEdit(commentId, hasInlineContext)}
-                    >
-                        <Check className="size-3.5" />
-                        Save
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
-                        disabled={updateCommentPending}
-                        onClick={onCancelEdit}
-                    >
-                        <X className="size-3.5" />
-                        Cancel
-                    </Button>
-                </>
-            ) : replyTargetCommentId === commentId ? (
-                <>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
-                        disabled={createCommentPending || !canCommentInline}
-                        onClick={onSubmitReply}
-                    >
-                        <SendHorizontal className="size-3.5" />
-                        Comment
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
-                        disabled={createCommentPending}
-                        onClick={onCancelReply}
-                    >
-                        <X className="size-3.5" />
-                        Cancel
-                    </Button>
-                </>
-            ) : (
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className={actionButtonClass}
-                    disabled={createCommentPending || !canCommentInline}
-                    onClick={() => onStartReply(commentId)}
-                >
-                    <Reply className={actionIconClass} />
-                    Reply
-                </Button>
-            )}
-            {canEdit && editTargetCommentId !== commentId ? (
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className={actionButtonClass}
-                    disabled={updateCommentPending}
-                    onClick={() => onStartEdit(commentId, hasInlineContext)}
-                >
-                    <PenSquare className={actionIconClass} />
-                    Edit
-                </Button>
-            ) : null}
-            <Button
-                variant="outline"
-                size="sm"
-                className={actionButtonClass}
-                disabled={resolveCommentPending || !canResolveThread}
-                onClick={() => onResolveThread(rootCommentId, !isResolved)}
-            >
-                <CircleCheck className={actionIconClass} />
-                {isResolved ? "Unresolve" : "Resolve"}
-            </Button>
-            {canDelete ? (
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className={actionButtonClass}
-                    onClick={() => onDeleteComment(commentId, hasInlineContext)}
-                    aria-label="Delete comment"
-                    title="Delete comment"
-                >
-                    <Trash2 className={actionIconClass} />
-                    Delete
-                </Button>
-            ) : null}
+    const textActionClass =
+        "text-[12px] font-semibold leading-none text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50";
+    const actions: Array<{ id: string; node: ReactNode }> = [];
+
+    const appendAction = (id: string, node: ReactNode) => {
+        actions.push({ id, node });
+    };
+
+    const renderActions = () => (
+        <div className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            {actions.map(({ id, node }, index) => (
+                <span key={id} className="inline-flex items-center gap-1.5">
+                    {index > 0 ? <span className="text-muted-foreground/70">·</span> : null}
+                    {node}
+                </span>
+            ))}
         </div>
     );
+
+    if (editTargetCommentId === commentId) {
+        appendAction(
+            "save",
+            <button type="button" className={textActionClass} disabled={updateCommentPending} onClick={() => onSubmitEdit(commentId, hasInlineContext)}>
+                Save
+            </button>,
+        );
+        appendAction(
+            "cancel-edit",
+            <button type="button" className={textActionClass} disabled={updateCommentPending} onClick={onCancelEdit}>
+                Cancel
+            </button>,
+        );
+        return renderActions();
+    }
+
+    if (replyTargetCommentId === commentId) {
+        appendAction(
+            "comment",
+            <button type="button" className={textActionClass} disabled={createCommentPending || !canCommentInline} onClick={onSubmitReply}>
+                Comment
+            </button>,
+        );
+        appendAction(
+            "cancel-reply",
+            <button type="button" className={textActionClass} disabled={createCommentPending} onClick={onCancelReply}>
+                Cancel
+            </button>,
+        );
+        return renderActions();
+    }
+
+    appendAction(
+        "reply",
+        <button type="button" className={textActionClass} disabled={createCommentPending || !canCommentInline} onClick={() => onStartReply(commentId)}>
+            Reply
+        </button>,
+    );
+
+    if (canEdit) {
+        appendAction(
+            "edit",
+            <button type="button" className={textActionClass} disabled={updateCommentPending} onClick={() => onStartEdit(commentId, hasInlineContext)}>
+                Edit
+            </button>,
+        );
+    }
+
+    if (canDelete) {
+        appendAction(
+            "delete",
+            <button type="button" className={textActionClass} onClick={() => onDeleteComment(commentId, hasInlineContext)}>
+                Delete
+            </button>,
+        );
+    }
+
+    return renderActions();
 }
 
 type ThreadReplyNodeProps = {
@@ -311,9 +284,6 @@ type ThreadReplyNodeProps = {
     updateCommentPending: boolean;
     editorState: ThreadCardEditorState;
     setEditorState: Dispatch<SetStateAction<ThreadCardEditorState>>;
-    hoveredCommentId: number | null;
-    setHoveredCommentId: Dispatch<SetStateAction<number | null>>;
-    setCommentCardRef: (commentId: number, element: HTMLDivElement | null) => void;
     replyFocusRef: { current: (() => void) | null };
     editFocusRef: { current: (() => void) | null };
     onResolveThread: (commentId: number, resolve: boolean) => void;
@@ -340,9 +310,6 @@ function ThreadReplyNode({
     updateCommentPending,
     editorState,
     setEditorState,
-    hoveredCommentId,
-    setHoveredCommentId,
-    setCommentCardRef,
     replyFocusRef,
     editFocusRef,
     onResolveThread,
@@ -361,50 +328,21 @@ function ThreadReplyNode({
     const canEditNode = isSameUser(reply.user?.displayName);
     const replyHasInlineContext = Boolean(reply.inline?.path);
     const nestingDepth = allowNestedReplies ? Math.min(depth, 8) : 0;
-    const showFlatPipe = !allowNestedReplies && depth > 0;
-    const showNestedPipe = allowNestedReplies && depth > 0;
-    const showNestedContinuation = showNestedPipe && node.children.length > 0;
-    const isNodeHovered = hoveredCommentId === reply.id;
-    const connectorBendTop = "top-[14px]";
-    const connectorOffsetClass = "-left-[7px]";
+    const dateLabel = formatCommentDate(reply.createdAt);
+    const dateTimeLabel = formatCommentDateTime(reply.createdAt);
 
     return (
-        <div className="group/reply relative" style={{ marginLeft: `${nestingDepth * 12}px` }}>
-            {showFlatPipe ? (
-                <div className="pointer-events-none absolute left-2 -top-1.5 h-1.5 w-px bg-border-muted transition-colors group-hover/reply-card:bg-border" />
-            ) : null}
-            {/* biome-ignore lint/a11y/noStaticElementInteractions: hover state is used only for connector styling */}
-            <div
-                id={commentAnchorId(reply.id)}
-                ref={(element) => setCommentCardRef(reply.id, element)}
-                className="peer/reply-card group/reply-card relative z-10 flex gap-2 rounded-md bg-surface-1 border border-border-muted p-2"
-                onMouseEnter={() => setHoveredCommentId(reply.id)}
-                onMouseLeave={() => setHoveredCommentId((prev) => (prev === reply.id ? null : prev))}
-            >
-                {showNestedPipe ? (
-                    <>
-                        <div
-                            className={cn(
-                                "pointer-events-none absolute -top-1.5 h-5 w-px transition-colors",
-                                connectorOffsetClass,
-                                isNodeHovered ? "bg-border" : "bg-border-muted",
-                            )}
-                        />
-                        <div
-                            className={cn(
-                                "pointer-events-none absolute h-px w-2 transition-colors",
-                                connectorOffsetClass,
-                                isNodeHovered ? "bg-border" : "bg-border-muted",
-                                connectorBendTop,
-                            )}
-                        />
-                    </>
-                ) : null}
-                <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-5" />
-                <div className="relative z-10 flex-1 space-y-0.5">
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span className="text-foreground text-[12px]">{reply.user?.displayName ?? "Unknown"}</span>
-                        <Timestamp value={reply.createdAt} />
+        <div className="relative" style={{ marginLeft: `${nestingDepth * 48}px` }}>
+            <div id={commentAnchorId(reply.id)} className="relative z-10 flex gap-3 py-1.5 pr-4">
+                <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-6" />
+                <div className="relative z-10 min-w-0 flex-1">
+                    <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
+                        <span className="font-semibold text-foreground text-[14px]">{reply.user?.displayName ?? "Unknown"}</span>
+                        {dateLabel ? (
+                            <span className="font-semibold tabular-nums" title={dateTimeLabel}>
+                                {dateLabel}
+                            </span>
+                        ) : null}
                         {reply.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                     </div>
                     {isEditingOnNode ? (
@@ -442,14 +380,10 @@ function ThreadReplyNode({
                     <ThreadActions
                         commentId={reply.id}
                         hasInlineContext={replyHasInlineContext}
-                        rootCommentId={rootCommentId}
-                        isResolved={isResolved}
                         canEdit={canEditNode}
                         canDelete={canEditNode}
-                        canResolveThread={canResolveThread}
                         canCommentInline={canCommentInline}
                         createCommentPending={createCommentPending}
-                        resolveCommentPending={resolveCommentPending}
                         updateCommentPending={updateCommentPending}
                         replyTargetCommentId={editorState.replyTargetCommentId}
                         editTargetCommentId={editorState.editTargetCommentId}
@@ -459,16 +393,12 @@ function ThreadReplyNode({
                         onStartEdit={onStartEdit}
                         onSubmitEdit={onSubmitEdit}
                         onCancelEdit={onCancelEdit}
-                        onResolveThread={onResolveThread}
                         onDeleteComment={onDeleteComment}
                     />
                 </div>
             </div>
-            {showNestedContinuation ? (
-                <div className={cn("pointer-events-none absolute bottom-0 w-px bg-border-muted transition-colors", connectorOffsetClass, connectorBendTop)} />
-            ) : null}
             {node.children.length > 0 ? (
-                <div className="mt-1.5 space-y-1.5">
+                <div>
                     {node.children.map((child) => (
                         <ThreadReplyNode
                             key={child.comment.id}
@@ -484,9 +414,6 @@ function ThreadReplyNode({
                             updateCommentPending={updateCommentPending}
                             editorState={editorState}
                             setEditorState={setEditorState}
-                            hoveredCommentId={hoveredCommentId}
-                            setHoveredCommentId={setHoveredCommentId}
-                            setCommentCardRef={setCommentCardRef}
                             replyFocusRef={replyFocusRef}
                             editFocusRef={editFocusRef}
                             onResolveThread={onResolveThread}
@@ -521,9 +448,8 @@ type ThreadRootCommentCardProps = {
     setEditorState: Dispatch<SetStateAction<ThreadCardEditorState>>;
     replyFocusRef: { current: (() => void) | null };
     editFocusRef: { current: (() => void) | null };
-    setCommentCardRef: (commentId: number, element: HTMLDivElement | null) => void;
-    onToggleCollapsed: () => void;
     onExpandResolved: () => void;
+    onCollapseResolved: () => void;
     onStartReply: (commentId: number) => void;
     onSubmitReply: () => void;
     onCancelReply: () => void;
@@ -549,9 +475,8 @@ function ThreadRootCommentCard({
     setEditorState,
     replyFocusRef,
     editFocusRef,
-    setCommentCardRef,
-    onToggleCollapsed,
     onExpandResolved,
+    onCollapseResolved,
     onStartReply,
     onSubmitReply,
     onCancelReply,
@@ -561,36 +486,40 @@ function ThreadRootCommentCard({
     onResolveThread,
     onDeleteComment,
 }: ThreadRootCommentCardProps) {
+    const dateLabel = formatCommentDate(rootComment.createdAt);
+    const dateTimeLabel = formatCommentDateTime(rootComment.createdAt);
+    const commentCountLabel = commentCount > 1 ? `${commentCount} comments` : "1 comment";
+
     return (
-        <div
-            id={commentAnchorId(rootComment.id)}
-            ref={(element) => setCommentCardRef(rootComment.id, element)}
-            className="group/root-card relative z-10 flex items-start gap-2 rounded-md bg-surface-1 border border-border-muted p-3"
-        >
-            <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} />
-            <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span className="font-medium text-foreground text-[12px]">{rootComment.user?.displayName ?? "Unknown"}</span>
-                    <Timestamp value={rootComment.createdAt} />
+        <div id={commentAnchorId(rootComment.id)} className="group/root-card relative z-10 flex items-start gap-4 px-4 py-4">
+            <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} sizeClass="size-7" />
+            <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
+                    <span className="font-semibold text-foreground text-[16px]">{rootComment.user?.displayName ?? "Unknown"}</span>
+                    {dateLabel ? (
+                        <span className="font-semibold tabular-nums" title={dateTimeLabel}>
+                            {dateLabel}
+                        </span>
+                    ) : null}
                     {rootComment.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
-                    <div className="ml-auto flex items-center gap-2">
-                        <ThreadStatusButton
-                            isResolved={isResolved}
-                            disabled={resolveCommentPending || !canResolveThread}
-                            onToggle={() => onResolveThread(rootComment.id, !isResolved)}
-                        />
-                        {isResolved ? (
+                    <div className="ml-auto flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
+                        {isResolved && !collapsed ? (
                             <button
                                 type="button"
-                                className="inline-flex h-6 items-center gap-1 rounded-md border border-input bg-surface-1 px-2 text-muted-foreground hover:bg-surface-2 hover:text-foreground transition-colors text-[10px] uppercase tracking-wide"
-                                onClick={onToggleCollapsed}
-                                aria-expanded={!collapsed}
-                                aria-label={collapsed ? "Expand resolved thread" : "Collapse resolved thread"}
+                                className="inline-flex h-5 items-center gap-1 border border-border-muted bg-surface-2/60 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+                                onClick={onCollapseResolved}
+                                aria-label="Collapse resolved thread"
                             >
-                                {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
-                                <span>{collapsed ? "Expand" : "Collapse"}</span>
+                                <Check className="size-3" />
+                                Resolved
                             </button>
                         ) : null}
+                        <ThreadResolveButton
+                            commentId={rootComment.id}
+                            isResolved={isResolved}
+                            disabled={resolveCommentPending || !canResolveThread}
+                            onResolveThread={onResolveThread}
+                        />
                     </div>
                 </div>
                 {!collapsed ? (
@@ -630,14 +559,10 @@ function ThreadRootCommentCard({
                         <ThreadActions
                             commentId={rootComment.id}
                             hasInlineContext={Boolean(rootComment.inline?.path)}
-                            rootCommentId={rootComment.id}
-                            isResolved={isResolved}
                             canEdit={rootIsOwn}
-                            canDelete={rootIsOwn}
-                            canResolveThread={canResolveThread}
+                            canDelete={false}
                             canCommentInline={canCommentInline}
                             createCommentPending={createCommentPending}
-                            resolveCommentPending={resolveCommentPending}
                             updateCommentPending={updateCommentPending}
                             replyTargetCommentId={editorState.replyTargetCommentId}
                             editTargetCommentId={editorState.editTargetCommentId}
@@ -647,22 +572,21 @@ function ThreadRootCommentCard({
                             onStartEdit={onStartEdit}
                             onSubmitEdit={onSubmitEdit}
                             onCancelEdit={onCancelEdit}
-                            onResolveThread={onResolveThread}
                             onDeleteComment={onDeleteComment}
                         />
                     </>
                 ) : (
                     <button
                         type="button"
-                        className="w-full rounded-md bg-surface-1 border border-input px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground hover:bg-surface-2 transition-colors flex items-center gap-1"
+                        className="mt-1 inline-flex items-center gap-1.5 border border-border-muted bg-surface-2/50 px-2 py-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-border hover:bg-surface-2 hover:text-foreground"
                         onClick={onExpandResolved}
                         aria-label="Expand resolved thread"
                     >
+                        <Check className="size-3 text-status-added" />
+                        <span>Resolved</span>
+                        <span className="text-muted-foreground/70">·</span>
+                        <span>{commentCountLabel}</span>
                         <ChevronRight className="size-3" />
-                        <span>
-                            Show resolved thread
-                            {commentCount > 1 ? ` (${commentCount} comments)` : ""}
-                        </span>
                     </button>
                 )}
             </div>
@@ -673,6 +597,7 @@ function ThreadRootCommentCard({
 export function ThreadCard({
     thread,
     allowNestedReplies = true,
+    header,
     canResolveThread,
     canCommentInline,
     createCommentPending,
@@ -691,24 +616,12 @@ export function ThreadCard({
         editTargetCommentId: null as number | null,
         editValue: "",
     });
-    const [hoveredCommentId, setHoveredCommentId] = useState<number | null>(null);
-    const [activeConnector, setActiveConnector] = useState<ActiveConnector | null>(null);
-    const threadContainerRef = useRef<HTMLDivElement | null>(null);
-    const commentCardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
     const replyFocusRef = useRef<(() => void) | null>(null);
     const editFocusRef = useRef<(() => void) | null>(null);
     const isResolved = Boolean(rootComment.resolution);
     const [collapsed, setCollapsed] = useState(() => isResolved);
     const prevResolutionRef = useRef(rootComment.resolution);
     const normalizedCurrentUser = normalizeName(currentUserDisplayName);
-    const parentByCommentId = useMemo(() => buildParentIdMap(thread.root), [thread.root]);
-    const setCommentCardRef = useCallback((commentId: number, element: HTMLDivElement | null) => {
-        if (element) {
-            commentCardRefs.current.set(commentId, element);
-            return;
-        }
-        commentCardRefs.current.delete(commentId);
-    }, []);
     const isSameUser = (name?: string) => {
         if (!normalizedCurrentUser) return false;
         return normalizeName(name) === normalizedCurrentUser;
@@ -729,45 +642,6 @@ export function ThreadCard({
             setEditorState((prev) => ({ ...prev, editTargetCommentId: null, editValue: "" }));
         }
     }, [collapsed, editorState.editTargetCommentId]);
-    useEffect(() => {
-        if (collapsed && hoveredCommentId !== null) {
-            setHoveredCommentId(null);
-        }
-    }, [collapsed, hoveredCommentId]);
-    useEffect(() => {
-        let nextConnector: ActiveConnector | null = null;
-        if (allowNestedReplies && !collapsed && hoveredCommentId !== null) {
-            const parentId = parentByCommentId.get(hoveredCommentId);
-            if (parentId != null) {
-                const container = threadContainerRef.current;
-                const childCard = commentCardRefs.current.get(hoveredCommentId);
-                const parentCard = commentCardRefs.current.get(parentId);
-                if (container && childCard && parentCard) {
-                    const containerRect = container.getBoundingClientRect();
-                    const childRect = childCard.getBoundingClientRect();
-                    const parentRect = parentCard.getBoundingClientRect();
-                    const left = childRect.left - containerRect.left - 7;
-                    const top = parentRect.bottom - containerRect.top;
-                    const bottom = childRect.top - containerRect.top + 14;
-                    nextConnector = {
-                        left,
-                        top: Math.min(top, bottom),
-                        height: Math.max(1, Math.abs(bottom - top)),
-                    };
-                }
-            }
-        }
-        setActiveConnector((prev) => {
-            if (!nextConnector && !prev) {
-                return prev;
-            }
-            if (nextConnector && prev && prev.left === nextConnector.left && prev.top === nextConnector.top && prev.height === nextConnector.height) {
-                return prev;
-            }
-            return nextConnector;
-        });
-    }, [allowNestedReplies, collapsed, hoveredCommentId, parentByCommentId]);
-
     const handleStartReply = (commentId: number) => {
         if (!canCommentInline || createCommentPending) return;
         setEditorState((prev) => ({
@@ -821,20 +695,10 @@ export function ThreadCard({
     };
     const rootIsOwn = isSameUser(rootComment.user?.displayName);
     const commentCount = threadCommentCount(thread);
-    const toggleCollapsed = () => {
-        if (!isResolved) return;
-        setCollapsed((prev) => !prev);
-    };
-
     return (
-        <div className="p-0.5 text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
-            <div ref={threadContainerRef} className="relative flex flex-col gap-1.5">
-                {activeConnector ? (
-                    <div
-                        className="pointer-events-none absolute w-px bg-border"
-                        style={{ left: `${activeConnector.left}px`, top: `${activeConnector.top}px`, height: `${activeConnector.height}px` }}
-                    />
-                ) : null}
+        <div className="text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
+            <div className="relative border border-border bg-surface-1">
+                {header ? <div className="border-b border-border-muted">{header}</div> : null}
                 <ThreadRootCommentCard
                     rootComment={rootComment}
                     collapsed={collapsed}
@@ -850,9 +714,8 @@ export function ThreadCard({
                     setEditorState={setEditorState}
                     replyFocusRef={replyFocusRef}
                     editFocusRef={editFocusRef}
-                    setCommentCardRef={setCommentCardRef}
-                    onToggleCollapsed={toggleCollapsed}
                     onExpandResolved={() => setCollapsed(false)}
+                    onCollapseResolved={() => setCollapsed(true)}
                     onStartReply={handleStartReply}
                     onSubmitReply={handleSubmitReply}
                     onCancelReply={handleCancelReply}
@@ -862,8 +725,8 @@ export function ThreadCard({
                     onResolveThread={onResolveThread}
                     onDeleteComment={onDeleteComment}
                 />
-                {!collapsed ? (
-                    <div className="relative z-10 space-y-1.5">
+                {!collapsed && thread.root.children.length > 0 ? (
+                    <div className="relative z-10 px-4 pb-4 pt-5">
                         {thread.root.children.map((reply) => (
                             <ThreadReplyNode
                                 key={reply.comment.id}
@@ -879,9 +742,6 @@ export function ThreadCard({
                                 updateCommentPending={updateCommentPending}
                                 editorState={editorState}
                                 setEditorState={setEditorState}
-                                hoveredCommentId={hoveredCommentId}
-                                setHoveredCommentId={setHoveredCommentId}
-                                setCommentCardRef={setCommentCardRef}
                                 replyFocusRef={replyFocusRef}
                                 editFocusRef={editFocusRef}
                                 onResolveThread={onResolveThread}

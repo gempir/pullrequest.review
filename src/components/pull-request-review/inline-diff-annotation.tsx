@@ -54,9 +54,11 @@ export function InlineDiffAnnotation({
     const metadata = annotation.metadata;
     if (!metadata) return null;
 
+    const isDraft = metadata.kind === "draft";
+
     return (
-        <div className="px-2 py-1.5 bg-background/70">
-            {metadata.kind === "draft" ? (
+        <div className={isDraft ? "px-2 py-1.5 bg-background/70" : "bg-surface-1"}>
+            {isDraft ? (
                 <div className="space-y-2">
                     <CommentEditor
                         key={inlineDraftStorageKey(workspace, repo, pullRequestId, metadata.draft)}

@@ -17,12 +17,15 @@ import {
     UserPlus,
     X,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useReducer } from "react";
+import { type ReactNode, useEffect, useMemo, useReducer, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
+import { ThreadCard } from "@/components/pull-request-review/review-thread-card";
+import { buildCommentThreads, type CommentThread, flattenThread } from "@/components/pull-request-review/review-threads";
+import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -231,11 +234,28 @@ function findCommentDiffSnippet(diffByPath: Map<string, FileDiffMetadata>, comme
     return undefined;
 }
 
-function timelineIconClass(kind: "description" | "history" | "commitGroup", type?: PullRequestHistoryEvent["type"]) {
+function commentToHistoryLocation(comment: CommentThread["root"]["comment"]): PullRequestHistoryEvent["comment"] | undefined {
+    const inline = comment.inline;
+    const path = inline?.path;
+    if (!path) return undefined;
+    const line = inline.to ?? inline.from;
+    return {
+        id: comment.id,
+        path,
+        line,
+        side: inline.from ? "deletions" : "additions",
+        isInline: true,
+    };
+}
+
+function timelineIconClass(kind: "description" | "history" | "commitGroup" | "commentThread", type?: PullRequestHistoryEvent["type"]) {
     if (kind === "description") {
         return "border-border-muted bg-surface-2 text-foreground";
     }
     if (kind === "commitGroup") {
+        return "border-border-muted bg-surface-2 text-foreground";
+    }
+    if (kind === "commentThread") {
         return "border-border-muted bg-surface-2 text-foreground";
     }
     switch (type) {
@@ -538,7 +558,13 @@ type CommitGroupTimelineEntry = {
     commits: Commit[];
 };
 
-type TimelineEntry = DescriptionTimelineEntry | HistoryTimelineEntry | CommitGroupTimelineEntry;
+type CommentThreadTimelineEntry = {
+    id: string;
+    kind: "commentThread";
+    thread: CommentThread;
+};
+
+type TimelineEntry = DescriptionTimelineEntry | HistoryTimelineEntry | CommitGroupTimelineEntry | CommentThreadTimelineEntry;
 
 type CommitAuthorGroup = {
     id: string;
@@ -556,10 +582,25 @@ function TimelineConnector({ showAbove, showBelow }: { showAbove: boolean; showB
     );
 }
 
-function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?: string; history: PullRequestHistoryEvent[]; commits: Commit[] }) {
+function latestThreadTimestamp(thread: CommentThread) {
+    return flattenThread(thread).reduce((latest, comment) => Math.max(latest, timestampValue(comment.updatedAt ?? comment.createdAt)), 0);
+}
+
+function buildTimelineEntries({
+    prCreatedAt,
+    history,
+    commits,
+    commentThreads,
+}: {
+    prCreatedAt?: string;
+    history: PullRequestHistoryEvent[];
+    commits: Commit[];
+    commentThreads: CommentThread[];
+}) {
     const timelineSources: Array<
         | { id: string; kind: "history"; timestamp: number; order: number; event: PullRequestHistoryEvent }
         | { id: string; kind: "commit"; timestamp: number; order: number; commit: Commit }
+        | { id: string; kind: "commentThread"; timestamp: number; order: number; thread: CommentThread }
     > = [];
 
     history.forEach((event, index) => {
@@ -579,6 +620,16 @@ function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?:
             timestamp: timestampValue(commit.date),
             order: history.length + index,
             commit,
+        });
+    });
+
+    commentThreads.forEach((thread, index) => {
+        timelineSources.push({
+            id: `comment-thread-${thread.id}`,
+            kind: "commentThread",
+            timestamp: latestThreadTimestamp(thread),
+            order: history.length + commits.length + index,
+            thread,
         });
     });
 
@@ -606,6 +657,14 @@ function buildTimelineEntries({ prCreatedAt, history, commits }: { prCreatedAt?:
             continue;
         }
         flushPendingCommitGroup();
+        if (item.kind === "commentThread") {
+            groupedEntries.push({
+                id: item.id,
+                kind: "commentThread",
+                thread: item.thread,
+            });
+            continue;
+        }
         groupedEntries.push({
             id: item.id,
             kind: "history",
@@ -1113,6 +1172,107 @@ function HistoryTimelineItem({
     );
 }
 
+function CommentThreadPathHeader({ path }: { path: string }) {
+    const [copied, setCopied] = useState(false);
+    const fileName = path.split("/").pop() || path;
+    const handleCopyPath = async () => {
+        if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
+        await navigator.clipboard.writeText(path);
+        setCopied(true);
+    };
+
+    return (
+        <div className="flex min-w-0 items-center gap-1.5 px-3 py-1 font-mono text-[11px] text-foreground">
+            <span className="flex size-4 shrink-0 items-center justify-center">
+                <RepositoryFileIcon fileName={fileName} className="size-3.5" />
+            </span>
+            <span className="min-w-0 break-all">{path}</span>
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="size-5 shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label="Copy file path"
+                title="Copy file path"
+                onClick={() => {
+                    void handleCopyPath();
+                }}
+            >
+                {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+            </Button>
+        </div>
+    );
+}
+
+function CommentThreadTimelineItem({
+    showConnectorAbove,
+    showConnectorBelow,
+    thread,
+    diffSnippet,
+    currentUserDisplayName,
+    canCommentInline,
+    canResolveThread,
+    createCommentPending,
+    resolveCommentPending,
+    updateCommentPending,
+    onDeleteComment,
+    onResolveThread,
+    onReplyToThread,
+    onEditComment,
+}: {
+    showConnectorAbove: boolean;
+    showConnectorBelow: boolean;
+    thread: CommentThread;
+    diffSnippet?: CommentDiffSnippet;
+    currentUserDisplayName?: string;
+    canCommentInline?: boolean;
+    canResolveThread?: boolean;
+    createCommentPending?: boolean;
+    resolveCommentPending?: boolean;
+    updateCommentPending?: boolean;
+    onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
+    onResolveThread?: (commentId: number, resolve: boolean) => void;
+    onReplyToThread?: (commentId: number, content: string) => void;
+    onEditComment?: (commentId: number, content: string, hasInlineContext: boolean) => void;
+}) {
+    const rootComment = thread.root.comment;
+    const path = rootComment.inline?.path;
+
+    return (
+        <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
+            <TimelineConnector showAbove={showConnectorAbove} showBelow={showConnectorBelow} />
+            <div className="relative z-10 pt-1">
+                <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("commentThread"))}>
+                    <MessageSquare className="size-4" />
+                </div>
+            </div>
+            <div className="min-w-0 pt-1">
+                <ThreadCard
+                    thread={thread}
+                    header={
+                        path || diffSnippet ? (
+                            <>
+                                {path ? <CommentThreadPathHeader path={path} /> : null}
+                                {diffSnippet ? <CommentDiffSnippetBlock snippet={diffSnippet} className="border-t border-border-muted" /> : null}
+                            </>
+                        ) : null
+                    }
+                    canResolveThread={Boolean(canResolveThread)}
+                    canCommentInline={Boolean(canCommentInline)}
+                    createCommentPending={Boolean(createCommentPending)}
+                    resolveCommentPending={Boolean(resolveCommentPending)}
+                    updateCommentPending={Boolean(updateCommentPending)}
+                    currentUserDisplayName={currentUserDisplayName}
+                    onDeleteComment={onDeleteComment ?? (() => {})}
+                    onResolveThread={onResolveThread ?? (() => {})}
+                    onReplyToThread={onReplyToThread ?? (() => {})}
+                    onEditComment={onEditComment ?? (() => {})}
+                />
+            </div>
+        </div>
+    );
+}
+
 export function PullRequestSummaryPanel({
     bundle,
     headerTitle,
@@ -1151,6 +1311,9 @@ export function PullRequestSummaryPanel({
     const { pr, commits, history, prRef } = bundle;
     const diffByPath = useMemo(() => buildDiffByPath(bundle.diff), [bundle.diff]);
     const baseHistory: PullRequestHistoryEvent[] = history ?? [];
+    const summaryCommentThreads = buildCommentThreads(bundle.comments).filter(
+        (thread) => !thread.root.comment.deleted && Boolean(thread.root.comment.inline?.path),
+    );
     const commentById = new Map(bundle.comments.map((comment) => [comment.id, comment] as const));
     const commentHistoryById = new Map<number, PullRequestHistoryEvent>();
     for (const event of baseHistory) {
@@ -1199,11 +1362,9 @@ export function PullRequestSummaryPanel({
         resolvedHistory.push(fallbackEvent);
     }
     const visibleHistory = resolvedHistory.filter((event) => {
+        if (event.type === "comment") return false;
         if (event.type === "opened") return false;
         if (event.type === "reopened") return false;
-        if (event.type === "comment" && !event.content && !event.contentHtml && !event.comment?.path) {
-            return false;
-        }
         return true;
     });
     const orderedHistory = [...visibleHistory].sort((a, b) => timestampValue(a.createdAt) - timestampValue(b.createdAt));
@@ -1212,6 +1373,7 @@ export function PullRequestSummaryPanel({
         prCreatedAt: pr.createdAt,
         history: orderedHistory,
         commits: orderedCommits,
+        commentThreads: summaryCommentThreads,
     });
 
     return (
@@ -1264,6 +1426,28 @@ export function PullRequestSummaryPanel({
                                     showConnectorBelow={showConnectorBelow}
                                     entry={entry}
                                     host={prRef.host}
+                                />
+                            );
+                        }
+
+                        if (entry.kind === "commentThread") {
+                            return (
+                                <CommentThreadTimelineItem
+                                    key={entry.id}
+                                    showConnectorAbove={showConnectorAbove}
+                                    showConnectorBelow={showConnectorBelow}
+                                    thread={entry.thread}
+                                    diffSnippet={findCommentDiffSnippet(diffByPath, commentToHistoryLocation(entry.thread.root.comment))}
+                                    currentUserDisplayName={currentUserDisplayName}
+                                    canCommentInline={canCommentInline}
+                                    canResolveThread={canResolveThread}
+                                    createCommentPending={createCommentPending}
+                                    resolveCommentPending={resolveCommentPending}
+                                    updateCommentPending={updateCommentPending}
+                                    onDeleteComment={onDeleteComment}
+                                    onResolveThread={onResolveThread}
+                                    onReplyToThread={onReplyToThread}
+                                    onEditComment={onEditComment}
                                 />
                             );
                         }

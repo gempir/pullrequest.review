@@ -107,7 +107,7 @@ export function ShortcutsTab() {
                     onChange={(config) => updateShortcut("approvePullRequest", config)}
                 />
                 <ShortcutRow
-                    label="Request Changes"
+                    label="Revise"
                     shortcut={shortcuts.requestChangesPullRequest}
                     onChange={(config) => updateShortcut("requestChangesPullRequest", config)}
                 />

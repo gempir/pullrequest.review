@@ -338,7 +338,7 @@ function ThreadReplyNode({
     const dateTimeLabel = formatCommentDateTime(reply.createdAt);
 
     return (
-        <div className="relative" style={{ marginLeft: allowNestedReplies && depth === 1 ? 38 : 0 }}>
+        <div className="relative" data-thread-depth={depth} style={{ marginLeft: allowNestedReplies ? 38 : 0 }}>
             <div id={commentAnchorId(reply.id)} className="relative z-10 flex gap-3 py-[3px] pr-4">
                 <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-6" />
                 <div className="relative z-10 min-w-0 flex-1">
@@ -710,10 +710,21 @@ export function ThreadCard({
     };
     const rootIsOwn = isSameUser(rootComment.user?.displayName);
     const commentCount = threadCommentCount(thread);
+    const isAttachedToFile = Boolean(rootComment.inline?.path);
     return (
         <div className="text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
-            <div className="relative border border-border bg-surface-1">
-                {header ? <div className="border-b border-border-muted">{header}</div> : null}
+            <div
+                className={
+                    isAttachedToFile
+                        ? "relative border-y border-r border-[var(--diffs-bg,var(--background))] bg-surface-1"
+                        : "relative border border-[var(--diffs-bg,var(--background))] bg-surface-1"
+                }
+            >
+                {header ? (
+                    <div className="border-b border-[var(--diffs-bg,var(--background))]" data-component="thread-card-header">
+                        {header}
+                    </div>
+                ) : null}
                 <ThreadRootCommentCard
                     rootComment={rootComment}
                     collapsed={collapsed}

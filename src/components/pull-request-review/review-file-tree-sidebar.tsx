@@ -140,7 +140,7 @@ export function ReviewFileTreeSidebar({
     }, [directoryPaths, model]);
 
     const treeHeader = !loading ? (
-        <div className="h-10 bg-chrome border-y border-border-muted flex items-center justify-end gap-1 pr-0.5" data-component="search-sidebar">
+        <div className="h-10 bg-chrome flex items-center justify-end gap-1 pr-0.5" data-component="search-sidebar">
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Button

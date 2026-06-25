@@ -16,16 +16,10 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
-import {
-    aggregateBuildState,
-    buildRunningTime,
-    buildStatusBubbleClass,
-    buildStatusLabel,
-    navbarStateClass,
-} from "@/components/pull-request-review/review-formatters";
+import { aggregateBuildState, buildRunningTime, buildStatusBubbleClass, buildStatusLabel } from "@/components/pull-request-review/review-formatters";
 import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { GitHost, PullRequestBuildStatus } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
@@ -106,6 +100,11 @@ export function ReviewTopNavbar({
     onOpenMerge,
 }: ReviewTopNavbarProps) {
     const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
+    const normalizedNavbarState = navbarState.toLowerCase();
+    const isMerged = normalizedNavbarState === "merged";
+    const isDeclined = normalizedNavbarState === "closed" || normalizedNavbarState === "declined";
+    const isTerminal = isMerged || isDeclined;
+    const terminalStatusLabel = normalizedNavbarState.toUpperCase();
     const commentsBadgeValue = unresolvedCommentCount > 99 ? "99+" : unresolvedCommentCount.toString();
     const unviewedBadgeValue = unviewedFileCount > 99 ? "99+" : unviewedFileCount.toString();
 
@@ -144,136 +143,150 @@ export function ReviewTopNavbar({
                                 <ReviewFileTreeToggleIcon direction="expand" badgeValue={unviewedFileCount > 0 ? unviewedBadgeValue : null} />
                             </Button>
                         ) : null}
-                        {commitScopeSlot ? <div className="shrink-0">{commitScopeSlot}</div> : null}
-                        <div className="group/source relative max-w-[180px] min-w-0">
-                            <span className="block truncate text-foreground">{sourceBranch}</span>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className={cn(
-                                    "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 p-0 transition-opacity bg-chrome/95",
-                                    copiedSourceBranch
-                                        ? "opacity-100"
-                                        : "opacity-0 pointer-events-none group-hover/source:opacity-100 group-hover/source:pointer-events-auto group-focus-within/source:opacity-100 group-focus-within/source:pointer-events-auto",
-                                )}
-                                onClick={() => onCopySourceBranch(sourceBranch)}
-                                aria-label="Copy source branch"
-                            >
-                                {copiedSourceBranch ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                            </Button>
+                        {commitScopeSlot ? <div className="ml-0.5 shrink-0">{commitScopeSlot}</div> : null}
+                        <div className="flex h-7 min-w-0 items-center gap-2 rounded-sm bg-[var(--diffs-bg,var(--background))] px-2 text-[11px]">
+                            <div className="group/source relative max-w-[180px] min-w-0">
+                                <span className="block truncate text-muted-foreground">{sourceBranch}</span>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(
+                                        "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 rounded-sm bg-[var(--diffs-bg,var(--background))] p-0 transition-opacity",
+                                        copiedSourceBranch
+                                            ? "opacity-100"
+                                            : "opacity-0 pointer-events-none group-hover/source:opacity-100 group-hover/source:pointer-events-auto group-focus-within/source:opacity-100 group-focus-within/source:pointer-events-auto",
+                                    )}
+                                    onClick={() => onCopySourceBranch(sourceBranch)}
+                                    aria-label="Copy source branch"
+                                >
+                                    {copiedSourceBranch ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                                </Button>
+                            </div>
+                            <span className="text-faint-foreground" aria-hidden="true">
+                                -&gt;
+                            </span>
+                            <span className="max-w-[180px] truncate text-muted-foreground">{destinationBranch}</span>
                         </div>
-                        <span>-&gt;</span>
-                        <span className="max-w-[180px] truncate text-foreground">{destinationBranch}</span>
-                        <span className={cn("px-1.5 py-0.5 border uppercase text-[10px] rounded", navbarStateClass(navbarState))}>{navbarState}</span>
-                        <Timestamp value={navbarStatusTimestamp} className="max-w-[120px] truncate align-middle" />
+                        <Timestamp
+                            value={navbarStatusTimestamp}
+                            tooltipLabel="updated at"
+                            className="max-w-[120px] truncate align-middle text-[10px] text-faint-foreground"
+                        />
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 
-                    <div className="ml-2 -mr-1.5 flex h-full shrink-0 divide-x divide-border-muted">
-                        {pullRequestUrl ? (
+                    <div className="ml-2 -mr-1.5 flex h-full shrink-0 items-center gap-1.5" data-component="navbar-actions">
+                        {!isTerminal && isDraft ? (
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button
-                                        asChild
                                         variant="ghost"
                                         size="sm"
-                                        className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                        className="h-7 rounded-sm border border-status-renamed/45 px-2.5 bg-chrome text-status-renamed hover:bg-status-renamed/12 hover:border-status-renamed/70 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                        disabled={!canMarkDraft || actionBusy}
+                                        onClick={onMarkDraft}
                                     >
-                                        <a
-                                            href={pullRequestUrl}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            aria-label={host === "github" ? "Open pull request in GitHub" : "Open pull request in Bitbucket"}
-                                        >
-                                            {host === "github" ? <Github className="size-3.5" /> : <GlassWater className="size-3.5" />}
-                                        </a>
+                                        {isMarkDraftPending ? <Loader2 className="size-3.5 animate-spin" /> : <PenSquare className="size-3.5" />}
+                                        Mark as Ready
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent side="bottom">{host === "github" ? "Open in GitHub" : "Open in Bitbucket"}</TooltipContent>
+                                <TooltipContent side="bottom">Mark pull request as ready</TooltipContent>
                             </Tooltip>
                         ) : null}
+                        {!isTerminal ? (
+                            <>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(
+                                        "h-7 rounded-sm border border-status-added/45 px-2.5 bg-chrome hover:bg-status-added/12 hover:border-status-added/70 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                        currentUserReviewStatus === "approved" ? "bg-status-added/10 text-status-added" : "text-status-added",
+                                    )}
+                                    disabled={!canApprove || actionBusy}
+                                    onClick={onApprove}
+                                >
+                                    {isApprovePending ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                                    {currentUserReviewStatus === "approved" ? "Remove Approval" : "Approve"}
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(
+                                        "h-7 rounded-sm border border-status-modified/45 px-2.5 bg-chrome text-status-modified hover:bg-status-modified/12 hover:border-status-modified/70 hover:text-status-modified focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                        currentUserReviewStatus === "changesRequested" && "bg-status-modified/10",
+                                    )}
+                                    disabled={!canRequestChanges || actionBusy}
+                                    onClick={onRequestChanges}
+                                >
+                                    {isRequestChangesPending ? <Loader2 className="size-3.5 animate-spin" /> : <TriangleAlert className="size-3.5" />}
+                                    Revise
+                                </Button>
+                            </>
+                        ) : null}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(
+                                        "h-7 rounded-sm border px-2 text-[10px] font-medium focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                        isMerged
+                                            ? "cursor-default border-status-merged/40 bg-status-merged/10 text-status-merged hover:bg-status-merged/10 hover:text-status-merged"
+                                            : isDeclined
+                                              ? "cursor-default border-status-removed/40 bg-status-removed/10 text-status-removed hover:bg-status-removed/10 hover:text-status-removed"
+                                              : "border-status-merged/45 bg-chrome text-status-merged hover:bg-status-merged/12 hover:border-status-merged/70 hover:text-status-merged",
+                                    )}
+                                    disabled={isTerminal ? undefined : !canMerge || actionBusy}
+                                    onClick={isTerminal ? undefined : onOpenMerge}
+                                    aria-disabled={isTerminal || undefined}
+                                    aria-label={isMerged ? "Pull request merged" : isDeclined ? "Pull request closed" : "Merge pull request"}
+                                >
+                                    {isDeclined ? <XCircle className="size-4" /> : <GitMerge className="size-4" />}
+                                    {isTerminal ? terminalStatusLabel : "Merge"}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                                {isMerged ? "Pull request merged" : isDeclined ? "Pull request closed" : "Merge pull request"}
+                            </TooltipContent>
+                        </Tooltip>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-full min-w-28 rounded-none px-3 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground data-[state=open]:bg-surface-1 data-[state=open]:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
-                                    disabled={actionBusy}
+                                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground data-[state=open]:bg-surface-1 data-[state=open]:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                                     aria-label="Pull request actions"
                                 >
-                                    {actionBusy ? (
-                                        <Loader2 className="size-3.5 animate-spin" />
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1.5">
-                                            <Menu className="size-4" />
-                                            {currentUserReviewStatus === "approved" ? <Check className="size-3.5 text-status-added" /> : null}
-                                            {currentUserReviewStatus === "changesRequested" ? (
-                                                <TriangleAlert className="size-3.5 text-status-modified" />
-                                            ) : null}
-                                        </span>
-                                    )}
+                                    <Menu className="size-4" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" side="bottom" sideOffset={0}>
-                                <DropdownMenuItem
-                                    className={cn(
-                                        "cursor-pointer py-2 text-[13px]",
-                                        currentUserReviewStatus === "approved"
-                                            ? "bg-status-added/20 text-status-added focus:bg-status-added/30 focus:text-status-added"
-                                            : "text-status-added focus:bg-status-added/20 focus:text-status-added",
-                                    )}
-                                    disabled={!canApprove || actionBusy}
-                                    onSelect={onApprove}
-                                >
-                                    <Check className="size-4" />
-                                    {currentUserReviewStatus === "approved" ? "Remove Approval" : "Approve"}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    className={cn(
-                                        "cursor-pointer py-2 text-[13px] text-status-modified focus:text-status-modified",
-                                        currentUserReviewStatus === "changesRequested"
-                                            ? "bg-status-modified/20 focus:bg-status-modified/30"
-                                            : "focus:bg-status-modified/20",
-                                    )}
-                                    disabled={!canRequestChanges || actionBusy}
-                                    onSelect={onRequestChanges}
-                                >
-                                    <TriangleAlert className="size-4" />
-                                    Request Changes
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    className="cursor-pointer py-2 text-[13px] text-status-renamed focus:bg-status-renamed/20 focus:text-status-renamed"
-                                    disabled={!canMerge || actionBusy}
-                                    onSelect={onOpenMerge}
-                                >
-                                    <GitMerge className="size-4" />
-                                    Merge
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    className="cursor-pointer py-2 text-[13px] text-status-removed focus:bg-status-removed/20 focus:text-status-removed"
-                                    disabled={!canDecline || actionBusy}
-                                    onSelect={onDecline}
-                                >
-                                    <XCircle className="size-4" />
-                                    Decline PR
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    className="cursor-pointer py-2 text-[13px] text-muted-foreground focus:bg-surface-2 focus:text-foreground"
-                                    disabled={!canMarkDraft || actionBusy}
-                                    onSelect={onMarkDraft}
-                                >
-                                    <PenSquare className="size-4" />
-                                    {isDraft ? "Mark as Ready" : "Mark as Draft"}
-                                </DropdownMenuItem>
+                                {pullRequestUrl ? (
+                                    <DropdownMenuItem asChild className="cursor-pointer py-2 text-[13px] focus:bg-surface-2">
+                                        <a href={pullRequestUrl} target="_blank" rel="noreferrer">
+                                            {host === "github" ? <Github className="size-4" /> : <GlassWater className="size-4" />}
+                                            {host === "github" ? "Open in GitHub" : "Open in Bitbucket"}
+                                        </a>
+                                    </DropdownMenuItem>
+                                ) : null}
+                                {!isTerminal ? (
+                                    <DropdownMenuItem
+                                        className="cursor-pointer py-2 text-[13px] text-status-removed focus:bg-status-removed/20 focus:text-status-removed"
+                                        disabled={!canDecline || actionBusy}
+                                        onSelect={onDecline}
+                                    >
+                                        <XCircle className="size-4" />
+                                        Decline PR
+                                    </DropdownMenuItem>
+                                ) : null}
                             </DropdownMenuContent>
                         </DropdownMenu>
                         {rightSidebarCollapsed ? (
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                className="h-full w-12 rounded-none pl-0 pr-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                                 onClick={onExpandRightSidebar}
                                 aria-label={`Expand comments sidebar (${unresolvedCommentCount} unresolved comments)`}
                             >

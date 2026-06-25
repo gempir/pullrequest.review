@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 
 const TIMELINE_META_TEXT_CLASS = "text-[11px] leading-4";
 const TIMELINE_TIMESTAMP_CLASS = "pt-px text-right";
-const TIMELINE_CONNECTOR_CENTER_CLASS = "left-[15.5px]";
+const TIMELINE_CONNECTOR_CENTER_CLASS = "left-[7.5px]";
 const COMMENT_DIFF_CONTEXT_LINES = 3;
 
 type CommentLineSide = NonNullable<PullRequestHistoryEvent["comment"]>["side"];
@@ -112,6 +112,8 @@ function historyIcon(type: PullRequestHistoryEvent["type"]) {
 
 function historyEventTitle(type: PullRequestHistoryEvent["type"]) {
     switch (type) {
+        case "opened":
+            return "opened the pull request";
         case "deletedBranch":
             return "deleted branch";
         default:
@@ -251,10 +253,7 @@ function commentToHistoryLocation(comment: CommentThread["root"]["comment"]): Pu
     };
 }
 
-function timelineIconClass(kind: "description" | "history" | "commitGroup" | "commentThread", type?: PullRequestHistoryEvent["type"]) {
-    if (kind === "description") {
-        return "border-border-muted bg-surface-2 text-foreground";
-    }
+function timelineIconClass(kind: "history" | "commitGroup" | "commentThread", type?: PullRequestHistoryEvent["type"]) {
     if (kind === "commitGroup") {
         return "border-border-muted bg-surface-2 text-foreground";
     }
@@ -291,6 +290,36 @@ function MarkdownBlock({ text }: { text: string }) {
                 components={{
                     a: ({ node: _node, ...props }) => (
                         <a {...props} target="_blank" rel="noreferrer" className="underline text-accent hover:text-accent-muted" />
+                    ),
+                    h1: ({ node: _node, children, ...props }) => (
+                        <h1 {...props} className="text-xl font-bold">
+                            {children}
+                        </h1>
+                    ),
+                    h2: ({ node: _node, children, ...props }) => (
+                        <h2 {...props} className="text-lg font-bold">
+                            {children}
+                        </h2>
+                    ),
+                    h3: ({ node: _node, children, ...props }) => (
+                        <h3 {...props} className="text-base font-bold">
+                            {children}
+                        </h3>
+                    ),
+                    h4: ({ node: _node, children, ...props }) => (
+                        <h4 {...props} className="text-sm font-bold">
+                            {children}
+                        </h4>
+                    ),
+                    h5: ({ node: _node, children, ...props }) => (
+                        <h5 {...props} className="text-[13px] font-bold">
+                            {children}
+                        </h5>
+                    ),
+                    h6: ({ node: _node, children, ...props }) => (
+                        <h6 {...props} className="text-xs font-bold">
+                            {children}
+                        </h6>
                     ),
                     p: ({ node: _node, ...props }) => <p {...props} className="whitespace-pre-wrap break-words" />,
                     ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc pl-5 space-y-1" />,
@@ -392,7 +421,7 @@ function historyCommentSurfaceReducer(state: HistoryCommentSurfaceState, action:
 
 function HistoryCommentPathHeader({ path, copied, onCopy }: { path: string; copied: boolean; onCopy: () => void }) {
     return (
-        <div className="flex items-center gap-1.5 border-b border-border-muted px-2 py-0.5">
+        <div className="flex items-center gap-1.5 border-b border-[var(--diffs-bg,var(--background))] px-2 py-0.5">
             <span className="shrink-0 font-mono text-[10px] text-foreground">{path}</span>
             <Button
                 type="button"
@@ -544,11 +573,6 @@ function extractHistoryCommentId(event: PullRequestHistoryEvent) {
     return Number.isNaN(parsed) ? null : parsed;
 }
 
-type DescriptionTimelineEntry = {
-    id: string;
-    kind: "description";
-};
-
 type HistoryTimelineEntry = {
     id: string;
     kind: "history";
@@ -567,7 +591,7 @@ type CommentThreadTimelineEntry = {
     thread: CommentThread;
 };
 
-type TimelineEntry = DescriptionTimelineEntry | HistoryTimelineEntry | CommitGroupTimelineEntry | CommentThreadTimelineEntry;
+type TimelineEntry = HistoryTimelineEntry | CommitGroupTimelineEntry | CommentThreadTimelineEntry;
 
 type CommitAuthorGroup = {
     id: string;
@@ -580,22 +604,23 @@ function TimelineConnector({ showAbove, showBelow }: { showAbove: boolean; showB
     return (
         <>
             {showAbove ? <div className={cn("absolute top-0 h-1 w-px bg-border-muted", TIMELINE_CONNECTOR_CENTER_CLASS)} /> : null}
-            {showBelow ? <div className={cn("absolute top-9 bottom-0 w-px bg-border-muted", TIMELINE_CONNECTOR_CENTER_CLASS)} /> : null}
+            {showBelow ? <div className={cn("absolute top-5 bottom-0 w-px bg-border-muted", TIMELINE_CONNECTOR_CENTER_CLASS)} /> : null}
         </>
     );
 }
 
 function latestThreadTimestamp(thread: CommentThread) {
-    return flattenThread(thread).reduce((latest, comment) => Math.max(latest, timestampValue(comment.updatedAt ?? comment.createdAt)), 0);
+    const comments = flattenThread(thread);
+    const replies = comments.slice(1);
+    const commentsDeterminingPosition = replies.length > 0 ? replies : comments;
+    return commentsDeterminingPosition.reduce((latest, comment) => Math.max(latest, timestampValue(comment.updatedAt ?? comment.createdAt)), 0);
 }
 
 function buildTimelineEntries({
-    prCreatedAt,
     history,
     commits,
     commentThreads,
 }: {
-    prCreatedAt?: string;
     history: PullRequestHistoryEvent[];
     commits: Commit[];
     commentThreads: CommentThread[];
@@ -637,11 +662,11 @@ function buildTimelineEntries({
     });
 
     timelineSources.sort((a, b) => {
-        if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
-        return a.order - b.order;
+        if (a.timestamp !== b.timestamp) return b.timestamp - a.timestamp;
+        return b.order - a.order;
     });
 
-    const groupedEntries: TimelineEntry[] = [{ id: `pr-description-${prCreatedAt ?? "unknown"}`, kind: "description" }];
+    const groupedEntries: TimelineEntry[] = [];
     let pendingCommitGroup: Commit[] = [];
 
     const flushPendingCommitGroup = () => {
@@ -718,44 +743,11 @@ function groupCommitsByAuthor(commits: Commit[]) {
     return groups;
 }
 
-function DescriptionTimelineItem({
-    showConnectorAbove,
-    showConnectorBelow,
-    authorName,
-    authorAvatarUrl,
-    createdAt,
-    description,
-}: {
-    showConnectorAbove: boolean;
-    showConnectorBelow: boolean;
-    authorName?: string;
-    authorAvatarUrl?: string;
-    createdAt?: string;
-    description?: string;
-}) {
+function SummaryDescription({ description }: { description?: string }) {
     return (
-        <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
-            <TimelineConnector showAbove={showConnectorAbove} showBelow={showConnectorBelow} />
-            <div className="relative z-10 pt-1">
-                <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("description"))}>
-                    <ScrollText className="size-4" />
-                </div>
-            </div>
-            <div className="min-w-0 pt-1">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
-                    <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
-                        <Avatar name={authorName} url={authorAvatarUrl} />
-                        <span className="font-medium text-foreground">{authorName ?? "Unknown"}</span>
-                    </div>
-                    <Timestamp value={createdAt} className={TIMELINE_TIMESTAMP_CLASS} />
-                </div>
-                <div className="px-2">
-                    <div className="rounded-md border border-border-muted bg-surface-1 p-3">
-                        {description?.trim() ? <MarkdownBlock text={description} /> : <div className="text-[13px] text-muted-foreground">No description.</div>}
-                    </div>
-                </div>
-            </div>
-        </div>
+        <section className="min-w-0 px-2 py-1" data-component="summary-description">
+            {description?.trim() ? <MarkdownBlock text={description} /> : <div className="text-[13px] text-muted-foreground">No description.</div>}
+        </section>
     );
 }
 
@@ -779,11 +771,11 @@ function CommitGroupTimelineItem({
     const commitGroups = groupCommitsByAuthor(entry.commits);
 
     return (
-        <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
+        <div className="relative grid grid-cols-[16px_minmax(0,1fr)] gap-[14px] pb-3">
             <TimelineConnector showAbove={showConnectorAbove} showBelow={showConnectorBelow} />
             <div className="relative z-10 pt-1">
-                <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("commitGroup"))}>
-                    <GitCommitHorizontal className="size-4" />
+                <div className={cn("flex size-4 items-center justify-center rounded-full border", timelineIconClass("commitGroup"))}>
+                    <GitCommitHorizontal className="size-[15px]" />
                 </div>
             </div>
             <div className="min-w-0 pt-1">
@@ -981,9 +973,11 @@ function HistoryCommentSurface({
                 />
             ) : null}
             {event.details && shouldRenderHistoryDetails(event.type) ? (
-                <div className="border-b border-border-muted px-2.5 py-2 text-[13px] text-muted-foreground break-words">{event.details}</div>
+                <div className="border-b border-[var(--diffs-bg,var(--background))] px-2.5 py-2 text-[13px] text-muted-foreground break-words">
+                    {event.details}
+                </div>
             ) : null}
-            {diffSnippet ? <CommentDiffSnippetBlock snippet={diffSnippet} className="border-b border-border-muted" /> : null}
+            {diffSnippet ? <CommentDiffSnippetBlock snippet={diffSnippet} className="border-b border-[var(--diffs-bg,var(--background))]" /> : null}
             {event.content || event.contentHtml ? (
                 <div className="px-1.5 py-1">
                     <div className="flex items-start gap-2 px-2 py-2">
@@ -1080,7 +1074,7 @@ function HistoryCommentSurface({
         return (
             <button
                 type="button"
-                className="group/comment mt-1 block w-full overflow-hidden rounded-md border border-border-muted bg-surface-1 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2"
+                className="group/comment mt-1 block w-full overflow-hidden rounded-md border border-[var(--diffs-bg,var(--background))] bg-surface-1 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2"
                 onClick={(mouseEvent) => handleClick(mouseEvent)}
                 onKeyDown={handleAttachedKeyDown}
             >
@@ -1089,7 +1083,11 @@ function HistoryCommentSurface({
         );
     }
 
-    return <div className="group/comment mt-1 overflow-hidden rounded-md border border-border-muted bg-surface-1 transition-colors">{body}</div>;
+    return (
+        <div className="group/comment mt-1 overflow-hidden rounded-md border border-[var(--diffs-bg,var(--background))] bg-surface-1 transition-colors">
+            {body}
+        </div>
+    );
 }
 
 function HistoryTimelineItem({
@@ -1132,11 +1130,11 @@ function HistoryTimelineItem({
     const hasAttachedContent = Boolean(event.comment?.path || event.details || diffSnippet || event.content || event.contentHtml);
 
     return (
-        <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
+        <div className="relative grid grid-cols-[16px_minmax(0,1fr)] gap-[14px] pb-3">
             <TimelineConnector showAbove={showConnectorAbove} showBelow={showConnectorBelow} />
             <div className="relative z-10 pt-1">
-                <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("history", event.type))}>
-                    <HistoryIcon className="size-4" />
+                <div className={cn("flex size-4 items-center justify-center rounded-full border", timelineIconClass("history", event.type))}>
+                    <HistoryIcon className="size-[15px]" />
                 </div>
             </div>
             <div className="min-w-0 pt-1">
@@ -1251,11 +1249,11 @@ function CommentThreadTimelineItem({
     const location = commentToHistoryLocation(rootComment);
 
     return (
-        <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
+        <div className="relative grid grid-cols-[16px_minmax(0,1fr)] gap-[14px] pb-3">
             <TimelineConnector showAbove={showConnectorAbove} showBelow={showConnectorBelow} />
             <div className="relative z-10 pt-1">
-                <div className={cn("flex size-8 items-center justify-center rounded-full border", timelineIconClass("commentThread"))}>
-                    <MessageSquare className="size-4" />
+                <div className={cn("flex size-4 items-center justify-center rounded-full border", timelineIconClass("commentThread"))}>
+                    <MessageSquare className="size-[15px]" />
                 </div>
             </div>
             <div className="min-w-0 pt-1">
@@ -1274,7 +1272,9 @@ function CommentThreadTimelineItem({
                                         onSelectComment={onSelectComment}
                                     />
                                 ) : null}
-                                {diffSnippet ? <CommentDiffSnippetBlock snippet={diffSnippet} className="border-t border-border-muted" /> : null}
+                                {diffSnippet ? (
+                                    <CommentDiffSnippetBlock snippet={diffSnippet} className="border-t border-[var(--diffs-bg,var(--background))]" />
+                                ) : null}
                             </>
                         ) : null
                     }
@@ -1388,12 +1388,15 @@ export function PullRequestSummaryPanel({
         if (event.type === "reopened") return false;
         return true;
     });
-    const orderedHistory = [...visibleHistory].sort((a, b) => timestampValue(a.createdAt) - timestampValue(b.createdAt));
-    const orderedCommits = [...commits].sort((a, b) => timestampValue(a.date) - timestampValue(b.date));
+    const pullRequestOpenedEvent: PullRequestHistoryEvent = {
+        id: `pull-request-opened-${pr.id}`,
+        type: "opened",
+        createdAt: pr.createdAt,
+        actor: pr.author,
+    };
     const timelineEntries = buildTimelineEntries({
-        prCreatedAt: pr.createdAt,
-        history: orderedHistory,
-        commits: orderedCommits,
+        history: [...visibleHistory, pullRequestOpenedEvent],
+        commits,
         commentThreads: summaryCommentThreads,
     });
 
@@ -1404,10 +1407,8 @@ export function PullRequestSummaryPanel({
                     className="h-10 bg-chrome border-b border-border-muted px-2.5 flex items-center gap-2 overflow-hidden text-[12px]"
                     data-component="summary-header"
                 >
-                    <span className="size-4 flex items-center justify-center shrink-0">
-                        <ScrollText className="size-3.5" />
-                    </span>
-                    <span className="min-w-0 flex-1 font-mono text-foreground truncate">{headerTitle}</span>
+                    <Avatar name={pr.author?.displayName} url={pr.author?.avatarUrl} sizeClass="size-5" />
+                    <span className="min-w-0 flex-1 text-foreground truncate">{headerTitle}</span>
                     {diffStats ? (
                         <div className="ml-auto shrink-0 font-mono text-[11px]">
                             <span className="text-status-added">+{diffStats.added}</span>
@@ -1418,26 +1419,13 @@ export function PullRequestSummaryPanel({
                 </div>
             ) : null}
             <div className="px-2.5 pb-48 pt-2.5">
-                <div className="space-y-0">
+                <SummaryDescription description={pr.description} />
+                <div className="mt-4 space-y-0 px-1" data-component="summary-timeline">
                     {timelineEntries.map((entry, index) => {
                         const isFirst = index === 0;
                         const isLast = index === timelineEntries.length - 1;
                         const showConnectorAbove = !isFirst;
                         const showConnectorBelow = !isLast;
-
-                        if (entry.kind === "description") {
-                            return (
-                                <DescriptionTimelineItem
-                                    key={entry.id}
-                                    showConnectorAbove={showConnectorAbove}
-                                    showConnectorBelow={showConnectorBelow}
-                                    authorName={pr.author?.displayName}
-                                    authorAvatarUrl={pr.author?.avatarUrl}
-                                    createdAt={pr.createdAt}
-                                    description={pr.description}
-                                />
-                            );
-                        }
 
                         if (entry.kind === "commitGroup") {
                             return (

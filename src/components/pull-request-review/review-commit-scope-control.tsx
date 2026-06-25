@@ -31,7 +31,7 @@ export function ReviewCommitScopeControl({
 }) {
     const selectedSet = new Set(selectedCommitHashes);
     const selectedCount = selectedSet.size;
-    const scopeLabel = mode === "full" ? "All Changes" : `Range (${selectedCount})`;
+    const scopeLabel = mode === "full" ? "All Changes" : `${selectedCount} Commits`;
     const selectedIndices = commitOptions
         .map((option, index) => (selectedSet.has(option.hash) ? index : -1))
         .filter((index) => index >= 0)
@@ -45,12 +45,12 @@ export function ReviewCommitScopeControl({
                 <DropdownMenuTrigger asChild>
                     <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="h-7 min-w-[88px] rounded-md justify-between border border-input bg-surface-1 px-2 text-[11px] hover:bg-surface-2"
+                        className="h-7 min-w-[88px] justify-between rounded-sm border border-transparent bg-[var(--diffs-bg,var(--background))] px-2 text-[11px] text-muted-foreground hover:border-border hover:bg-surface-1 hover:text-foreground focus-visible:border-transparent focus-visible:ring-0"
                     >
                         <span className="truncate">{scopeLabel}</span>
-                        <GitCompare className="ml-1 size-3" />
+                        <GitCompare className="ml-1 size-3" aria-hidden="true" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-[430px] p-0">

@@ -62,6 +62,9 @@ describe("thread card", () => {
 
         expect(html).toContain("reply L2");
         expect(html).toContain("reply L3");
+        expect(html).toContain('data-thread-depth="1" style="margin-left:38px"');
+        expect(html).toContain('data-thread-depth="2" style="margin-left:38px"');
+        expect(html).toContain('class="relative border-y border-r border-[var(--diffs-bg,var(--background))] bg-surface-1"');
     });
 
     test("includes descendant count when collapsed", () => {

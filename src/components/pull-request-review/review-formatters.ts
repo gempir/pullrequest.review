@@ -1,23 +1,9 @@
 import type { DiffStatEntry, PullRequestBuildStatus } from "@/lib/git-host/types";
 import { formatTimestampLabel } from "@/lib/timestamp";
 
-export function navbarStateClass(state?: string) {
-    const normalized = state?.toLowerCase() ?? "";
-    if (normalized === "merged") {
-        return "border-status-added/50 bg-status-added/15 text-status-added";
-    }
-    if (normalized === "closed" || normalized === "declined") {
-        return "border-status-removed/50 bg-status-removed/15 text-status-removed";
-    }
-    if (normalized === "open") {
-        return "border-status-renamed/50 bg-status-renamed/15 text-status-renamed";
-    }
-    return "border-border bg-secondary text-foreground";
-}
-
 export function normalizeNavbarState(pr?: { state?: string; draft?: boolean; mergedAt?: string; closedAt?: string }) {
     if (pr?.mergedAt) return "merged";
-    if (pr?.closedAt) return "closed";
+    if (pr?.closedAt) return pr.state?.toLowerCase() === "declined" ? "declined" : "closed";
     if (pr?.draft) return "draft";
     return (pr?.state ?? "open").toLowerCase();
 }

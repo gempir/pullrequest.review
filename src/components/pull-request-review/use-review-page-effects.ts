@@ -3,7 +3,7 @@ import { useWorkerPool } from "@pierre/diffs/react";
 import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fileAnchorId } from "@/lib/file-anchors";
 import type { PullRequestBundle } from "@/lib/git-host/types";
-import { clearableHashFromPath, parsePrFileHash } from "@/lib/pr-file-hash";
+import { clearableHashFromPath, type PrFileHashTarget, parsePrFileHashTarget } from "@/lib/pr-file-hash";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 
 export function useReviewDocumentTitle({ isLoading, pullRequestTitle }: { isLoading: boolean; pullRequestTitle?: string }) {
@@ -127,16 +127,16 @@ export function useReviewFileHashSelection({
     onHashPathResolved,
 }: {
     selectableFilePaths: Set<string>;
-    onHashPathResolved: (path: string) => void;
+    onHashPathResolved: (target: PrFileHashTarget) => void;
 }) {
     useLayoutEffect(() => {
         if (typeof window === "undefined") return;
 
         const applyHashSelection = () => {
-            const pathFromHash = parsePrFileHash(window.location.hash);
-            if (!pathFromHash) return;
-            if (!selectableFilePaths.has(pathFromHash)) return;
-            onHashPathResolved(pathFromHash);
+            const target = parsePrFileHashTarget(window.location.hash);
+            if (!target) return;
+            if (!selectableFilePaths.has(target.path)) return;
+            onHashPathResolved(target);
         };
 
         applyHashSelection();
@@ -166,16 +166,15 @@ export function useReviewFileHashSync({
         if (typeof window === "undefined") return;
         if (suppressHashSyncRef?.current) {
             suppressHashSyncRef.current = false;
-            if (!showSettingsPanel && activeFile && activeFile !== PR_SUMMARY_PATH) {
-                return;
-            }
+            return;
         }
         if (!showSettingsPanel && !activeFile) return;
         if (!showSettingsPanel && activeFile && activeFile !== PR_SUMMARY_PATH && !selectableFilePaths.has(activeFile)) {
             return;
         }
 
-        const hashPath = parsePrFileHash(window.location.hash);
+        const hashTarget = parsePrFileHashTarget(window.location.hash);
+        const hashPath = hashTarget?.path ?? null;
         if (!showSettingsPanel && hashPath) {
             // Keep hash-based deep links intact until selectable file paths are loaded.
             if (!isFileSelectionReady && !selectableFilePaths.has(hashPath)) {
@@ -197,6 +196,7 @@ export function useReviewFileHashSync({
             ? undefined
             : clearableHashFromPath(activeFile, {
                   isSettingsPath: Boolean(activeFile && settingsPathSet.has(activeFile)),
+                  commentId: hashPath === activeFile ? hashTarget?.commentId : undefined,
               });
         const currentHash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
         if (!nextHash && !currentHash) return;

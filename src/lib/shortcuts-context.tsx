@@ -183,6 +183,11 @@ export function isEditableShortcutTarget(target: EventTarget | null): boolean {
     return false;
 }
 
+export function isEditableShortcutEvent(event: Pick<KeyboardEvent, "target" | "composedPath">): boolean {
+    if (isEditableShortcutTarget(event.target)) return true;
+    return event.composedPath().some((target) => isEditableShortcutTarget(target ?? null));
+}
+
 export function useKeyboardNavigation({
     onNextUnviewedFile,
     onPreviousUnviewedFile,
@@ -272,51 +277,63 @@ export function useKeyboardNavigation({
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (isEditableShortcutTarget(event.target)) return;
+            if (isEditableShortcutEvent(event)) return;
 
             const activeShortcuts = shortcutsRef.current;
             const handlers = handlersRef.current;
 
             if (matchesShortcut(event, activeShortcuts.nextUnviewedFile)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onNextUnviewedFile?.();
             } else if (matchesShortcut(event, activeShortcuts.previousUnviewedFile)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onPreviousUnviewedFile?.();
             } else if (matchesShortcut(event, activeShortcuts.openFileTree)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onOpenFileTree?.();
             } else if (matchesShortcut(event, activeShortcuts.openCommentsSidebar)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onOpenCommentsSidebar?.();
             } else if (matchesShortcut(event, activeShortcuts.scrollDown)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onScrollDown?.(event);
             } else if (matchesShortcut(event, activeShortcuts.scrollUp)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onScrollUp?.(event);
             } else if (matchesShortcut(event, activeShortcuts.nextFile)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onNextFile?.();
             } else if (matchesShortcut(event, activeShortcuts.previousFile)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onPreviousFile?.();
             } else if (matchesShortcut(event, activeShortcuts.markFileViewedAndFold)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onMarkFileViewedAndFold?.();
             } else if (matchesShortcut(event, activeShortcuts.markFileViewed)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onMarkFileViewed?.();
             } else if (matchesShortcut(event, activeShortcuts.approvePullRequest)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onApprovePullRequest?.();
             } else if (matchesShortcut(event, activeShortcuts.requestChangesPullRequest)) {
                 event.preventDefault();
+                event.stopPropagation();
                 handlers.onRequestChangesPullRequest?.();
             }
         };
 
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
+        window.addEventListener("keydown", handleKeyDown, true);
+        return () => window.removeEventListener("keydown", handleKeyDown, true);
     }, []);
 }

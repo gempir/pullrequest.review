@@ -91,7 +91,59 @@ describe("thread card", () => {
             />,
         );
 
-        expect(html).toContain("Show resolved thread");
-        expect(html).toContain("(3 comments)");
+        expect(html).toContain("Resolved");
+        expect(html).toContain("3 comments");
+    });
+
+    test("renders host emoji images at text size", () => {
+        const html = renderToStaticMarkup(
+            <ThreadCard
+                thread={buildThread({
+                    root: {
+                        ...buildThread().root,
+                        comment: {
+                            ...buildThread().root.comment,
+                            content: {
+                                html: '<p>Looks good <img src="https://bitbucket.example/emojis/thumbsup.png" alt=":thumbsup:"></p>',
+                            },
+                        },
+                    },
+                })}
+                canResolveThread
+                canCommentInline
+                createCommentPending={false}
+                resolveCommentPending={false}
+                currentUserDisplayName="Root User"
+                onDeleteComment={() => {}}
+                onResolveThread={() => {}}
+                onReplyToThread={() => {}}
+                onEditComment={() => {}}
+                updateCommentPending={false}
+            />,
+        );
+
+        expect(html).toContain("size-[1.25em]");
+        expect(html).toContain("object-contain");
+    });
+
+    test("renders share links after comment dates for file threads", () => {
+        const html = renderToStaticMarkup(
+            <ThreadCard
+                thread={buildThread()}
+                canResolveThread
+                canCommentInline
+                createCommentPending={false}
+                resolveCommentPending={false}
+                currentUserDisplayName="Root User"
+                onDeleteComment={() => {}}
+                onResolveThread={() => {}}
+                onReplyToThread={() => {}}
+                onEditComment={() => {}}
+                updateCommentPending={false}
+            />,
+        );
+
+        expect(html.split('aria-label="Copy comment link"').length - 1).toBe(3);
+        expect(html.indexOf("2026-01-01") < html.indexOf('aria-label="Copy comment link"')).toBe(true);
     });
 });

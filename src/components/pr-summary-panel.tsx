@@ -17,12 +17,14 @@ import {
     UserPlus,
     X,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useReducer, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useReducer } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
+import { CommentMarkdownImage } from "@/components/comment-markdown-image";
+import { CommentShareButton } from "@/components/comment-share-button";
 import { ThreadCard } from "@/components/pull-request-review/review-thread-card";
 import { buildCommentThreads, type CommentThread, flattenThread } from "@/components/pull-request-review/review-threads";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
@@ -30,6 +32,7 @@ import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Commit, PullRequestBundle, PullRequestHistoryEvent } from "@/lib/git-host/types";
+import { buildPrFileHash } from "@/lib/pr-file-hash";
 import type { ReviewDiffScopeSearch } from "@/lib/review-diff-scope";
 import { timestampValue } from "@/lib/timestamp";
 import { cn } from "@/lib/utils";
@@ -300,7 +303,7 @@ function MarkdownBlock({ text }: { text: string }) {
                     pre: ({ node: _node, ...props }) => (
                         <pre {...props} className="overflow-x-auto rounded border border-border bg-background p-2 text-[11px]" />
                     ),
-                    img: ({ node: _node, ...props }) => <img {...props} className="inline align-middle" alt={props.alt ?? ""} />,
+                    img: ({ node: _node, ...props }) => <CommentMarkdownImage {...props} />,
                 }}
             >
                 {text}
@@ -1172,34 +1175,40 @@ function HistoryTimelineItem({
     );
 }
 
-function CommentThreadPathHeader({ path }: { path: string }) {
-    const [copied, setCopied] = useState(false);
+function CommentThreadPathHeader({
+    path,
+    line,
+    side,
+    commentId,
+    onSelectComment,
+}: {
+    path: string;
+    line?: number;
+    side?: "additions" | "deletions";
+    commentId: number;
+    onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
+}) {
     const fileName = path.split("/").pop() || path;
-    const handleCopyPath = async () => {
-        if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
-        await navigator.clipboard.writeText(path);
-        setCopied(true);
-    };
 
     return (
-        <div className="flex min-w-0 items-center gap-1.5 px-3 py-1 font-mono text-[11px] text-foreground">
-            <span className="flex size-4 shrink-0 items-center justify-center">
-                <RepositoryFileIcon fileName={fileName} className="size-3.5" />
-            </span>
-            <span className="min-w-0 break-all">{path}</span>
-            <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className="size-5 shrink-0 text-muted-foreground hover:text-foreground"
-                aria-label="Copy file path"
-                title="Copy file path"
+        <div className="relative flex min-w-0 cursor-pointer items-center gap-1.5 px-3 py-1 font-mono text-[11px] text-foreground transition-colors hover:bg-surface-2 focus-within:bg-surface-2">
+            <a
+                href={`#${buildPrFileHash(path, commentId)}`}
+                className="absolute inset-0 cursor-pointer outline-none"
+                aria-label={`Open comment on ${path}`}
                 onClick={() => {
-                    void handleCopyPath();
+                    if (!onSelectComment) return;
+                    onSelectComment({ path, line, side, commentId });
                 }}
             >
-                {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-            </Button>
+                <span className="sr-only">Open comment on {path}</span>
+            </a>
+            <span className="pointer-events-none flex size-4 shrink-0 items-center justify-center">
+                <RepositoryFileIcon fileName={fileName} className="size-3.5" />
+            </span>
+            <span className="pointer-events-none min-w-0 break-all">{path}</span>
+            <CommentShareButton path={path} commentId={commentId} className="relative z-10" />
+            <span className="pointer-events-none min-w-2 flex-1" />
         </div>
     );
 }
@@ -1215,6 +1224,7 @@ function CommentThreadTimelineItem({
     createCommentPending,
     resolveCommentPending,
     updateCommentPending,
+    onSelectComment,
     onDeleteComment,
     onResolveThread,
     onReplyToThread,
@@ -1230,6 +1240,7 @@ function CommentThreadTimelineItem({
     createCommentPending?: boolean;
     resolveCommentPending?: boolean;
     updateCommentPending?: boolean;
+    onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
     onReplyToThread?: (commentId: number, content: string) => void;
@@ -1237,6 +1248,7 @@ function CommentThreadTimelineItem({
 }) {
     const rootComment = thread.root.comment;
     const path = rootComment.inline?.path;
+    const location = commentToHistoryLocation(rootComment);
 
     return (
         <div className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-3">
@@ -1249,10 +1261,19 @@ function CommentThreadTimelineItem({
             <div className="min-w-0 pt-1">
                 <ThreadCard
                     thread={thread}
+                    showCommentShareLinks={false}
                     header={
                         path || diffSnippet ? (
                             <>
-                                {path ? <CommentThreadPathHeader path={path} /> : null}
+                                {path ? (
+                                    <CommentThreadPathHeader
+                                        path={path}
+                                        line={location?.line}
+                                        side={location?.side}
+                                        commentId={rootComment.id}
+                                        onSelectComment={onSelectComment}
+                                    />
+                                ) : null}
                                 {diffSnippet ? <CommentDiffSnippetBlock snippet={diffSnippet} className="border-t border-border-muted" /> : null}
                             </>
                         ) : null
@@ -1444,6 +1465,7 @@ export function PullRequestSummaryPanel({
                                     createCommentPending={createCommentPending}
                                     resolveCommentPending={resolveCommentPending}
                                     updateCommentPending={updateCommentPending}
+                                    onSelectComment={onSelectComment}
                                     onDeleteComment={onDeleteComment}
                                     onResolveThread={onResolveThread}
                                     onReplyToThread={onReplyToThread}

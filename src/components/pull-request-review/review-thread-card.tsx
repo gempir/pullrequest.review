@@ -5,6 +5,8 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
+import { CommentMarkdownImage } from "@/components/comment-markdown-image";
+import { CommentShareButton } from "@/components/comment-share-button";
 import { type CommentThread, type CommentThreadNode, threadCommentCount } from "@/components/pull-request-review/review-threads";
 import { commentAnchorId } from "@/lib/file-anchors";
 
@@ -39,7 +41,7 @@ function CommentAvatar({ name, url, sizeClass = "size-6" }: { name?: string; url
 
 function CommentMarkdown({ text }: { text: string }) {
     return (
-        <div className="mt-2 text-[14px] leading-relaxed text-foreground" style={{ fontFamily: "var(--comment-font-family)" }}>
+        <div className="mt-1 text-[14px] leading-relaxed text-foreground" style={{ fontFamily: "var(--comment-font-family)" }}>
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize]}
@@ -58,7 +60,7 @@ function CommentMarkdown({ text }: { text: string }) {
                     pre: ({ node: _node, ...props }) => (
                         <pre {...props} className="overflow-x-auto rounded bg-surface-1 border border-border-muted p-2 text-[11px]" />
                     ),
-                    img: ({ node: _node, ...props }) => <img {...props} className="inline align-middle" alt={props.alt ?? ""} />,
+                    img: ({ node: _node, ...props }) => <CommentMarkdownImage {...props} />,
                 }}
             >
                 {text}
@@ -136,6 +138,7 @@ type ThreadCardProps = {
     thread: CommentThread;
     allowNestedReplies?: boolean;
     header?: ReactNode;
+    showCommentShareLinks?: boolean;
     canResolveThread: boolean;
     canCommentInline: boolean;
     createCommentPending: boolean;
@@ -201,7 +204,7 @@ function ThreadActions({
     };
 
     const renderActions = () => (
-        <div className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
             {actions.map(({ id, node }, index) => (
                 <span key={id} className="inline-flex items-center gap-1.5">
                     {index > 0 ? <span className="text-muted-foreground/70">·</span> : null}
@@ -274,6 +277,8 @@ function ThreadActions({
 type ThreadReplyNodeProps = {
     node: CommentThreadNode;
     depth: number;
+    threadPath?: string;
+    showCommentShareLinks: boolean;
     allowNestedReplies: boolean;
     rootCommentId: number;
     isResolved: boolean;
@@ -300,6 +305,8 @@ type ThreadReplyNodeProps = {
 function ThreadReplyNode({
     node,
     depth,
+    threadPath,
+    showCommentShareLinks,
     allowNestedReplies,
     rootCommentId,
     isResolved,
@@ -327,13 +334,12 @@ function ThreadReplyNode({
     const isEditingOnNode = editorState.editTargetCommentId === reply.id;
     const canEditNode = isSameUser(reply.user?.displayName);
     const replyHasInlineContext = Boolean(reply.inline?.path);
-    const nestingDepth = allowNestedReplies ? Math.min(depth, 8) : 0;
     const dateLabel = formatCommentDate(reply.createdAt);
     const dateTimeLabel = formatCommentDateTime(reply.createdAt);
 
     return (
-        <div className="relative" style={{ marginLeft: `${nestingDepth * 48}px` }}>
-            <div id={commentAnchorId(reply.id)} className="relative z-10 flex gap-3 py-1.5 pr-4">
+        <div className="relative" style={{ marginLeft: allowNestedReplies && depth === 1 ? 38 : 0 }}>
+            <div id={commentAnchorId(reply.id)} className="relative z-10 flex gap-3 py-[3px] pr-4">
                 <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-6" />
                 <div className="relative z-10 min-w-0 flex-1">
                     <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
@@ -343,6 +349,7 @@ function ThreadReplyNode({
                                 {dateLabel}
                             </span>
                         ) : null}
+                        {showCommentShareLinks && threadPath ? <CommentShareButton path={threadPath} commentId={reply.id} /> : null}
                         {reply.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                     </div>
                     {isEditingOnNode ? (
@@ -404,6 +411,8 @@ function ThreadReplyNode({
                             key={child.comment.id}
                             node={child}
                             depth={depth + 1}
+                            threadPath={threadPath}
+                            showCommentShareLinks={showCommentShareLinks}
                             allowNestedReplies={allowNestedReplies}
                             rootCommentId={rootCommentId}
                             isResolved={isResolved}
@@ -458,6 +467,7 @@ type ThreadRootCommentCardProps = {
     onCancelEdit: () => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
+    showCommentShareLinks: boolean;
 };
 
 function ThreadRootCommentCard({
@@ -485,14 +495,15 @@ function ThreadRootCommentCard({
     onCancelEdit,
     onResolveThread,
     onDeleteComment,
+    showCommentShareLinks,
 }: ThreadRootCommentCardProps) {
     const dateLabel = formatCommentDate(rootComment.createdAt);
     const dateTimeLabel = formatCommentDateTime(rootComment.createdAt);
     const commentCountLabel = commentCount > 1 ? `${commentCount} comments` : "1 comment";
 
     return (
-        <div id={commentAnchorId(rootComment.id)} className="group/root-card relative z-10 flex items-start gap-4 px-4 py-4">
-            <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} sizeClass="size-7" />
+        <div id={commentAnchorId(rootComment.id)} className="group/root-card relative z-10 flex items-start gap-4 px-4 py-2">
+            <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} sizeClass="size-6" />
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
                     <span className="font-semibold text-foreground text-[16px]">{rootComment.user?.displayName ?? "Unknown"}</span>
@@ -500,6 +511,9 @@ function ThreadRootCommentCard({
                         <span className="font-semibold tabular-nums" title={dateTimeLabel}>
                             {dateLabel}
                         </span>
+                    ) : null}
+                    {showCommentShareLinks && rootComment.inline?.path ? (
+                        <CommentShareButton path={rootComment.inline.path} commentId={rootComment.id} />
                     ) : null}
                     {rootComment.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
                     <div className="ml-auto flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
@@ -598,6 +612,7 @@ export function ThreadCard({
     thread,
     allowNestedReplies = true,
     header,
+    showCommentShareLinks = true,
     canResolveThread,
     canCommentInline,
     createCommentPending,
@@ -724,14 +739,17 @@ export function ThreadCard({
                     onCancelEdit={handleCancelEdit}
                     onResolveThread={onResolveThread}
                     onDeleteComment={onDeleteComment}
+                    showCommentShareLinks={showCommentShareLinks}
                 />
                 {!collapsed && thread.root.children.length > 0 ? (
-                    <div className="relative z-10 px-4 pb-4 pt-5">
+                    <div className="relative z-10 px-4 pb-2 pt-2.5">
                         {thread.root.children.map((reply) => (
                             <ThreadReplyNode
                                 key={reply.comment.id}
                                 node={reply}
                                 depth={1}
+                                threadPath={rootComment.inline?.path}
+                                showCommentShareLinks={showCommentShareLinks}
                                 allowNestedReplies={allowNestedReplies}
                                 rootCommentId={rootComment.id}
                                 isResolved={isResolved}

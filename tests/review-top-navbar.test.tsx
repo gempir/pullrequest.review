@@ -56,7 +56,7 @@ describe("review top navbar actions", () => {
         expect(html).toContain("border-status-added/45");
         expect(html).toContain("border-status-modified/45");
         expect(html).toContain("border-status-merged/45");
-        expect(html).toContain("h-full w-12 rounded-none pl-2 pr-0");
+        expect(html).toContain("h-full w-12 rounded-none pl-0 pr-0");
         expect(html.includes(">OPEN<")).toBe(false);
         expect(html.includes(">DRAFT<")).toBe(false);
     });

@@ -143,39 +143,47 @@ export function ReviewTopNavbar({
                                 <ReviewFileTreeToggleIcon direction="expand" badgeValue={unviewedFileCount > 0 ? unviewedBadgeValue : null} />
                             </Button>
                         ) : null}
-                        {commitScopeSlot ? <div className="shrink-0">{commitScopeSlot}</div> : null}
-                        <div className="group/source relative max-w-[180px] min-w-0">
-                            <span className="block truncate text-foreground">{sourceBranch}</span>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className={cn(
-                                    "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 p-0 transition-opacity bg-chrome/95",
-                                    copiedSourceBranch
-                                        ? "opacity-100"
-                                        : "opacity-0 pointer-events-none group-hover/source:opacity-100 group-hover/source:pointer-events-auto group-focus-within/source:opacity-100 group-focus-within/source:pointer-events-auto",
-                                )}
-                                onClick={() => onCopySourceBranch(sourceBranch)}
-                                aria-label="Copy source branch"
-                            >
-                                {copiedSourceBranch ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                            </Button>
+                        {commitScopeSlot ? <div className="ml-0.5 shrink-0">{commitScopeSlot}</div> : null}
+                        <div className="flex h-7 min-w-0 items-center gap-2 rounded-sm bg-[var(--diffs-bg,var(--background))] px-2 text-[11px]">
+                            <div className="group/source relative max-w-[180px] min-w-0">
+                                <span className="block truncate text-muted-foreground">{sourceBranch}</span>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(
+                                        "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 rounded-sm bg-[var(--diffs-bg,var(--background))] p-0 transition-opacity",
+                                        copiedSourceBranch
+                                            ? "opacity-100"
+                                            : "opacity-0 pointer-events-none group-hover/source:opacity-100 group-hover/source:pointer-events-auto group-focus-within/source:opacity-100 group-focus-within/source:pointer-events-auto",
+                                    )}
+                                    onClick={() => onCopySourceBranch(sourceBranch)}
+                                    aria-label="Copy source branch"
+                                >
+                                    {copiedSourceBranch ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                                </Button>
+                            </div>
+                            <span className="text-faint-foreground" aria-hidden="true">
+                                -&gt;
+                            </span>
+                            <span className="max-w-[180px] truncate text-muted-foreground">{destinationBranch}</span>
                         </div>
-                        <span>-&gt;</span>
-                        <span className="max-w-[180px] truncate text-foreground">{destinationBranch}</span>
-                        <Timestamp value={navbarStatusTimestamp} className="max-w-[120px] truncate align-middle" />
+                        <Timestamp
+                            value={navbarStatusTimestamp}
+                            tooltipLabel="updated at"
+                            className="max-w-[120px] truncate align-middle text-[10px] text-faint-foreground"
+                        />
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 
-                    <div className="ml-2 -mr-1.5 flex h-full shrink-0 items-center" data-component="navbar-actions">
+                    <div className="ml-2 -mr-1.5 flex h-full shrink-0 items-center gap-1.5" data-component="navbar-actions">
                         {!isTerminal && isDraft ? (
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="mr-1.5 h-7 rounded-sm border border-status-renamed/45 px-2.5 bg-chrome text-status-renamed hover:bg-status-renamed/12 hover:border-status-renamed/70 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                        className="h-7 rounded-sm border border-status-renamed/45 px-2.5 bg-chrome text-status-renamed hover:bg-status-renamed/12 hover:border-status-renamed/70 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                                         disabled={!canMarkDraft || actionBusy}
                                         onClick={onMarkDraft}
                                     >
@@ -192,7 +200,7 @@ export function ReviewTopNavbar({
                                     variant="ghost"
                                     size="sm"
                                     className={cn(
-                                        "mr-1.5 h-7 rounded-sm border border-status-added/45 px-2.5 bg-chrome hover:bg-status-added/12 hover:border-status-added/70 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                        "h-7 rounded-sm border border-status-added/45 px-2.5 bg-chrome hover:bg-status-added/12 hover:border-status-added/70 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
                                         currentUserReviewStatus === "approved" ? "bg-status-added/10 text-status-added" : "text-status-added",
                                     )}
                                     disabled={!canApprove || actionBusy}
@@ -205,7 +213,7 @@ export function ReviewTopNavbar({
                                     variant="ghost"
                                     size="sm"
                                     className={cn(
-                                        "mr-1.5 h-7 rounded-sm border border-status-modified/45 px-2.5 bg-chrome text-status-modified hover:bg-status-modified/12 hover:border-status-modified/70 hover:text-status-modified focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                        "h-7 rounded-sm border border-status-modified/45 px-2.5 bg-chrome text-status-modified hover:bg-status-modified/12 hover:border-status-modified/70 hover:text-status-modified focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
                                         currentUserReviewStatus === "changesRequested" && "bg-status-modified/10",
                                     )}
                                     disabled={!canRequestChanges || actionBusy}
@@ -222,7 +230,7 @@ export function ReviewTopNavbar({
                                     variant="ghost"
                                     size="sm"
                                     className={cn(
-                                        "mr-1.5 h-7 rounded-sm border px-2 text-[10px] font-medium focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                        "h-7 rounded-sm border px-2 text-[10px] font-medium focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
                                         isMerged
                                             ? "cursor-default border-status-merged/40 bg-status-merged/10 text-status-merged hover:bg-status-merged/10 hover:text-status-merged"
                                             : isDeclined
@@ -278,7 +286,7 @@ export function ReviewTopNavbar({
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-full w-12 rounded-none pl-2 pr-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                className="h-full w-12 rounded-none pl-0 pr-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                                 onClick={onExpandRightSidebar}
                                 aria-label={`Expand comments sidebar (${unresolvedCommentCount} unresolved comments)`}
                             >

@@ -106,9 +106,7 @@ const TREE_UNSAFE_CSS = `
 
   [data-file-tree-search-input] {
     background-color: var(--chrome);
-    border-inline: 0;
-    border-top: 1px solid var(--trees-border-color);
-    border-bottom: 1px solid var(--trees-border-color);
+    border: 0;
     height: 40px;
     line-height: 40px;
     margin-block: 0;

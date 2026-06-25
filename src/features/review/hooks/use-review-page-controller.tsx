@@ -1180,22 +1180,6 @@ export function useReviewPageController({
                     onDiffLineLeave={handleDiffLineLeave}
                     scrollElementRef={diffScrollRef}
                     pendingScrollPath={allModePendingScrollPath}
-                    canApprove={actionPolicy.canApprove}
-                    canRequestChanges={actionPolicy.canRequestChanges}
-                    canMerge={actionPolicy.canMerge}
-                    canDecline={actionPolicy.canDecline}
-                    canMarkDraft={actionPolicy.canMarkDraft}
-                    isDraft={Boolean(pullRequest?.draft)}
-                    currentUserReviewStatus={currentUserReviewStatus}
-                    isApprovePending={approveMutation.isPending || removeApprovalMutation.isPending}
-                    isRequestChangesPending={requestChangesMutation.isPending}
-                    isDeclinePending={declineMutation.isPending}
-                    isMarkDraftPending={markDraftMutation.isPending}
-                    onApprove={handleApprovePullRequest}
-                    onRequestChanges={handleRequestChangesPullRequest}
-                    onDecline={handleDeclinePullRequest}
-                    onMarkDraft={handleMarkPullRequestAsDraft}
-                    onOpenMerge={() => setMergeOpen(true)}
                     onSubmitSummaryComment={submitPullRequestComment}
                 />
             }

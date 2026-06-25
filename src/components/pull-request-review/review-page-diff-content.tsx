@@ -5,7 +5,6 @@ import type { DiffContextState } from "@/components/pull-request-review/diff-con
 import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { ReviewAllModeView } from "@/components/pull-request-review/review-all-mode-view";
 import type { InlineCommentLineTarget, SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
-import { ReviewPullRequestActions } from "@/components/pull-request-review/review-pull-request-actions";
 import { ReviewSingleModeView } from "@/components/pull-request-review/review-single-mode-view";
 import { ReviewSummaryCommentComposer } from "@/components/pull-request-review/review-summary-comment-composer";
 import { SettingsPanelContentOnly } from "@/components/settings-menu";
@@ -91,22 +90,6 @@ type ReviewPageDiffContentProps = {
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     scrollElementRef: RefObject<HTMLDivElement | null>;
     pendingScrollPath: string | null;
-    canApprove: boolean;
-    canRequestChanges: boolean;
-    canMerge: boolean;
-    canDecline: boolean;
-    canMarkDraft: boolean;
-    isDraft: boolean;
-    currentUserReviewStatus: "approved" | "changesRequested" | "none";
-    isApprovePending: boolean;
-    isRequestChangesPending: boolean;
-    isDeclinePending: boolean;
-    isMarkDraftPending: boolean;
-    onApprove: () => void;
-    onRequestChanges: () => void;
-    onDecline: () => void;
-    onMarkDraft: () => void;
-    onOpenMerge: () => void;
     onSubmitSummaryComment: (content: string) => boolean;
 };
 
@@ -180,55 +163,18 @@ export function ReviewPageDiffContent({
     onHistoryCommentNavigate,
     scrollElementRef,
     pendingScrollPath,
-    canApprove,
-    canRequestChanges,
-    canMerge,
-    canDecline,
-    canMarkDraft,
-    isDraft,
-    currentUserReviewStatus,
-    isApprovePending,
-    isRequestChangesPending,
-    isDeclinePending,
-    isMarkDraftPending,
-    onApprove,
-    onRequestChanges,
-    onDecline,
-    onMarkDraft,
-    onOpenMerge,
     onSubmitSummaryComment,
 }: ReviewPageDiffContentProps) {
     const summaryFooter: ReactNode = (
-        <div className="space-y-3">
-            <ReviewSummaryCommentComposer
-                key={`summary-comment:${workspace}/${repo}/${pullRequestId}`}
-                currentUserDisplayName={currentUserDisplayName}
-                currentUserAvatarUrl={currentUserAvatarUrl}
-                canComment={canCommentInline}
-                isSubmitting={createCommentPending}
-                onSubmit={onSubmitSummaryComment}
-            />
-            <ReviewPullRequestActions
-                canApprove={canApprove}
-                canRequestChanges={canRequestChanges}
-                canMerge={canMerge}
-                canDecline={canDecline}
-                canMarkDraft={canMarkDraft}
-                isDraft={isDraft}
-                currentUserReviewStatus={currentUserReviewStatus}
-                isApprovePending={isApprovePending}
-                isRequestChangesPending={isRequestChangesPending}
-                isDeclinePending={isDeclinePending}
-                isMarkDraftPending={isMarkDraftPending}
-                onApprove={onApprove}
-                onRequestChanges={onRequestChanges}
-                onDecline={onDecline}
-                onMarkDraft={onMarkDraft}
-                onOpenMerge={onOpenMerge}
-            />
-        </div>
+        <ReviewSummaryCommentComposer
+            key={`summary-comment:${workspace}/${repo}/${pullRequestId}`}
+            currentUserDisplayName={currentUserDisplayName}
+            currentUserAvatarUrl={currentUserAvatarUrl}
+            canComment={canCommentInline}
+            isSubmitting={createCommentPending}
+            onSubmit={onSubmitSummaryComment}
+        />
     );
-
     const openDiffSettings = () => {
         onActiveFileChange(settingsPathForTab("diff"));
         onShowSettingsPanelChange(true);

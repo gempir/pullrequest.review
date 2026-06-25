@@ -57,7 +57,7 @@ export function InlineDiffAnnotation({
     const isDraft = metadata.kind === "draft";
 
     return (
-        <div className={isDraft ? "px-2 py-1.5 bg-background/70" : "bg-surface-1"}>
+        <div className={isDraft ? "px-2 py-1.5 bg-background/70" : "-ml-px bg-surface-1"}>
             {isDraft ? (
                 <div className="space-y-2">
                     <CommentEditor

@@ -70,6 +70,7 @@
     --status-removed: #f85149;
     --status-modified: #d29922;
     --status-renamed: #3b82f6;
+    --status-merged: #a371f7;
     --host-bitbucket: #2684ff;
     --host-bitbucket-accent: #0052cc;
 
@@ -151,6 +152,7 @@
     --status-removed: #cf222e;
     --status-modified: #9a6700;
     --status-renamed: #0969da;
+    --status-merged: #8250df;
 
     --sidebar: #f6f8fa;
     --sidebar-foreground: #1f2328;
@@ -206,6 +208,7 @@
     --color-status-removed: var(--status-removed);
     --color-status-modified: var(--status-modified);
     --color-status-renamed: var(--status-renamed);
+    --color-status-merged: var(--status-merged);
     --color-host-bitbucket: var(--host-bitbucket);
     --color-host-bitbucket-accent: var(--host-bitbucket-accent);
 

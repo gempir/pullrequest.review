@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { CommentMarkdownImage } from "@/components/comment-markdown-image";
 import type { CommentThread } from "@/components/pull-request-review/review-threads";
 import type { ReviewSidebarThreadItem } from "@/components/pull-request-review/use-review-page-derived";
 import { Timestamp } from "@/components/timestamp";
@@ -73,7 +74,7 @@ function CommentBody({ text }: { text: string }) {
                             className="overflow-hidden whitespace-pre-wrap break-words rounded border border-border-muted bg-surface-1 p-2 text-[11px]"
                         />
                     ),
-                    img: ({ node: _node, ...props }) => <img {...props} className="max-w-full" alt={props.alt ?? ""} />,
+                    img: ({ node: _node, ...props }) => <CommentMarkdownImage {...props} />,
                 }}
             >
                 {text}

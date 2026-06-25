@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isEditableShortcutTarget } from "../src/lib/shortcuts-context";
+import { isEditableShortcutEvent, isEditableShortcutTarget } from "../src/lib/shortcuts-context";
 
 describe("shortcut editable target checks", () => {
     test("ignores input-like controls", () => {
@@ -27,5 +27,15 @@ describe("shortcut editable target checks", () => {
             }),
         ).toBe(false);
         expect(isEditableShortcutTarget(null)).toBe(false);
+    });
+
+    test("ignores editable controls inside a shadow DOM event path", () => {
+        const input = { tagName: "INPUT" };
+        expect(
+            isEditableShortcutEvent({
+                target: { tagName: "PIERRE-FILE-TREE" },
+                composedPath: () => [input, { tagName: "PIERRE-FILE-TREE" }],
+            }),
+        ).toBe(true);
     });
 });

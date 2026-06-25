@@ -1,7 +1,7 @@
 import type { FileTreeIcons, FileTreeRowDecoration, FileTreeRowDecorationContext, FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree as PierreFileTree, prepareFileTreeInput } from "@pierre/trees";
 import { FileTree as PierreReactFileTree } from "@pierre/trees/react";
-import { type CSSProperties, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import { type CSSProperties, type MouseEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { type TreeDensityValue, useFileTree } from "@/lib/file-tree-context";
 import { compareFileTreeSortEntries } from "@/lib/file-tree-order";
 
@@ -90,6 +90,18 @@ const TREE_UNSAFE_CSS = `
     padding-inline: 0;
     margin-bottom: 0;
     min-width: 0;
+    position: relative;
+  }
+
+  [data-file-tree-search-container]:has([data-file-tree-search-input]:placeholder-shown)::after {
+    color: var(--trees-fg-muted);
+    content: 'Search... (cmd + k)';
+    font-size: var(--trees-font-size);
+    inset: 0;
+    line-height: 40px;
+    padding-inline: 8px;
+    pointer-events: none;
+    position: absolute;
   }
 
   [data-file-tree-search-input] {
@@ -100,6 +112,10 @@ const TREE_UNSAFE_CSS = `
     height: 40px;
     line-height: 40px;
     margin-block: 0;
+  }
+
+  [data-file-tree-search-input]::placeholder {
+    color: transparent;
   }
 
   [data-file-tree-search-input]:focus-visible,
@@ -185,6 +201,22 @@ function blurActiveTreeItem(hostElement: HTMLElement) {
     if (!(activeElement instanceof HTMLElement)) return;
     if (activeElement.dataset.type !== "item") return;
     activeElement.blur();
+}
+
+function getTreeSearchInput(hostElement: HTMLElement) {
+    return hostElement.shadowRoot?.querySelector<HTMLInputElement>("[data-file-tree-search-input]") ?? null;
+}
+
+function isTreeSearchInputEvent(event: ReactKeyboardEvent<HTMLElement>) {
+    return event.nativeEvent.composedPath().some((target) => target instanceof HTMLElement && target.hasAttribute("data-file-tree-search-input"));
+}
+
+function isTreeSearchShortcut(event: Pick<globalThis.KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">) {
+    return event.key.toLowerCase() === "k" && event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
+}
+
+function isImplicitTreeSearchKey(event: ReactKeyboardEvent<HTMLElement>) {
+    return event.key.length === 1 && /^[\p{L}\p{N}]$/u.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey;
 }
 
 function getTreeScrollElement(model: PierreFileTree) {
@@ -447,6 +479,18 @@ export function AppFileTreeView({
     style?: CSSProperties;
 }) {
     const hostStyle = useMemo(() => ({ ...TREE_HOST_STYLE, ...style }), [style]);
+    useEffect(() => {
+        const handleSearchShortcut = (event: globalThis.KeyboardEvent) => {
+            if (!isTreeSearchShortcut(event)) return;
+            const hostElement = model.getFileTreeContainer();
+            if (!hostElement) return;
+            event.preventDefault();
+            event.stopPropagation();
+            getTreeSearchInput(hostElement)?.focus();
+        };
+        window.addEventListener("keydown", handleSearchShortcut, true);
+        return () => window.removeEventListener("keydown", handleSearchShortcut, true);
+    }, [model]);
     const handleClickCapture = useCallback(
         (event: MouseEvent<HTMLElement>) => {
             if (!eventPathContainsTreeItem(event)) return;
@@ -459,7 +503,28 @@ export function AppFileTreeView({
         },
         [onTreeItemClick],
     );
-    return <PierreReactFileTree className={className} header={header} model={model} onClickCapture={handleClickCapture} style={hostStyle} />;
+    const handleKeyDownCapture = useCallback((event: ReactKeyboardEvent<HTMLElement>) => {
+        if (isTreeSearchInputEvent(event)) return;
+        if (isTreeSearchShortcut(event)) {
+            event.preventDefault();
+            event.stopPropagation();
+            getTreeSearchInput(event.currentTarget)?.focus();
+            return;
+        }
+        if (!isImplicitTreeSearchKey(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+    }, []);
+    return (
+        <PierreReactFileTree
+            className={className}
+            header={header}
+            model={model}
+            onClickCapture={handleClickCapture}
+            onKeyDownCapture={handleKeyDownCapture}
+            style={hostStyle}
+        />
+    );
 }
 
 export function FileTree(props: AppFileTreeProps) {

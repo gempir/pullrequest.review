@@ -675,8 +675,13 @@ export function useReviewPageController({
         [selectAndRevealFile, setShowSettingsPanel],
     );
     const handleHashPathResolved = useCallback(
-        (path: string) => {
+        ({ path, commentId }: { path: string; commentId?: number }) => {
+            suppressHashSyncRef.current = true;
             setShowSettingsPanel(false);
+            if (typeof commentId === "number") {
+                pendingCommentScrollRef.current = commentId;
+                setPendingCommentTick((tick) => tick + 1);
+            }
             if (viewMode === "all") {
                 selectAndRevealFile(path);
                 return;

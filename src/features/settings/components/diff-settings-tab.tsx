@@ -95,7 +95,7 @@ export function DiffSettingsTab({
                     </SelectTrigger>
                     <SelectContent className="max-h-80">
                         <SelectItem value="__system__" className="text-[12px]">
-                            Auto (github dark/light default)
+                            Auto (pierre dark/light)
                         </SelectItem>
                         {DIFF_THEMES.map((theme) => (
                             <SelectItem key={theme} value={theme} className="text-[12px]">

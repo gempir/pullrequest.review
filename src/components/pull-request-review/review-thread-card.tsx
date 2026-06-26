@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Circle } from "lucide-react";
+import { Check, ChevronDown, Circle } from "lucide-react";
 import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
 import { CommentMarkdownImage } from "@/components/comment-markdown-image";
 import { CommentShareButton } from "@/components/comment-share-button";
-import { type CommentThread, type CommentThreadNode, threadCommentCount } from "@/components/pull-request-review/review-threads";
+import type { CommentThread, CommentThreadNode } from "@/components/pull-request-review/review-threads";
 import { commentAnchorId } from "@/lib/file-anchors";
 
 function initials(value?: string) {
@@ -31,7 +31,7 @@ function CommentAvatar({ name, url, sizeClass = "size-6" }: { name?: string; url
     }
     return (
         <span
-            className={`${size} rounded-full bg-surface-2 border border-border-muted text-[10px] text-muted-foreground flex items-center justify-center shrink-0`}
+            className={`${size} rounded-full bg-comment-muted border border-comment-border text-[10px] text-muted-foreground flex items-center justify-center shrink-0`}
             aria-hidden
         >
             {initials(name)}
@@ -56,9 +56,9 @@ function CommentMarkdown({ text }: { text: string }) {
                     th: ({ node: _node, ...props }) => <th {...props} className="p-2 text-left" />,
                     td: ({ node: _node, ...props }) => <td {...props} className="p-2" />,
                     blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l-2 border-border pl-3 text-muted-foreground" />,
-                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-surface-2 px-1 py-0.5 text-[11px]" />,
+                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-comment-muted px-1 py-0.5 text-[11px]" />,
                     pre: ({ node: _node, ...props }) => (
-                        <pre {...props} className="overflow-x-auto rounded bg-surface-1 border border-border-muted p-2 text-[11px]" />
+                        <pre {...props} className="overflow-x-auto rounded bg-comment-muted border border-comment-border p-2 text-[11px]" />
                     ),
                     img: ({ node: _node, ...props }) => <CommentMarkdownImage {...props} />,
                 }}
@@ -137,6 +137,8 @@ function ThreadResolveButton({
 type ThreadCardProps = {
     thread: CommentThread;
     allowNestedReplies?: boolean;
+    attachToDiffEdge?: boolean;
+    showBorder?: boolean;
     header?: ReactNode;
     showCommentShareLinks?: boolean;
     canResolveThread: boolean;
@@ -445,7 +447,6 @@ function ThreadReplyNode({
 type ThreadRootCommentCardProps = {
     rootComment: CommentThreadNode["comment"];
     collapsed: boolean;
-    commentCount: number;
     isResolved: boolean;
     rootIsOwn: boolean;
     canResolveThread: boolean;
@@ -457,8 +458,7 @@ type ThreadRootCommentCardProps = {
     setEditorState: Dispatch<SetStateAction<ThreadCardEditorState>>;
     replyFocusRef: { current: (() => void) | null };
     editFocusRef: { current: (() => void) | null };
-    onExpandResolved: () => void;
-    onCollapseResolved: () => void;
+    onToggleResolvedCollapsed: () => void;
     onStartReply: (commentId: number) => void;
     onSubmitReply: () => void;
     onCancelReply: () => void;
@@ -473,7 +473,6 @@ type ThreadRootCommentCardProps = {
 function ThreadRootCommentCard({
     rootComment,
     collapsed,
-    commentCount,
     isResolved,
     rootIsOwn,
     canResolveThread,
@@ -485,8 +484,7 @@ function ThreadRootCommentCard({
     setEditorState,
     replyFocusRef,
     editFocusRef,
-    onExpandResolved,
-    onCollapseResolved,
+    onToggleResolvedCollapsed,
     onStartReply,
     onSubmitReply,
     onCancelReply,
@@ -499,13 +497,15 @@ function ThreadRootCommentCard({
 }: ThreadRootCommentCardProps) {
     const dateLabel = formatCommentDate(rootComment.createdAt);
     const dateTimeLabel = formatCommentDateTime(rootComment.createdAt);
-    const commentCountLabel = commentCount > 1 ? `${commentCount} comments` : "1 comment";
+    const rootCardClassName = collapsed
+        ? "group/root-card relative z-10 flex items-center gap-4 px-4 py-2"
+        : "group/root-card relative z-10 flex items-start gap-4 px-4 py-2";
 
     return (
-        <div id={commentAnchorId(rootComment.id)} className="group/root-card relative z-10 flex items-start gap-4 px-4 py-2">
+        <div id={commentAnchorId(rootComment.id)} className={rootCardClassName}>
             <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} sizeClass="size-6" />
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
+                <div className="relative flex items-center gap-3 text-[13px] text-muted-foreground">
                     <span className="font-semibold text-foreground text-[16px]">{rootComment.user?.displayName ?? "Unknown"}</span>
                     {dateLabel ? (
                         <span className="font-semibold tabular-nums" title={dateTimeLabel}>
@@ -516,18 +516,17 @@ function ThreadRootCommentCard({
                         <CommentShareButton path={rootComment.inline.path} commentId={rootComment.id} />
                     ) : null}
                     {rootComment.pending ? <span className="text-[10px] uppercase tracking-wide">Sending...</span> : null}
+                    {isResolved ? (
+                        <button
+                            type="button"
+                            className="absolute left-1/2 top-1/2 inline-flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                            onClick={onToggleResolvedCollapsed}
+                            aria-label={collapsed ? "Expand resolved thread" : "Collapse resolved thread"}
+                        >
+                            <ChevronDown className={collapsed ? "size-5 transition-transform" : "size-5 rotate-180 transition-transform"} />
+                        </button>
+                    ) : null}
                     <div className="ml-auto flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
-                        {isResolved && !collapsed ? (
-                            <button
-                                type="button"
-                                className="inline-flex h-5 items-center gap-1 border border-border-muted bg-surface-2/60 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:border-border hover:text-foreground"
-                                onClick={onCollapseResolved}
-                                aria-label="Collapse resolved thread"
-                            >
-                                <Check className="size-3" />
-                                Resolved
-                            </button>
-                        ) : null}
                         <ThreadResolveButton
                             commentId={rootComment.id}
                             isResolved={isResolved}
@@ -589,20 +588,7 @@ function ThreadRootCommentCard({
                             onDeleteComment={onDeleteComment}
                         />
                     </>
-                ) : (
-                    <button
-                        type="button"
-                        className="mt-1 inline-flex items-center gap-1.5 border border-border-muted bg-surface-2/50 px-2 py-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-border hover:bg-surface-2 hover:text-foreground"
-                        onClick={onExpandResolved}
-                        aria-label="Expand resolved thread"
-                    >
-                        <Check className="size-3 text-status-added" />
-                        <span>Resolved</span>
-                        <span className="text-muted-foreground/70">·</span>
-                        <span>{commentCountLabel}</span>
-                        <ChevronRight className="size-3" />
-                    </button>
-                )}
+                ) : null}
             </div>
         </div>
     );
@@ -611,6 +597,8 @@ function ThreadRootCommentCard({
 export function ThreadCard({
     thread,
     allowNestedReplies = true,
+    attachToDiffEdge = true,
+    showBorder = true,
     header,
     showCommentShareLinks = true,
     canResolveThread,
@@ -709,26 +697,24 @@ export function ThreadCard({
         setEditorState((prev) => ({ ...prev, editTargetCommentId: null, editValue: "" }));
     };
     const rootIsOwn = isSameUser(rootComment.user?.displayName);
-    const commentCount = threadCommentCount(thread);
     const isAttachedToFile = Boolean(rootComment.inline?.path);
+    const shouldAttachToDiffEdge = attachToDiffEdge && isAttachedToFile;
+    const cardClassName = showBorder
+        ? shouldAttachToDiffEdge
+            ? "relative border-y border-r border-comment-border bg-comment"
+            : "relative border border-comment-border bg-comment"
+        : "relative bg-comment";
     return (
         <div className="text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
-            <div
-                className={
-                    isAttachedToFile
-                        ? "relative border-y border-r border-[var(--diffs-bg,var(--background))] bg-surface-1"
-                        : "relative border border-[var(--diffs-bg,var(--background))] bg-surface-1"
-                }
-            >
+            <div className={cardClassName}>
                 {header ? (
-                    <div className="border-b border-[var(--diffs-bg,var(--background))]" data-component="thread-card-header">
+                    <div className={showBorder ? "border-b border-comment-border" : ""} data-component="thread-card-header">
                         {header}
                     </div>
                 ) : null}
                 <ThreadRootCommentCard
                     rootComment={rootComment}
                     collapsed={collapsed}
-                    commentCount={commentCount}
                     isResolved={isResolved}
                     rootIsOwn={rootIsOwn}
                     canResolveThread={canResolveThread}
@@ -740,8 +726,7 @@ export function ThreadCard({
                     setEditorState={setEditorState}
                     replyFocusRef={replyFocusRef}
                     editFocusRef={editFocusRef}
-                    onExpandResolved={() => setCollapsed(false)}
-                    onCollapseResolved={() => setCollapsed(true)}
+                    onToggleResolvedCollapsed={() => setCollapsed((prev) => !prev)}
                     onStartReply={handleStartReply}
                     onSubmitReply={handleSubmitReply}
                     onCancelReply={handleCancelReply}

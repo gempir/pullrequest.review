@@ -31,6 +31,7 @@ function SelectTrigger({
             className={cn(
                 "flex w-fit items-center justify-between gap-2 rounded-md border border-input bg-surface-1 px-3 py-1 text-[13px] whitespace-nowrap transition-colors outline-none",
                 "data-[placeholder]:text-muted-foreground",
+                "hover:bg-surface-hover data-[state=open]:bg-surface-hover",
                 "focus-visible:ring-1 focus-visible:ring-ring",
                 "disabled:cursor-not-allowed disabled:opacity-50",
                 "data-[size=default]:h-8 data-[size=sm]:h-7",
@@ -54,7 +55,7 @@ function SelectContent({ className, children, position = "item-aligned", align =
             <SelectPrimitive.Content
                 data-slot="select-content"
                 className={cn(
-                    "bg-popover text-popover-foreground rounded-md border border-border relative z-50 max-h-[var(--radix-select-content-available-height)] min-w-[8rem] overflow-x-hidden overflow-y-auto",
+                    "bg-popover text-popover-foreground rounded-md border border-border-muted relative z-50 max-h-[var(--radix-select-content-available-height)] min-w-[8rem] overflow-x-hidden overflow-y-auto",
                     "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
                     "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
                     "origin-[var(--radix-select-content-transform-origin)]",
@@ -91,7 +92,7 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
             data-slot="select-item"
             className={cn(
                 "relative flex w-full cursor-default items-center gap-2 py-1.5 pr-8 pl-2 text-[13px] outline-none select-none transition-colors",
-                "focus:bg-surface-2 focus:text-foreground",
+                "focus:bg-surface-hover focus:text-foreground",
                 "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
                 "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-muted-foreground",
                 "*:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",

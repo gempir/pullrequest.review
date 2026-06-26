@@ -61,7 +61,7 @@ function PullRequestListItem({
             ) : null}
             <button
                 type="button"
-                className="w-full rounded-md border border-transparent bg-surface-1 px-3 py-2 text-left text-[13px] transition-colors hover:border-border-muted hover:bg-surface-2"
+                className="w-full rounded-md border border-transparent bg-surface-1 px-3 py-2 text-left text-[13px] transition-colors hover:border-border-muted hover:bg-surface-hover"
                 onClick={() => onOpenPullRequest(repo, String(pullRequest.id))}
             >
                 <div className="flex items-start justify-between gap-3">
@@ -188,7 +188,7 @@ export function LandingMainContent({
                         </div>
                         <Button
                             variant="outline"
-                            className="h-8 rounded-sm border-border-muted bg-background font-mono text-[12px] tracking-wide hover:bg-surface-2"
+                            className="h-8 rounded-sm border-border-muted bg-background font-mono text-[12px] tracking-wide hover:bg-surface-hover"
                             onClick={() => onOpenRepositorySelection(activeHost)}
                         >
                             Select Repositories
@@ -213,7 +213,7 @@ export function LandingMainContent({
                         <p className="text-[13px] text-muted-foreground">No pull requests in selected repositories.</p>
                         <Button
                             variant="outline"
-                            className="h-8 rounded-sm border-border-muted bg-background font-mono text-[12px] tracking-wide hover:bg-surface-2"
+                            className="h-8 rounded-sm border-border-muted bg-background font-mono text-[12px] tracking-wide hover:bg-surface-hover"
                             onClick={() => onOpenRepositorySelection(activeHost)}
                         >
                             Manage Repositories

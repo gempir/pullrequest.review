@@ -30,7 +30,7 @@ export function ReviewRightSidebar({
     const badgeValue = typeof count === "number" ? (count > 99 ? "99+" : count.toString()) : null;
 
     return (
-        <aside data-component="right-sidebar" className={cn("relative shrink-0 border-l border-border-muted bg-background")} style={{ width }}>
+        <aside data-component="right-sidebar" className={cn("relative shrink-0 border-l border-sidebar-border bg-sidebar")} style={{ width }}>
             <button
                 type="button"
                 className="absolute top-0 left-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-accent/40"
@@ -38,7 +38,7 @@ export function ReviewRightSidebar({
                 aria-label={`Resize ${title.toLowerCase()}`}
             />
             <div className="flex h-full min-w-0 flex-col overflow-hidden">
-                <div className="flex h-11 items-center gap-2 border-b border-border-muted bg-chrome pl-2 pr-3">
+                <div className="flex h-11 items-center gap-2 border-b border-sidebar-border bg-sidebar-chrome pl-2 pr-3">
                     <Button
                         type="button"
                         variant="ghost"
@@ -62,7 +62,7 @@ export function ReviewRightSidebar({
                     </div>
                     {headerActions ? <div className="ml-auto flex items-center gap-1">{headerActions}</div> : null}
                 </div>
-                {secondaryHeader ? <div className="h-10 border-b border-border-muted bg-chrome">{secondaryHeader}</div> : null}
+                {secondaryHeader ? <div className="h-10 border-b border-sidebar-border bg-sidebar-chrome">{secondaryHeader}</div> : null}
                 {children}
             </div>
         </aside>

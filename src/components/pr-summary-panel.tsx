@@ -328,9 +328,9 @@ function MarkdownBlock({ text }: { text: string }) {
                     th: ({ node: _node, ...props }) => <th {...props} className="border border-border p-2 text-left" />,
                     td: ({ node: _node, ...props }) => <td {...props} className="border border-border p-2" />,
                     blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l-2 border-border pl-3 text-muted-foreground" />,
-                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-surface-2 px-1 py-0.5 text-[11px]" />,
+                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-comment-muted px-1 py-0.5 text-[11px]" />,
                     pre: ({ node: _node, ...props }) => (
-                        <pre {...props} className="overflow-x-auto rounded border border-border bg-background p-2 text-[11px]" />
+                        <pre {...props} className="overflow-x-auto rounded border border-comment-border bg-comment-muted p-2 text-[11px]" />
                     ),
                     img: ({ node: _node, ...props }) => <CommentMarkdownImage {...props} />,
                 }}
@@ -376,7 +376,7 @@ function Avatar({ name, url, sizeClass = "size-4" }: { name?: string; url?: stri
         <span
             className={cn(
                 sizeClass,
-                "rounded-full shrink-0 border border-border-muted bg-surface-2 text-[10px] text-muted-foreground flex items-center justify-center",
+                "rounded-full shrink-0 border border-comment-border bg-comment-muted text-[10px] text-muted-foreground flex items-center justify-center",
             )}
             aria-hidden
         >
@@ -421,7 +421,7 @@ function historyCommentSurfaceReducer(state: HistoryCommentSurfaceState, action:
 
 function HistoryCommentPathHeader({ path, copied, onCopy }: { path: string; copied: boolean; onCopy: () => void }) {
     return (
-        <div className="flex items-center gap-1.5 border-b border-[var(--diffs-bg,var(--background))] px-2 py-0.5">
+        <div className="flex items-center gap-1.5 border-b border-comment-border px-2 py-0.5">
             <span className="shrink-0 font-mono text-[10px] text-foreground">{path}</span>
             <Button
                 type="button"
@@ -491,7 +491,7 @@ function HistoryCommentActions({
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
                         disabled={updateCommentPending}
                         onClick={onSubmitEdit}
                     >
@@ -501,7 +501,7 @@ function HistoryCommentActions({
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
                         disabled={updateCommentPending}
                         onClick={onCancelEdit}
                     >
@@ -514,7 +514,7 @@ function HistoryCommentActions({
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
                         disabled={createCommentPending}
                         onClick={onSubmitReply}
                     >
@@ -524,7 +524,7 @@ function HistoryCommentActions({
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-2"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
                         disabled={createCommentPending}
                         onClick={onCancelReply}
                     >
@@ -958,7 +958,7 @@ function HistoryCommentSurface({
         await navigator.clipboard.writeText(event.comment.path);
         dispatch({ type: "setPathCopied", value: true });
     };
-    const actionButtonClass = "h-6 rounded-md border border-input bg-surface-1 gap-1 px-2 text-[10px] leading-none hover:bg-surface-2";
+    const actionButtonClass = "h-6 rounded-md border border-comment-border bg-comment-muted gap-1 px-2 text-[10px] leading-none hover:bg-surface-hover";
     const actionIconClass = "size-2.5";
 
     const body = (
@@ -973,11 +973,9 @@ function HistoryCommentSurface({
                 />
             ) : null}
             {event.details && shouldRenderHistoryDetails(event.type) ? (
-                <div className="border-b border-[var(--diffs-bg,var(--background))] px-2.5 py-2 text-[13px] text-muted-foreground break-words">
-                    {event.details}
-                </div>
+                <div className="border-b border-comment-border px-2.5 py-2 text-[13px] text-muted-foreground break-words">{event.details}</div>
             ) : null}
-            {diffSnippet ? <CommentDiffSnippetBlock snippet={diffSnippet} className="border-b border-[var(--diffs-bg,var(--background))]" /> : null}
+            {diffSnippet ? <CommentDiffSnippetBlock snippet={diffSnippet} className="border-b border-comment-border" /> : null}
             {event.content || event.contentHtml ? (
                 <div className="px-1.5 py-1">
                     <div className="flex items-start gap-2 px-2 py-2">
@@ -1074,7 +1072,7 @@ function HistoryCommentSurface({
         return (
             <button
                 type="button"
-                className="group/comment mt-1 block w-full overflow-hidden rounded-md border border-[var(--diffs-bg,var(--background))] bg-surface-1 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2"
+                className="group/comment mt-1 block w-full overflow-hidden rounded-md border border-comment-border bg-comment text-left transition-colors hover:bg-comment-muted focus-visible:bg-comment-muted"
                 onClick={(mouseEvent) => handleClick(mouseEvent)}
                 onKeyDown={handleAttachedKeyDown}
             >
@@ -1083,11 +1081,7 @@ function HistoryCommentSurface({
         );
     }
 
-    return (
-        <div className="group/comment mt-1 overflow-hidden rounded-md border border-[var(--diffs-bg,var(--background))] bg-surface-1 transition-colors">
-            {body}
-        </div>
-    );
+    return <div className="group/comment mt-1 overflow-hidden rounded-md border border-comment-border bg-comment transition-colors">{body}</div>;
 }
 
 function HistoryTimelineItem({
@@ -1189,7 +1183,7 @@ function CommentThreadPathHeader({
     const fileName = path.split("/").pop() || path;
 
     return (
-        <div className="relative flex min-w-0 cursor-pointer items-center gap-1.5 px-3 py-1 font-mono text-[11px] text-foreground transition-colors hover:bg-surface-2 focus-within:bg-surface-2">
+        <div className="relative flex min-w-0 cursor-pointer items-center gap-1.5 px-3 py-1 font-mono text-[11px] text-foreground transition-colors hover:bg-surface-hover focus-within:bg-surface-hover">
             <a
                 href={`#${buildPrFileHash(path, commentId)}`}
                 className="absolute inset-0 cursor-pointer outline-none"
@@ -1259,6 +1253,7 @@ function CommentThreadTimelineItem({
             <div className="min-w-0 pt-1">
                 <ThreadCard
                     thread={thread}
+                    attachToDiffEdge={false}
                     showCommentShareLinks={false}
                     header={
                         path || diffSnippet ? (
@@ -1272,9 +1267,7 @@ function CommentThreadTimelineItem({
                                         onSelectComment={onSelectComment}
                                     />
                                 ) : null}
-                                {diffSnippet ? (
-                                    <CommentDiffSnippetBlock snippet={diffSnippet} className="border-t border-[var(--diffs-bg,var(--background))]" />
-                                ) : null}
+                                {diffSnippet ? <CommentDiffSnippetBlock snippet={diffSnippet} className="border-t border-comment-border" /> : null}
                             </>
                         ) : null
                     }

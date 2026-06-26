@@ -42,12 +42,12 @@ const TREE_HOST_STYLE: CSSProperties = {
     "--trees-font-size-override": "var(--tree-font-size)",
     "--trees-fg-override": "var(--foreground)",
     "--trees-fg-muted-override": "var(--muted-foreground)",
-    "--trees-bg-override": "var(--background)",
-    "--trees-bg-muted-override": "var(--surface-2)",
-    "--trees-border-color-override": "var(--border-muted)",
+    "--trees-bg-override": "var(--sidebar)",
+    "--trees-bg-muted-override": "var(--surface-hover)",
+    "--trees-border-color-override": "var(--sidebar-border)",
     "--trees-accent-override": "var(--accent)",
-    "--trees-search-bg-override": "var(--chrome)",
-    "--trees-selected-bg-override": "color-mix(in oklab, var(--accent) 18%, transparent)",
+    "--trees-search-bg-override": "var(--sidebar-chrome)",
+    "--trees-selected-bg-override": "var(--selection)",
     "--trees-git-renamed-color-override": "var(--status-renamed)",
     "--trees-focus-ring-width-override": "0px",
     "--trees-border-radius-override": "0px",
@@ -105,7 +105,7 @@ const TREE_UNSAFE_CSS = `
   }
 
   [data-file-tree-search-input] {
-    background-color: var(--chrome);
+    background-color: var(--sidebar-chrome);
     border: 0;
     height: 40px;
     line-height: 40px;

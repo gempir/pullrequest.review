@@ -38,7 +38,7 @@ function CommentAvatar({ name, url }: { name?: string; url?: string }) {
     }
     return (
         <span
-            className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border-muted bg-surface-2 text-[10px] text-muted-foreground"
+            className="flex size-6 shrink-0 items-center justify-center rounded-full border border-comment-border bg-comment-muted text-[10px] text-muted-foreground"
             aria-hidden
         >
             {initials(name)}
@@ -67,11 +67,11 @@ function CommentBody({ text }: { text: string }) {
                     th: ({ node: _node, ...props }) => <th {...props} className="p-2 text-left break-words" />,
                     td: ({ node: _node, ...props }) => <td {...props} className="p-2 break-words" />,
                     blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l-2 border-border pl-3 text-muted-foreground" />,
-                    code: ({ node: _node, ...props }) => <code {...props} className="break-words rounded bg-surface-2 px-1 py-0.5 text-[11px]" />,
+                    code: ({ node: _node, ...props }) => <code {...props} className="break-words rounded bg-comment-muted px-1 py-0.5 text-[11px]" />,
                     pre: ({ node: _node, ...props }) => (
                         <pre
                             {...props}
-                            className="overflow-hidden whitespace-pre-wrap break-words rounded border border-border-muted bg-surface-1 p-2 text-[11px]"
+                            className="overflow-hidden whitespace-pre-wrap break-words rounded border border-comment-border bg-comment-muted p-2 text-[11px]"
                         />
                     ),
                     img: ({ node: _node, ...props }) => <CommentMarkdownImage {...props} />,
@@ -127,7 +127,7 @@ export function ReviewCommentsSidebarItem({ item, onSelect, canResolveThread, re
             role="button"
             tabIndex={0}
             className={cn(
-                "block cursor-pointer border-b border-border-muted px-3 py-2.5 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none",
+                "block cursor-pointer border-b border-sidebar-border px-3 py-2.5 text-left transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none",
                 item.isResolved ? "opacity-70" : "",
             )}
             onClick={onSelect}
@@ -141,7 +141,7 @@ export function ReviewCommentsSidebarItem({ item, onSelect, canResolveThread, re
             <div title={location} className="truncate text-left font-mono text-[10px] text-muted-foreground [direction:rtl]">
                 {location}
             </div>
-            <div className="mt-2 rounded-md border border-border-muted bg-surface-1 p-3">
+            <div className="mt-2 rounded-md border border-comment-border bg-comment p-3">
                 <div className="flex items-start gap-2">
                     <CommentAvatar name={authorName} url={rootComment.user?.avatarUrl} />
                     <div className="min-w-0 flex-1 space-y-1">

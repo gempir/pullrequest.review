@@ -36,12 +36,12 @@ export function ReviewMergeDialog({
 }: ReviewMergeDialogProps) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[34rem] overflow-hidden rounded-xl border-border-muted bg-background p-0 shadow-2xl [&>button]:right-3 [&>button]:top-5 [&>button]:-translate-y-1/2 [&>button]:rounded-md [&>button]:p-1 [&>button]:text-muted-foreground [&>button]:opacity-100 [&>button]:transition-colors [&>button]:hover:bg-surface-1 [&>button]:hover:text-foreground [&>button]:focus-visible:ring-1 [&>button]:focus-visible:ring-ring">
+            <DialogContent className="max-w-[34rem] overflow-hidden rounded-xl border-border-muted bg-popover p-0 shadow-2xl [&>button]:right-3 [&>button]:top-5 [&>button]:-translate-y-1/2 [&>button]:rounded-md [&>button]:p-1 [&>button]:text-muted-foreground [&>button]:opacity-100 [&>button]:transition-colors [&>button]:hover:bg-surface-hover [&>button]:hover:text-foreground [&>button]:focus-visible:ring-1 [&>button]:focus-visible:ring-ring">
                 <div className="flex h-10 items-center border-b border-border-muted bg-chrome px-3 pr-12">
                     <DialogTitle className="text-[13px] font-medium text-foreground">Merge pull request</DialogTitle>
                 </div>
 
-                <div className="space-y-4 bg-surface-1/20 px-3 py-2.5 text-[12px]">
+                <div className="space-y-4 bg-surface-1 px-3 py-2.5 text-[12px]">
                     <div className="space-y-3">
                         <div className="space-y-1.5">
                             <Label htmlFor="merge-strategy" className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -51,12 +51,12 @@ export function ReviewMergeDialog({
                                 <Select value={mergeStrategy} onValueChange={onMergeStrategyChange}>
                                     <SelectTrigger
                                         id="merge-strategy"
-                                        className="h-9 w-full rounded-md border-border-muted bg-background text-[12px] shadow-none"
+                                        className="h-9 w-full rounded-md border-border-muted bg-surface-1 text-[12px] shadow-none"
                                         size="default"
                                     >
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-md border-border-muted bg-background">
+                                    <SelectContent className="rounded-md border-border-muted bg-popover">
                                         {mergeStrategies.map((strategy) => (
                                             <SelectItem key={strategy} value={strategy} className="text-[12px]">
                                                 {strategy}
@@ -67,7 +67,7 @@ export function ReviewMergeDialog({
                             ) : (
                                 <Input
                                     id="merge-strategy"
-                                    className="h-9 rounded-md border-border-muted bg-background text-[12px]"
+                                    className="h-9 rounded-md border-border-muted bg-surface-1 text-[12px]"
                                     value={mergeStrategy}
                                     onChange={(e) => onMergeStrategyChange(e.target.value)}
                                     placeholder="merge_commit"
@@ -81,7 +81,7 @@ export function ReviewMergeDialog({
                             </Label>
                             <Input
                                 id="merge-message"
-                                className="h-9 rounded-md border-border-muted bg-background text-[12px]"
+                                className="h-9 rounded-md border-border-muted bg-surface-1 text-[12px]"
                                 value={mergeMessage}
                                 onChange={(e) => onMergeMessageChange(e.target.value)}
                                 placeholder="Optional merge message"

@@ -57,7 +57,7 @@ const DiffOptionsContext = createContext<DiffOptionsContextType | null>(null);
 
 function getBrowserPreferredTheme(): DiffTheme {
     if (typeof window === "undefined") return DEFAULT_DIFF_THEME;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "github-dark-default" : "github-light-default";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "pierre-dark" : "pierre-light";
 }
 
 function normalizeDiffFontSize(value: number) {
@@ -126,7 +126,7 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
         const apply = (isDark: boolean) => {
             setOptions((prev) => {
                 if (!prev.followSystemTheme) return prev;
-                const nextTheme = isDark ? "github-dark-default" : "github-light-default";
+                const nextTheme = isDark ? "pierre-dark" : "pierre-light";
                 if (prev.theme === nextTheme) return prev;
                 return { ...prev, theme: nextTheme };
             });

@@ -33,7 +33,7 @@ export function FileVersionSelect({
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    className="h-7 min-w-[110px] max-w-[190px] rounded-md border border-input bg-surface-1 px-2 text-[11px] font-mono flex items-center gap-1.5 outline-none transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:ring-1 focus-visible:ring-ring"
+                    className="h-7 min-w-[110px] max-w-[190px] rounded-md border border-input bg-surface-1 px-2 text-[11px] font-mono flex items-center gap-1.5 outline-none transition-colors hover:bg-surface-hover data-[state=open]:bg-surface-hover focus-visible:ring-1 focus-visible:ring-ring"
                     aria-label="Select file version"
                 >
                     <span className="min-w-0 flex-1 text-left">

@@ -120,7 +120,7 @@ export function ReviewTopNavbar({
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                            className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                             onClick={onExpandTree}
                             aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
                         >
@@ -136,7 +136,7 @@ export function ReviewTopNavbar({
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                                 onClick={onExpandTree}
                                 aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
                             >
@@ -178,21 +178,16 @@ export function ReviewTopNavbar({
 
                     <div className="ml-2 -mr-1.5 flex h-full shrink-0 items-center gap-1.5" data-component="navbar-actions">
                         {!isTerminal && isDraft ? (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 rounded-sm border border-status-renamed/45 px-2.5 bg-chrome text-status-renamed hover:bg-status-renamed/12 hover:border-status-renamed/70 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
-                                        disabled={!canMarkDraft || actionBusy}
-                                        onClick={onMarkDraft}
-                                    >
-                                        {isMarkDraftPending ? <Loader2 className="size-3.5 animate-spin" /> : <PenSquare className="size-3.5" />}
-                                        Mark as Ready
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">Mark pull request as ready</TooltipContent>
-                            </Tooltip>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 rounded-sm border border-status-renamed/45 px-2.5 bg-chrome text-status-renamed hover:bg-status-renamed/12 hover:border-status-renamed/70 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                disabled={!canMarkDraft || actionBusy}
+                                onClick={onMarkDraft}
+                            >
+                                {isMarkDraftPending ? <Loader2 className="size-3.5 animate-spin" /> : <PenSquare className="size-3.5" />}
+                                Mark as Ready
+                            </Button>
                         ) : null}
                         {!isTerminal ? (
                             <>
@@ -224,38 +219,31 @@ export function ReviewTopNavbar({
                                 </Button>
                             </>
                         ) : null}
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className={cn(
-                                        "h-7 rounded-sm border px-2 text-[10px] font-medium focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
-                                        isMerged
-                                            ? "cursor-default border-status-merged/40 bg-status-merged/10 text-status-merged hover:bg-status-merged/10 hover:text-status-merged"
-                                            : isDeclined
-                                              ? "cursor-default border-status-removed/40 bg-status-removed/10 text-status-removed hover:bg-status-removed/10 hover:text-status-removed"
-                                              : "border-status-merged/45 bg-chrome text-status-merged hover:bg-status-merged/12 hover:border-status-merged/70 hover:text-status-merged",
-                                    )}
-                                    disabled={isTerminal ? undefined : !canMerge || actionBusy}
-                                    onClick={isTerminal ? undefined : onOpenMerge}
-                                    aria-disabled={isTerminal || undefined}
-                                    aria-label={isMerged ? "Pull request merged" : isDeclined ? "Pull request closed" : "Merge pull request"}
-                                >
-                                    {isDeclined ? <XCircle className="size-4" /> : <GitMerge className="size-4" />}
-                                    {isTerminal ? terminalStatusLabel : "Merge"}
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom">
-                                {isMerged ? "Pull request merged" : isDeclined ? "Pull request closed" : "Merge pull request"}
-                            </TooltipContent>
-                        </Tooltip>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                                "h-7 rounded-sm border px-2 text-[10px] font-medium focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                isMerged
+                                    ? "cursor-default border-status-merged/40 bg-status-merged/10 text-status-merged hover:bg-status-merged/10 hover:text-status-merged"
+                                    : isDeclined
+                                      ? "cursor-default border-status-removed/40 bg-status-removed/10 text-status-removed hover:bg-status-removed/10 hover:text-status-removed"
+                                      : "border-status-merged/45 bg-chrome text-status-merged hover:bg-status-merged/12 hover:border-status-merged/70 hover:text-status-merged",
+                            )}
+                            disabled={isTerminal ? undefined : !canMerge || actionBusy}
+                            onClick={isTerminal ? undefined : onOpenMerge}
+                            aria-disabled={isTerminal || undefined}
+                            aria-label={isMerged ? "Pull request merged" : isDeclined ? "Pull request closed" : "Merge pull request"}
+                        >
+                            {isDeclined ? <XCircle className="size-4" /> : <GitMerge className="size-4" />}
+                            {isTerminal ? terminalStatusLabel : "Merge"}
+                        </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground data-[state=open]:bg-surface-1 data-[state=open]:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground data-[state=open]:bg-surface-hover data-[state=open]:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                                     aria-label="Pull request actions"
                                 >
                                     <Menu className="size-4" />
@@ -263,7 +251,7 @@ export function ReviewTopNavbar({
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" side="bottom" sideOffset={0}>
                                 {pullRequestUrl ? (
-                                    <DropdownMenuItem asChild className="cursor-pointer py-2 text-[13px] focus:bg-surface-2">
+                                    <DropdownMenuItem asChild className="cursor-pointer py-2 text-[13px] focus:bg-surface-hover">
                                         <a href={pullRequestUrl} target="_blank" rel="noreferrer">
                                             {host === "github" ? <Github className="size-4" /> : <GlassWater className="size-4" />}
                                             {host === "github" ? "Open in GitHub" : "Open in Bitbucket"}
@@ -286,7 +274,7 @@ export function ReviewTopNavbar({
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-full w-12 rounded-none pl-0 pr-0 bg-chrome text-muted-foreground hover:bg-surface-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                className="h-full w-12 rounded-none pl-0 pr-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                                 onClick={onExpandRightSidebar}
                                 aria-label={`Expand comments sidebar (${unresolvedCommentCount} unresolved comments)`}
                             >
@@ -349,7 +337,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                                             href={build.url}
                                             target="_blank"
                                             rel="noreferrer"
-                                            className={cn(rowClass, "hover:bg-surface-2 cursor-pointer")}
+                                            className={cn(rowClass, "hover:bg-surface-hover cursor-pointer")}
                                         >
                                             <span
                                                 className={cn(
@@ -407,7 +395,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                                         href={build.url}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="flex items-center gap-2 w-full rounded px-1.5 py-1 hover:bg-surface-2 cursor-pointer"
+                                        className="flex items-center gap-2 w-full rounded px-1.5 py-1 hover:bg-surface-hover cursor-pointer"
                                     >
                                         <span
                                             className={cn(

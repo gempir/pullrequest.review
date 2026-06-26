@@ -53,7 +53,7 @@ function ShortcutRow({ label, shortcut, onChange }: { label: string; shortcut: S
                 onBlur={() => setIsRecording(false)}
                 className={cn(
                     "h-8 min-w-[96px] px-2.5 text-center text-[12px] transition-colors",
-                    isRecording ? "bg-accent text-accent-foreground" : "border border-border-muted bg-surface-1 hover:bg-surface-2",
+                    isRecording ? "bg-accent-solid text-accent-foreground" : "border border-border-muted bg-surface-1 hover:bg-surface-hover",
                 )}
             >
                 {isRecording ? "Press key..." : displayShortcut()}

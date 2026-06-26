@@ -43,8 +43,8 @@ describe("pull request summary comment header", () => {
         expect(html.split('aria-label="Copy comment link"').length - 1).toBe(1);
         expect(html.indexOf("<a") >= 0).toBe(true);
         expect(html.indexOf("</a>") < html.indexOf('aria-label="Copy comment link"')).toBe(true);
-        expect(html).toContain('class="relative border-y border-r border-[var(--diffs-bg,var(--background))] bg-surface-1"');
-        expect(html).toContain('class="border-b border-[var(--diffs-bg,var(--background))]" data-component="thread-card-header"');
+        expect(html).toContain('class="relative border border-comment-border bg-comment"');
+        expect(html).toContain('class="border-b border-comment-border" data-component="thread-card-header"');
         expect(html).toContain('class="pointer-events-none flex size-4 shrink-0 items-center justify-center"');
         expect(html).toContain("size-3.5");
         expect(html).toContain("size-[15px]");

@@ -33,7 +33,7 @@ export function compareFileTreeSortEntries(left: FileTreeSortLikeEntry, right: F
 }
 
 export function orderFileTreePaths(paths: readonly string[], pinnedFirstPath?: string) {
-    return [...paths].sort((leftPath, rightPath) => {
+    return paths.toSorted((leftPath, rightPath) => {
         if (pinnedFirstPath) {
             if (leftPath === pinnedFirstPath && rightPath !== pinnedFirstPath) return -1;
             if (rightPath === pinnedFirstPath && leftPath !== pinnedFirstPath) return 1;

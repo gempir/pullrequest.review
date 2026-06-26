@@ -105,15 +105,17 @@ function normalizePullRequestRecord(record: unknown): {
     };
 }
 
+const rootListDateFormatter = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+});
+
 function formatRootListDate(value?: string) {
     if (!value) return null;
     const parsed = Date.parse(value);
     if (Number.isNaN(parsed)) return null;
-    return new Intl.DateTimeFormat(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-    }).format(parsed);
+    return rootListDateFormatter.format(parsed);
 }
 
 function getDateSortTimestamp(value?: string) {
@@ -128,10 +130,10 @@ function normalizeWorkspaceLabel(workspace: string, hostDomain: string) {
         .replace(/^https?:\/\//i, "")
         .replace(/\/+$/, "");
     const hostVariants = new Set([hostDomain.toLowerCase(), `www.${hostDomain.toLowerCase()}`]);
-    const segments = normalized
-        .split("/")
-        .map((segment) => segment.trim())
-        .filter(Boolean);
+    const segments = normalized.split("/").flatMap((segment) => {
+        const trimmed = segment.trim();
+        return trimmed ? [trimmed] : [];
+    });
     while (segments.length > 0 && hostVariants.has(segments[0].toLowerCase())) {
         segments.shift();
     }
@@ -179,7 +181,7 @@ export function buildGroupedPullRequests(repoPullRequestRecords: unknown[], repo
     return Array.from(groupedByRepo.values())
         .map((entry) => ({
             ...entry,
-            pullRequests: [...entry.pullRequests].sort((a, b) => b.id - a.id),
+            pullRequests: entry.pullRequests.toSorted((a, b) => b.id - a.id),
         }))
         .sort((a, b) => {
             if (a.host !== b.host) return a.host.localeCompare(b.host);

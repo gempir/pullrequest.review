@@ -161,20 +161,21 @@ export function PrProvider({ children }: { children: ReactNode }) {
             ...prev,
             reposByHost: {
                 ...prev.reposByHost,
-                [host]: repos
-                    .filter((repo) => repo.host === host)
-                    .map((repo) => {
-                        const workspace = repo.workspace.trim();
-                        const repositorySlug = repo.repo.trim();
-                        return {
+                [host]: repos.flatMap((repo) => {
+                    if (repo.host !== host) return [];
+                    const workspace = repo.workspace.trim();
+                    const repositorySlug = repo.repo.trim();
+                    return [
+                        {
                             host,
                             workspace,
                             repo: repositorySlug,
                             fullName:
                                 typeof repo.fullName === "string" && repo.fullName.trim().length ? repo.fullName.trim() : `${workspace}/${repositorySlug}`,
                             displayName: typeof repo.displayName === "string" && repo.displayName.trim().length ? repo.displayName.trim() : repositorySlug,
-                        } satisfies RepoRef;
-                    }),
+                        } satisfies RepoRef,
+                    ];
+                }),
             },
         }));
     }, []);

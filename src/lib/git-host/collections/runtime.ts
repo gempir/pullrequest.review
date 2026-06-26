@@ -481,32 +481,32 @@ function getHostDataCollection<K extends HostDataCollectionKey>(key: K): HostDat
             if (!repositoryCollection) {
                 throw new Error("Repository collection is unavailable");
             }
-            return repositoryCollection as HostDataCollectionForKey<K>;
+            return repositoryCollection as unknown as HostDataCollectionForKey<K>;
         case "repoPullRequests":
             if (!repoPullRequestCollection) {
                 throw new Error("Repository pull request collection is unavailable");
             }
-            return repoPullRequestCollection as HostDataCollectionForKey<K>;
+            return repoPullRequestCollection as unknown as HostDataCollectionForKey<K>;
         case "pullRequestBundles":
             if (!pullRequestBundleCollection) {
                 throw new Error("Pull request bundle collection is unavailable");
             }
-            return pullRequestBundleCollection as HostDataCollectionForKey<K>;
+            return pullRequestBundleCollection as unknown as HostDataCollectionForKey<K>;
         case "pullRequestFileContexts":
             if (!pullRequestFileContextCollection) {
                 throw new Error("Pull request file context collection is unavailable");
             }
-            return pullRequestFileContextCollection as HostDataCollectionForKey<K>;
+            return pullRequestFileContextCollection as unknown as HostDataCollectionForKey<K>;
         case "pullRequestFileHistories":
             if (!pullRequestFileHistoryCollection) {
                 throw new Error("Pull request file history collection is unavailable");
             }
-            return pullRequestFileHistoryCollection as HostDataCollectionForKey<K>;
+            return pullRequestFileHistoryCollection as unknown as HostDataCollectionForKey<K>;
         case "pullRequestCommitRangeDiffs":
             if (!pullRequestCommitRangeDiffCollection) {
                 throw new Error("Pull request commit range diff collection is unavailable");
             }
-            return pullRequestCommitRangeDiffCollection as HostDataCollectionForKey<K>;
+            return pullRequestCommitRangeDiffCollection as unknown as HostDataCollectionForKey<K>;
         default: {
             const exhaustiveCheck: never = key;
             throw new Error(`Unsupported host data collection key: ${exhaustiveCheck}`);
@@ -698,7 +698,10 @@ export function getPullRequestCommitRangeDiffCollection({
     ensureCollectionsInitialized();
     const normalizedBase = baseCommitHash.trim();
     const normalizedHead = headCommitHash.trim();
-    const normalizedSelectedHashes = selectedCommitHashes.map((hash) => hash.trim()).filter(Boolean);
+    const normalizedSelectedHashes = selectedCommitHashes.flatMap((hash) => {
+        const trimmed = hash.trim();
+        return trimmed ? [trimmed] : [];
+    });
     if (!normalizedBase || !normalizedHead) {
         throw new Error("Base and head commit hashes are required to fetch commit range diff.");
     }
@@ -831,7 +834,7 @@ export async function savePullRequestFileContextRecord({
 
 export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHost: ReposByHost }) {
     ensureCollectionsInitialized();
-    const normalizedHosts = [...data.hosts].sort();
+    const normalizedHosts = data.hosts.toSorted();
     const normalizedReposByHost = normalizeReposByHost(data.reposByHost);
     const serializedRepos = stringifyCollectionRepos(normalizedReposByHost);
     const scopeId = `repo-prs:${normalizedHosts.join(",")}:${serializedRepos}`;
@@ -888,22 +891,23 @@ export function getRepoPullRequestCollection(data: { hosts: GitHost[]; reposByHo
 
             const nextRecords = response.flatMap(({ repo, pullRequests }) => {
                 if (!isValidRepoRef(repo)) return [] as PersistedRepoPullRequestRecord[];
-                return pullRequests
-                    .filter((pullRequest) => isValidPullRequestSummary(pullRequest))
-                    .map((pullRequest) => serializeRepoPullRequestRecord(repo, normalizePullRequestSummary(pullRequest)));
+                return pullRequests.flatMap((pullRequest) =>
+                    isValidPullRequestSummary(pullRequest) ? [serializeRepoPullRequestRecord(repo, normalizePullRequestSummary(pullRequest))] : [],
+                );
             });
 
             const nextIds = new Set(nextRecords.map((record) => record.id));
 
-            for (const record of nextRecords) {
-                await upsertRecord("repoPullRequests", record);
-            }
-
+            const staleRecordIds: string[] = [];
             for (const existingRecord of collection.values()) {
                 if (!selectedRepoKeys.has(existingRecord.repoKey)) continue;
                 if (nextIds.has(existingRecord.id)) continue;
-                await deleteRecord("repoPullRequests", existingRecord.id);
+                staleRecordIds.push(existingRecord.id);
             }
+            await Promise.all([
+                ...nextRecords.map((record) => upsertRecord("repoPullRequests", record)),
+                ...staleRecordIds.map((recordId) => deleteRecord("repoPullRequests", recordId)),
+            ]);
 
             utils.lastError = undefined;
             utils.dataUpdatedAt = Date.now();
@@ -943,22 +947,26 @@ export function getRepositoryCollection(host: GitHost) {
         try {
             const repositories = await listRepositoriesForHost({ host });
             const timestamp = Date.now();
-            const nextRecords = repositories.map(normalizeRepoRef).map((repository) => ({
-                ...repository,
-                id: `${repository.host}:${repository.fullName}`,
-                fetchedAt: timestamp,
-            }));
+            const nextRecords = repositories.map((repo) => {
+                const repository = normalizeRepoRef(repo);
+                return {
+                    ...repository,
+                    id: `${repository.host}:${repository.fullName}`,
+                    fetchedAt: timestamp,
+                };
+            });
             const nextIds = new Set(nextRecords.map((record) => record.id));
 
-            for (const record of nextRecords) {
-                await upsertRecord("repositories", record);
-            }
-
+            const staleRecordIds: string[] = [];
             for (const existingRecord of collection.values()) {
                 if (existingRecord.host !== host) continue;
                 if (nextIds.has(existingRecord.id)) continue;
-                await deleteRecord("repositories", existingRecord.id);
+                staleRecordIds.push(existingRecord.id);
             }
+            await Promise.all([
+                ...nextRecords.map((record) => upsertRecord("repositories", record)),
+                ...staleRecordIds.map((recordId) => deleteRecord("repositories", recordId)),
+            ]);
 
             utils.lastError = undefined;
             utils.dataUpdatedAt = Date.now();

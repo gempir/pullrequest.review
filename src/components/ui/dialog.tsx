@@ -25,7 +25,7 @@ function DialogContent({ className, children, ...props }: React.ComponentProps<t
             <DialogPrimitive.Content
                 data-slot="dialog-content"
                 className={cn(
-                    "bg-background border border-border fixed left-[50%] top-[50%] z-50 grid w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] shadow-lg",
+                    "bg-popover border border-border-muted fixed left-[50%] top-[50%] z-50 grid w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] shadow-lg",
                     className,
                 )}
                 {...props}

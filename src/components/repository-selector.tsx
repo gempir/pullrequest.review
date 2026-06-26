@@ -98,7 +98,7 @@ export function RepositorySelector({
                                 return (
                                     <label
                                         key={repo.fullName}
-                                        className="flex cursor-pointer items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-[13px] transition-colors hover:border-border-muted hover:bg-surface-2"
+                                        className="flex cursor-pointer items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-[13px] transition-colors hover:border-border-muted hover:bg-surface-hover"
                                     >
                                         <input
                                             type="checkbox"

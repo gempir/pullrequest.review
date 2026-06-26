@@ -18,7 +18,7 @@ function CommentAvatar({ name, url }: { name?: string; url?: string }) {
     }
     return (
         <span
-            className="size-10 rounded-full shrink-0 border border-border-muted bg-surface-2 text-[11px] text-muted-foreground flex items-center justify-center"
+            className="size-10 rounded-full shrink-0 border border-comment-border bg-comment-muted text-[11px] text-muted-foreground flex items-center justify-center"
             aria-hidden
         >
             {initials(name)}

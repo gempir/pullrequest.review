@@ -47,7 +47,7 @@ export function ReviewCommitScopeControl({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 min-w-[88px] justify-between rounded-sm border border-transparent bg-[var(--diffs-bg,var(--background))] px-2 text-[11px] text-muted-foreground hover:border-border hover:bg-surface-1 hover:text-foreground focus-visible:border-transparent focus-visible:ring-0"
+                        className="h-7 min-w-[88px] justify-between rounded-sm border border-transparent bg-[var(--diffs-bg,var(--background))] px-2 text-[11px] text-muted-foreground hover:border-border hover:bg-surface-hover hover:text-foreground focus-visible:border-transparent focus-visible:ring-0"
                     >
                         <span className="truncate">{scopeLabel}</span>
                         <GitCompare className="ml-1 size-3" aria-hidden="true" />
@@ -78,7 +78,11 @@ export function ReviewCommitScopeControl({
                                             key={option.hash}
                                             className={cn(
                                                 "items-start gap-2 px-2 py-1 rounded-none border-t border-border/30 first:border-t-0 cursor-crosshair",
-                                                selected ? "bg-status-renamed/20 focus:bg-status-renamed/25" : inRange ? "bg-surface-1 focus:bg-surface-2" : "",
+                                                selected
+                                                    ? "bg-status-renamed/20 focus:bg-status-renamed/25"
+                                                    : inRange
+                                                      ? "bg-surface-1 focus:bg-surface-hover"
+                                                      : "",
                                             )}
                                             onSelect={(event) => {
                                                 event.preventDefault();

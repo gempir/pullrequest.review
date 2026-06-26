@@ -282,13 +282,15 @@ async function mapWithConcurrency<TInput, TOutput>(values: TInput[], concurrency
     const results = new Array<TOutput>(values.length);
     let index = 0;
 
-    const workers = Array.from({ length: safeConcurrency }, async () => {
-        while (index < values.length) {
-            const current = index;
-            index += 1;
-            results[current] = await mapper(values[current], current);
-        }
-    });
+    const runNext = async (): Promise<void> => {
+        const current = index;
+        index += 1;
+        if (current >= values.length) return;
+        results[current] = await mapper(values[current], current);
+        return runNext();
+    };
+
+    const workers = Array.from({ length: safeConcurrency }, () => runNext());
 
     await Promise.all(workers);
     return results;
@@ -654,7 +656,7 @@ function mapHistory(pr: GithubPull, issueComments: GithubIssueComment[], reviews
         if (mapped) events.push(mapped);
     }
 
-    const mergedTimestamps = new Set(events.filter((event) => event.type === "merged" && event.createdAt).map((event) => event.createdAt as string));
+    const mergedTimestamps = new Set(events.flatMap((event) => (event.type === "merged" && event.createdAt ? [event.createdAt] : [])));
     const dedupedEvents = events.filter((event) => !(event.type === "closed" && event.createdAt && mergedTimestamps.has(event.createdAt)));
 
     dedupedEvents.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
@@ -1461,7 +1463,11 @@ export const githubClient: GitHostClient = {
             }
 
             const reviewThreads = threadLookupPayload.data?.repository?.pullRequest?.reviewThreads;
-            thread = reviewThreads?.nodes?.find((candidate) => candidate.comments?.nodes?.some((threadComment) => threadComment.id?.trim() === commentNodeId));
+            for (const candidate of reviewThreads?.nodes ?? []) {
+                if (!candidate.comments?.nodes?.some((threadComment) => threadComment.id?.trim() === commentNodeId)) continue;
+                thread = candidate;
+                break;
+            }
             if (thread) {
                 break;
             }

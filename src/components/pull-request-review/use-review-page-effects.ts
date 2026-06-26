@@ -43,7 +43,7 @@ export function useCopyTimeoutCleanup({
 export function useDiffHighlighterState({ fileDiffs, theme, preloadLanguages }: { fileDiffs: FileDiffMetadata[]; theme: string; preloadLanguages: string[] }) {
     const workerPool = useWorkerPool();
     const [diffPlainTextFallback, setDiffPlainTextFallback] = useState(false);
-    const preloadLanguagesKey = useMemo(() => [...new Set(preloadLanguages)].sort().join(","), [preloadLanguages]);
+    const preloadLanguagesKey = useMemo(() => Array.from(new Set(preloadLanguages)).toSorted().join(","), [preloadLanguages]);
     const languagesForPreload = useMemo(() => {
         if (!preloadLanguagesKey) return [];
         return preloadLanguagesKey.split(",");
@@ -56,7 +56,7 @@ export function useDiffHighlighterState({ fileDiffs, theme, preloadLanguages }: 
         }
 
         setDiffPlainTextFallback(false);
-        if (!workerPool || !workerPool.isWorkingPool()) {
+        if (!workerPool?.isWorkingPool()) {
             setDiffPlainTextFallback(true);
             return;
         }

@@ -234,7 +234,7 @@ export function useReviewFileVersions({
                 });
             }
             if (!remote) return options;
-            const historicalEntries = [...remote.entries].sort((a, b) => {
+            const historicalEntries = remote.entries.toSorted((a, b) => {
                 const timeA = a.commitDate ? Date.parse(a.commitDate) : Number.NaN;
                 const timeB = b.commitDate ? Date.parse(b.commitDate) : Number.NaN;
                 if (Number.isNaN(timeA) && Number.isNaN(timeB)) return 0;

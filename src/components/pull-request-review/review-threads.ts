@@ -26,7 +26,7 @@ function sortByCommentCreatedAt(left: { comment: { createdAt?: string } }, right
 
 export function sortThreadsByCreatedAt<T extends { root: { comment: { createdAt?: string } } }>(threads: T[]) {
     // Return a new array so caller-owned collections are never mutated by sorting.
-    return [...threads].sort((left, right) => sortByCommentCreatedAt(left.root, right.root));
+    return threads.toSorted((left, right) => sortByCommentCreatedAt(left.root, right.root));
 }
 
 function buildThreadNode(comment: PullRequestComment, childrenByParentId: Map<number, PullRequestComment[]>, visitedIds: Set<number>): CommentThreadNode {

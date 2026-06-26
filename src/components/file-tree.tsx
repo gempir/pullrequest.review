@@ -298,7 +298,7 @@ function getFlattenedDirectoryNode(node: TreeIndexNode) {
     let current = node;
     while (current.children.size === 1) {
         const child = current.children.values().next().value;
-        if (!child || child.kind !== "directory") break;
+        if (child?.kind !== "directory") break;
         current = child;
     }
     return current;

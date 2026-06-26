@@ -243,13 +243,15 @@ async function mapWithConcurrency<TInput, TOutput>(values: TInput[], concurrency
     const results = new Array<TOutput>(values.length);
     let index = 0;
 
-    const workers = Array.from({ length: safeConcurrency }, async () => {
-        while (index < values.length) {
-            const current = index;
-            index += 1;
-            results[current] = await mapper(values[current], current);
-        }
-    });
+    const runNext = async (): Promise<void> => {
+        const current = index;
+        index += 1;
+        if (current >= values.length) return;
+        results[current] = await mapper(values[current], current);
+        return runNext();
+    };
+
+    const workers = Array.from({ length: safeConcurrency }, () => runNext());
 
     await Promise.all(workers);
     return results;
@@ -968,7 +970,10 @@ export const bitbucketClient: GitHostClient = {
             prRef,
             baseCommitHash: normalizedBase,
             headCommitHash: normalizedHead,
-            selectedCommitHashes: selectedCommitHashes.map((hash) => hash.trim()).filter(Boolean),
+            selectedCommitHashes: selectedCommitHashes.flatMap((hash) => {
+                const trimmed = hash.trim();
+                return trimmed ? [trimmed] : [];
+            }),
             diff: diffText,
             diffstat,
         };

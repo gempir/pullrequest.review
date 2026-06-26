@@ -23,7 +23,7 @@ export function RepositorySelector({
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const autoRefetchHostRef = useRef<GitHost | null>(null);
 
-    const initialSelection = useMemo(() => [...initialSelected.map((repo) => repo.fullName)].sort(), [initialSelected]);
+    const initialSelection = useMemo(() => initialSelected.map((repo) => repo.fullName).toSorted(), [initialSelected]);
     const initialSelectionKey = initialSelection.join("|");
 
     useEffect(() => {

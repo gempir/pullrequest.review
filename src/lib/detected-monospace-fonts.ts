@@ -30,12 +30,11 @@ const DETECTABLE_MONO_FONT_CANDIDATES: ReadonlyArray<{ name: string }> = [
 ];
 
 const builtinMonoFontNames = new Set(
-    MONO_FONT_FAMILY_OPTIONS.map((option) => {
+    MONO_FONT_FAMILY_OPTIONS.flatMap((option) => {
         const cssFamily = fontFamilyToCss(option.value);
         const first = cssFamily.split(",")[0]?.trim();
-        if (!first) return null;
-        return first.replace(/^["']|["']$/g, "").toLowerCase();
-    }).filter(Boolean) as string[],
+        return first ? [first.replace(/^["']|["']$/g, "").toLowerCase()] : [];
+    }),
 );
 
 let cachedDetectedFonts: ReadonlyArray<DetectedMonospaceFontOption> | null = null;
@@ -74,22 +73,23 @@ async function detectMonospaceFonts(): Promise<ReadonlyArray<DetectedMonospaceFo
         return cachedDetectedFonts;
     }
     if (detectionPromise) return detectionPromise;
-    detectionPromise = (async () => {
+    const promise = (async () => {
         try {
             await document.fonts.ready;
         } catch {
             // Ignore readiness failures; we'll still attempt detection.
         }
-        const detected = DETECTABLE_MONO_FONT_CANDIDATES.filter((candidate) => {
-            if (builtinMonoFontNames.has(candidate.name.toLowerCase())) return false;
-            return checkFontAvailable(candidate.name);
-        }).map((candidate) => buildDetectedOption(candidate.name));
-        const sorted = detected.sort((a, b) => a.label.localeCompare(b.label));
+        const detected = DETECTABLE_MONO_FONT_CANDIDATES.flatMap((candidate) => {
+            if (builtinMonoFontNames.has(candidate.name.toLowerCase())) return [];
+            return checkFontAvailable(candidate.name) ? [buildDetectedOption(candidate.name)] : [];
+        });
+        const sorted = detected.toSorted((a, b) => a.label.localeCompare(b.label));
         cachedDetectedFonts = sorted;
         detectionPromise = null;
         return sorted;
     })();
-    return detectionPromise;
+    detectionPromise = promise;
+    return promise;
 }
 
 export function useDetectedMonospaceFontOptions(): ReadonlyArray<DetectedMonospaceFontOption> {

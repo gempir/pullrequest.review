@@ -20,6 +20,7 @@ import {
     hashString,
     type InlineCommentLineTarget,
     type SingleFileAnnotation,
+    type SingleFileAnnotationMetadata,
 } from "./review-page-model";
 import type { CommentThread } from "./review-threads";
 import { buildCommentThreads, flattenThread, normalizeCommentThreads, sortThreadsByCreatedAt } from "./review-threads";
@@ -115,7 +116,7 @@ export function useReviewPageDerived({
     settingsTreeItems: Array<{ name: string; path: string }>;
     inlineComment: InlineCommentDraft | null;
     theme: Parameters<typeof useDiffHighlighterState>[0]["theme"];
-    compactDiffOptions: FileDiffOptions<undefined>;
+    compactDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined>;
     onOpenInlineCommentDraft: (path: string, target: InlineCommentLineTarget) => void;
     fullFileContexts: Record<string, { oldLines: string[]; newLines: string[] }>;
 }) {
@@ -554,7 +555,7 @@ export function useReviewPageDerived({
         return buildFileAnnotations(selectedFilePath);
     }, [buildFileAnnotations, selectedFilePath]);
 
-    const singleFileDiffOptions = useMemo<FileDiffOptions<undefined>>(
+    const singleFileDiffOptions = useMemo<FileDiffOptions<SingleFileAnnotationMetadata | undefined>>(
         () => ({
             ...compactDiffOptions,
             onLineClick: undefined,

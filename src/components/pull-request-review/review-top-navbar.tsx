@@ -1,20 +1,6 @@
-import {
-    Check,
-    ChevronRight,
-    Copy,
-    Github,
-    GitMerge,
-    GlassWater,
-    Loader2,
-    Menu,
-    MessageSquare,
-    Minus,
-    PenSquare,
-    TriangleAlert,
-    X,
-    XCircle,
-} from "lucide-react";
+import { Check, ChevronRight, Copy, GitMerge, GlassWater, Loader2, Menu, MessageSquare, Minus, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
+import { GitHostIcon } from "@/components/git-host-icon";
 import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
 import { aggregateBuildState, buildRunningTime, buildStatusBubbleClass, buildStatusLabel } from "@/components/pull-request-review/review-formatters";
 import { Timestamp } from "@/components/timestamp";
@@ -253,7 +239,7 @@ export function ReviewTopNavbar({
                                 {pullRequestUrl ? (
                                     <DropdownMenuItem asChild className="cursor-pointer py-2 text-[13px] focus:bg-surface-hover">
                                         <a href={pullRequestUrl} target="_blank" rel="noreferrer">
-                                            {host === "github" ? <Github className="size-4" /> : <GlassWater className="size-4" />}
+                                            {host === "github" ? <GitHostIcon host="github" className="size-4" /> : <GlassWater className="size-4" />}
                                             {host === "github" ? "Open in GitHub" : "Open in Bitbucket"}
                                         </a>
                                     </DropdownMenuItem>

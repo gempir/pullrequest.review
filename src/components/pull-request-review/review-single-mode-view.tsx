@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { fileAnchorId } from "@/lib/file-anchors";
 import type { PullRequestBundle } from "@/lib/git-host/types";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
-import type { SingleFileAnnotation } from "./review-page-model";
+import type { SingleFileAnnotation, SingleFileAnnotationMetadata } from "./review-page-model";
 import type { CommentThread } from "./review-threads";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
@@ -35,7 +35,7 @@ type ReviewSingleModeViewProps = {
     fileLineStats: Map<string, { added: number; removed: number }>;
     diffHighlighterReady: boolean;
     diffTypographyStyle: CSSProperties;
-    singleFileDiffOptions: FileDiffOptions<undefined>;
+    singleFileDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined>;
     singleFileAnnotations: SingleFileAnnotation[];
     selectedFileLevelThreads: CommentThread[];
     workspace: string;

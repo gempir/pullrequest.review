@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { clearExpiredDataNow, type DataCollectionsDebugSnapshot, getDataCollectionsDebugSnapshot, type StorageTier } from "@/lib/data/query-collections";
 import { getReviewPerfSnapshot, type ReviewPerfSnapshot } from "@/lib/review-performance/metrics";
 
+const STORAGE_TIER_ORDER: StorageTier[] = ["state", "permanent"];
+
 function formatBytes(bytes: number | null) {
     if (bytes === null || !Number.isFinite(bytes)) return "n/a";
     if (bytes < 1024) return `${bytes} B`;
@@ -98,8 +100,6 @@ export function StorageTab() {
         return <div className="text-[12px] text-muted-foreground">Loading storage diagnostics...</div>;
     }
 
-    const tierOrder: StorageTier[] = ["state", "permanent"];
-
     return (
         <div className="max-w-4xl space-y-4">
             <div className="flex items-center justify-between gap-2">
@@ -142,7 +142,7 @@ export function StorageTab() {
                     <section className="space-y-2">
                         <h3 className="text-[12px] font-medium">Tier Summary</h3>
                         <div className="text-[12px]">
-                            {tierOrder.map((tier) => {
+                            {STORAGE_TIER_ORDER.map((tier) => {
                                 const summary = state.snapshot?.tiers[tier];
                                 return summary ? (
                                     <div key={tier} className="grid grid-cols-1 gap-2 p-2 md:grid-cols-5">

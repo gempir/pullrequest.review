@@ -32,10 +32,7 @@ export function ReviewCommitScopeControl({
     const selectedSet = new Set(selectedCommitHashes);
     const selectedCount = selectedSet.size;
     const scopeLabel = mode === "full" ? "All Changes" : `${selectedCount} Commits`;
-    const selectedIndices = commitOptions
-        .map((option, index) => (selectedSet.has(option.hash) ? index : -1))
-        .filter((index) => index >= 0)
-        .sort((a, b) => a - b);
+    const selectedIndices = commitOptions.flatMap((option, index) => (selectedSet.has(option.hash) ? [index] : [])).sort((a, b) => a - b);
     const rangeStart = selectedIndices[0] ?? -1;
     const rangeEnd = selectedIndices[selectedIndices.length - 1] ?? -1;
 

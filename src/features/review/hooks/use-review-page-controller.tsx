@@ -8,7 +8,13 @@ import { ReviewPageDiffContent } from "@/components/pull-request-review/review-p
 import { ReviewPageAuthRequiredState, ReviewPageErrorState } from "@/components/pull-request-review/review-page-guards";
 import { ReviewPageLoadingView } from "@/components/pull-request-review/review-page-loading-view";
 import { ReviewPageMainView } from "@/components/pull-request-review/review-page-main-view";
-import { getCommentPath, hashString, type InlineCommentLineTarget, type SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
+import {
+    getCommentPath,
+    hashString,
+    type InlineCommentLineTarget,
+    type SingleFileAnnotation,
+    type SingleFileAnnotationMetadata,
+} from "@/components/pull-request-review/review-page-model";
 import { buildCommentThreads } from "@/components/pull-request-review/review-threads";
 import { useInlineCommentDrafts } from "@/components/pull-request-review/use-inline-comment-drafts";
 import { useReviewLayoutPreferences } from "@/components/pull-request-review/use-review-layout-preferences";
@@ -293,7 +299,7 @@ export function useReviewPageController({
     });
     const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
     const libOptions = toLibraryOptions(options);
-    const compactDiffOptions = useMemo<FileDiffOptions<undefined>>(
+    const compactDiffOptions = useMemo<FileDiffOptions<SingleFileAnnotationMetadata | undefined>>(
         () => ({
             ...libOptions,
             hunkSeparators: options.hunkSeparators,

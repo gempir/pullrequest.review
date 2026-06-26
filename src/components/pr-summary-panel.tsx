@@ -1336,12 +1336,12 @@ export function PullRequestSummaryPanel({
             commentHistoryById.set(commentId, event);
         }
     }
-    const fallbackCommentEvents: PullRequestHistoryEvent[] = bundle.comments
-        .filter((comment) => Boolean(comment.inline?.path))
-        .map((comment) => {
-            const line = comment.inline?.to ?? comment.inline?.from;
-            const side = comment.inline?.from ? "deletions" : "additions";
-            return {
+    const fallbackCommentEvents: PullRequestHistoryEvent[] = bundle.comments.flatMap((comment) => {
+        if (!comment.inline?.path) return [];
+        const line = comment.inline?.to ?? comment.inline?.from;
+        const side = comment.inline?.from ? "deletions" : "additions";
+        return [
+            {
                 id: `fallback-comment-${comment.id}`,
                 type: "comment",
                 createdAt: comment.createdAt,
@@ -1358,8 +1358,9 @@ export function PullRequestSummaryPanel({
                     side,
                     isInline: Boolean(comment.inline?.path),
                 },
-            };
-        });
+            },
+        ];
+    });
     const resolvedHistory: PullRequestHistoryEvent[] = [...baseHistory];
     for (const fallbackEvent of fallbackCommentEvents) {
         const commentId = fallbackEvent.comment?.id;

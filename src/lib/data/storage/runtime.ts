@@ -1,4 +1,4 @@
-import { type Collection, createCollection, localOnlyCollectionOptions } from "@tanstack/db";
+import { type Collection, type CollectionConfig, createCollection, localOnlyCollectionOptions } from "@tanstack/db";
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 
@@ -223,6 +223,16 @@ let reviewLayoutStateCollection: Collection<ReviewLayoutStateRecord, string> | n
 let inlineCommentDraftsCollection: Collection<InlineCommentDraftRecord, string> | null = null;
 let inlineCommentActiveDraftCollection: Collection<InlineCommentActiveDraftRecord, string> | null = null;
 let appMetadataCollection: Collection<AppMetadataRecord, string> | null = null;
+
+function createRxdbBackedCollection<TRecord extends object>(id: string, rxCollection: unknown): Collection<TRecord, string> {
+    return createCollection(
+        rxdbCollectionOptions<TRecord>({
+            id,
+            rxCollection: rxCollection as never,
+            startSync: true,
+        }) as unknown as CollectionConfig<TRecord, string>,
+    );
+}
 
 function approxRecordBytes(record: object) {
     return new TextEncoder().encode(JSON.stringify(record)).length;
@@ -500,13 +510,13 @@ async function initRxdbCollections() {
         },
     } as const;
 
-    for (const [collectionName, collectionSchema] of Object.entries(collectionDefinitions)) {
-        const existingCollections = database.collections as Record<string, (typeof database.collections)[string]>;
-        if (existingCollections[collectionName]) continue;
+    const existingCollections = database.collections as Record<string, (typeof database.collections)[string]>;
+    const missingCollections = Object.fromEntries(
+        Object.entries(collectionDefinitions).filter(([collectionName]) => !existingCollections[collectionName]),
+    ) as Partial<typeof collectionDefinitions>;
+    if (Object.keys(missingCollections).length > 0) {
         try {
-            await database.addCollections({
-                [collectionName]: collectionSchema,
-            });
+            await database.addCollections(missingCollections);
         } catch (error) {
             if (!isRxErrorCode(error, "COL23")) {
                 throw error;
@@ -520,61 +530,28 @@ async function initRxdbCollections() {
         throw new Error(`Data RxDB collections unavailable after init: ${missingCollectionNames.join(", ")}`);
     }
 
-    appPreferencesCollection = createCollection(
-        rxdbCollectionOptions<AppPreferenceRecord>({
-            id: APP_PREFERENCES_COLLECTION_ID,
-            rxCollection: collections[APP_PREFERENCES_COLLECTION_NAME],
-            startSync: true,
-        }),
+    appPreferencesCollection = createRxdbBackedCollection<AppPreferenceRecord>(APP_PREFERENCES_COLLECTION_ID, collections[APP_PREFERENCES_COLLECTION_NAME]);
+    reviewViewedStateCollection = createRxdbBackedCollection<ReviewViewedStateRecord>(
+        REVIEW_VIEWED_STATE_COLLECTION_ID,
+        collections[REVIEW_VIEWED_STATE_COLLECTION_NAME],
     );
-
-    reviewViewedStateCollection = createCollection(
-        rxdbCollectionOptions<ReviewViewedStateRecord>({
-            id: REVIEW_VIEWED_STATE_COLLECTION_ID,
-            rxCollection: collections[REVIEW_VIEWED_STATE_COLLECTION_NAME],
-            startSync: true,
-        }),
+    reviewDirectoryStateCollection = createRxdbBackedCollection<ReviewDirectoryStateRecord>(
+        REVIEW_DIRECTORY_STATE_COLLECTION_ID,
+        collections[REVIEW_DIRECTORY_STATE_COLLECTION_NAME],
     );
-
-    reviewDirectoryStateCollection = createCollection(
-        rxdbCollectionOptions<ReviewDirectoryStateRecord>({
-            id: REVIEW_DIRECTORY_STATE_COLLECTION_ID,
-            rxCollection: collections[REVIEW_DIRECTORY_STATE_COLLECTION_NAME],
-            startSync: true,
-        }),
+    reviewLayoutStateCollection = createRxdbBackedCollection<ReviewLayoutStateRecord>(
+        REVIEW_LAYOUT_STATE_COLLECTION_ID,
+        collections[REVIEW_LAYOUT_STATE_COLLECTION_NAME],
     );
-
-    reviewLayoutStateCollection = createCollection(
-        rxdbCollectionOptions<ReviewLayoutStateRecord>({
-            id: REVIEW_LAYOUT_STATE_COLLECTION_ID,
-            rxCollection: collections[REVIEW_LAYOUT_STATE_COLLECTION_NAME],
-            startSync: true,
-        }),
+    inlineCommentDraftsCollection = createRxdbBackedCollection<InlineCommentDraftRecord>(
+        INLINE_COMMENT_DRAFTS_COLLECTION_ID,
+        collections[INLINE_COMMENT_DRAFTS_COLLECTION_NAME],
     );
-
-    inlineCommentDraftsCollection = createCollection(
-        rxdbCollectionOptions<InlineCommentDraftRecord>({
-            id: INLINE_COMMENT_DRAFTS_COLLECTION_ID,
-            rxCollection: collections[INLINE_COMMENT_DRAFTS_COLLECTION_NAME],
-            startSync: true,
-        }),
+    inlineCommentActiveDraftCollection = createRxdbBackedCollection<InlineCommentActiveDraftRecord>(
+        INLINE_COMMENT_ACTIVE_DRAFT_COLLECTION_ID,
+        collections[INLINE_COMMENT_ACTIVE_DRAFT_COLLECTION_NAME],
     );
-
-    inlineCommentActiveDraftCollection = createCollection(
-        rxdbCollectionOptions<InlineCommentActiveDraftRecord>({
-            id: INLINE_COMMENT_ACTIVE_DRAFT_COLLECTION_ID,
-            rxCollection: collections[INLINE_COMMENT_ACTIVE_DRAFT_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
-
-    appMetadataCollection = createCollection(
-        rxdbCollectionOptions<AppMetadataRecord>({
-            id: APP_METADATA_COLLECTION_ID,
-            rxCollection: collections[APP_METADATA_COLLECTION_NAME],
-            startSync: true,
-        }),
-    );
+    appMetadataCollection = createRxdbBackedCollection<AppMetadataRecord>(APP_METADATA_COLLECTION_ID, collections[APP_METADATA_COLLECTION_NAME]);
 
     await Promise.all([
         appPreferencesCollection.preload(),
@@ -666,7 +643,7 @@ async function clearLegacyLocalStorageKeys() {
         const keys: string[] = [];
         for (let index = 0; index < window.localStorage.length; index += 1) {
             const key = window.localStorage.key(index);
-            if (!key || !key.startsWith(LOCAL_STORAGE_RESET_PREFIX)) continue;
+            if (!key?.startsWith(LOCAL_STORAGE_RESET_PREFIX)) continue;
             keys.push(key);
         }
 
@@ -904,7 +881,7 @@ export function writeHostPreferencesRecord(data: { activeHost: GitHost; reposByH
 
 export function readBitbucketAuthCredential() {
     const record = readPermanentRecord<Omit<BitbucketAuthCredentialRecord, keyof BaseCollectionRecord | "id">>("bitbucket");
-    if (!record || record.host !== "bitbucket") return null;
+    if (record?.host !== "bitbucket") return null;
     if (typeof record.email !== "string" || typeof record.apiToken !== "string") return null;
     return {
         email: record.email,
@@ -930,7 +907,7 @@ export function clearBitbucketAuthCredential() {
 
 export function readGithubAuthCredential() {
     const record = readPermanentRecord<Omit<GithubAuthCredentialRecord, keyof BaseCollectionRecord | "id">>("github");
-    if (!record || record.host !== "github") return null;
+    if (record?.host !== "github") return null;
     if (typeof record.token !== "string") return null;
     return {
         token: record.token,
@@ -1116,13 +1093,13 @@ export function listInlineCommentDrafts(scopeId: string): Array<InlineCommentDra
 }
 
 async function sweepExpiredCollection<T extends { id: string; expiresAt: number | null }>(collection: Collection<T, string>, now: number, label: string) {
-    let removed = 0;
+    const expiredRecordIds: string[] = [];
     for (const record of collection.values()) {
         if (!isExpiredRecord(record, now)) continue;
-        await deleteRecord(collection, record.id, `${label}:${record.id}`);
-        removed += 1;
+        expiredRecordIds.push(record.id);
     }
-    return removed;
+    await Promise.all(expiredRecordIds.map((recordId) => deleteRecord(collection, recordId, `${label}:${recordId}`)));
+    return expiredRecordIds.length;
 }
 
 async function sweepExpiredStateCollections(now = Date.now()) {
@@ -1140,17 +1117,19 @@ async function sweepExpiredStateCollections(now = Date.now()) {
 type AppCollectionSummary = {
     name: string;
     tier: StorageTier;
-    collection: Collection<BaseCollectionRecord, string>;
+    collection: {
+        values: () => Iterable<BaseCollectionRecord>;
+    };
 };
 
 function getAppCollectionSummaries(): AppCollectionSummary[] {
     return [
-        { name: "appPreferences", tier: "permanent", collection: getAppPreferencesCollection() as Collection<BaseCollectionRecord, string> },
-        { name: "reviewViewedState", tier: "state", collection: getReviewViewedStateCollection() as Collection<BaseCollectionRecord, string> },
-        { name: "reviewDirectoryState", tier: "state", collection: getReviewDirectoryStateCollection() as Collection<BaseCollectionRecord, string> },
-        { name: "reviewLayoutState", tier: "state", collection: getReviewLayoutStateCollection() as Collection<BaseCollectionRecord, string> },
-        { name: "inlineCommentDrafts", tier: "state", collection: getInlineCommentDraftsCollection() as Collection<BaseCollectionRecord, string> },
-        { name: "inlineCommentActiveDraft", tier: "state", collection: getInlineCommentActiveDraftCollection() as Collection<BaseCollectionRecord, string> },
+        { name: "appPreferences", tier: "permanent", collection: getAppPreferencesCollection() },
+        { name: "reviewViewedState", tier: "state", collection: getReviewViewedStateCollection() },
+        { name: "reviewDirectoryState", tier: "state", collection: getReviewDirectoryStateCollection() },
+        { name: "reviewLayoutState", tier: "state", collection: getReviewLayoutStateCollection() },
+        { name: "inlineCommentDrafts", tier: "state", collection: getInlineCommentDraftsCollection() },
+        { name: "inlineCommentActiveDraft", tier: "state", collection: getInlineCommentActiveDraftCollection() },
     ];
 }
 

@@ -4,7 +4,7 @@ import type { CSSProperties, ReactNode, RefObject } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import type { FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { ReviewAllModeView } from "@/components/pull-request-review/review-all-mode-view";
-import type { InlineCommentLineTarget, SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
+import type { InlineCommentLineTarget, SingleFileAnnotation, SingleFileAnnotationMetadata } from "@/components/pull-request-review/review-page-model";
 import { ReviewSingleModeView } from "@/components/pull-request-review/review-single-mode-view";
 import { ReviewSummaryCommentComposer } from "@/components/pull-request-review/review-summary-comment-composer";
 import { SettingsPanelContentOnly } from "@/components/settings-menu";
@@ -35,7 +35,7 @@ type ReviewPageDiffContentProps = {
     areAllFilesViewed: boolean;
     diffHighlighterReady: boolean;
     diffTypographyStyle: CSSProperties;
-    singleFileDiffOptions: FileDiffOptions<undefined>;
+    singleFileDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined>;
     singleFileAnnotations: SingleFileAnnotation[];
     selectedFileLevelThreads: CommentThread[];
     workspace: string;
@@ -83,10 +83,10 @@ type ReviewPageDiffContentProps = {
     onToggleCollapsedFile: (path: string, next: boolean) => void;
     onOpenInlineDraftForPath: (path: string, target: InlineCommentLineTarget) => void;
     onDiffLineEnter: (
-        props: Parameters<NonNullable<FileDiffOptions<undefined>["onLineEnter"]>>[0],
+        props: Parameters<NonNullable<FileDiffOptions<SingleFileAnnotationMetadata | undefined>["onLineEnter"]>>[0],
         onOpenInlineDraft?: (target: InlineCommentLineTarget) => void,
     ) => void;
-    onDiffLineLeave: NonNullable<FileDiffOptions<undefined>["onLineLeave"]>;
+    onDiffLineLeave: NonNullable<FileDiffOptions<SingleFileAnnotationMetadata | undefined>["onLineLeave"]>;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     scrollElementRef: RefObject<HTMLDivElement | null>;
     pendingScrollPath: string | null;

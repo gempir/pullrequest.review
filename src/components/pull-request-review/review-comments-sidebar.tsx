@@ -68,7 +68,7 @@ export function ReviewCommentsSidebar({
         const filtered = (includeResolved ? threads : threads.filter((item) => !item.isResolved)).filter((item) =>
             !normalizedSearch ? true : searchableThreadText(item).includes(normalizedSearch),
         );
-        return [...filtered].sort((left, right) => timestampValue(right) - timestampValue(left));
+        return filtered.toSorted((left, right) => timestampValue(right) - timestampValue(left));
     }, [includeResolved, normalizedSearch, threads]);
 
     return (

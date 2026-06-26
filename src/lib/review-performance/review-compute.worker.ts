@@ -89,7 +89,7 @@ const workerScope = self as unknown as Worker;
 
 workerScope.onmessage = (event: MessageEvent<WorkerRequest>) => {
     const message = event.data;
-    if (!message || message.type !== "compute-review-derived") return;
+    if (message?.type !== "compute-review-derived") return;
 
     try {
         const result = computeReviewDerived(message.diffText, message.comments);

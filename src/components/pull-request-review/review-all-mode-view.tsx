@@ -9,7 +9,7 @@ import { DiffContextButton, type DiffContextState } from "@/components/pull-requ
 import { FileVersionSelect, type FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
 import { InlineDiffAnnotation } from "@/components/pull-request-review/inline-diff-annotation";
 import { ReviewDiffSettingsMenu } from "@/components/pull-request-review/review-diff-settings-menu";
-import type { InlineCommentLineTarget, SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
+import type { InlineCommentLineTarget, SingleFileAnnotation, SingleFileAnnotationMetadata } from "@/components/pull-request-review/review-page-model";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Button } from "@/components/ui/button";
 import { fileAnchorId } from "@/lib/file-anchors";
@@ -60,7 +60,7 @@ type ReviewAllModeViewProps = {
         latestFileDiff: FileDiffMetadata | undefined,
     ) => { fileDiff: FileDiffMetadata | undefined; readOnlyHistorical: boolean; selectedVersionId: string | undefined };
     isVersionViewed: (versionId: string) => boolean;
-    compactDiffOptions: FileDiffOptions<undefined>;
+    compactDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined>;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
     onSubmitInlineComment: () => void;

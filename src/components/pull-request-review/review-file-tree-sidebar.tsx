@@ -88,9 +88,9 @@ export function ReviewFileTreeSidebar({
     const treePathToAppPath = useMemo(() => new Map(treeEntries.map((entry) => [entry.treePath.replace(/\/+$/, ""), entry.appPath] as const)), [treeEntries]);
     const unviewedGitStatus = useMemo<GitStatusEntry[]>(() => {
         if (showSettingsPanel) return [];
-        return treeEntries
-            .filter((entry) => entry.appPath !== PR_SUMMARY_PATH && !viewedFiles.has(entry.appPath))
-            .map((entry) => ({ path: entry.treePath, status: "renamed" }));
+        return treeEntries.flatMap((entry) =>
+            entry.appPath !== PR_SUMMARY_PATH && !viewedFiles.has(entry.appPath) ? [{ path: entry.treePath, status: "renamed" }] : [],
+        );
     }, [showSettingsPanel, treeEntries, viewedFiles]);
     const model = useAppFileTreeModel({
         entries: treeEntries,

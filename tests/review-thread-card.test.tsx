@@ -64,10 +64,10 @@ describe("thread card", () => {
         expect(html).toContain("reply L3");
         expect(html).toContain('data-thread-depth="1" style="margin-left:38px"');
         expect(html).toContain('data-thread-depth="2" style="margin-left:38px"');
-        expect(html).toContain('class="relative border-y border-r border-[var(--diffs-bg,var(--background))] bg-surface-1"');
+        expect(html).toContain('class="relative border-y border-r border-comment-border bg-comment"');
     });
 
-    test("includes descendant count when collapsed", () => {
+    test("collapses resolved threads behind an accessible toggle", () => {
         const html = renderToStaticMarkup(
             <ThreadCard
                 thread={buildThread({
@@ -94,8 +94,8 @@ describe("thread card", () => {
             />,
         );
 
-        expect(html).toContain("Resolved");
-        expect(html).toContain("3 comments");
+        expect(html).toContain('aria-label="Expand resolved thread"');
+        expect(html).toContain('aria-label="Unresolve thread"');
     });
 
     test("renders host emoji images at text size", () => {

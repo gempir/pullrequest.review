@@ -80,9 +80,9 @@ export function CommentEditor({
     }, [editor]);
 
     return (
-        <div className="group/editor flex flex-col rounded-md bg-surface-1">
+        <div className="group/editor flex flex-col rounded-md bg-comment">
             <Plate editor={editor} onChange={({ value: nextValue }) => onChange(valueToText(nextValue))}>
-                <div className="flex items-center gap-1 rounded-t-md border-x border-t border-border-muted px-1.5 py-1">
+                <div className="flex items-center gap-1 rounded-t-md border-x border-t border-comment-border bg-comment-muted px-1.5 py-1">
                     <Button
                         type="button"
                         variant="ghost"
@@ -169,7 +169,7 @@ export function CommentEditor({
                     </Button>
                 </div>
 
-                <div className="rounded-b-md border border-border-muted transition-colors group-focus-within/editor:border-input">
+                <div className="rounded-b-md border border-comment-border bg-comment transition-colors group-focus-within/editor:border-input">
                     <PlateContent
                         readOnly={disabled}
                         placeholder={placeholder}

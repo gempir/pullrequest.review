@@ -40,7 +40,7 @@ function NotFoundComponent() {
                     <p className="text-muted-foreground mb-4">Page not found.</p>
                     <Link
                         to="/"
-                        className="inline-flex items-center gap-2 h-8 px-4 bg-foreground text-background hover:bg-background hover:text-foreground transition-colors text-[13px]"
+                        className="inline-flex items-center gap-2 h-8 px-4 bg-accent-solid text-accent-foreground hover:bg-accent-solid-hover transition-colors text-[13px]"
                     >
                         cd ~
                     </Link>
@@ -82,7 +82,7 @@ function OnboardingScreen() {
 
     return (
         <div className="h-full min-h-0 flex bg-background">
-            <aside data-component="sidebar" className="w-[300px] shrink-0 bg-background flex flex-col">
+            <aside data-component="sidebar" className="w-[300px] shrink-0 bg-sidebar flex flex-col border-r border-sidebar-border">
                 <SidebarTopControls
                     onHome={() => {
                         navigate({ to: "/" });
@@ -92,7 +92,7 @@ function OnboardingScreen() {
                         navigate({ to: "/settings" });
                     }}
                 />
-                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-chrome flex items-center">
+                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-sidebar-chrome border-b border-sidebar-border flex items-center">
                     <span className="text-[11px] text-muted-foreground px-1">Select host</span>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto" data-component="tree">
@@ -100,8 +100,8 @@ function OnboardingScreen() {
                         <button
                             key={host}
                             type="button"
-                            className={`w-full flex items-center gap-2 px-2 py-1 text-left text-[12px] hover:bg-surface-2 ${
-                                activeHost === host ? "bg-surface-2 text-foreground" : "text-muted-foreground"
+                            className={`w-full flex items-center gap-2 px-2 py-1 text-left text-[12px] hover:bg-surface-hover ${
+                                activeHost === host ? "bg-selection text-foreground" : "text-muted-foreground"
                             }`}
                             onClick={() => {
                                 setActiveHost(host);
@@ -115,7 +115,7 @@ function OnboardingScreen() {
             </aside>
 
             <section className="flex-1 min-w-0 min-h-0 flex flex-col">
-                <header data-component="navbar" className="h-11 bg-chrome px-3 flex items-center gap-2 text-[12px]">
+                <header data-component="navbar" className="h-11 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 text-[12px]">
                     <GitPullRequest className="size-3.5 text-muted-foreground" />
                     <span className="text-muted-foreground">Connect Git Host</span>
                     <span className="ml-auto text-muted-foreground">{getHostLabel(activeHost)}</span>

@@ -80,7 +80,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
     } = useHostAuthFormState({ host, onSuccess });
     const ctaLabel = mode === "inline" ? "Authenticate" : `Connect ${getHostLabel(host)}`;
     const isOnboarding = mode === "onboarding";
-    const fieldClassName = isOnboarding ? "h-10 rounded-md bg-background text-[13px]" : "rounded-md";
+    const fieldClassName = isOnboarding ? "h-10 rounded-md bg-surface-1 text-[13px]" : "rounded-md";
 
     return (
         <form className="space-y-4" action={authenticate}>
@@ -114,7 +114,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
                     </Button>
 
                     {isBitbucket ? (
-                        <div className="rounded-md border border-border-muted bg-background p-3 text-[12px]">
+                        <div className="rounded-md border border-border-muted bg-surface-1 p-3 text-[12px]">
                             <div className="flex items-center justify-between gap-3">
                                 <div className="text-muted-foreground">Required scopes</div>
                                 <Button

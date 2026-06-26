@@ -140,7 +140,7 @@ export function ReviewFileTreeSidebar({
     }, [directoryPaths, model]);
 
     const treeHeader = !loading ? (
-        <div className="h-10 bg-chrome flex items-center justify-end gap-1 pr-0.5" data-component="search-sidebar">
+        <div className="h-10 bg-sidebar-chrome flex items-center justify-end gap-1 pr-0.5" data-component="search-sidebar">
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Button
@@ -149,7 +149,7 @@ export function ReviewFileTreeSidebar({
                         size="sm"
                         className={cn(
                             "size-7 p-0 relative text-muted-foreground hover:text-foreground",
-                            showUnviewedOnly ? "bg-surface-2 text-foreground" : "",
+                            showUnviewedOnly ? "bg-selection text-foreground" : "",
                         )}
                         onClick={onToggleUnviewedOnly}
                         aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
@@ -197,7 +197,7 @@ export function ReviewFileTreeSidebar({
 
     return (
         <aside
-            className={cn("relative shrink-0 bg-background flex flex-col overflow-hidden border-r border-border-muted")}
+            className={cn("relative shrink-0 bg-sidebar flex flex-col overflow-hidden border-r border-sidebar-border")}
             style={{ width: treeCollapsed ? 0 : treeWidth }}
         >
             {!treeCollapsed ? (

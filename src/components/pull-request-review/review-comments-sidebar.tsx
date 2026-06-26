@@ -89,7 +89,7 @@ export function ReviewCommentsSidebar({
                                 size="sm"
                                 className={cn(
                                     "size-7 p-0 relative text-muted-foreground hover:text-foreground",
-                                    includeResolved ? "bg-surface-2 text-foreground" : "",
+                                    includeResolved ? "bg-selection text-foreground" : "",
                                 )}
                                 onClick={() => setIncludeResolved((prev) => !prev)}
                                 aria-label={includeResolved ? "Hide resolved comments" : "Include resolved comments"}
@@ -105,7 +105,7 @@ export function ReviewCommentsSidebar({
                         <TooltipContent side="bottom">{includeResolved ? "Hiding resolved comments" : "Include resolved comments"}</TooltipContent>
                     </Tooltip>
                     <Input
-                        className="h-full bg-chrome text-[12px] text-right placeholder:text-right flex-1 min-w-0 border-0 rounded-none focus-visible:border-0 focus-visible:ring-0"
+                        className="h-full bg-sidebar-chrome text-[12px] text-right placeholder:text-right flex-1 min-w-0 border-0 rounded-none hover:bg-sidebar-chrome focus-visible:border-0 focus-visible:ring-0"
                         placeholder="search comments"
                         value={searchQuery}
                         onChange={(event) => setSearchQuery(event.target.value)}

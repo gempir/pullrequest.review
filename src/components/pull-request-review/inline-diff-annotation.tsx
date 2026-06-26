@@ -57,7 +57,7 @@ export function InlineDiffAnnotation({
     const isDraft = metadata.kind === "draft";
 
     return (
-        <div className={isDraft ? "px-2 py-1.5 bg-background/70" : "-ml-px bg-surface-1"}>
+        <div className={isDraft ? "px-2 py-1.5 bg-comment" : "-ml-px bg-comment"}>
             {isDraft ? (
                 <div className="space-y-2">
                     <CommentEditor
@@ -90,6 +90,7 @@ export function InlineDiffAnnotation({
                 <ThreadCard
                     thread={metadata.thread}
                     allowNestedReplies={allowNestedReplies}
+                    showBorder={false}
                     canResolveThread={canResolveThread}
                     canCommentInline={canCommentInline}
                     createCommentPending={createCommentPending}

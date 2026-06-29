@@ -1305,6 +1305,18 @@ export const githubClient: GitHostClient = {
         );
         return { ok: true as const };
     },
+    async updatePullRequestDescription(data) {
+        await request(
+            `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}`,
+            {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ body: data.description }),
+            },
+            { requireAuth: true },
+        );
+        return { ok: true as const };
+    },
     async createPullRequestComment(data) {
         const prBase = `/repos/${data.prRef.workspace}/${data.prRef.repo}/pulls/${data.prRef.pullRequestId}`;
 

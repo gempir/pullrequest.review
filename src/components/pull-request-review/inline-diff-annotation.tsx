@@ -1,10 +1,14 @@
-import { SendHorizontal, X } from "lucide-react";
+import { Loader2, SendHorizontal, X } from "lucide-react";
+import { useState } from "react";
 import { CommentEditor } from "@/components/comment-editor";
 import type { SingleFileAnnotation } from "@/components/pull-request-review/review-page-model";
 import { ThreadCard } from "@/components/pull-request-review/review-thread-card";
 import type { InlineCommentDraft } from "@/components/pull-request-review/use-inline-comment-drafts";
 import { inlineDraftStorageKey } from "@/components/pull-request-review/use-inline-drafts";
 import { Button } from "@/components/ui/button";
+
+const COMMENT_PRIMARY_BUTTON_CLASS =
+    "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none";
 
 type InlineDiffAnnotationProps = {
     annotation: SingleFileAnnotation;
@@ -20,14 +24,14 @@ type InlineDiffAnnotationProps = {
     updateCommentPending: boolean;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
-    onSubmitInlineComment: () => void;
+    onSubmitInlineComment: () => Promise<unknown> | undefined;
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
     currentUserDisplayName?: string;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
-    onReplyToThread: (commentId: number, content: string) => void;
-    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onReplyToThread: (commentId: number, content: string) => Promise<unknown> | undefined;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
 };
 
 export function InlineDiffAnnotation({
@@ -53,10 +57,25 @@ export function InlineDiffAnnotation({
     onReplyToThread,
     onEditComment,
 }: InlineDiffAnnotationProps) {
+    const [localSubmitting, setLocalSubmitting] = useState(false);
     const metadata = annotation.metadata;
     if (!metadata) return null;
 
     const isDraft = metadata.kind === "draft";
+    const isSavingDraft = createCommentPending || localSubmitting;
+    const handleSubmitInlineComment = async () => {
+        if (isSavingDraft || !canCommentInline) return;
+        const result = onSubmitInlineComment();
+        if (!result) return;
+        setLocalSubmitting(true);
+        try {
+            await result;
+        } catch {
+            // The mutation surfaces the error in the review action banner.
+        } finally {
+            setLocalSubmitting(false);
+        }
+    };
 
     return (
         <div className={isDraft ? "px-2 py-1.5 bg-comment" : "-ml-px bg-comment"}>
@@ -66,23 +85,29 @@ export function InlineDiffAnnotation({
                         key={inlineDraftStorageKey(workspace, repo, pullRequestId, metadata.draft)}
                         value={getInlineDraftContent(metadata.draft)}
                         placeholder="Add a line comment"
-                        disabled={createCommentPending || !canCommentInline}
+                        disabled={isSavingDraft || !canCommentInline}
                         onReady={onInlineDraftReady}
                         onChange={(nextValue) => setInlineDraftContent(metadata.draft, nextValue)}
-                        onSubmit={onSubmitInlineComment}
+                        onSubmit={handleSubmitInlineComment}
                     />
                     <div className="flex items-center gap-2 pt-1">
                         <Button
-                            variant="default"
+                            variant="ghost"
                             size="sm"
-                            className="h-8 rounded-md gap-1.5 px-3"
-                            disabled={createCommentPending || !canCommentInline}
-                            onClick={onSubmitInlineComment}
+                            className={`h-8 ${COMMENT_PRIMARY_BUTTON_CLASS}`}
+                            disabled={isSavingDraft || !canCommentInline}
+                            onClick={handleSubmitInlineComment}
                         >
-                            <SendHorizontal className="size-3.5" />
+                            {isSavingDraft ? <Loader2 className="size-3.5 animate-spin" /> : <SendHorizontal className="size-3.5" />}
                             Comment
                         </Button>
-                        <Button variant="outline" size="sm" className="h-8 rounded-md gap-1.5 px-3" onClick={() => onCancelInlineDraft(metadata.draft)}>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-md gap-1.5 px-3"
+                            disabled={isSavingDraft}
+                            onClick={() => onCancelInlineDraft(metadata.draft)}
+                        >
                             <X className="size-3.5" />
                             Cancel
                         </Button>

@@ -885,6 +885,23 @@ export const bitbucketClient: GitHostClient = {
 
         return { ok: true as const };
     },
+    async updatePullRequestDescription(data) {
+        const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}`;
+        const payload: Record<string, unknown> = {
+            description: data.description,
+        };
+        if (data.title) payload.title = data.title;
+        await request(url, {
+            method: "PUT",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+        });
+
+        return { ok: true as const };
+    },
     async createPullRequestComment(data) {
         const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments`;
         const payload: Record<string, unknown> = {

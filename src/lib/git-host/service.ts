@@ -62,6 +62,10 @@ export async function mergePullRequest(data: { prRef: PullRequestRef; closeSourc
     return getHostClient(data.prRef.host).mergePullRequest(data);
 }
 
+export async function updatePullRequestDescription(data: { prRef: PullRequestRef; description: string; title?: string }) {
+    return getHostClient(data.prRef.host).updatePullRequestDescription(data);
+}
+
 export async function createPullRequestComment(data: {
     prRef: PullRequestRef;
     content: string;

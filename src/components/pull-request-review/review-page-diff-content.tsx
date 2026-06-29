@@ -47,6 +47,8 @@ type ReviewPageDiffContentProps = {
     resolveCommentPending: boolean;
     deleteCommentPending: boolean;
     updateCommentPending: boolean;
+    updateDescriptionPending: boolean;
+    canEditDescription: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     allModeDiffEntries: Array<{ filePath: string; fileDiff: FileDiffMetadata }>;
     getSelectedVersionIdForPath: (path: string) => string | undefined;
@@ -73,13 +75,14 @@ type ReviewPageDiffContentProps = {
     onToggleViewed: (path: string) => void;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
-    onSubmitInlineComment: () => void;
+    onSubmitInlineComment: () => Promise<unknown> | undefined;
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
-    onReplyToThread: (commentId: number, content: string) => void;
-    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onReplyToThread: (commentId: number, content: string) => Promise<unknown> | undefined;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
+    onEditDescription: (description: string) => Promise<unknown> | undefined;
     onToggleSummaryCollapsed: () => void;
     onToggleCollapsedFile: (path: string, next: boolean) => void;
     onOpenInlineDraftForPath: (path: string, target: InlineCommentLineTarget) => void;
@@ -91,7 +94,7 @@ type ReviewPageDiffContentProps = {
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     scrollElementRef: RefObject<HTMLDivElement | null>;
     pendingScrollPath: string | null;
-    onSubmitSummaryComment: (content: string) => boolean;
+    onSubmitSummaryComment: (content: string) => Promise<boolean> | false;
 };
 
 export function ReviewPageDiffContent({
@@ -127,6 +130,8 @@ export function ReviewPageDiffContent({
     resolveCommentPending,
     deleteCommentPending,
     updateCommentPending,
+    updateDescriptionPending,
+    canEditDescription,
     toRenderableFileDiff,
     allModeDiffEntries,
     getSelectedVersionIdForPath,
@@ -157,6 +162,7 @@ export function ReviewPageDiffContent({
     onResolveThread,
     onReplyToThread,
     onEditComment,
+    onEditDescription,
     onToggleSummaryCollapsed,
     onToggleCollapsedFile,
     onOpenInlineDraftForPath,
@@ -233,6 +239,8 @@ export function ReviewPageDiffContent({
                 resolveCommentPending={resolveCommentPending}
                 deleteCommentPending={deleteCommentPending}
                 updateCommentPending={updateCommentPending}
+                updateDescriptionPending={updateDescriptionPending}
+                canEditDescription={canEditDescription}
                 toRenderableFileDiff={toRenderableFileDiff}
                 onCopyPath={onCopyPath}
                 areAllFilesViewed={areAllFilesViewed}
@@ -255,6 +263,7 @@ export function ReviewPageDiffContent({
                 onResolveThread={onResolveThread}
                 onReplyToThread={onReplyToThread}
                 onEditComment={onEditComment}
+                onEditDescription={onEditDescription}
                 onHistoryCommentNavigate={onHistoryCommentNavigate}
                 onOpenDiffSettings={openDiffSettings}
                 onLoadFullFileContext={onLoadFullFileContext}
@@ -303,6 +312,8 @@ export function ReviewPageDiffContent({
             resolveCommentPending={resolveCommentPending}
             deleteCommentPending={deleteCommentPending}
             updateCommentPending={updateCommentPending}
+            updateDescriptionPending={updateDescriptionPending}
+            canEditDescription={canEditDescription}
             toRenderableFileDiff={toRenderableFileDiff}
             compactDiffOptions={singleFileDiffOptions}
             getInlineDraftContent={getInlineDraftContent}
@@ -315,6 +326,7 @@ export function ReviewPageDiffContent({
             onResolveThread={onResolveThread}
             onReplyToThread={onReplyToThread}
             onEditComment={onEditComment}
+            onEditDescription={onEditDescription}
             onHistoryCommentNavigate={onHistoryCommentNavigate}
             onDiffLineEnter={onDiffLineEnter}
             onDiffLineLeave={onDiffLineLeave}

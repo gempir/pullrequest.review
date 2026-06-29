@@ -12,11 +12,12 @@ type TimestampProps = {
     tooltipSide?: ComponentProps<typeof TooltipContent>["side"];
     tooltipLabel?: string;
     unknownLabel?: string;
+    relativeThresholdMs?: number;
     withTooltip?: boolean;
 };
 
-export function Timestamp({ value, className, tooltipSide = "top", tooltipLabel, unknownLabel, withTooltip = true }: TimestampProps) {
-    const display = describeTimestamp(value, { unknownLabel });
+export function Timestamp({ value, className, tooltipSide = "top", tooltipLabel, unknownLabel, relativeThresholdMs, withTooltip = true }: TimestampProps) {
+    const display = describeTimestamp(value, { unknownLabel, relativeThresholdMs });
     const content = (
         <span className={cn(TIMESTAMP_CLASS, className)} style={TIMESTAMP_STYLE}>
             {display.label}

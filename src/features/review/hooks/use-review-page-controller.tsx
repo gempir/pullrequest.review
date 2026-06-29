@@ -594,6 +594,7 @@ export function useReviewPageController({
         createCommentMutation,
         resolveCommentMutation,
         updateCommentMutation,
+        updateDescriptionMutation,
         deleteCommentMutation,
         handleApprovePullRequest,
         handleRequestChangesPullRequest,
@@ -603,6 +604,7 @@ export function useReviewPageController({
         submitPullRequestComment,
         submitThreadReply,
         submitCommentEdit,
+        submitPullRequestDescriptionEdit,
         handleCopyPath,
         handleCopySourceBranch,
     } = useReviewPageActions({
@@ -1119,6 +1121,8 @@ export function useReviewPageController({
                     resolveCommentPending={resolveCommentMutation.isPending}
                     deleteCommentPending={deleteCommentMutation.isPending}
                     updateCommentPending={updateCommentMutation.isPending}
+                    updateDescriptionPending={updateDescriptionMutation.isPending}
+                    canEditDescription={auth.canWrite}
                     toRenderableFileDiff={toRenderableFileDiff}
                     allModeDiffEntries={allModeDiffEntries}
                     getSelectedVersionIdForPath={getSelectedVersionIdForPath}
@@ -1157,11 +1161,12 @@ export function useReviewPageController({
                         resolveCommentMutation.mutate({ commentId, resolve });
                     }}
                     onReplyToThread={(commentId, content) => {
-                        submitThreadReply(commentId, content);
+                        return submitThreadReply(commentId, content);
                     }}
                     onEditComment={(commentId, content, hasInlineContext) => {
-                        submitCommentEdit(commentId, content, hasInlineContext);
+                        return submitCommentEdit(commentId, content, hasInlineContext);
                     }}
+                    onEditDescription={submitPullRequestDescriptionEdit}
                     onHistoryCommentNavigate={handleHistoryCommentNavigate}
                     onToggleSummaryCollapsed={() =>
                         startTransition(() => {

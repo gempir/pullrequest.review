@@ -47,6 +47,8 @@ type ReviewSingleModeViewProps = {
     resolveCommentPending: boolean;
     deleteCommentPending: boolean;
     updateCommentPending: boolean;
+    updateDescriptionPending: boolean;
+    canEditDescription: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     onCopyPath: (path: string) => void;
     areAllFilesViewed: boolean;
@@ -56,13 +58,14 @@ type ReviewSingleModeViewProps = {
     onFileVersionMenuOpen: () => void;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
-    onSubmitInlineComment: () => void;
+    onSubmitInlineComment: () => Promise<unknown> | undefined;
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
-    onReplyToThread: (commentId: number, content: string) => void;
-    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onReplyToThread: (commentId: number, content: string) => Promise<unknown> | undefined;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
+    onEditDescription: (description: string) => Promise<unknown> | undefined;
     onOpenDiffSettings: () => void;
     onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;
     fileContextState: Record<string, DiffContextState>;
@@ -100,6 +103,8 @@ export function ReviewSingleModeView({
     resolveCommentPending,
     deleteCommentPending,
     updateCommentPending,
+    updateDescriptionPending,
+    canEditDescription,
     toRenderableFileDiff,
     onCopyPath,
     areAllFilesViewed,
@@ -116,6 +121,7 @@ export function ReviewSingleModeView({
     onResolveThread,
     onReplyToThread,
     onEditComment,
+    onEditDescription,
     onOpenDiffSettings,
     onLoadFullFileContext,
     fileContextState,
@@ -160,10 +166,13 @@ export function ReviewSingleModeView({
                     resolveCommentPending={resolveCommentPending}
                     deleteCommentPending={deleteCommentPending}
                     updateCommentPending={updateCommentPending}
+                    updateDescriptionPending={updateDescriptionPending}
+                    canEditDescription={canEditDescription}
                     onDeleteComment={onDeleteComment}
                     onResolveThread={onResolveThread}
                     onReplyToThread={onReplyToThread}
                     onEditComment={onEditComment}
+                    onEditDescription={onEditDescription}
                     footerRight={summaryFooter}
                     headerRight={
                         <div className="flex items-center gap-1">

@@ -103,6 +103,7 @@ type ShortcutsRecord = BaseCollectionRecord & {
     previousUnviewedFile: ShortcutConfigRecord;
     openFileTree: ShortcutConfigRecord;
     openCommentsSidebar: ShortcutConfigRecord;
+    goToSummary: ShortcutConfigRecord;
     scrollDown: ShortcutConfigRecord;
     scrollUp: ShortcutConfigRecord;
     nextFile: ShortcutConfigRecord;

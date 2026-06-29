@@ -1,10 +1,11 @@
-import type { FileTreeDirectoryHandle, FileTreeIcons, GitStatusEntry } from "@pierre/trees";
-import { Eye, EyeOff, FolderMinus, FolderPlus } from "lucide-react";
-import { type MouseEventHandler, useCallback, useMemo } from "react";
+import type { FileTreeIcons, GitStatusEntry } from "@pierre/trees";
+import { Eye, EyeOff } from "lucide-react";
+import { type MouseEventHandler, useMemo } from "react";
 import { AppFileTreeView, type FileTreeEntry, useAppFileTreeModel } from "@/components/file-tree";
 import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { cn } from "@/lib/utils";
@@ -16,13 +17,11 @@ type ReviewFileTreeSidebarProps = {
     showSettingsPanel: boolean;
     activeFile?: string;
     treeEntries: FileTreeEntry[];
-    directoryPaths: string[];
     fileLineStats?: ReadonlyMap<string, { added: number; removed: number }>;
     searchQuery: string;
     showUnviewedOnly: boolean;
     unviewedFileCount: number;
     viewedFiles: Set<string>;
-    onHome: () => void;
     onRefresh: () => Promise<void> | void;
     onToggleSettings: () => void;
     onCollapseTree: () => void;
@@ -68,13 +67,11 @@ export function ReviewFileTreeSidebar({
     showSettingsPanel,
     activeFile,
     treeEntries,
-    directoryPaths,
     fileLineStats,
     searchQuery,
     showUnviewedOnly,
     unviewedFileCount,
     viewedFiles,
-    onHome,
     onRefresh,
     onToggleSettings,
     onCollapseTree,
@@ -97,6 +94,7 @@ export function ReviewFileTreeSidebar({
         selectedAppPath: activeFile,
         pinnedFirstTreePath: showSettingsPanel ? undefined : PR_SUMMARY_NAME,
         searchQuery,
+        hideSearchChrome: true,
         gitStatus: unviewedGitStatus,
         icons: diffStatIcons,
         onSelectPath: onFileClick,
@@ -121,80 +119,6 @@ export function ReviewFileTreeSidebar({
         },
     });
 
-    const handleCollapseAllDirectories = useCallback(() => {
-        for (const path of directoryPaths) {
-            const item = model.getItem(path);
-            if (item && "collapse" in item) {
-                (item as FileTreeDirectoryHandle).collapse();
-            }
-        }
-    }, [directoryPaths, model]);
-
-    const handleExpandAllDirectories = useCallback(() => {
-        for (const path of directoryPaths) {
-            const item = model.getItem(path);
-            if (item && "expand" in item) {
-                (item as FileTreeDirectoryHandle).expand();
-            }
-        }
-    }, [directoryPaths, model]);
-
-    const treeHeader = !loading ? (
-        <div className="h-10 bg-sidebar-chrome flex items-center justify-end gap-1 pr-0.5" data-component="search-sidebar">
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={cn(
-                            "size-7 p-0 relative text-muted-foreground hover:text-foreground",
-                            showUnviewedOnly ? "bg-selection text-foreground" : "",
-                        )}
-                        onClick={onToggleUnviewedOnly}
-                        aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
-                    >
-                        {showUnviewedOnly ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                        {unviewedFileCount > 0 ? (
-                            <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">{badgeValue}</span>
-                        ) : null}
-                    </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="size-7 p-0 text-muted-foreground hover:text-foreground"
-                        onClick={handleCollapseAllDirectories}
-                        aria-label="Collapse all directories"
-                    >
-                        <FolderMinus className="size-3.5" />
-                    </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Collapse all directories</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="size-7 p-0 text-muted-foreground hover:text-foreground"
-                        onClick={handleExpandAllDirectories}
-                        aria-label="Expand all directories"
-                    >
-                        <FolderPlus className="size-3.5" />
-                    </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Expand all directories</TooltipContent>
-            </Tooltip>
-        </div>
-    ) : null;
-
     return (
         <aside
             className={cn("relative shrink-0 bg-sidebar flex flex-col overflow-hidden border-r border-sidebar-border")}
@@ -203,21 +127,52 @@ export function ReviewFileTreeSidebar({
             {!treeCollapsed ? (
                 <>
                     <SidebarTopControls
-                        onHome={onHome}
                         onRefresh={onRefresh}
                         onSettings={onToggleSettings}
                         settingsActive={showSettingsPanel}
                         settingsAriaLabel={showSettingsPanel ? "Close settings" : "Open settings"}
                         rightContent={
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="h-7 w-11 px-0 text-muted-foreground hover:text-foreground"
-                                onClick={onCollapseTree}
-                                aria-label="Collapse file tree"
-                            >
-                                <ReviewFileTreeToggleIcon direction="collapse" />
-                            </Button>
+                            <>
+                                <Input
+                                    className="h-7 min-w-0 flex-1 rounded-sm border-0 bg-[var(--diffs-bg,var(--background))] px-2 text-[12px] hover:bg-[var(--diffs-bg,var(--background))] focus-visible:ring-0"
+                                    placeholder="Search..."
+                                    value={searchQuery}
+                                    onChange={(event) => onSearchQueryChange(event.target.value)}
+                                    aria-label="Search files"
+                                />
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className={cn(
+                                                "size-7 shrink-0 p-0 relative text-muted-foreground hover:text-foreground",
+                                                showUnviewedOnly ? "bg-selection text-foreground" : "",
+                                            )}
+                                            onClick={onToggleUnviewedOnly}
+                                            aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
+                                        >
+                                            {showUnviewedOnly ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                                            {unviewedFileCount > 0 ? (
+                                                <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">
+                                                    {badgeValue}
+                                                </span>
+                                            ) : null}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>
+                                </Tooltip>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="h-7 w-11 shrink-0 px-0 text-muted-foreground hover:text-foreground"
+                                    onClick={onCollapseTree}
+                                    aria-label="Collapse file tree"
+                                >
+                                    <ReviewFileTreeToggleIcon direction="collapse" />
+                                </Button>
+                            </>
                         }
                     />
                     {loading ? (
@@ -225,7 +180,6 @@ export function ReviewFileTreeSidebar({
                     ) : (
                         <div className="flex-1 min-h-0 overflow-hidden tree-font-scope pb-2" data-component="tree">
                             <AppFileTreeView
-                                header={treeHeader}
                                 model={model}
                                 onTreeItemClick={(treePath) => {
                                     const nextAppPath = treePathToAppPath.get(treePath.replace(/\/+$/, ""));

@@ -173,6 +173,7 @@ export function useReviewPageNavigation({
         onPreviousUnviewedFile: () => selectAdjacentUnviewedFile("previous"),
         onOpenFileTree: () => setTreeCollapsed((collapsed) => !collapsed),
         onOpenCommentsSidebar: () => setRightSidebarCollapsed((collapsed) => !collapsed),
+        onGoToSummary: () => selectAndRevealFile(PR_SUMMARY_PATH),
         onNextFile: () => selectFromPaths(treeOrderedVisiblePaths, "next"),
         onPreviousFile: () => selectFromPaths(treeOrderedVisiblePaths, "previous"),
         onMarkFileViewed: () => {

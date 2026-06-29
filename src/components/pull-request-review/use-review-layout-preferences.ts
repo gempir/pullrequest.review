@@ -5,7 +5,6 @@ type ReviewViewMode = "single" | "all";
 
 const DEFAULT_TREE_WIDTH = 280;
 const MIN_TREE_WIDTH = 180;
-const MAX_TREE_WIDTH = 520;
 const DEFAULT_RIGHT_SIDEBAR_WIDTH = 320;
 const MIN_RIGHT_SIDEBAR_WIDTH = 240;
 const MAX_RIGHT_SIDEBAR_WIDTH = 520;
@@ -38,7 +37,7 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
         if (typeof window === "undefined") return;
         const stored = readReviewLayoutState();
         if (stored) {
-            if (Number.isFinite(stored.treeWidth) && stored.treeWidth >= MIN_TREE_WIDTH && stored.treeWidth <= MAX_TREE_WIDTH) {
+            if (Number.isFinite(stored.treeWidth) && stored.treeWidth >= MIN_TREE_WIDTH) {
                 setTreeWidth(stored.treeWidth);
             }
             setTreeCollapsed(stored.treeCollapsed);
@@ -83,7 +82,7 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
 
             const onMouseMove = (moveEvent: MouseEvent) => {
                 const delta = moveEvent.clientX - startX;
-                const next = Math.min(MAX_TREE_WIDTH, Math.max(MIN_TREE_WIDTH, initialWidth + delta));
+                const next = Math.max(MIN_TREE_WIDTH, initialWidth + delta);
                 setTreeWidth(next);
             };
 

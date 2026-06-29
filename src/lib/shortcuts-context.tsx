@@ -17,6 +17,7 @@ interface Shortcuts {
     previousUnviewedFile: ShortcutConfig;
     openFileTree: ShortcutConfig;
     openCommentsSidebar: ShortcutConfig;
+    goToSummary: ShortcutConfig;
     scrollDown: ShortcutConfig;
     scrollUp: ShortcutConfig;
     nextFile: ShortcutConfig;
@@ -47,6 +48,11 @@ const DEFAULT_SHORTCUTS: Shortcuts = {
         key: "c",
         modifiers: {},
         description: "Open comments sidebar",
+    },
+    goToSummary: {
+        key: "1",
+        modifiers: {},
+        description: "Jump to pull request summary",
     },
     scrollDown: {
         key: "j",
@@ -193,6 +199,7 @@ export function useKeyboardNavigation({
     onPreviousUnviewedFile,
     onOpenFileTree,
     onOpenCommentsSidebar,
+    onGoToSummary,
     onScrollDown,
     onScrollUp,
     onNextFile,
@@ -206,6 +213,7 @@ export function useKeyboardNavigation({
     onPreviousUnviewedFile?: () => void;
     onOpenFileTree?: () => void;
     onOpenCommentsSidebar?: () => void;
+    onGoToSummary?: () => void;
     onScrollDown?: (event: KeyboardEvent) => void;
     onScrollUp?: (event: KeyboardEvent) => void;
     onNextFile?: () => void;
@@ -222,6 +230,7 @@ export function useKeyboardNavigation({
         onPreviousUnviewedFile,
         onOpenFileTree,
         onOpenCommentsSidebar,
+        onGoToSummary,
         onScrollDown,
         onScrollUp,
         onNextFile,
@@ -242,6 +251,7 @@ export function useKeyboardNavigation({
             onPreviousUnviewedFile,
             onOpenFileTree,
             onOpenCommentsSidebar,
+            onGoToSummary,
             onScrollDown,
             onScrollUp,
             onNextFile,
@@ -256,6 +266,7 @@ export function useKeyboardNavigation({
         onPreviousUnviewedFile,
         onOpenFileTree,
         onOpenCommentsSidebar,
+        onGoToSummary,
         onScrollDown,
         onScrollUp,
         onNextFile,
@@ -298,6 +309,10 @@ export function useKeyboardNavigation({
                 event.preventDefault();
                 event.stopPropagation();
                 handlers.onOpenCommentsSidebar?.();
+            } else if (matchesShortcut(event, activeShortcuts.goToSummary)) {
+                event.preventDefault();
+                event.stopPropagation();
+                handlers.onGoToSummary?.();
             } else if (matchesShortcut(event, activeShortcuts.scrollDown)) {
                 event.preventDefault();
                 event.stopPropagation();

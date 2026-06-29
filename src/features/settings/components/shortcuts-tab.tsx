@@ -91,6 +91,7 @@ export function ShortcutsTab() {
                     shortcut={shortcuts.openCommentsSidebar}
                     onChange={(config) => updateShortcut("openCommentsSidebar", config)}
                 />
+                <ShortcutRow label="Go to Summary" shortcut={shortcuts.goToSummary} onChange={(config) => updateShortcut("goToSummary", config)} />
                 <ShortcutRow label="Scroll Down" shortcut={shortcuts.scrollDown} onChange={(config) => updateShortcut("scrollDown", config)} />
                 <ShortcutRow label="Scroll Up" shortcut={shortcuts.scrollUp} onChange={(config) => updateShortcut("scrollUp", config)} />
                 <ShortcutRow label="Next File" shortcut={shortcuts.nextFile} onChange={(config) => updateShortcut("nextFile", config)} />

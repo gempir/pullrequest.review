@@ -17,7 +17,6 @@ export function useReviewPageViewProps({
     showSettingsPanel,
     activeFile,
     treeEntries,
-    directoryPaths,
     fileLineStats,
     searchQuery,
     showUnviewedOnly,
@@ -36,7 +35,6 @@ export function useReviewPageViewProps({
     markDraftPending,
     copiedSourceBranch,
     commitScopeSlot,
-    onHome,
     onRefresh,
     onToggleSettings,
     onCollapseTree,
@@ -75,7 +73,6 @@ export function useReviewPageViewProps({
     showSettingsPanel: boolean;
     activeFile?: string;
     treeEntries: FileTreeEntry[];
-    directoryPaths: string[];
     fileLineStats: ReadonlyMap<string, { added: number; removed: number }>;
     searchQuery: string;
     showUnviewedOnly: boolean;
@@ -94,7 +91,6 @@ export function useReviewPageViewProps({
     markDraftPending: boolean;
     copiedSourceBranch: boolean;
     commitScopeSlot?: MainViewProps["navbarProps"]["commitScopeSlot"];
-    onHome: MainViewProps["sidebarProps"]["onHome"];
     onRefresh: MainViewProps["sidebarProps"]["onRefresh"];
     onToggleSettings: MainViewProps["sidebarProps"]["onToggleSettings"];
     onCollapseTree: MainViewProps["sidebarProps"]["onCollapseTree"];
@@ -131,13 +127,11 @@ export function useReviewPageViewProps({
             showSettingsPanel,
             activeFile,
             treeEntries,
-            directoryPaths,
             fileLineStats,
             searchQuery,
             showUnviewedOnly,
             unviewedFileCount,
             viewedFiles,
-            onHome,
             onRefresh,
             onToggleSettings,
             onCollapseTree,
@@ -149,7 +143,6 @@ export function useReviewPageViewProps({
         [
             onCollapseTree,
             onFileClick,
-            onHome,
             onRefresh,
             onSearchQueryChange,
             onStartTreeResize,
@@ -159,7 +152,6 @@ export function useReviewPageViewProps({
             showSettingsPanel,
             showUnviewedOnly,
             activeFile,
-            directoryPaths,
             treeEntries,
             unviewedFileCount,
             fileLineStats,

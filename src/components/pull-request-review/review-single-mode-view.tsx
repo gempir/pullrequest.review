@@ -58,13 +58,13 @@ type ReviewSingleModeViewProps = {
     onFileVersionMenuOpen: () => void;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
-    onSubmitInlineComment: () => void;
+    onSubmitInlineComment: () => Promise<unknown> | undefined;
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
-    onReplyToThread: (commentId: number, content: string) => void;
-    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onReplyToThread: (commentId: number, content: string) => Promise<unknown> | undefined;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
     onEditDescription: (description: string) => Promise<unknown> | undefined;
     onOpenDiffSettings: () => void;
     onLoadFullFileContext: (path: string, fileDiff: FileDiffMetadata) => void;

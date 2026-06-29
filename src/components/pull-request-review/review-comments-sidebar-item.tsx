@@ -147,7 +147,7 @@ export function ReviewCommentsSidebarItem({ item, onSelect, canResolveThread, re
                     <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
                             <span className="font-medium text-[12px] text-foreground">{authorName}</span>
-                            <Timestamp value={rootComment.createdAt} />
+                            <Timestamp value={rootComment.createdAt} relativeThresholdMs={12 * 60 * 60 * 1000} />
                             <span className="ml-auto shrink-0">
                                 <ThreadStatusButton
                                     isResolved={item.isResolved}

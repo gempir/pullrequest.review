@@ -3,6 +3,9 @@ import { useState } from "react";
 import { CommentEditor } from "@/components/comment-editor";
 import { Button } from "@/components/ui/button";
 
+const COMMENT_PRIMARY_BUTTON_CLASS =
+    "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none";
+
 function initials(value?: string) {
     if (!value) return "??";
     const trimmed = value.trim();
@@ -37,15 +40,26 @@ export function ReviewSummaryCommentComposer({
     currentUserAvatarUrl?: string;
     canComment: boolean;
     isSubmitting: boolean;
-    onSubmit: (content: string) => boolean;
+    onSubmit: (content: string) => Promise<boolean> | false;
 }) {
     const [value, setValue] = useState("");
+    const [localSubmitting, setLocalSubmitting] = useState(false);
+    const saving = isSubmitting || localSubmitting;
     const hasContent = value.trim().length > 0;
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         const trimmed = value.trim();
-        if (!trimmed) return;
-        if (onSubmit(trimmed)) {
-            setValue("");
+        if (!trimmed || saving) return;
+        const result = onSubmit(trimmed);
+        if (!result) return;
+        setLocalSubmitting(true);
+        try {
+            if (await result) {
+                setValue("");
+            }
+        } catch {
+            // The mutation surfaces the error in the review action banner.
+        } finally {
+            setLocalSubmitting(false);
         }
     };
 
@@ -56,7 +70,7 @@ export function ReviewSummaryCommentComposer({
                 <CommentEditor
                     value={value}
                     placeholder="Add your comment here..."
-                    disabled={isSubmitting || !canComment}
+                    disabled={saving || !canComment}
                     onChange={setValue}
                     onSubmit={handleSubmit}
                     contentStyle={{ minHeight: "5rem" }}
@@ -64,13 +78,13 @@ export function ReviewSummaryCommentComposer({
                 <div className="flex items-center gap-2 pt-1">
                     <Button
                         type="button"
-                        variant="default"
+                        variant="ghost"
                         size="sm"
-                        className="h-8 rounded-md gap-1.5 px-3"
-                        disabled={!hasContent || isSubmitting || !canComment}
+                        className={`h-8 ${COMMENT_PRIMARY_BUTTON_CLASS}`}
+                        disabled={!hasContent || saving || !canComment}
                         onClick={handleSubmit}
                     >
-                        {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : <SendHorizontal className="size-3.5" />}
+                        {saving ? <Loader2 className="size-3.5 animate-spin" /> : <SendHorizontal className="size-3.5" />}
                         Comment
                     </Button>
                 </div>

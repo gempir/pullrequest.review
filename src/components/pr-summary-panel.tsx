@@ -449,6 +449,7 @@ function HistoryCommentActions({
     isResolved,
     createCommentPending,
     resolveCommentPending,
+    deleteCommentPending,
     updateCommentPending,
     actionButtonClass,
     actionIconClass,
@@ -470,6 +471,7 @@ function HistoryCommentActions({
     isResolved: boolean;
     createCommentPending: boolean;
     resolveCommentPending: boolean;
+    deleteCommentPending: boolean;
     updateCommentPending: boolean;
     actionButtonClass: string;
     actionIconClass: string;
@@ -553,7 +555,7 @@ function HistoryCommentActions({
                         </Button>
                     ) : null}
                     {canDelete ? (
-                        <Button variant="outline" size="sm" className={actionButtonClass} onClick={onDelete}>
+                        <Button variant="outline" size="sm" className={actionButtonClass} disabled={deleteCommentPending} onClick={onDelete}>
                             <Trash2 className={actionIconClass} />
                             Delete
                         </Button>
@@ -868,6 +870,7 @@ function HistoryCommentSurface({
     canResolveThread,
     createCommentPending,
     resolveCommentPending,
+    deleteCommentPending,
     updateCommentPending,
     onDeleteComment,
     onResolveThread,
@@ -883,6 +886,7 @@ function HistoryCommentSurface({
     canResolveThread?: boolean;
     createCommentPending?: boolean;
     resolveCommentPending?: boolean;
+    deleteCommentPending?: boolean;
     updateCommentPending?: boolean;
     onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
@@ -1038,6 +1042,7 @@ function HistoryCommentSurface({
                                     isResolved={isResolved}
                                     createCommentPending={Boolean(createCommentPending)}
                                     resolveCommentPending={Boolean(resolveCommentPending)}
+                                    deleteCommentPending={Boolean(deleteCommentPending)}
                                     updateCommentPending={Boolean(updateCommentPending)}
                                     actionButtonClass={actionButtonClass}
                                     actionIconClass={actionIconClass}
@@ -1096,6 +1101,7 @@ function HistoryTimelineItem({
     canResolveThread,
     createCommentPending,
     resolveCommentPending,
+    deleteCommentPending,
     updateCommentPending,
     onDeleteComment,
     onResolveThread,
@@ -1113,6 +1119,7 @@ function HistoryTimelineItem({
     canResolveThread?: boolean;
     createCommentPending?: boolean;
     resolveCommentPending?: boolean;
+    deleteCommentPending?: boolean;
     updateCommentPending?: boolean;
     onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
@@ -1154,6 +1161,7 @@ function HistoryTimelineItem({
                             canResolveThread={canResolveThread}
                             createCommentPending={createCommentPending}
                             resolveCommentPending={resolveCommentPending}
+                            deleteCommentPending={deleteCommentPending}
                             updateCommentPending={updateCommentPending}
                             onDeleteComment={onDeleteComment}
                             onResolveThread={onResolveThread}
@@ -1215,6 +1223,7 @@ function CommentThreadTimelineItem({
     canResolveThread,
     createCommentPending,
     resolveCommentPending,
+    deleteCommentPending,
     updateCommentPending,
     onSelectComment,
     onDeleteComment,
@@ -1231,6 +1240,7 @@ function CommentThreadTimelineItem({
     canResolveThread?: boolean;
     createCommentPending?: boolean;
     resolveCommentPending?: boolean;
+    deleteCommentPending?: boolean;
     updateCommentPending?: boolean;
     onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
@@ -1275,6 +1285,7 @@ function CommentThreadTimelineItem({
                     canCommentInline={Boolean(canCommentInline)}
                     createCommentPending={Boolean(createCommentPending)}
                     resolveCommentPending={Boolean(resolveCommentPending)}
+                    deleteCommentPending={Boolean(deleteCommentPending)}
                     updateCommentPending={Boolean(updateCommentPending)}
                     currentUserDisplayName={currentUserDisplayName}
                     onDeleteComment={onDeleteComment ?? (() => {})}
@@ -1299,6 +1310,7 @@ export function PullRequestSummaryPanel({
     canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    deleteCommentPending,
     updateCommentPending,
     onDeleteComment,
     onResolveThread,
@@ -1316,6 +1328,7 @@ export function PullRequestSummaryPanel({
     canCommentInline?: boolean;
     canResolveThread?: boolean;
     resolveCommentPending?: boolean;
+    deleteCommentPending?: boolean;
     updateCommentPending?: boolean;
     onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
@@ -1446,6 +1459,7 @@ export function PullRequestSummaryPanel({
                                     canResolveThread={canResolveThread}
                                     createCommentPending={createCommentPending}
                                     resolveCommentPending={resolveCommentPending}
+                                    deleteCommentPending={deleteCommentPending}
                                     updateCommentPending={updateCommentPending}
                                     onSelectComment={onSelectComment}
                                     onDeleteComment={onDeleteComment}
@@ -1470,6 +1484,7 @@ export function PullRequestSummaryPanel({
                                 canResolveThread={canResolveThread}
                                 createCommentPending={createCommentPending}
                                 resolveCommentPending={resolveCommentPending}
+                                deleteCommentPending={deleteCommentPending}
                                 updateCommentPending={updateCommentPending}
                                 onDeleteComment={onDeleteComment}
                                 onResolveThread={onResolveThread}

@@ -37,6 +37,5 @@ export type UseReviewPageActionsProps = {
     setCopiedPath: (path: string | null | ((current: string | null) => string | null)) => void;
     setCopiedSourceBranch: (next: boolean) => void;
     onOptimisticCommentCreate: (payload: { path?: string; content: string; line?: number; side?: CommentLineSide; parentId?: number }) => number | null;
-    onOptimisticCommentUpdate: (commentId: number, pending: boolean) => void;
     onOptimisticCommentRemove: (commentId: number) => void;
 };

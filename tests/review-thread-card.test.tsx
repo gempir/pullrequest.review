@@ -51,6 +51,7 @@ describe("thread card", () => {
                 canCommentInline
                 createCommentPending={false}
                 resolveCommentPending={false}
+                deleteCommentPending={false}
                 currentUserDisplayName="Root User"
                 onDeleteComment={() => {}}
                 onResolveThread={() => {}}
@@ -85,6 +86,7 @@ describe("thread card", () => {
                 canCommentInline
                 createCommentPending={false}
                 resolveCommentPending={false}
+                deleteCommentPending={false}
                 currentUserDisplayName="Root User"
                 onDeleteComment={() => {}}
                 onResolveThread={() => {}}
@@ -116,6 +118,7 @@ describe("thread card", () => {
                 canCommentInline
                 createCommentPending={false}
                 resolveCommentPending={false}
+                deleteCommentPending={false}
                 currentUserDisplayName="Root User"
                 onDeleteComment={() => {}}
                 onResolveThread={() => {}}
@@ -137,6 +140,7 @@ describe("thread card", () => {
                 canCommentInline
                 createCommentPending={false}
                 resolveCommentPending={false}
+                deleteCommentPending={false}
                 currentUserDisplayName="Root User"
                 onDeleteComment={() => {}}
                 onResolveThread={() => {}}
@@ -148,5 +152,39 @@ describe("thread card", () => {
 
         expect(html.split('aria-label="Copy comment link"').length - 1).toBe(3);
         expect(html.indexOf("2026-01-01") < html.indexOf('aria-label="Copy comment link"')).toBe(true);
+    });
+
+    test("shows a spinner without actions for pending comments", () => {
+        const html = renderToStaticMarkup(
+            <ThreadCard
+                thread={buildThread({
+                    root: {
+                        ...buildThread().root,
+                        comment: {
+                            ...buildThread().root.comment,
+                            pending: true,
+                        },
+                        children: [],
+                    },
+                })}
+                canResolveThread
+                canCommentInline
+                createCommentPending={false}
+                resolveCommentPending={false}
+                deleteCommentPending={false}
+                currentUserDisplayName="Root User"
+                onDeleteComment={() => {}}
+                onResolveThread={() => {}}
+                onReplyToThread={() => {}}
+                onEditComment={() => {}}
+                updateCommentPending={false}
+            />,
+        );
+
+        expect(html).toContain('aria-label="Syncing comment"');
+        expect(html.includes("Sending...")).toBe(false);
+        expect(html.includes(">Reply<")).toBe(false);
+        expect(html.includes(">Edit<")).toBe(false);
+        expect(html.includes(">Delete<")).toBe(false);
     });
 });

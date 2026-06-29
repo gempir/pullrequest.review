@@ -49,6 +49,7 @@ type ReviewAllModeViewProps = {
     canCommentInline: boolean;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
+    deleteCommentPending: boolean;
     updateCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     getSelectedVersionIdForPath: (path: string) => string | undefined;
@@ -114,6 +115,7 @@ export function ReviewAllModeView({
     canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    deleteCommentPending,
     updateCommentPending,
     toRenderableFileDiff,
     getSelectedVersionIdForPath,
@@ -212,6 +214,7 @@ export function ReviewAllModeView({
                             canCommentInline={canCommentInline}
                             canResolveThread={canResolveThread}
                             resolveCommentPending={resolveCommentPending}
+                            deleteCommentPending={deleteCommentPending}
                             updateCommentPending={updateCommentPending}
                             onDeleteComment={onDeleteComment}
                             onResolveThread={onResolveThread}
@@ -346,6 +349,7 @@ export function ReviewAllModeView({
                                                     canCommentInline={canCommentInline && !readOnlyHistorical}
                                                     canResolveThread={canResolveThread}
                                                     resolveCommentPending={resolveCommentPending}
+                                                    deleteCommentPending={deleteCommentPending}
                                                     updateCommentPending={updateCommentPending}
                                                     getInlineDraftContent={getInlineDraftContent}
                                                     setInlineDraftContent={setInlineDraftContent}

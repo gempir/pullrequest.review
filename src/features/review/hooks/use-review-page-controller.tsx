@@ -278,7 +278,7 @@ export function useReviewPageController({
     const isRateLimitedError = isRateLimitedQueryError(prQuery.error);
     useReviewDocumentTitle({ isLoading: isCriticalLoading, pullRequestTitle });
 
-    const { createOptimisticComment, prData, removeOptimisticComment, updateOptimisticCommentPending } = useReviewOptimisticComments({
+    const { createOptimisticComment, prData, removeOptimisticComment } = useReviewOptimisticComments({
         effectivePrData,
         prContextKey,
         currentUserAvatarUrl: pullRequest?.currentUser?.avatarUrl,
@@ -627,7 +627,6 @@ export function useReviewPageController({
         setCopiedPath,
         setCopiedSourceBranch,
         onOptimisticCommentCreate: createOptimisticComment,
-        onOptimisticCommentUpdate: updateOptimisticCommentPending,
         onOptimisticCommentRemove: removeOptimisticComment,
     });
     const clearAllModePendingScrollPath = useCallback(() => {
@@ -1118,6 +1117,7 @@ export function useReviewPageController({
                     canCommentInline={actionPolicy.canCommentInline && resolvedScope.mode === "full"}
                     canResolveThread={actionPolicy.canResolveThread}
                     resolveCommentPending={resolveCommentMutation.isPending}
+                    deleteCommentPending={deleteCommentMutation.isPending}
                     updateCommentPending={updateCommentMutation.isPending}
                     toRenderableFileDiff={toRenderableFileDiff}
                     allModeDiffEntries={allModeDiffEntries}

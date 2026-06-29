@@ -28,7 +28,6 @@ type UseReviewPageActionsProps = {
     setCopiedPath: (path: string | null | ((current: string | null) => string | null)) => void;
     setCopiedSourceBranch: (next: boolean) => void;
     onOptimisticCommentCreate: (payload: { path?: string; content: string; line?: number; side?: CommentLineSide; parentId?: number }) => number | null;
-    onOptimisticCommentUpdate: (commentId: number, pending: boolean) => void;
     onOptimisticCommentRemove: (commentId: number) => void;
 };
 
@@ -54,7 +53,6 @@ export function useReviewPageActions({
     setCopiedPath,
     setCopiedSourceBranch,
     onOptimisticCommentCreate,
-    onOptimisticCommentUpdate,
     onOptimisticCommentRemove,
 }: UseReviewPageActionsProps) {
     const refreshPullRequest = useCallback(async () => {
@@ -111,7 +109,6 @@ export function useReviewPageActions({
         getInlineDraftContent,
         inlineComment,
         onOptimisticCommentRemove,
-        onOptimisticCommentUpdate,
         refreshPullRequest,
         requestAuth,
         setActionError,

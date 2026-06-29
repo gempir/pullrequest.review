@@ -74,23 +74,6 @@ export function useReviewOptimisticComments({
         [currentUserAvatarUrl, currentUserDisplayName, effectivePrData],
     );
 
-    const updateOptimisticCommentPending = useCallback((commentId: number, pending: boolean) => {
-        setOptimisticComments((prev) => {
-            let changed = false;
-            const next = prev.map((comment) => {
-                if (comment.id !== commentId) return comment;
-                if (comment.pending === pending) return comment;
-                changed = true;
-                return {
-                    ...comment,
-                    pending,
-                    updatedAt: new Date().toISOString(),
-                };
-            });
-            return changed ? next : prev;
-        });
-    }, []);
-
     const removeOptimisticComment = useCallback((commentId: number) => {
         setOptimisticComments((prev) => prev.filter((comment) => comment.id !== commentId));
     }, []);
@@ -139,6 +122,5 @@ export function useReviewOptimisticComments({
         createOptimisticComment,
         prData,
         removeOptimisticComment,
-        updateOptimisticCommentPending,
     };
 }

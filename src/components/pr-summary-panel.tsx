@@ -786,7 +786,7 @@ function SummaryDescription({
 
     if (isEditing) {
         return (
-            <section className="min-w-0 px-2 py-1" data-component="summary-description">
+            <section className="min-w-0 rounded-sm border border-surface-hover px-2 pb-2" data-component="summary-description">
                 <CommentEditor
                     value={draft}
                     placeholder="Add a pull request description..."
@@ -796,6 +796,8 @@ function SummaryDescription({
                     onReady={(focus) => {
                         focus();
                     }}
+                    chrome="toolbar"
+                    toolbarClassName="-mx-2 px-0.5"
                     contentStyle={{ minHeight: "9rem" }}
                 />
                 <div className="mt-2 flex flex-wrap items-center gap-1">
@@ -1125,6 +1127,7 @@ function HistoryCommentSurface({
                                             disabled={isEditSaving}
                                             onChange={(value) => dispatch({ type: "setEditValue", value })}
                                             onSubmit={handleEditSubmit}
+                                            chrome="toolbar"
                                             contentClassName="min-h-[72px]"
                                         />
                                     </div>

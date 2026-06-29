@@ -7,7 +7,7 @@ import { getGitHostFetchActivitySnapshot, subscribeGitHostFetchActivity } from "
 import { cn } from "@/lib/utils";
 
 type SidebarTopControlsProps = {
-    onHome: () => void;
+    onHome?: () => void;
     onRefresh: () => Promise<void> | void;
     refreshAriaLabel?: string;
     onSettings?: () => void;
@@ -46,16 +46,18 @@ export function SidebarTopControls({
 
     return (
         <div data-component="top-sidebar" className="h-11 pl-2 pr-0 bg-sidebar-chrome border-b border-sidebar-border flex items-center gap-1">
-            <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                onClick={onHome}
-                aria-label="Home"
-            >
-                <House className="size-3.5" />
-            </Button>
+            {onHome ? (
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={onHome}
+                    aria-label="Home"
+                >
+                    <House className="size-3.5" />
+                </Button>
+            ) : null}
             <Button
                 type="button"
                 variant="ghost"
@@ -103,7 +105,7 @@ export function SidebarTopControls({
                     ))}
                 </TooltipContent>
             </Tooltip>
-            {rightContent ? <div className="ml-auto flex items-center">{rightContent}</div> : null}
+            {rightContent ? <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-1">{rightContent}</div> : null}
         </div>
     );
 }

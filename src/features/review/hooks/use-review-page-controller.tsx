@@ -1,5 +1,4 @@
 import type { FileDiffOptions } from "@pierre/diffs";
-import { useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, type SetStateAction, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReviewCommentsSidebar } from "@/components/pull-request-review/review-comments-sidebar";
 import { ReviewCommitScopeControl } from "@/components/pull-request-review/review-commit-scope-control";
@@ -76,7 +75,6 @@ export function useReviewPageController({
     onRequireAuth,
     authPromptSlot,
 }: PullRequestReviewPageProps) {
-    const navigate = useNavigate();
     const requestAuth = useCallback(
         (reason: "write" | "rate_limit") => {
             onRequireAuth?.(reason);
@@ -339,7 +337,6 @@ export function useReviewPageController({
         selectableDiffPathSet,
         visiblePathSet,
         treeEntries,
-        directoryPaths,
         treeOrderedVisiblePaths,
         allModeDiffEntries,
         selectedFilePath,
@@ -965,7 +962,6 @@ export function useReviewPageController({
         showSettingsPanel,
         activeFile,
         treeEntries,
-        directoryPaths,
         fileLineStats,
         searchQuery,
         showUnviewedOnly,
@@ -984,7 +980,6 @@ export function useReviewPageController({
         markDraftPending: markDraftMutation.isPending,
         copiedSourceBranch,
         commitScopeSlot,
-        onHome: () => navigate({ to: "/" }),
         onRefresh: refreshCurrentReviewView,
         onToggleSettings: handleToggleSettingsPanel,
         onCollapseTree: () => setTreeCollapsed(true),

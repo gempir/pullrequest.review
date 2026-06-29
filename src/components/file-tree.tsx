@@ -22,6 +22,7 @@ type UseAppFileTreeModelProps = {
     selectedAppPath?: string;
     pinnedFirstTreePath?: string;
     searchQuery?: string;
+    hideSearchChrome?: boolean;
     gitStatus?: readonly GitStatusEntry[];
     icons?: FileTreeIcons;
     onSelectPath?: (appPath: string) => void;
@@ -129,6 +130,21 @@ const TREE_UNSAFE_CSS = `
 
   [data-item-section='git'] {
     display: none;
+  }
+`;
+
+const TREE_HIDDEN_SEARCH_CHROME_CSS = `
+  [role='tree'] {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  [data-file-tree-search-container],
+  [data-type='header-slot'] {
+    display: none;
+  }
+
+  [data-file-tree-virtualized-scroll='true'] {
+    grid-row: 1;
   }
 `;
 
@@ -352,6 +368,7 @@ export function useAppFileTreeModel({
     selectedAppPath,
     pinnedFirstTreePath,
     searchQuery,
+    hideSearchChrome = false,
     gitStatus,
     icons,
     onSelectPath,
@@ -377,6 +394,7 @@ export function useAppFileTreeModel({
     const treeSort = useMemo(() => createTreeSort(pinnedFirstTreePath), [pinnedFirstTreePath]);
     const preparedInput = useMemo(() => prepareFileTreeInput(treePaths, { sort: treeSort }), [treePaths, treeSort]);
     const visibleTreePathIndex = useMemo(() => createVisibleTreePathIndex(preparedInput.paths), [preparedInput]);
+    const unsafeCSS = hideSearchChrome ? `${TREE_UNSAFE_CSS}\n${TREE_HIDDEN_SEARCH_CHROME_CSS}` : TREE_UNSAFE_CSS;
 
     useEffect(() => {
         appPathToTreePathRef.current = new Map(entries.map((entry) => [entry.appPath, normalizeTreeLookupPath(entry.treePath) || entry.treePath]));
@@ -425,9 +443,9 @@ export function useAppFileTreeModel({
                 search: true,
                 searchBlurBehavior: "retain",
                 initialSearchQuery: initialSearchQueryRef.current,
-                unsafeCSS: TREE_UNSAFE_CSS,
+                unsafeCSS,
             }),
-        [preparedInput, treeDensity, treeSort],
+        [preparedInput, treeDensity, treeSort, unsafeCSS],
     );
 
     useEffect(() => {

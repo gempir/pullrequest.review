@@ -1,4 +1,6 @@
+import { useMutation } from "@tanstack/react-query";
 import { type MutableRefObject, useCallback } from "react";
+import { updatePullRequestDescription } from "@/lib/git-host/service";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
 import type { ActionPolicy, CommentLineSide } from "./review-page-actions.types";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
@@ -114,6 +116,27 @@ export function useReviewPageActions({
         setActionError,
         setInlineComment,
     });
+    const updateDescriptionMutation = useMutation({
+        mutationFn: (description: string) => {
+            if (!authCanWrite) {
+                requestAuth("write");
+                throw new Error("Sign in required");
+            }
+            return updatePullRequestDescription({ prRef: ensurePrRef(), description, title: pullRequest?.title });
+        },
+        onSuccess: async () => {
+            await refreshPullRequest();
+        },
+        onError: (error) => {
+            setActionError(error instanceof Error ? error.message : "Failed to edit pull request description");
+        },
+    });
+    const submitPullRequestDescriptionEdit = useCallback(
+        (description: string) => {
+            return updateDescriptionMutation.mutateAsync(description);
+        },
+        [updateDescriptionMutation],
+    );
     const { handleCopyPath, handleCopySourceBranch } = useReviewClipboardActions({
         copyResetTimeoutRef,
         copySourceBranchResetTimeoutRef,
@@ -132,6 +155,7 @@ export function useReviewPageActions({
         createCommentMutation,
         resolveCommentMutation,
         updateCommentMutation,
+        updateDescriptionMutation,
         deleteCommentMutation,
         handleApprovePullRequest,
         handleRequestChangesPullRequest,
@@ -141,6 +165,7 @@ export function useReviewPageActions({
         submitPullRequestComment,
         submitThreadReply,
         submitCommentEdit,
+        submitPullRequestDescriptionEdit,
         handleCopyPath,
         handleCopySourceBranch,
     };

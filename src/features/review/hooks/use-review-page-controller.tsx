@@ -594,6 +594,7 @@ export function useReviewPageController({
         createCommentMutation,
         resolveCommentMutation,
         updateCommentMutation,
+        updateDescriptionMutation,
         deleteCommentMutation,
         handleApprovePullRequest,
         handleRequestChangesPullRequest,
@@ -603,6 +604,7 @@ export function useReviewPageController({
         submitPullRequestComment,
         submitThreadReply,
         submitCommentEdit,
+        submitPullRequestDescriptionEdit,
         handleCopyPath,
         handleCopySourceBranch,
     } = useReviewPageActions({
@@ -1119,6 +1121,8 @@ export function useReviewPageController({
                     resolveCommentPending={resolveCommentMutation.isPending}
                     deleteCommentPending={deleteCommentMutation.isPending}
                     updateCommentPending={updateCommentMutation.isPending}
+                    updateDescriptionPending={updateDescriptionMutation.isPending}
+                    canEditDescription={auth.canWrite}
                     toRenderableFileDiff={toRenderableFileDiff}
                     allModeDiffEntries={allModeDiffEntries}
                     getSelectedVersionIdForPath={getSelectedVersionIdForPath}
@@ -1162,6 +1166,7 @@ export function useReviewPageController({
                     onEditComment={(commentId, content, hasInlineContext) => {
                         submitCommentEdit(commentId, content, hasInlineContext);
                     }}
+                    onEditDescription={submitPullRequestDescriptionEdit}
                     onHistoryCommentNavigate={handleHistoryCommentNavigate}
                     onToggleSummaryCollapsed={() =>
                         startTransition(() => {

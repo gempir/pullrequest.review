@@ -45,6 +45,7 @@ type ReviewPageDiffContentProps = {
     canCommentInline: boolean;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
+    deleteCommentPending: boolean;
     updateCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     allModeDiffEntries: Array<{ filePath: string; fileDiff: FileDiffMetadata }>;
@@ -124,6 +125,7 @@ export function ReviewPageDiffContent({
     canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    deleteCommentPending,
     updateCommentPending,
     toRenderableFileDiff,
     allModeDiffEntries,
@@ -229,6 +231,7 @@ export function ReviewPageDiffContent({
                 canCommentInline={canCommentInline}
                 canResolveThread={canResolveThread}
                 resolveCommentPending={resolveCommentPending}
+                deleteCommentPending={deleteCommentPending}
                 updateCommentPending={updateCommentPending}
                 toRenderableFileDiff={toRenderableFileDiff}
                 onCopyPath={onCopyPath}
@@ -298,6 +301,7 @@ export function ReviewPageDiffContent({
             canCommentInline={canCommentInline}
             canResolveThread={canResolveThread}
             resolveCommentPending={resolveCommentPending}
+            deleteCommentPending={deleteCommentPending}
             updateCommentPending={updateCommentPending}
             toRenderableFileDiff={toRenderableFileDiff}
             compactDiffOptions={singleFileDiffOptions}

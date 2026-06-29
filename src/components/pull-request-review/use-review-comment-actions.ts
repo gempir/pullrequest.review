@@ -14,7 +14,6 @@ type UseReviewCommentActionsParams = {
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     inlineComment: InlineCommentDraft | null;
     onOptimisticCommentRemove: (commentId: number) => void;
-    onOptimisticCommentUpdate: (commentId: number, pending: boolean) => void;
     refreshPullRequest: () => Promise<void>;
     requestAuth: (reason: "write" | "rate_limit") => void;
     setActionError: (message: string | null) => void;
@@ -30,7 +29,6 @@ export function useReviewCommentActions({
     getInlineDraftContent,
     inlineComment,
     onOptimisticCommentRemove,
-    onOptimisticCommentUpdate,
     refreshPullRequest,
     requestAuth,
     setActionError,
@@ -57,21 +55,23 @@ export function useReviewCommentActions({
                     : { path: payload.path },
             });
         },
-        onMutate: (vars) => ({ optimisticCommentId: createOptimisticComment(vars) }),
-        onSuccess: async (_, vars, context) => {
-            if (typeof context?.optimisticCommentId === "number") {
-                onOptimisticCommentUpdate(context.optimisticCommentId, false);
-            }
-            if (vars.line && vars.side && vars.path) {
+        onMutate: (vars) => {
+            const optimisticCommentId = createOptimisticComment(vars);
+            if (vars.path && typeof vars.line === "number" && vars.side) {
                 clearInlineDraftContent({ path: vars.path, line: vars.line, side: vars.side });
+                setInlineComment((prev) => {
+                    if (!prev) return prev;
+                    if (prev.path !== vars.path) return prev;
+                    if (prev.line !== vars.line) return prev;
+                    if (prev.side !== vars.side) return prev;
+                    return null;
+                });
             }
-            setInlineComment((prev) => {
-                if (!prev) return prev;
-                if (prev.path !== vars.path) return prev;
-                if (vars.line && prev.line !== vars.line) return prev;
-                if (vars.side && prev.side !== vars.side) return prev;
-                return null;
-            });
+            return { optimisticCommentId };
+        },
+        onSuccess: async (_, vars, context) => {
+            void context;
+            void vars;
             await refreshPullRequest();
         },
         onError: (error, _vars, context) => {

@@ -45,6 +45,7 @@ type ReviewSingleModeViewProps = {
     canCommentInline: boolean;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
+    deleteCommentPending: boolean;
     updateCommentPending: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     onCopyPath: (path: string) => void;
@@ -97,6 +98,7 @@ export function ReviewSingleModeView({
     canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    deleteCommentPending,
     updateCommentPending,
     toRenderableFileDiff,
     onCopyPath,
@@ -156,6 +158,7 @@ export function ReviewSingleModeView({
                     canCommentInline={canCommentInline}
                     canResolveThread={canResolveThread}
                     resolveCommentPending={resolveCommentPending}
+                    deleteCommentPending={deleteCommentPending}
                     updateCommentPending={updateCommentPending}
                     onDeleteComment={onDeleteComment}
                     onResolveThread={onResolveThread}
@@ -266,6 +269,7 @@ export function ReviewSingleModeView({
                                 canCommentInline={canCommentInline && !selectedFileReadOnlyHistorical}
                                 canResolveThread={canResolveThread}
                                 resolveCommentPending={resolveCommentPending}
+                                deleteCommentPending={deleteCommentPending}
                                 updateCommentPending={updateCommentPending}
                                 getInlineDraftContent={getInlineDraftContent}
                                 setInlineDraftContent={setInlineDraftContent}
@@ -296,6 +300,7 @@ export function ReviewSingleModeView({
                             canCommentInline={canCommentInline}
                             createCommentPending={createCommentPending}
                             resolveCommentPending={resolveCommentPending}
+                            deleteCommentPending={deleteCommentPending}
                             updateCommentPending={updateCommentPending}
                             currentUserDisplayName={currentUserDisplayName}
                             onDeleteComment={onDeleteComment}

@@ -16,6 +16,7 @@ type InlineDiffAnnotationProps = {
     canCommentInline: boolean;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
+    deleteCommentPending: boolean;
     updateCommentPending: boolean;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
@@ -39,6 +40,7 @@ export function InlineDiffAnnotation({
     canCommentInline,
     canResolveThread,
     resolveCommentPending,
+    deleteCommentPending,
     updateCommentPending,
     getInlineDraftContent,
     setInlineDraftContent,
@@ -95,6 +97,7 @@ export function InlineDiffAnnotation({
                     canCommentInline={canCommentInline}
                     createCommentPending={createCommentPending}
                     resolveCommentPending={resolveCommentPending}
+                    deleteCommentPending={deleteCommentPending}
                     updateCommentPending={updateCommentPending}
                     currentUserDisplayName={currentUserDisplayName}
                     onDeleteComment={onDeleteComment}

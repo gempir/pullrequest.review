@@ -42,7 +42,15 @@ function getDiffStatIconWidth(stats: { added: number; removed: number }) {
 function createDiffStatSymbol(stats: { added: number; removed: number }) {
     const name = getDiffStatIconName(stats);
     const width = getDiffStatIconWidth(stats);
-    return `<symbol id="${name}" viewBox="0 0 ${width} 16"><text x="${width}" y="7" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="500" fill="var(--status-added)">+${stats.added}</text><text x="${width}" y="15" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="500" fill="var(--status-removed)">-${stats.removed}</text></symbol>`;
+    const addedText =
+        stats.added > 0
+            ? `<text x="${width}" y="7" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="500" fill="var(--status-added)">+${stats.added}</text>`
+            : "";
+    const removedText =
+        stats.removed > 0
+            ? `<text x="${width}" y="15" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="500" fill="var(--status-removed)">-${stats.removed}</text>`
+            : "";
+    return `<symbol id="${name}" viewBox="0 0 ${width} 16">${addedText}${removedText}</symbol>`;
 }
 
 function createDiffStatIcons(fileLineStats?: ReadonlyMap<string, { added: number; removed: number }>): FileTreeIcons | undefined {

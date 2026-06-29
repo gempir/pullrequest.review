@@ -25,7 +25,7 @@ function ReviewWorkerRenderOptionsSync() {
 
         const updateStats = () => {
             const stats = workerPool.getStats();
-            setWorkerQueueDepth(stats.queuedTasks + stats.activeTasks);
+            setWorkerQueueDepth(stats.queuedTasks + stats.busyWorkers);
         };
 
         updateStats();

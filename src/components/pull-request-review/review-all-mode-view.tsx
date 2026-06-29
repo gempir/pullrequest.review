@@ -51,6 +51,8 @@ type ReviewAllModeViewProps = {
     resolveCommentPending: boolean;
     deleteCommentPending: boolean;
     updateCommentPending: boolean;
+    updateDescriptionPending: boolean;
+    canEditDescription: boolean;
     toRenderableFileDiff: (fileDiff: FileDiffMetadata) => FileDiffMetadata;
     getSelectedVersionIdForPath: (path: string) => string | undefined;
     getVersionOptionsForPath: (path: string) => FileVersionSelectOption[];
@@ -73,6 +75,7 @@ type ReviewAllModeViewProps = {
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     onReplyToThread: (commentId: number, content: string) => void;
     onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onEditDescription: (description: string) => Promise<unknown> | undefined;
     onDiffLineEnter: (props: OnDiffLineEnterLeaveProps, onOpenInlineDraft?: (target: InlineCommentLineTarget) => void) => void;
     onDiffLineLeave: (props: OnDiffLineEnterLeaveProps) => void;
     diffTypographyStyle: CSSProperties;
@@ -117,6 +120,8 @@ export function ReviewAllModeView({
     resolveCommentPending,
     deleteCommentPending,
     updateCommentPending,
+    updateDescriptionPending,
+    canEditDescription,
     toRenderableFileDiff,
     getSelectedVersionIdForPath,
     getVersionOptionsForPath,
@@ -136,6 +141,7 @@ export function ReviewAllModeView({
     onHistoryCommentNavigate,
     onReplyToThread,
     onEditComment,
+    onEditDescription,
     onDiffLineEnter,
     onDiffLineLeave,
     diffTypographyStyle,
@@ -216,10 +222,13 @@ export function ReviewAllModeView({
                             resolveCommentPending={resolveCommentPending}
                             deleteCommentPending={deleteCommentPending}
                             updateCommentPending={updateCommentPending}
+                            updateDescriptionPending={updateDescriptionPending}
+                            canEditDescription={canEditDescription}
                             onDeleteComment={onDeleteComment}
                             onResolveThread={onResolveThread}
                             onReplyToThread={onReplyToThread}
                             onEditComment={onEditComment}
+                            onEditDescription={onEditDescription}
                             footerRight={summaryFooter}
                         />
                     )}

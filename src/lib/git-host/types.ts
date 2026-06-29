@@ -227,6 +227,11 @@ export interface CommentUpdatePayload {
     hasInlineContext: boolean;
 }
 
+export interface PullRequestDescriptionUpdatePayload {
+    description: string;
+    title?: string;
+}
+
 export interface HostCapabilities {
     publicReadSupported: boolean;
     supportsThreadResolution: boolean;
@@ -281,6 +286,7 @@ export interface GitHostClient {
     markPullRequestAsDraft(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     markPullRequestReady(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     mergePullRequest(data: { prRef: PullRequestRef } & MergeOptions): Promise<{ ok: true }>;
+    updatePullRequestDescription(data: { prRef: PullRequestRef } & PullRequestDescriptionUpdatePayload): Promise<{ ok: true }>;
     createPullRequestComment(
         data: {
             prRef: PullRequestRef;

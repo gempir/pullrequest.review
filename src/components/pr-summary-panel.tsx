@@ -7,6 +7,7 @@ import {
     GitCommitHorizontal,
     GitMerge,
     GitPullRequestClosed,
+    Loader2,
     MessageSquare,
     PenSquare,
     Reply,
@@ -17,7 +18,7 @@ import {
     UserPlus,
     X,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useReducer } from "react";
+import { type ReactNode, useEffect, useMemo, useReducer, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
@@ -745,9 +746,118 @@ function groupCommitsByAuthor(commits: Commit[]) {
     return groups;
 }
 
-function SummaryDescription({ description }: { description?: string }) {
+function SummaryDescription({
+    description,
+    canEdit,
+    isUpdating,
+    onEditDescription,
+}: {
+    description?: string;
+    canEdit: boolean;
+    isUpdating: boolean;
+    onEditDescription?: (description: string) => Promise<unknown> | undefined;
+}) {
+    const currentDescription = description ?? "";
+    const [isEditing, setIsEditing] = useState(false);
+    const [draft, setDraft] = useState(currentDescription);
+    const [localSaving, setLocalSaving] = useState(false);
+    const isSaving = isUpdating || localSaving;
+    const hasChanges = draft !== currentDescription;
+
+    useEffect(() => {
+        if (isEditing || localSaving) return;
+        setDraft(currentDescription);
+    }, [currentDescription, isEditing, localSaving]);
+
+    const startEditing = () => {
+        if (!canEdit || isSaving) return;
+        setDraft(currentDescription);
+        setIsEditing(true);
+    };
+    const handleSave = async () => {
+        if (!hasChanges || isSaving) return;
+        setLocalSaving(true);
+        try {
+            await onEditDescription?.(draft);
+            setIsEditing(false);
+        } finally {
+            setLocalSaving(false);
+        }
+    };
+    const handleCancel = () => {
+        if (isSaving) return;
+        setDraft(currentDescription);
+        setIsEditing(false);
+    };
+
+    if (isEditing) {
+        return (
+            <section className="min-w-0 px-2 py-1" data-component="summary-description">
+                <CommentEditor
+                    value={draft}
+                    placeholder="Add a pull request description..."
+                    disabled={isSaving}
+                    onChange={setDraft}
+                    onSubmit={handleSave}
+                    onReady={(focus) => {
+                        focus();
+                    }}
+                    contentStyle={{ minHeight: "9rem" }}
+                />
+                <div className="mt-2 flex flex-wrap items-center gap-1">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
+                        disabled={!hasChanges || isSaving}
+                        onClick={handleSave}
+                    >
+                        <Check className="size-3.5" />
+                        {isSaving ? (
+                            <>
+                                Saving
+                                <Loader2 className="size-3.5 animate-spin" />
+                            </>
+                        ) : (
+                            "Save"
+                        )}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
+                        disabled={isSaving}
+                        onClick={handleCancel}
+                    >
+                        <X className="size-3.5" />
+                        Cancel
+                    </Button>
+                </div>
+            </section>
+        );
+    }
+
     return (
-        <section className="min-w-0 px-2 py-1" data-component="summary-description">
+        <section
+            className={cn(
+                "min-w-0 px-2 py-1",
+                canEdit &&
+                    "cursor-text rounded-sm transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            )}
+            data-component="summary-description"
+            role={canEdit ? "button" : undefined}
+            tabIndex={canEdit ? 0 : undefined}
+            aria-label={canEdit ? "Edit pull request description" : undefined}
+            onClick={(event) => {
+                if ((event.target as Element).closest("a,button")) return;
+                startEditing();
+            }}
+            onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                startEditing();
+            }}
+        >
             {description?.trim() ? <MarkdownBlock text={description} /> : <div className="text-[13px] text-muted-foreground">No description.</div>}
         </section>
     );
@@ -1312,10 +1422,13 @@ export function PullRequestSummaryPanel({
     resolveCommentPending,
     deleteCommentPending,
     updateCommentPending,
+    updateDescriptionPending,
+    canEditDescription,
     onDeleteComment,
     onResolveThread,
     onReplyToThread,
     onEditComment,
+    onEditDescription,
 }: {
     bundle: PullRequestBundle;
     headerTitle?: string;
@@ -1330,10 +1443,13 @@ export function PullRequestSummaryPanel({
     resolveCommentPending?: boolean;
     deleteCommentPending?: boolean;
     updateCommentPending?: boolean;
+    updateDescriptionPending?: boolean;
+    canEditDescription?: boolean;
     onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
     onReplyToThread?: (commentId: number, content: string) => void;
     onEditComment?: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onEditDescription?: (description: string) => Promise<unknown> | undefined;
 }) {
     const { pr, commits, history, prRef } = bundle;
     const diffByPath = useMemo(() => buildDiffByPath(bundle.diff), [bundle.diff]);
@@ -1426,7 +1542,12 @@ export function PullRequestSummaryPanel({
                 </div>
             ) : null}
             <div className="px-2.5 pb-48 pt-2.5">
-                <SummaryDescription description={pr.description} />
+                <SummaryDescription
+                    description={pr.description}
+                    canEdit={Boolean(canEditDescription && onEditDescription)}
+                    isUpdating={Boolean(updateDescriptionPending)}
+                    onEditDescription={onEditDescription}
+                />
                 <div className="mt-4 space-y-0 px-1" data-component="summary-timeline">
                     {timelineEntries.map((entry, index) => {
                         const isFirst = index === 0;

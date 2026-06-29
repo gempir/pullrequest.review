@@ -437,6 +437,7 @@ function ThreadReplyNode({
                             }}
                             onChange={(nextValue) => setEditorState((prev) => (prev.editValue === nextValue ? prev : { ...prev, editValue: nextValue }))}
                             onSubmit={() => onSubmitEdit(reply.id, replyHasInlineContext)}
+                            chrome="toolbar"
                         />
                     ) : (
                         <div className={isCommentPending ? "opacity-70" : undefined}>
@@ -641,6 +642,7 @@ function ThreadRootCommentCard({
                                 }}
                                 onChange={(nextValue) => setEditorState((prev) => (prev.editValue === nextValue ? prev : { ...prev, editValue: nextValue }))}
                                 onSubmit={() => onSubmitEdit(rootComment.id, Boolean(rootComment.inline?.path))}
+                                chrome="toolbar"
                             />
                         ) : (
                             <div className={isCommentPending ? "opacity-70" : undefined}>

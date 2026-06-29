@@ -46,8 +46,10 @@ export function CommentEditor({
     onChange,
     onSubmit,
     onReady,
+    toolbarClassName,
     contentClassName,
     contentStyle,
+    chrome = "full",
 }: {
     value: string;
     placeholder: string;
@@ -55,8 +57,10 @@ export function CommentEditor({
     onChange: (next: string) => void;
     onSubmit: () => void;
     onReady?: (focus: () => void) => void;
+    toolbarClassName?: string;
     contentClassName?: string;
     contentStyle?: CSSProperties;
+    chrome?: "full" | "toolbar";
 }) {
     const initialValue = useMemo(() => textToValue(value), [value]);
     const editor = usePlateEditor({
@@ -79,15 +83,25 @@ export function CommentEditor({
         });
     }, [editor]);
 
+    const toolbarButtonClassName = chrome === "full" ? "h-7 rounded-[2px] px-2" : "h-6 rounded-[2px] px-0.5 [&_svg]:-translate-x-0.5";
+
     return (
-        <div className="group/editor flex flex-col rounded-md bg-comment">
+        <div className={cn("group/editor flex flex-col", chrome === "full" && "rounded-md bg-comment")}>
             <Plate editor={editor} onChange={({ value: nextValue }) => onChange(valueToText(nextValue))}>
-                <div className="flex items-center gap-1 rounded-t-md border-x border-t border-comment-border bg-comment-muted px-1.5 py-1">
+                <div
+                    className={cn(
+                        "flex items-center border-comment-border bg-comment-muted",
+                        chrome === "full"
+                            ? "gap-1 rounded-t-md border-x border-t px-1.5 py-1"
+                            : "gap-0.5 border-b border-surface-hover bg-transparent px-0 py-0.5",
+                        toolbarClassName,
+                    )}
+                >
                     <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-2"
+                        className={toolbarButtonClassName}
                         disabled={disabled}
                         onMouseDown={(event) => {
                             event.preventDefault();
@@ -101,7 +115,7 @@ export function CommentEditor({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-2"
+                        className={toolbarButtonClassName}
                         disabled={disabled}
                         onMouseDown={(event) => {
                             event.preventDefault();
@@ -115,7 +129,7 @@ export function CommentEditor({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-2"
+                        className={toolbarButtonClassName}
                         disabled={disabled}
                         onMouseDown={(event) => {
                             event.preventDefault();
@@ -129,7 +143,7 @@ export function CommentEditor({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-2"
+                        className={toolbarButtonClassName}
                         disabled={disabled}
                         onMouseDown={(event) => {
                             event.preventDefault();
@@ -143,7 +157,7 @@ export function CommentEditor({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-2"
+                        className={toolbarButtonClassName}
                         disabled={disabled}
                         onMouseDown={(event) => {
                             event.preventDefault();
@@ -157,7 +171,7 @@ export function CommentEditor({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-2"
+                        className={toolbarButtonClassName}
                         disabled={disabled}
                         onMouseDown={(event) => {
                             event.preventDefault();
@@ -169,7 +183,12 @@ export function CommentEditor({
                     </Button>
                 </div>
 
-                <div className="rounded-b-md border border-comment-border bg-comment transition-colors group-focus-within/editor:border-input">
+                <div
+                    className={cn(
+                        "transition-colors",
+                        chrome === "full" ? "rounded-b-md border border-comment-border bg-comment group-focus-within/editor:border-input" : "bg-transparent",
+                    )}
+                >
                     <PlateContent
                         readOnly={disabled}
                         placeholder={placeholder}
@@ -181,7 +200,8 @@ export function CommentEditor({
                             }
                         }}
                         className={cn(
-                            "block w-full overflow-y-auto px-3 py-2 text-[13px] leading-relaxed transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 whitespace-pre-wrap break-words [&_p]:m-0",
+                            "block w-full overflow-y-auto text-[13px] leading-relaxed transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 whitespace-pre-wrap break-words [&_p]:m-0",
+                            chrome === "full" ? "px-3 py-2" : "p-0",
                             contentClassName,
                         )}
                     />

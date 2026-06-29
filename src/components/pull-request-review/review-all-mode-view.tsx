@@ -66,15 +66,15 @@ type ReviewAllModeViewProps = {
     compactDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined>;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
-    onSubmitInlineComment: () => void;
+    onSubmitInlineComment: () => Promise<unknown> | undefined;
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
     onOpenInlineDraftForPath: (path: string, target: InlineCommentLineTarget) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
-    onReplyToThread: (commentId: number, content: string) => void;
-    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onReplyToThread: (commentId: number, content: string) => Promise<unknown> | undefined;
+    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
     onEditDescription: (description: string) => Promise<unknown> | undefined;
     onDiffLineEnter: (props: OnDiffLineEnterLeaveProps, onOpenInlineDraft?: (target: InlineCommentLineTarget) => void) => void;
     onDiffLineLeave: (props: OnDiffLineEnterLeaveProps) => void;

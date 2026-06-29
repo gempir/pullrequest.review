@@ -20,6 +20,15 @@ type UseReviewCommentActionsParams = {
     setInlineComment: (next: InlineCommentDraft | null | ((prev: InlineCommentDraft | null) => InlineCommentDraft | null)) => void;
 };
 
+type CreateCommentPayload = {
+    path?: string;
+    content: string;
+    line?: number;
+    side?: CommentLineSide;
+    parentId?: number;
+    optimistic?: boolean;
+};
+
 export function useReviewCommentActions({
     actionPolicy,
     authCanWrite,
@@ -35,7 +44,7 @@ export function useReviewCommentActions({
     setInlineComment,
 }: UseReviewCommentActionsParams) {
     const createCommentMutation = useMutation({
-        mutationFn: (payload: { path?: string; content: string; line?: number; side?: CommentLineSide; parentId?: number }) => {
+        mutationFn: (payload: CreateCommentPayload) => {
             const prRef = ensurePrRef();
             if (payload.parentId) {
                 return createPullRequestComment({ prRef, content: payload.content, parentId: payload.parentId });
@@ -56,8 +65,8 @@ export function useReviewCommentActions({
             });
         },
         onMutate: (vars) => {
-            const optimisticCommentId = createOptimisticComment(vars);
-            if (vars.path && typeof vars.line === "number" && vars.side) {
+            const optimisticCommentId = vars.optimistic === false ? null : createOptimisticComment(vars);
+            if (vars.optimistic !== false && vars.path && typeof vars.line === "number" && vars.side) {
                 clearInlineDraftContent({ path: vars.path, line: vars.line, side: vars.side });
                 setInlineComment((prev) => {
                     if (!prev) return prev;
@@ -131,37 +140,53 @@ export function useReviewCommentActions({
         if (!actionPolicy.canCommentInline) {
             setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
             if (!authCanWrite) requestAuth("write");
-            return;
+            return undefined;
         }
-        if (!inlineComment) return;
+        if (!inlineComment) return undefined;
         const content = getInlineDraftContent(inlineComment).trim();
-        if (!content) return;
-        createCommentMutation.mutate({
-            path: inlineComment.path,
-            content,
-            line: inlineComment.line,
-            side: inlineComment.side,
-        });
+        if (!content) return undefined;
+        const draft = inlineComment;
+        return createCommentMutation
+            .mutateAsync({
+                path: draft.path,
+                content,
+                line: draft.line,
+                side: draft.side,
+                optimistic: false,
+            })
+            .then((result) => {
+                clearInlineDraftContent(draft);
+                setInlineComment((prev) => {
+                    if (!prev) return prev;
+                    if (prev.path !== draft.path) return prev;
+                    if (prev.line !== draft.line) return prev;
+                    if (prev.side !== draft.side) return prev;
+                    return null;
+                });
+                return result;
+            });
     }, [
         actionPolicy.canCommentInline,
         actionPolicy.disabledReason.commentInline,
         authCanWrite,
+        clearInlineDraftContent,
         createCommentMutation,
         getInlineDraftContent,
         inlineComment,
         requestAuth,
         setActionError,
+        setInlineComment,
     ]);
     const submitThreadReply = useCallback(
         (parentCommentId: number, content: string) => {
             if (!actionPolicy.canCommentInline) {
                 setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
                 if (!authCanWrite) requestAuth("write");
-                return;
+                return undefined;
             }
             const trimmed = content.trim();
-            if (!trimmed) return;
-            createCommentMutation.mutate({ content: trimmed, parentId: parentCommentId });
+            if (!trimmed) return undefined;
+            return createCommentMutation.mutateAsync({ content: trimmed, parentId: parentCommentId, optimistic: false });
         },
         [actionPolicy.canCommentInline, actionPolicy.disabledReason.commentInline, authCanWrite, createCommentMutation, requestAuth, setActionError],
     );
@@ -174,16 +199,15 @@ export function useReviewCommentActions({
             }
             const trimmed = content.trim();
             if (!trimmed) return false;
-            createCommentMutation.mutate({ content: trimmed });
-            return true;
+            return createCommentMutation.mutateAsync({ content: trimmed, optimistic: false }).then(() => true);
         },
         [actionPolicy.canCommentInline, actionPolicy.disabledReason.commentInline, authCanWrite, createCommentMutation, requestAuth, setActionError],
     );
     const submitCommentEdit = useCallback(
         (commentId: number, content: string, hasInlineContext: boolean) => {
             const trimmed = content.trim();
-            if (!trimmed) return;
-            updateCommentMutation.mutate({ commentId, content: trimmed, hasInlineContext });
+            if (!trimmed) return undefined;
+            return updateCommentMutation.mutateAsync({ commentId, content: trimmed, hasInlineContext });
         },
         [updateCommentMutation],
     );

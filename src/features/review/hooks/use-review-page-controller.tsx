@@ -1161,10 +1161,10 @@ export function useReviewPageController({
                         resolveCommentMutation.mutate({ commentId, resolve });
                     }}
                     onReplyToThread={(commentId, content) => {
-                        submitThreadReply(commentId, content);
+                        return submitThreadReply(commentId, content);
                     }}
                     onEditComment={(commentId, content, hasInlineContext) => {
-                        submitCommentEdit(commentId, content, hasInlineContext);
+                        return submitCommentEdit(commentId, content, hasInlineContext);
                     }}
                     onEditDescription={submitPullRequestDescriptionEdit}
                     onHistoryCommentNavigate={handleHistoryCommentNavigate}

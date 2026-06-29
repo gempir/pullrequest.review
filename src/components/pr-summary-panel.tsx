@@ -42,8 +42,13 @@ const TIMELINE_META_TEXT_CLASS = "text-[11px] leading-4";
 const TIMELINE_TIMESTAMP_CLASS = "pt-px text-right";
 const TIMELINE_CONNECTOR_CENTER_CLASS = "left-[7.5px]";
 const COMMENT_DIFF_CONTEXT_LINES = 3;
+const COMMENT_PRIMARY_BUTTON_CLASS =
+    "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none";
 
 type CommentLineSide = NonNullable<PullRequestHistoryEvent["comment"]>["side"];
+type EditCommentHandler = (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
+type ReplyCommentHandler = (commentId: number, content: string) => Promise<unknown> | undefined;
+const COMMENT_RELATIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000;
 
 type CommentDiffSnippetRow = {
     type: "context" | "addition" | "deletion";
@@ -491,14 +496,8 @@ function HistoryCommentActions({
         <div className="mt-2 flex flex-wrap items-center gap-1" data-comment-action-root="true">
             {isEditing ? (
                 <>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
-                        disabled={updateCommentPending}
-                        onClick={onSubmitEdit}
-                    >
-                        <Check className="size-3.5" />
+                    <Button variant="ghost" size="sm" className={`h-7 ${COMMENT_PRIMARY_BUTTON_CLASS}`} disabled={updateCommentPending} onClick={onSubmitEdit}>
+                        {updateCommentPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
                         Save
                     </Button>
                     <Button
@@ -508,20 +507,13 @@ function HistoryCommentActions({
                         disabled={updateCommentPending}
                         onClick={onCancelEdit}
                     >
-                        <X className="size-3.5" />
                         Cancel
                     </Button>
                 </>
             ) : isReplying ? (
                 <>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
-                        disabled={createCommentPending}
-                        onClick={onSubmitReply}
-                    >
-                        <SendHorizontal className="size-3.5" />
+                    <Button variant="ghost" size="sm" className={`h-7 ${COMMENT_PRIMARY_BUTTON_CLASS}`} disabled={createCommentPending} onClick={onSubmitReply}>
+                        {createCommentPending ? <Loader2 className="size-3.5 animate-spin" /> : <SendHorizontal className="size-3.5" />}
                         Comment
                     </Button>
                     <Button
@@ -780,6 +772,8 @@ function SummaryDescription({
         try {
             await onEditDescription?.(draft);
             setIsEditing(false);
+        } catch {
+            // The mutation surfaces the error in the review action banner.
         } finally {
             setLocalSaving(false);
         }
@@ -805,22 +799,9 @@ function SummaryDescription({
                     contentStyle={{ minHeight: "9rem" }}
                 />
                 <div className="mt-2 flex flex-wrap items-center gap-1">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
-                        disabled={!hasChanges || isSaving}
-                        onClick={handleSave}
-                    >
-                        <Check className="size-3.5" />
-                        {isSaving ? (
-                            <>
-                                Saving
-                                <Loader2 className="size-3.5 animate-spin" />
-                            </>
-                        ) : (
-                            "Save"
-                        )}
+                    <Button variant="ghost" size="sm" className={`h-7 ${COMMENT_PRIMARY_BUTTON_CLASS}`} disabled={!hasChanges || isSaving} onClick={handleSave}>
+                        {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                        Save
                     </Button>
                     <Button
                         variant="outline"
@@ -829,7 +810,6 @@ function SummaryDescription({
                         disabled={isSaving}
                         onClick={handleCancel}
                     >
-                        <X className="size-3.5" />
                         Cancel
                     </Button>
                 </div>
@@ -1000,8 +980,8 @@ function HistoryCommentSurface({
     updateCommentPending?: boolean;
     onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
-    onReplyToThread?: (commentId: number, content: string) => void;
-    onEditComment?: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onReplyToThread?: ReplyCommentHandler;
+    onEditComment?: EditCommentHandler;
 }) {
     const canNavigateToComment = Boolean(event.comment?.path && onSelectComment);
     const commentId = typeof event.comment?.id === "number" ? event.comment.id : undefined;
@@ -1022,11 +1002,15 @@ function HistoryCommentSurface({
         pathCopied: false,
     });
     const { isReplying, replyValue, isEditing, editValue, pathCopied } = state;
+    const [localReplySaving, setLocalReplySaving] = useState(false);
+    const [localEditSaving, setLocalEditSaving] = useState(false);
+    const isReplySaving = Boolean(createCommentPending) || localReplySaving;
+    const isEditSaving = Boolean(updateCommentPending) || localEditSaving;
 
     useEffect(() => {
-        if (isEditing) return;
+        if (isEditing || localEditSaving) return;
         dispatch({ type: "setEditValue", value: resolvedComment?.content?.raw ?? event.content ?? "" });
-    }, [event.content, isEditing, resolvedComment?.content?.raw]);
+    }, [event.content, isEditing, localEditSaving, resolvedComment?.content?.raw]);
 
     useEffect(() => {
         if (!pathCopied) return;
@@ -1052,20 +1036,34 @@ function HistoryCommentSurface({
         keyEvent.preventDefault();
         handleClick();
     };
-    const handleReplySubmit = () => {
+    const handleReplySubmit = async () => {
         if (!commentId || !onReplyToThread) return;
         const trimmed = replyValue.trim();
-        if (!trimmed) return;
-        onReplyToThread(commentId, trimmed);
-        dispatch({ type: "setReplyValue", value: "" });
-        dispatch({ type: "setReplying", value: false });
+        if (!trimmed || isReplySaving) return;
+        setLocalReplySaving(true);
+        try {
+            await onReplyToThread(commentId, trimmed);
+            dispatch({ type: "setReplyValue", value: "" });
+            dispatch({ type: "setReplying", value: false });
+        } catch {
+            // The mutation surfaces the error in the review action banner.
+        } finally {
+            setLocalReplySaving(false);
+        }
     };
-    const handleEditSubmit = () => {
+    const handleEditSubmit = async () => {
         if (!commentId || !onEditComment) return;
         const trimmed = editValue.trim();
-        if (!trimmed) return;
-        onEditComment(commentId, trimmed, hasInlineContext);
-        dispatch({ type: "setEditing", value: false });
+        if (!trimmed || isEditSaving) return;
+        setLocalEditSaving(true);
+        try {
+            await onEditComment(commentId, trimmed, hasInlineContext);
+            dispatch({ type: "setEditing", value: false });
+        } catch {
+            // The mutation surfaces the error in the review action banner.
+        } finally {
+            setLocalEditSaving(false);
+        }
     };
     const handleCopyPath = async () => {
         if (!event.comment?.path || typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
@@ -1098,7 +1096,11 @@ function HistoryCommentSurface({
                             <div className="flex items-start gap-2">
                                 <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                                     <span className="truncate text-[13px] font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
-                                    <Timestamp value={event.createdAt} className="pt-0 text-[11px] text-muted-foreground" />
+                                    <Timestamp
+                                        value={event.createdAt}
+                                        className="pt-0 text-[11px] text-muted-foreground"
+                                        relativeThresholdMs={COMMENT_RELATIVE_THRESHOLD_MS}
+                                    />
                                 </div>
                                 {canToggleResolve && typeof commentId === "number" && !isEditing && !isReplying ? (
                                     <button
@@ -1120,7 +1122,7 @@ function HistoryCommentSurface({
                                         <CommentEditor
                                             value={editValue}
                                             placeholder="Edit comment"
-                                            disabled={Boolean(updateCommentPending)}
+                                            disabled={isEditSaving}
                                             onChange={(value) => dispatch({ type: "setEditValue", value })}
                                             onSubmit={handleEditSubmit}
                                             contentClassName="min-h-[72px]"
@@ -1134,7 +1136,7 @@ function HistoryCommentSurface({
                                     <CommentEditor
                                         value={replyValue}
                                         placeholder="Reply to thread"
-                                        disabled={Boolean(createCommentPending)}
+                                        disabled={isReplySaving}
                                         onChange={(value) => dispatch({ type: "setReplyValue", value })}
                                         onSubmit={handleReplySubmit}
                                         contentClassName="min-h-[72px]"
@@ -1150,19 +1152,21 @@ function HistoryCommentSurface({
                                     canToggleResolve={canToggleResolve}
                                     canDelete={canDelete}
                                     isResolved={isResolved}
-                                    createCommentPending={Boolean(createCommentPending)}
+                                    createCommentPending={isReplySaving}
                                     resolveCommentPending={Boolean(resolveCommentPending)}
                                     deleteCommentPending={Boolean(deleteCommentPending)}
-                                    updateCommentPending={Boolean(updateCommentPending)}
+                                    updateCommentPending={isEditSaving}
                                     actionButtonClass={actionButtonClass}
                                     actionIconClass={actionIconClass}
                                     onSubmitEdit={handleEditSubmit}
                                     onCancelEdit={() => {
+                                        if (isEditSaving) return;
                                         dispatch({ type: "setEditValue", value: resolvedComment?.content?.raw ?? event.content ?? "" });
                                         dispatch({ type: "setEditing", value: false });
                                     }}
                                     onSubmitReply={handleReplySubmit}
                                     onCancelReply={() => {
+                                        if (isReplySaving) return;
                                         dispatch({ type: "setReplyValue", value: "" });
                                         dispatch({ type: "setReplying", value: false });
                                     }}
@@ -1233,8 +1237,8 @@ function HistoryTimelineItem({
     updateCommentPending?: boolean;
     onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
-    onReplyToThread?: (commentId: number, content: string) => void;
-    onEditComment?: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onReplyToThread?: ReplyCommentHandler;
+    onEditComment?: EditCommentHandler;
 }) {
     const HistoryIcon = historyIcon(event.type);
     const eventTitle = historyEventTitle(event.type);
@@ -1355,8 +1359,8 @@ function CommentThreadTimelineItem({
     onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
-    onReplyToThread?: (commentId: number, content: string) => void;
-    onEditComment?: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onReplyToThread?: ReplyCommentHandler;
+    onEditComment?: EditCommentHandler;
 }) {
     const rootComment = thread.root.comment;
     const path = rootComment.inline?.path;
@@ -1447,8 +1451,8 @@ export function PullRequestSummaryPanel({
     canEditDescription?: boolean;
     onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
     onResolveThread?: (commentId: number, resolve: boolean) => void;
-    onReplyToThread?: (commentId: number, content: string) => void;
-    onEditComment?: (commentId: number, content: string, hasInlineContext: boolean) => void;
+    onReplyToThread?: ReplyCommentHandler;
+    onEditComment?: EditCommentHandler;
     onEditDescription?: (description: string) => Promise<unknown> | undefined;
 }) {
     const { pr, commits, history, prRef } = bundle;
@@ -1615,7 +1619,7 @@ export function PullRequestSummaryPanel({
                         );
                     })}
                 </div>
-                {footerRight ? <div className="mt-3 border-t border-border-muted pt-3">{footerRight}</div> : null}
+                {footerRight ? <div className="mt-3 pt-3">{footerRight}</div> : null}
             </div>
         </div>
     );

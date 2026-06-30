@@ -19,12 +19,8 @@ import {
     X,
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useReducer, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
-import { CommentMarkdownImage } from "@/components/comment-markdown-image";
+import { CommentMarkdown } from "@/components/comment-markdown";
 import { CommentShareButton } from "@/components/comment-share-button";
 import { ThreadCard } from "@/components/pull-request-review/review-thread-card";
 import { buildCommentThreads, type CommentThread, flattenThread } from "@/components/pull-request-review/review-threads";
@@ -288,63 +284,7 @@ function timelineIconClass(kind: "history" | "commitGroup" | "commentThread", ty
 }
 
 function MarkdownBlock({ text }: { text: string }) {
-    return (
-        <div className="space-y-2 text-[13px] leading-relaxed">
-            <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                components={{
-                    a: ({ node: _node, ...props }) => (
-                        <a {...props} target="_blank" rel="noreferrer" className="underline text-accent hover:text-accent-muted" />
-                    ),
-                    h1: ({ node: _node, children, ...props }) => (
-                        <h1 {...props} className="text-xl font-bold">
-                            {children}
-                        </h1>
-                    ),
-                    h2: ({ node: _node, children, ...props }) => (
-                        <h2 {...props} className="text-lg font-bold">
-                            {children}
-                        </h2>
-                    ),
-                    h3: ({ node: _node, children, ...props }) => (
-                        <h3 {...props} className="text-base font-bold">
-                            {children}
-                        </h3>
-                    ),
-                    h4: ({ node: _node, children, ...props }) => (
-                        <h4 {...props} className="text-sm font-bold">
-                            {children}
-                        </h4>
-                    ),
-                    h5: ({ node: _node, children, ...props }) => (
-                        <h5 {...props} className="text-[13px] font-bold">
-                            {children}
-                        </h5>
-                    ),
-                    h6: ({ node: _node, children, ...props }) => (
-                        <h6 {...props} className="text-xs font-bold">
-                            {children}
-                        </h6>
-                    ),
-                    p: ({ node: _node, ...props }) => <p {...props} className="whitespace-pre-wrap break-words" />,
-                    ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc pl-5 space-y-1" />,
-                    ol: ({ node: _node, ...props }) => <ol {...props} className="list-decimal pl-5 space-y-1" />,
-                    table: ({ node: _node, ...props }) => <table {...props} className="w-full border-collapse" />,
-                    th: ({ node: _node, ...props }) => <th {...props} className="border border-border p-2 text-left" />,
-                    td: ({ node: _node, ...props }) => <td {...props} className="border border-border p-2" />,
-                    blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l-2 border-border pl-3 text-muted-foreground" />,
-                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-comment-muted px-1 py-0.5 text-[11px]" />,
-                    pre: ({ node: _node, ...props }) => (
-                        <pre {...props} className="overflow-x-auto rounded border border-comment-border bg-comment-muted p-2 text-[11px]" />
-                    ),
-                    img: ({ node: _node, ...props }) => <CommentMarkdownImage {...props} />,
-                }}
-            >
-                {text}
-            </ReactMarkdown>
-        </div>
-    );
+    return <CommentMarkdown text={text} />;
 }
 
 function CommentDiffSnippetBlock({ snippet, className }: { snippet: CommentDiffSnippet; className?: string }) {

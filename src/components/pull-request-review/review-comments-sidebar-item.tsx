@@ -1,9 +1,5 @@
 import { Check, Circle, Reply } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
-import { CommentMarkdownImage } from "@/components/comment-markdown-image";
+import { CommentMarkdown } from "@/components/comment-markdown";
 import type { CommentThread } from "@/components/pull-request-review/review-threads";
 import type { ReviewSidebarThreadItem } from "@/components/pull-request-review/use-review-page-derived";
 import { Timestamp } from "@/components/timestamp";
@@ -51,36 +47,7 @@ function commentMarkdown(thread: CommentThread) {
 }
 
 function CommentBody({ text }: { text: string }) {
-    return (
-        <div className="text-[13px] leading-relaxed text-foreground" style={{ fontFamily: "var(--comment-font-family)" }}>
-            <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                components={{
-                    a: ({ node: _node, ...props }) => (
-                        <a {...props} target="_blank" rel="noreferrer" className="break-all underline text-accent hover:text-accent-muted" />
-                    ),
-                    p: ({ node: _node, ...props }) => <p {...props} className="whitespace-pre-wrap break-words" />,
-                    ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc space-y-1 pl-5" />,
-                    ol: ({ node: _node, ...props }) => <ol {...props} className="list-decimal space-y-1 pl-5" />,
-                    table: ({ node: _node, ...props }) => <table {...props} className="w-full table-fixed border-collapse" />,
-                    th: ({ node: _node, ...props }) => <th {...props} className="p-2 text-left break-words" />,
-                    td: ({ node: _node, ...props }) => <td {...props} className="p-2 break-words" />,
-                    blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l-2 border-border pl-3 text-muted-foreground" />,
-                    code: ({ node: _node, ...props }) => <code {...props} className="break-words rounded bg-comment-muted px-1 py-0.5 text-[11px]" />,
-                    pre: ({ node: _node, ...props }) => (
-                        <pre
-                            {...props}
-                            className="overflow-hidden whitespace-pre-wrap break-words rounded border border-comment-border bg-comment-muted p-2 text-[11px]"
-                        />
-                    ),
-                    img: ({ node: _node, ...props }) => <CommentMarkdownImage {...props} />,
-                }}
-            >
-                {text}
-            </ReactMarkdown>
-        </div>
-    );
+    return <CommentMarkdown text={text} variant="sidebar" />;
 }
 
 function ThreadStatusButton({ isResolved, disabled, onToggle }: { isResolved: boolean; disabled: boolean; onToggle: () => void }) {

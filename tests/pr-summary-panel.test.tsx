@@ -115,7 +115,7 @@ describe("pull request summary comment header", () => {
         expect(html).toContain(
             'data-component="summary-header"><img src="https://example.com/author.png" alt="Author" class="size-5 rounded-full object-cover shrink-0"/><span class="min-w-0 flex-1 text-foreground truncate">Test pull request</span>',
         );
-        expect(html).toContain('class="min-w-0 px-2 py-1" data-component="summary-description"><div class="space-y-2 text-[13px] leading-relaxed">');
+        expect(html).toContain('class="min-w-0 px-2 py-1" data-component="summary-description"><div class="space-y-2 text-[13px] leading-relaxed"');
         expect(html).toContain('class="mt-4 space-y-0 px-1" data-component="summary-timeline"');
         expect(html).toContain('class="relative grid grid-cols-[16px_minmax(0,1fr)] gap-[14px] pb-3"');
     });

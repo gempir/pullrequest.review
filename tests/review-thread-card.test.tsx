@@ -132,6 +132,72 @@ describe("thread card", () => {
         expect(html).toContain("object-contain");
     });
 
+    test("renders Bitbucket markdown images with layout attributes as external links", () => {
+        const html = renderToStaticMarkup(
+            <ThreadCard
+                thread={buildThread({
+                    root: {
+                        ...buildThread().root,
+                        comment: {
+                            ...buildThread().root.comment,
+                            content: {
+                                raw: "![](https://bitbucket.org/repo/z7q79RB/images/3370473039-image.png){: data-layout='center' }",
+                            },
+                        },
+                    },
+                })}
+                canResolveThread
+                canCommentInline
+                createCommentPending={false}
+                resolveCommentPending={false}
+                deleteCommentPending={false}
+                currentUserDisplayName="Root User"
+                onDeleteComment={() => {}}
+                onResolveThread={() => {}}
+                onReplyToThread={() => {}}
+                onEditComment={() => {}}
+                updateCommentPending={false}
+            />,
+        );
+
+        expect(html).toContain('href="https://bitbucket.org/repo/z7q79RB/images/3370473039-image.png"');
+        expect(html).toContain('target="_blank"');
+        expect(html).toContain("3370473039-image.png");
+        expect(html.includes("data-layout")).toBe(false);
+    });
+
+    test("renders host html images as external links", () => {
+        const html = renderToStaticMarkup(
+            <ThreadCard
+                thread={buildThread({
+                    root: {
+                        ...buildThread().root,
+                        comment: {
+                            ...buildThread().root.comment,
+                            content: {
+                                html: '<p><img src="https://example.com/screenshot.png" alt="Screenshot"></p>',
+                            },
+                        },
+                    },
+                })}
+                canResolveThread
+                canCommentInline
+                createCommentPending={false}
+                resolveCommentPending={false}
+                deleteCommentPending={false}
+                currentUserDisplayName="Root User"
+                onDeleteComment={() => {}}
+                onResolveThread={() => {}}
+                onReplyToThread={() => {}}
+                onEditComment={() => {}}
+                updateCommentPending={false}
+            />,
+        );
+
+        expect(html).toContain('href="https://example.com/screenshot.png"');
+        expect(html).toContain(">Screenshot</a>");
+    });
+
     test("renders share links after comment dates for file threads", () => {
         const html = renderToStaticMarkup(
             <ThreadCard

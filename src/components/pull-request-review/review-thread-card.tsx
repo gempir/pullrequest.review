@@ -1,11 +1,7 @@
 import { Check, ChevronDown, Circle, LoaderCircle } from "lucide-react";
 import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
 import { CommentEditor } from "@/components/comment-editor";
-import { CommentMarkdownImage } from "@/components/comment-markdown-image";
+import { CommentMarkdown as SharedCommentMarkdown } from "@/components/comment-markdown";
 import { CommentShareButton } from "@/components/comment-share-button";
 import type { CommentThread, CommentThreadNode } from "@/components/pull-request-review/review-threads";
 import { Button } from "@/components/ui/button";
@@ -48,33 +44,7 @@ function CommentAvatar({ name, url, sizeClass = "size-6" }: { name?: string; url
 }
 
 function CommentMarkdown({ text }: { text: string }) {
-    return (
-        <div className="mt-1 text-[14px] leading-relaxed text-foreground" style={{ fontFamily: "var(--comment-font-family)" }}>
-            <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                components={{
-                    a: ({ node: _node, ...props }) => (
-                        <a {...props} target="_blank" rel="noreferrer" className="underline text-accent hover:text-accent-muted" />
-                    ),
-                    p: ({ node: _node, ...props }) => <p {...props} className="whitespace-pre-wrap break-words" />,
-                    ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc pl-5 space-y-1" />,
-                    ol: ({ node: _node, ...props }) => <ol {...props} className="list-decimal pl-5 space-y-1" />,
-                    table: ({ node: _node, ...props }) => <table {...props} className="w-full border-collapse" />,
-                    th: ({ node: _node, ...props }) => <th {...props} className="p-2 text-left" />,
-                    td: ({ node: _node, ...props }) => <td {...props} className="p-2" />,
-                    blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l-2 border-border pl-3 text-muted-foreground" />,
-                    code: ({ node: _node, ...props }) => <code {...props} className="rounded bg-comment-muted px-1 py-0.5 text-[11px]" />,
-                    pre: ({ node: _node, ...props }) => (
-                        <pre {...props} className="overflow-x-auto rounded bg-comment-muted border border-comment-border p-2 text-[11px]" />
-                    ),
-                    img: ({ node: _node, ...props }) => <CommentMarkdownImage {...props} />,
-                }}
-            >
-                {text}
-            </ReactMarkdown>
-        </div>
-    );
+    return <SharedCommentMarkdown text={text} variant="thread" />;
 }
 
 function normalizeName(value?: string) {

@@ -1045,7 +1045,6 @@ export function useReviewPageController({
             unresolvedSidebarThreadCount,
         ],
     );
-
     useInlineDraftFocus({
         inlineComment,
         inlineDraftFocusRef,

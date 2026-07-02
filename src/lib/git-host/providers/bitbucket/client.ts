@@ -72,6 +72,7 @@ interface BitbucketPullRequestRaw {
         state?: string;
         user?: BitbucketUser;
     }>;
+    reviewers?: BitbucketUser[];
     links?: PullRequestDetails["links"];
 }
 
@@ -376,7 +377,7 @@ function mapComment(comment: BitbucketCommentRaw): Comment {
     };
 }
 
-function mapParticipantReviewStatus(participant: { approved?: boolean; state?: string }): PullRequestDetails["currentUserReviewStatus"] {
+function mapParticipantReviewStatus(participant: { approved?: boolean; state?: string }): NonNullable<PullRequestDetails["currentUserReviewStatus"]> {
     if (participant.approved) return "approved";
     const normalized = (participant.state ?? "").toUpperCase();
     if (normalized.includes("CHANGES")) return "changesRequested";
@@ -391,6 +392,30 @@ function isCurrentBitbucketUser(participantUser: BitbucketUser | undefined, curr
     if (participantUser.username && currentUser.username) return participantUser.username === currentUser.username;
     if (participantUser.display_name && currentUser.display_name) return participantUser.display_name === currentUser.display_name;
     return false;
+}
+
+function bitbucketUserKey(user: BitbucketUser | undefined) {
+    return user?.account_id ?? user?.uuid ?? user?.nickname ?? user?.username ?? user?.display_name;
+}
+
+function upsertBitbucketDecisionActor(
+    byUser: Map<string, PullRequestReviewer>,
+    user: BitbucketUser | undefined,
+    status: Exclude<PullRequestReviewer["status"], "commented" | "pending">,
+    fallbackIndex: number,
+) {
+    const key = bitbucketUserKey(user);
+    if (!key) return;
+    const existing = byUser.get(key);
+    byUser.set(key, {
+        id: existing?.id ?? `bitbucket-reviewer-${key ?? fallbackIndex}`,
+        displayName: existing?.displayName ?? user?.display_name,
+        avatarUrl: existing?.avatarUrl ?? getAvatarUrl(user),
+        status,
+        approved: status === "approved",
+        requested: existing?.requested ?? false,
+        updatedAt: existing?.updatedAt,
+    });
 }
 
 function mapPullRequest(pr: BitbucketPullRequestRaw, currentUser: BitbucketUser | null): PullRequestDetails {
@@ -415,6 +440,7 @@ function mapPullRequest(pr: BitbucketPullRequestRaw, currentUser: BitbucketUser 
         participants:
             pr.participants?.map((participant) => ({
                 approved: participant.approved,
+                state: participant.state,
                 user: {
                     displayName: participant.user?.display_name,
                     avatarUrl: getAvatarUrl(participant.user),
@@ -529,19 +555,42 @@ function mapBuildStatuses(statuses: BitbucketBuildStatus[]): PullRequestBuildSta
     }));
 }
 
-function mapReviewers(pr: PullRequestDetails): PullRequestReviewer[] {
-    return (pr.participants ?? [])
-        .map((participant, index) => {
-            const displayName = participant.user?.displayName;
-            return {
-                id: `bitbucket-reviewer-${displayName ?? index}`,
-                displayName,
-                avatarUrl: participant.user?.avatarUrl,
-                status: participant.approved ? "approved" : "pending",
-                approved: Boolean(participant.approved),
-            } satisfies PullRequestReviewer;
-        })
-        .sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""));
+function mapReviewers(pr: BitbucketPullRequestRaw, activity: BitbucketActivityEntry[] = []): PullRequestReviewer[] {
+    const participantsByUser = new Map<string, NonNullable<BitbucketPullRequestRaw["participants"]>[number]>();
+    for (const participant of pr.participants ?? []) {
+        const key = bitbucketUserKey(participant.user);
+        if (key) participantsByUser.set(key, participant);
+    }
+
+    const byUser = new Map<string, PullRequestReviewer>();
+    for (const [index, reviewer] of (pr.reviewers ?? []).entries()) {
+        const key = bitbucketUserKey(reviewer) ?? `${index}`;
+        const participant = participantsByUser.get(key);
+        const status = participant ? mapParticipantReviewStatus(participant) : "none";
+        byUser.set(key, {
+            id: `bitbucket-reviewer-${key}`,
+            displayName: reviewer.display_name,
+            avatarUrl: getAvatarUrl(reviewer),
+            status: status === "none" ? "pending" : status,
+            approved: Boolean(participant?.approved),
+            requested: true,
+        });
+    }
+
+    for (const [index, participant] of (pr.participants ?? []).entries()) {
+        const status = mapParticipantReviewStatus(participant);
+        if (status === "none") continue;
+        upsertBitbucketDecisionActor(byUser, participant.user, status, index);
+    }
+
+    for (const [index, entry] of activity.entries()) {
+        const state = (entry.update?.state ?? "").toUpperCase();
+        if (state === "DECLINED" || state === "SUPERSEDED") {
+            upsertBitbucketDecisionActor(byUser, entry.update?.author, "declined", index);
+        }
+    }
+
+    return Array.from(byUser.values()).sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""));
 }
 
 function mapCommentToHistory(comment: Comment): PullRequestHistoryEvent | null {
@@ -628,6 +677,7 @@ function mapHistory(pr: PullRequestDetails, comments: Comment[], activity: Bitbu
 export const bitbucketNormalization = {
     mapPullRequestSummary,
     mapPullRequest,
+    mapReviewers,
     mapComment,
     mapActivityToHistory,
 };
@@ -668,7 +718,8 @@ async function fetchBitbucketPullRequestDeferred(prRef: { workspace: string; rep
     ]);
 
     const currentUser = currentUserRes ? ((await currentUserRes.json()) as BitbucketUser) : null;
-    const pr = mapPullRequest((await prRes.json()) as BitbucketPullRequestRaw, currentUser);
+    const rawPr = (await prRes.json()) as BitbucketPullRequestRaw;
+    const pr = mapPullRequest(rawPr, currentUser);
     const firstCommitPage = firstCommitRes ? ((await firstCommitRes.json()) as BitbucketCommitPage) : null;
     const latestCommitHash = firstCommitPage?.values?.[0]?.hash?.trim();
     const latestBuildStatuses = latestCommitHash
@@ -686,7 +737,7 @@ async function fetchBitbucketPullRequestDeferred(prRef: { workspace: string; rep
         },
         comments,
         history: mapHistory(pr, comments, activity),
-        reviewers: mapReviewers(pr),
+        reviewers: mapReviewers(rawPr, activity),
         buildStatuses: mapBuildStatuses(latestBuildStatuses),
         prPatch: {
             currentUserReviewStatus: pr.currentUserReviewStatus,

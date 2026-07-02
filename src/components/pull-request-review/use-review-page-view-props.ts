@@ -27,6 +27,7 @@ export function useReviewPageViewProps({
     navbarState,
     navbarStatusTimestamp,
     buildStatuses,
+    reviewers,
     actionPolicy,
     currentUserReviewStatus,
     approvePending,
@@ -83,6 +84,7 @@ export function useReviewPageViewProps({
     navbarState: string;
     navbarStatusTimestamp?: string;
     buildStatuses: MainViewProps["navbarProps"]["buildStatuses"];
+    reviewers: MainViewProps["navbarProps"]["reviewers"];
     actionPolicy: { canApprove: boolean; canRequestChanges: boolean; canMerge: boolean; canDecline: boolean; canMarkDraft: boolean };
     currentUserReviewStatus: "approved" | "changesRequested" | "none";
     approvePending: boolean;
@@ -177,6 +179,7 @@ export function useReviewPageViewProps({
             navbarState,
             navbarStatusTimestamp,
             buildStatuses,
+            reviewers,
             canApprove: actionPolicy.canApprove,
             canRequestChanges: actionPolicy.canRequestChanges,
             canMerge: actionPolicy.canMerge,
@@ -231,6 +234,7 @@ export function useReviewPageViewProps({
             onRequestChanges,
             pullRequest,
             requestChangesPending,
+            reviewers,
             treeCollapsed,
         ],
     );

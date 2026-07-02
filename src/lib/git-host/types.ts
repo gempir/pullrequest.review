@@ -85,6 +85,7 @@ export interface PullRequestDetails {
     };
     participants?: Array<{
         approved?: boolean;
+        state?: string;
         user?: { displayName?: string; avatarUrl?: string };
     }>;
     currentUserReviewStatus?: "approved" | "changesRequested" | "none";
@@ -124,7 +125,7 @@ export interface PullRequestHistoryEvent {
     };
 }
 
-export type PullRequestReviewerStatus = "approved" | "changesRequested" | "commented" | "pending";
+export type PullRequestReviewerStatus = "approved" | "changesRequested" | "commented" | "declined" | "pending";
 
 export interface PullRequestReviewer {
     id: string;

@@ -973,6 +973,7 @@ export function useReviewPageController({
         navbarState,
         navbarStatusTimestamp,
         buildStatuses: prData?.buildStatuses,
+        reviewers: prData?.reviewers,
         actionPolicy,
         currentUserReviewStatus,
         approvePending: approveMutation.isPending || removeApprovalMutation.isPending,

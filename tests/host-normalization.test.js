@@ -70,4 +70,116 @@ describe("Git host payload normalization", () => {
             avatarUrl: "https://avatars.example/bb.png",
         });
     });
+
+    test("normalizes Bitbucket reviewers from reviewers field instead of all participants", () => {
+        const reviewers = bitbucketNormalization.mapReviewers(
+            {
+                id: 8,
+                title: "Reviewers",
+                state: "OPEN",
+                reviewers: [
+                    {
+                        account_id: "reviewer-1",
+                        display_name: "Real Reviewer",
+                        links: { avatar: { href: "https://avatars.example/reviewer.png" } },
+                    },
+                    {
+                        account_id: "reviewer-2",
+                        display_name: "Requested Reviewer",
+                    },
+                ],
+                participants: [
+                    {
+                        approved: true,
+                        state: "approved",
+                        user: {
+                            account_id: "reviewer-1",
+                            display_name: "Real Reviewer",
+                        },
+                    },
+                    {
+                        approved: false,
+                        state: "changes_requested",
+                        user: {
+                            account_id: "author-1",
+                            display_name: "Author Who Commented",
+                        },
+                    },
+                    {
+                        approved: true,
+                        state: "approved",
+                        user: {
+                            account_id: "approver-1",
+                            display_name: "External Approver",
+                        },
+                    },
+                    {
+                        approved: false,
+                        state: "participated",
+                        user: {
+                            account_id: "bot-1",
+                            display_name: "Automation Bot",
+                        },
+                    },
+                ],
+            },
+            [
+                {
+                    update: {
+                        state: "DECLINED",
+                        author: {
+                            account_id: "decliner-1",
+                            display_name: "Decliner",
+                        },
+                    },
+                },
+            ],
+        );
+
+        expect(reviewers).toEqual([
+            {
+                id: "bitbucket-reviewer-author-1",
+                displayName: "Author Who Commented",
+                avatarUrl: undefined,
+                status: "changesRequested",
+                approved: false,
+                requested: false,
+                updatedAt: undefined,
+            },
+            {
+                id: "bitbucket-reviewer-decliner-1",
+                displayName: "Decliner",
+                avatarUrl: undefined,
+                status: "declined",
+                approved: false,
+                requested: false,
+                updatedAt: undefined,
+            },
+            {
+                id: "bitbucket-reviewer-approver-1",
+                displayName: "External Approver",
+                avatarUrl: undefined,
+                status: "approved",
+                approved: true,
+                requested: false,
+                updatedAt: undefined,
+            },
+            {
+                id: "bitbucket-reviewer-reviewer-1",
+                displayName: "Real Reviewer",
+                avatarUrl: "https://avatars.example/reviewer.png",
+                status: "approved",
+                approved: true,
+                requested: true,
+            },
+            {
+                id: "bitbucket-reviewer-reviewer-2",
+                displayName: "Requested Reviewer",
+                avatarUrl: undefined,
+                status: "pending",
+                approved: false,
+                requested: true,
+            },
+        ]);
+    });
 });

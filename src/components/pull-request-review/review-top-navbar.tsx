@@ -7,7 +7,7 @@ import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { GitHost, PullRequestBuildStatus } from "@/lib/git-host/types";
+import type { GitHost, PullRequestBuildStatus, PullRequestReviewer } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
 
 const BUILD_TIME_STYLE = { fontFamily: "var(--mono-font-family)" } as const;
@@ -26,6 +26,7 @@ type ReviewTopNavbarProps = {
     navbarState: string;
     navbarStatusTimestamp?: string;
     buildStatuses?: PullRequestBuildStatus[];
+    reviewers?: PullRequestReviewer[];
     canApprove: boolean;
     canRequestChanges: boolean;
     canMerge: boolean;
@@ -63,6 +64,7 @@ export function ReviewTopNavbar({
     navbarState,
     navbarStatusTimestamp,
     buildStatuses,
+    reviewers,
     canApprove,
     canRequestChanges,
     canMerge,
@@ -163,6 +165,7 @@ export function ReviewTopNavbar({
                     </div>
 
                     <div className="ml-2 -mr-1.5 flex h-full shrink-0 items-center gap-1.5" data-component="navbar-actions">
+                        <ReviewerStatusAvatars reviewers={reviewers} />
                         {!isTerminal && isDraft ? (
                             <Button
                                 variant="ghost"
@@ -284,6 +287,87 @@ export function ReviewTopNavbar({
             )}
         </div>
     );
+}
+
+function ReviewerStatusAvatars({ reviewers }: { reviewers?: PullRequestReviewer[] }) {
+    if (!reviewers || reviewers.length === 0) return null;
+
+    return (
+        <div className="flex h-7 items-center gap-1 border-r border-border-muted pr-2">
+            <div
+                className={cn(
+                    "flex max-w-[142px] items-center gap-1",
+                    reviewers.length >= 5
+                        ? "overflow-x-auto overflow-y-hidden [scrollbar-width:none] [mask-image:linear-gradient(to_right,black_calc(100%-18px),transparent)] [&::-webkit-scrollbar]:hidden"
+                        : "overflow-visible",
+                )}
+            >
+                {reviewers.map((reviewer) => (
+                    <ReviewerStatusAvatar key={reviewer.id} reviewer={reviewer} />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function ReviewerStatusAvatar({ reviewer }: { reviewer: PullRequestReviewer }) {
+    const name = reviewer.displayName ?? "Unknown reviewer";
+    const decisionLabel = reviewerDecisionLabel(reviewer.status);
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <span className="relative inline-flex size-7 shrink-0 items-center justify-center" role="img" aria-label={`${name} ${decisionLabel}`}>
+                    {reviewer.avatarUrl ? (
+                        <img src={reviewer.avatarUrl} alt="" className="size-6 rounded-full border border-border-muted object-cover" />
+                    ) : (
+                        <span className="flex size-6 items-center justify-center rounded-full border border-border-muted bg-muted text-[10px] font-medium text-muted-foreground">
+                            {reviewerInitials(name)}
+                        </span>
+                    )}
+                    {reviewer.status === "approved" || reviewer.status === "changesRequested" || reviewer.status === "declined" ? (
+                        <ReviewerDecisionIcon status={reviewer.status} className="absolute right-0 top-0 size-3.5" />
+                    ) : null}
+                </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-[11px]">
+                {name} {decisionLabel}
+            </TooltipContent>
+        </Tooltip>
+    );
+}
+
+function ReviewerDecisionIcon({ status, className }: { status: "approved" | "changesRequested" | "declined"; className?: string }) {
+    const approved = status === "approved";
+
+    return (
+        <span
+            className={cn(
+                "inline-flex items-center justify-center rounded-full border",
+                approved ? buildStatusBubbleClass("success") : buildStatusBubbleClass("failed"),
+                className,
+            )}
+        >
+            {approved ? <Check className="size-2.5" /> : <X className="size-2.5" />}
+        </span>
+    );
+}
+
+function reviewerDecisionLabel(status: PullRequestReviewer["status"]) {
+    if (status === "approved") return "approved";
+    if (status === "changesRequested") return "requested changes";
+    if (status === "declined") return "declined";
+    if (status === "commented") return "commented";
+    return "pending review";
+}
+
+function reviewerInitials(name: string) {
+    return name
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("");
 }
 
 function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: PullRequestBuildStatus[]; isRefreshing: boolean }) {

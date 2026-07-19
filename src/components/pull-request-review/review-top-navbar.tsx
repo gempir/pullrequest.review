@@ -98,7 +98,7 @@ export function ReviewTopNavbar({
 
     return (
         <div
-            className="h-11 bg-chrome border-b border-border-muted px-1.5 flex items-center gap-3"
+            className="h-11 bg-chrome border-b border-border px-1.5 flex items-center gap-3"
             style={{ fontFamily: "var(--comment-font-family)" }}
             data-component="navbar"
         >
@@ -164,13 +164,13 @@ export function ReviewTopNavbar({
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 
-                    <div className="ml-2 -mr-1.5 flex h-full shrink-0 items-center gap-1.5" data-component="navbar-actions">
+                    <div className="ml-2 -mr-1.5 flex h-full shrink-0 items-center gap-2" data-component="navbar-actions">
                         <ReviewerStatusAvatars reviewers={reviewers} />
                         {!isTerminal && isDraft ? (
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 rounded-sm border border-status-renamed/45 px-2.5 bg-chrome text-status-renamed hover:bg-status-renamed/12 hover:border-status-renamed/70 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                className="h-7 rounded-sm border border-status-renamed/50 px-2.5 bg-status-renamed/10 text-status-renamed hover:bg-status-renamed/18 hover:border-status-renamed/75 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
                                 disabled={!canMarkDraft || actionBusy}
                                 onClick={onMarkDraft}
                             >
@@ -184,8 +184,8 @@ export function ReviewTopNavbar({
                                     variant="ghost"
                                     size="sm"
                                     className={cn(
-                                        "h-7 rounded-sm border border-status-added/45 px-2.5 bg-chrome hover:bg-status-added/12 hover:border-status-added/70 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
-                                        currentUserReviewStatus === "approved" ? "bg-status-added/10 text-status-added" : "text-status-added",
+                                        "h-7 rounded-sm border border-status-added/50 px-2.5 bg-status-added/10 hover:bg-status-added/18 hover:border-status-added/75 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                        currentUserReviewStatus === "approved" ? "bg-status-added/18 text-status-added" : "text-status-added",
                                     )}
                                     disabled={!canApprove || actionBusy}
                                     onClick={onApprove}
@@ -197,8 +197,8 @@ export function ReviewTopNavbar({
                                     variant="ghost"
                                     size="sm"
                                     className={cn(
-                                        "h-7 rounded-sm border border-status-modified/45 px-2.5 bg-chrome text-status-modified hover:bg-status-modified/12 hover:border-status-modified/70 hover:text-status-modified focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
-                                        currentUserReviewStatus === "changesRequested" && "bg-status-modified/10",
+                                        "h-7 rounded-sm border border-status-modified/50 px-2.5 bg-status-modified/10 text-status-modified hover:bg-status-modified/18 hover:border-status-modified/75 hover:text-status-modified focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                        currentUserReviewStatus === "changesRequested" && "bg-status-modified/18",
                                     )}
                                     disabled={!canRequestChanges || actionBusy}
                                     onClick={onRequestChanges}
@@ -212,12 +212,12 @@ export function ReviewTopNavbar({
                             variant="ghost"
                             size="sm"
                             className={cn(
-                                "h-7 rounded-sm border px-2 text-[10px] font-medium focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                "h-7 rounded-sm border px-2.5 font-medium focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
                                 isMerged
-                                    ? "cursor-default border-status-merged/40 bg-status-merged/10 text-status-merged hover:bg-status-merged/10 hover:text-status-merged"
+                                    ? "cursor-default border-status-merged/40 bg-status-merged/12 text-status-merged hover:bg-status-merged/12 hover:text-status-merged"
                                     : isDeclined
-                                      ? "cursor-default border-status-removed/40 bg-status-removed/10 text-status-removed hover:bg-status-removed/10 hover:text-status-removed"
-                                      : "border-status-merged/45 bg-chrome text-status-merged hover:bg-status-merged/12 hover:border-status-merged/70 hover:text-status-merged",
+                                      ? "cursor-default border-status-removed/40 bg-status-removed/12 text-status-removed hover:bg-status-removed/12 hover:text-status-removed"
+                                      : "border-status-merged/50 bg-status-merged/10 text-status-merged hover:bg-status-merged/18 hover:border-status-merged/75 hover:text-status-merged",
                             )}
                             disabled={isTerminal ? undefined : !canMerge || actionBusy}
                             onClick={isTerminal ? undefined : onOpenMerge}

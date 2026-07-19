@@ -31,70 +31,70 @@
 }
 
 :root {
-    /* Neutral graphite dark palette */
+    /* v2: cool graphite dark palette with clear elevation and contrast steps */
     color-scheme: dark;
-    --background: #0d0d0d;
-    --foreground: #eeeeee;
-    --surface-1: #171717;
-    --surface-2: #202020;
-    --surface-3: #2b2b2b;
-    --surface-hover: #202020;
-    --surface-active: #292929;
-    --card: #171717;
-    --card-foreground: #eeeeee;
-    --popover: #202020;
-    --popover-foreground: #eeeeee;
+    --background: #0e1013;
+    --foreground: #e9ecf1;
+    --surface-1: #16181d;
+    --surface-2: #1e2127;
+    --surface-3: #292d34;
+    --surface-hover: #21252c;
+    --surface-active: #2c3139;
+    --card: #14161a;
+    --card-foreground: #e9ecf1;
+    --popover: #1a1d22;
+    --popover-foreground: #e9ecf1;
 
-    --primary: #2563eb;
+    --primary: #3b82f6;
     --primary-foreground: #ffffff;
 
-    --secondary: #171717;
-    --secondary-foreground: #eeeeee;
+    --secondary: #1a1d22;
+    --secondary-foreground: #e9ecf1;
 
-    --muted: #171717;
-    --muted-foreground: #a6a6a6;
-    --faint-foreground: #8f8f8f;
+    --muted: #16181d;
+    --muted-foreground: #aab2be;
+    --faint-foreground: #828b98;
 
-    --accent: #6caeff;
-    --accent-muted: #9dccff;
-    --accent-solid: #2563eb;
-    --accent-solid-hover: #1d4ed8;
+    --accent: #7cb5ff;
+    --accent-muted: #a9ceff;
+    --accent-solid: #2f6fed;
+    --accent-solid-hover: #4a84f4;
     --accent-foreground: #ffffff;
 
-    --destructive: #ff6b64;
+    --destructive: #f4706a;
     --destructive-foreground: #ffffff;
 
-    --border: #202020;
-    --border-muted: #181818;
-    --input: #262626;
-    --ring: #6caeff;
-    --chrome: #121212;
-    --overlay: rgba(0, 0, 0, 0.72);
-    --selection: #17345f;
-    --selection-foreground: #eeeeee;
+    --border: #272b32;
+    --border-muted: #1d2026;
+    --input: #2e333b;
+    --ring: #7cb5ff;
+    --chrome: #13151a;
+    --overlay: rgba(5, 7, 10, 0.76);
+    --selection: #1e3a66;
+    --selection-foreground: #e9ecf1;
     --comment: var(--sidebar);
-    --comment-border: #262626;
-    --comment-muted: #222222;
+    --comment-border: #2a2e36;
+    --comment-muted: #1e2127;
 
-    --status-added: #3fb950;
-    --status-removed: #ff6b64;
-    --status-modified: #d7a642;
-    --status-renamed: #6caeff;
-    --status-merged: #b78cff;
+    --status-added: #4ac26b;
+    --status-removed: #f4706a;
+    --status-modified: #e0a63d;
+    --status-renamed: #6cb6ff;
+    --status-merged: #b491f5;
     --host-bitbucket: #2684ff;
     --host-bitbucket-accent: #0052cc;
 
     --radius: 6px;
 
-    --sidebar: #101010;
-    --sidebar-foreground: #eeeeee;
-    --sidebar-primary: #2563eb;
+    --sidebar: #101216;
+    --sidebar-foreground: #e9ecf1;
+    --sidebar-primary: #3b82f6;
     --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #202020;
-    --sidebar-accent-foreground: #eeeeee;
-    --sidebar-border: #181818;
-    --sidebar-ring: #6caeff;
-    --sidebar-chrome: #131313;
+    --sidebar-accent: #21252c;
+    --sidebar-accent-foreground: #e9ecf1;
+    --sidebar-border: #1d2026;
+    --sidebar-ring: #7cb5ff;
+    --sidebar-chrome: #14161b;
 
     --font-menlo: Menlo, "Geist Mono", ui-monospace, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     --font-jetbrains-mono: "JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
@@ -129,26 +129,26 @@
 }
 
 :root.light {
-    /* Soft neutral light palette */
+    /* v2: crisp paper-white light palette with firm borders */
     color-scheme: light;
-    --background: #f2f2f2;
-    --foreground: #202020;
-    --surface-1: #fbfbfb;
-    --surface-2: #e8e8e8;
-    --surface-3: #d6d6d6;
-    --surface-hover: #e5e5e5;
-    --surface-active: #d6d6d6;
-    --card: #fbfbfb;
-    --card-foreground: #202020;
+    --background: #eef0f3;
+    --foreground: #1b2027;
+    --surface-1: #ffffff;
+    --surface-2: #e9ebef;
+    --surface-3: #d9dde2;
+    --surface-hover: #e5e8ec;
+    --surface-active: #d9dde2;
+    --card: #ffffff;
+    --card-foreground: #1b2027;
     --popover: #ffffff;
-    --popover-foreground: #202020;
+    --popover-foreground: #1b2027;
     --primary: #0969da;
     --primary-foreground: #ffffff;
     --secondary: #ffffff;
-    --secondary-foreground: #202020;
-    --muted: #ffffff;
-    --muted-foreground: #5a5a5a;
-    --faint-foreground: #626262;
+    --secondary-foreground: #1b2027;
+    --muted: #f4f5f7;
+    --muted-foreground: #4e5761;
+    --faint-foreground: #6a7380;
     --accent: #0757b8;
     --accent-muted: #0550ae;
     --accent-solid: #0969da;
@@ -156,17 +156,17 @@
     --accent-foreground: #ffffff;
     --destructive: #cf222e;
     --destructive-foreground: #ffffff;
-    --border: #d9d9d9;
-    --border-muted: #e5e5e5;
-    --input: #d0d0d0;
+    --border: #cdd2d9;
+    --border-muted: #dde1e6;
+    --input: #c1c8d0;
     --ring: #0969da;
-    --chrome: #e8e8e8;
-    --overlay: rgba(32, 32, 32, 0.42);
-    --selection: #d6e8ff;
-    --selection-foreground: #202020;
+    --overlay: rgba(27, 32, 39, 0.45);
+    --chrome: #e4e7eb;
+    --selection: #cde3ff;
+    --selection-foreground: #1b2027;
     --comment: var(--sidebar);
-    --comment-border: #e0e0e0;
-    --comment-muted: #f1f1f1;
+    --comment-border: #d6dade;
+    --comment-muted: #edeff2;
 
     /* Light mode status colors -- darkened for contrast */
     --status-added: #1a7f37;
@@ -175,15 +175,15 @@
     --status-renamed: #0969da;
     --status-merged: #8250df;
 
-    --sidebar: #e7e7e7;
-    --sidebar-foreground: #202020;
+    --sidebar: #e7eaee;
+    --sidebar-foreground: #1b2027;
     --sidebar-primary: #0969da;
     --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #d6d6d6;
-    --sidebar-accent-foreground: #202020;
-    --sidebar-border: #e0e0e0;
+    --sidebar-accent: #d5dae0;
+    --sidebar-accent-foreground: #1b2027;
+    --sidebar-border: #d6dade;
     --sidebar-ring: #0969da;
-    --sidebar-chrome: #dfdfdf;
+    --sidebar-chrome: #dee2e7;
     --host-bitbucket: #2684ff;
     --host-bitbucket-accent: #0052cc;
 }
@@ -318,20 +318,24 @@
     }
 
     ::-webkit-scrollbar-track {
-        background: var(--background);
+        background: transparent;
     }
 
     ::-webkit-scrollbar-thumb {
-        background: var(--border);
-        border: 2px solid var(--background);
+        background: var(--surface-3);
+        border: 2px solid transparent;
+        background-clip: padding-box;
+        border-radius: 6px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-        background: var(--ring);
+        background: var(--faint-foreground);
+        border: 2px solid transparent;
+        background-clip: padding-box;
     }
 
     ::-webkit-scrollbar-corner {
-        background: var(--background);
+        background: transparent;
     }
 }
 
@@ -396,14 +400,14 @@
     }
 
     .terminal-button-primary {
-        background-color: var(--primary);
-        border-color: var(--primary);
-        color: var(--primary-foreground);
+        background-color: var(--accent-solid);
+        border-color: var(--accent-solid);
+        color: var(--accent-foreground);
     }
 
     .terminal-button-primary:hover {
-        background-color: var(--foreground);
-        border-color: var(--foreground);
+        background-color: var(--accent-solid-hover);
+        border-color: var(--accent-solid-hover);
     }
 
     .text-muted-dim {
@@ -520,23 +524,27 @@
 
     .diff-content-scroll {
         scrollbar-width: thin;
-        scrollbar-color: var(--border) var(--card);
+        scrollbar-color: var(--surface-3) transparent;
     }
 
     .diff-content-scroll::-webkit-scrollbar-track {
-        background: var(--card);
+        background: transparent;
     }
 
     .diff-content-scroll::-webkit-scrollbar-thumb {
-        background: var(--border);
-        border: 2px solid var(--card);
+        background: var(--surface-3);
+        border: 2px solid transparent;
+        background-clip: padding-box;
+        border-radius: 6px;
     }
 
     .diff-content-scroll::-webkit-scrollbar-thumb:hover {
-        background: var(--ring);
+        background: var(--faint-foreground);
+        border: 2px solid transparent;
+        background-clip: padding-box;
     }
 
     .diff-content-scroll::-webkit-scrollbar-corner {
-        background: var(--card);
+        background: transparent;
     }
 }

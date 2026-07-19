@@ -5,15 +5,16 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-    "inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+    "inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
     {
         variants: {
             variant: {
-                default: "bg-accent-solid text-accent-foreground border border-accent-solid hover:bg-accent-solid-hover hover:border-accent-solid-hover",
-                destructive: "bg-destructive text-destructive-foreground border border-destructive hover:bg-destructive/90",
-                outline: "border border-border bg-transparent text-foreground hover:bg-surface-hover hover:border-border",
-                secondary: "bg-surface-1 text-foreground border border-border-muted hover:bg-surface-hover",
-                ghost: "bg-transparent text-foreground border border-transparent hover:bg-surface-hover",
+                default:
+                    "bg-accent-solid text-accent-foreground border border-accent-solid shadow-sm hover:bg-accent-solid-hover hover:border-accent-solid-hover active:bg-accent-solid",
+                destructive: "bg-destructive text-destructive-foreground border border-destructive shadow-sm hover:bg-destructive/90 active:bg-destructive",
+                outline: "border border-border bg-transparent text-foreground hover:bg-surface-hover hover:border-input active:bg-surface-active",
+                secondary: "bg-surface-2 text-foreground border border-border hover:bg-surface-3 hover:border-input active:bg-surface-active",
+                ghost: "bg-transparent text-foreground border border-transparent hover:bg-surface-hover active:bg-surface-active",
                 link: "bg-transparent text-accent underline-offset-4 hover:underline border-none",
             },
             size: {

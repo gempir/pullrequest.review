@@ -1,5 +1,11 @@
-import { clearBitbucketAuthCredential, readBitbucketAuthCredential, writeBitbucketAuthCredential } from "@/lib/data/query-collections";
-import { bitbucketAuthSchema, parseSchema } from "@/lib/git-host/schemas";
+import { refreshBitbucketOAuthToken } from "@/lib/bitbucket-oauth";
+import {
+    type BitbucketAuthCredential,
+    clearBitbucketAuthCredential,
+    readBitbucketAuthCredential,
+    writeBitbucketAuthCredential,
+    writeBitbucketOAuthCredential,
+} from "@/lib/data/query-collections";
 import { parseFailureBody } from "@/lib/git-host/shared/http";
 import {
     type AuthState,
@@ -24,10 +30,7 @@ import {
     type RepoRef,
 } from "@/lib/git-host/types";
 
-interface BitbucketCredentials {
-    email: string;
-    apiToken: string;
-}
+type BitbucketOAuthCredential = Extract<BitbucketAuthCredential, { method: "oauth" }>;
 
 interface BitbucketPullRequestPage {
     values: BitbucketPullRequestSummaryRaw[];
@@ -175,26 +178,26 @@ interface BitbucketBuildStatusPage {
     next?: string;
 }
 
-function parseCredentials(rawValue: string | null): BitbucketCredentials | null {
-    if (!rawValue) return null;
-    try {
-        const parsed = parseSchema(bitbucketAuthSchema, JSON.parse(rawValue));
-        const email = parsed?.email.trim();
-        const apiToken = parsed?.apiToken.trim();
-        if (!email || !apiToken) return null;
-        return { email, apiToken };
-    } catch {
-        return null;
-    }
-}
-
-function readCredentials() {
+function readCredentials(): BitbucketAuthCredential | null {
     const stored = readBitbucketAuthCredential();
     if (!stored) return null;
-    return parseCredentials(JSON.stringify(stored));
+    if (stored.method === "oauth") {
+        const accessToken = stored.accessToken.trim();
+        if (!accessToken) return null;
+        return {
+            ...stored,
+            accessToken,
+            refreshToken: stored.refreshToken?.trim() || undefined,
+        };
+    }
+
+    const email = stored.email.trim();
+    const apiToken = stored.apiToken.trim();
+    if (!email || !apiToken) return null;
+    return { ...stored, email, apiToken };
 }
 
-async function writeCredentials(credentials: BitbucketCredentials) {
+async function writeApiTokenCredentials(credentials: { email: string; apiToken: string }) {
     await writeBitbucketAuthCredential(credentials);
 }
 
@@ -212,10 +215,44 @@ function encodeBasicAuth(email: string, apiToken: string) {
     return btoa(binary);
 }
 
-function authHeaderOrThrow() {
+const OAUTH_REFRESH_SKEW_MS = 30_000;
+let oauthRefreshPromise: Promise<BitbucketOAuthCredential> | null = null;
+
+async function refreshOAuthCredentials(credentials: BitbucketOAuthCredential) {
+    if (!credentials.refreshToken) {
+        throw new Error("Bitbucket OAuth session expired. Sign in again to continue.");
+    }
+    if (oauthRefreshPromise) return oauthRefreshPromise;
+
+    const refreshPromise = refreshBitbucketOAuthToken(credentials.refreshToken)
+        .then(async (tokens) => {
+            const nextCredentials = {
+                host: "bitbucket",
+                method: "oauth",
+                accessToken: tokens.accessToken,
+                refreshToken: tokens.refreshToken ?? credentials.refreshToken,
+                ...(typeof tokens.expiresAt === "number" ? { expiresAt: tokens.expiresAt } : {}),
+            } satisfies BitbucketOAuthCredential;
+            await writeBitbucketOAuthCredential(nextCredentials);
+            return nextCredentials;
+        })
+        .finally(() => {
+            oauthRefreshPromise = null;
+        });
+    oauthRefreshPromise = refreshPromise;
+    return refreshPromise;
+}
+
+async function authHeaderOrThrow(forceOAuthRefresh = false) {
     const credentials = readCredentials();
     if (!credentials) throw new Error("Not authenticated");
-    return `Basic ${encodeBasicAuth(credentials.email, credentials.apiToken)}`;
+    if (credentials.method === "apiToken") {
+        return `Basic ${encodeBasicAuth(credentials.email, credentials.apiToken)}`;
+    }
+
+    const shouldRefresh = forceOAuthRefresh || (typeof credentials.expiresAt === "number" && credentials.expiresAt <= Date.now() + OAUTH_REFRESH_SKEW_MS);
+    const activeCredentials = shouldRefresh ? await refreshOAuthCredentials(credentials) : credentials;
+    return `Bearer ${activeCredentials.accessToken}`;
 }
 
 async function parseFailure(response: Response) {
@@ -223,11 +260,19 @@ async function parseFailure(response: Response) {
 }
 
 async function request(url: string, init: RequestInit = {}) {
-    const headers: Record<string, string> = {
-        Authorization: authHeaderOrThrow(),
-        ...(init.headers as Record<string, string>),
+    const requestWithAuth = async (forceOAuthRefresh = false) => {
+        const headers: Record<string, string> = {
+            Authorization: await authHeaderOrThrow(forceOAuthRefresh),
+            ...(init.headers as Record<string, string>),
+        };
+        return fetch(url, { ...init, cache: "no-store", headers });
     };
-    const response = await fetch(url, { ...init, cache: "no-store", headers });
+
+    let response = await requestWithAuth();
+    const credentials = readCredentials();
+    if (response.status === 401 && credentials?.method === "oauth" && credentials.refreshToken) {
+        response = await requestWithAuth(true);
+    }
     if (!response.ok) {
         const body = await parseFailure(response);
         throw new HostApiError(`Bitbucket API request failed (${response.status} ${response.statusText})`, {
@@ -786,13 +831,40 @@ export const bitbucketClient: GitHostClient = {
     async getAuthState(): Promise<AuthState> {
         const credentials = readCredentials();
         return {
-            authenticated: Boolean(credentials?.email && credentials?.apiToken),
+            authenticated: Boolean(credentials),
         };
     },
     async login(credentials: LoginCredentials): Promise<AuthState> {
         if (credentials.host !== "bitbucket") {
             throw new Error("Bitbucket credentials expected");
         }
+
+        if ("accessToken" in credentials) {
+            const accessToken = credentials.accessToken.trim();
+            if (!accessToken) throw new Error("Bitbucket OAuth access token is required");
+
+            const res = await fetch("https://api.bitbucket.org/2.0/user", {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    Accept: "application/json",
+                },
+            });
+            if (!res.ok) {
+                const details = await parseFailure(res);
+                const status = `${res.status} ${res.statusText}`;
+                throw new Error(
+                    details ? `Bitbucket OAuth authentication failed (${status}): ${details}` : `Bitbucket OAuth authentication failed (${status})`,
+                );
+            }
+
+            await writeBitbucketOAuthCredential({
+                accessToken,
+                refreshToken: credentials.refreshToken?.trim() || undefined,
+                expiresAt: credentials.expiresAt,
+            });
+            return { authenticated: true };
+        }
+
         const email = credentials.email.trim();
         const token = credentials.apiToken.trim();
         if (!email) throw new Error("Email is required");
@@ -811,7 +883,7 @@ export const bitbucketClient: GitHostClient = {
             throw new Error(details ? `Bitbucket authentication failed (${status}): ${details}` : `Bitbucket authentication failed (${status})`);
         }
 
-        await writeCredentials({ email, apiToken: token });
+        await writeApiTokenCredentials({ email, apiToken: token });
         return { authenticated: true };
     },
     async logout(): Promise<AuthState> {

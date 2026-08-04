@@ -267,7 +267,16 @@ export interface AuthState {
     authenticated: boolean;
 }
 
-export type LoginCredentials = { host: "bitbucket"; email: string; apiToken: string } | { host: "github"; token: string };
+export interface BitbucketOAuthTokens {
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt?: number;
+}
+
+export type LoginCredentials =
+    | { host: "bitbucket"; email: string; apiToken: string }
+    | ({ host: "bitbucket"; method: "oauth" } & BitbucketOAuthTokens)
+    | { host: "github"; token: string };
 
 export interface GitHostClient {
     readonly host: GitHost;

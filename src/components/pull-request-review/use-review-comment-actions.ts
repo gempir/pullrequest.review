@@ -140,10 +140,10 @@ export function useReviewCommentActions({
             return result;
         },
         onSuccess: async () => {
-            await refreshPullRequest();
+            await refreshComments();
         },
         onError: async (error) => {
-            await refreshPullRequest();
+            await refreshComments();
             setActionError(error instanceof Error ? error.message : "Failed to create suggestion comments");
         },
     });

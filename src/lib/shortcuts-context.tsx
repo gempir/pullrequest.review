@@ -13,6 +13,7 @@ export interface ShortcutConfig {
 }
 
 interface Shortcuts {
+    openOmnibar: ShortcutConfig;
     nextUnviewedFile: ShortcutConfig;
     previousUnviewedFile: ShortcutConfig;
     openFileTree: ShortcutConfig;
@@ -29,6 +30,11 @@ interface Shortcuts {
 }
 
 const DEFAULT_SHORTCUTS: Shortcuts = {
+    openOmnibar: {
+        key: "k",
+        modifiers: { meta: true },
+        description: "Open the omnibar",
+    },
     nextUnviewedFile: {
         key: "l",
         modifiers: { shift: true },
@@ -195,6 +201,7 @@ export function isEditableShortcutEvent(event: Pick<KeyboardEvent, "target" | "c
 }
 
 export function useKeyboardNavigation({
+    onOpenOmnibar,
     onNextUnviewedFile,
     onPreviousUnviewedFile,
     onOpenFileTree,
@@ -209,6 +216,7 @@ export function useKeyboardNavigation({
     onApprovePullRequest,
     onRequestChangesPullRequest,
 }: {
+    onOpenOmnibar?: () => void;
     onNextUnviewedFile?: () => void;
     onPreviousUnviewedFile?: () => void;
     onOpenFileTree?: () => void;
@@ -226,6 +234,7 @@ export function useKeyboardNavigation({
     const { shortcuts } = useShortcuts();
     const shortcutsRef = useRef(shortcuts);
     const handlersRef = useRef({
+        onOpenOmnibar,
         onNextUnviewedFile,
         onPreviousUnviewedFile,
         onOpenFileTree,
@@ -247,6 +256,7 @@ export function useKeyboardNavigation({
 
     useEffect(() => {
         handlersRef.current = {
+            onOpenOmnibar,
             onNextUnviewedFile,
             onPreviousUnviewedFile,
             onOpenFileTree,
@@ -262,6 +272,7 @@ export function useKeyboardNavigation({
             onRequestChangesPullRequest,
         };
     }, [
+        onOpenOmnibar,
         onNextUnviewedFile,
         onPreviousUnviewedFile,
         onOpenFileTree,
@@ -288,12 +299,19 @@ export function useKeyboardNavigation({
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (isEditableShortcutEvent(event)) return;
-
             const activeShortcuts = shortcutsRef.current;
             const handlers = handlersRef.current;
 
-            if (matchesShortcut(event, activeShortcuts.nextUnviewedFile)) {
+            if (event.isComposing) return;
+
+            // Keep the omnibar available from comment editors and other text fields, as in editor command palettes.
+            if (matchesShortcut(event, activeShortcuts.openOmnibar)) {
+                event.preventDefault();
+                event.stopPropagation();
+                handlers.onOpenOmnibar?.();
+            } else if (isEditableShortcutEvent(event)) {
+                return;
+            } else if (matchesShortcut(event, activeShortcuts.nextUnviewedFile)) {
                 event.preventDefault();
                 event.stopPropagation();
                 handlers.onNextUnviewedFile?.();

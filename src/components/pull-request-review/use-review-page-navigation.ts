@@ -5,6 +5,7 @@ import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
 
 type UseReviewPageNavigationProps = {
+    onOpenOmnibar: () => void;
     activeFile: string | undefined;
     settingsPathSet: Set<string>;
     viewMode: "single" | "all";
@@ -26,6 +27,7 @@ type UseReviewPageNavigationProps = {
 };
 
 export function useReviewPageNavigation({
+    onOpenOmnibar,
     activeFile,
     settingsPathSet,
     viewMode,
@@ -169,6 +171,7 @@ export function useReviewPageNavigation({
     );
 
     useKeyboardNavigation({
+        onOpenOmnibar,
         onNextUnviewedFile: () => selectAdjacentUnviewedFile("next"),
         onPreviousUnviewedFile: () => selectAdjacentUnviewedFile("previous"),
         onOpenFileTree: () => setTreeCollapsed((collapsed) => !collapsed),

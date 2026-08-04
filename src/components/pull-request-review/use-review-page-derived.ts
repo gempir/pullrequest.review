@@ -14,6 +14,7 @@ import {
     buildReviewScopeCacheKey,
     type CommentLineSide,
     collectDirectoryPathsFromPaths,
+    createOmnibarFilePaths,
     getCommentInlinePosition,
     getCommentPath,
     getFilePath,
@@ -272,6 +273,14 @@ export function useReviewPageDerived({
         });
         return map;
     }, [fileDiffs]);
+    const omnibarFilePaths = useMemo(() => {
+        const paths = fileDiffs.map((fileDiff, index) => getFilePath(fileDiff, index));
+        const fallbackPaths = (prData?.diffstat ?? []).flatMap((entry) => {
+            const path = entry.new?.path ?? entry.old?.path;
+            return path ? [path] : [];
+        });
+        return createOmnibarFilePaths(paths, fallbackPaths);
+    }, [fileDiffs, prData?.diffstat]);
     const diffByNormalizedPath = useMemo(() => {
         const map = new Map<string, FileDiffMetadata>();
         for (const [path, fileDiff] of diffByPath.entries()) {
@@ -573,6 +582,7 @@ export function useReviewPageDerived({
         selectableDiffPathSet,
         visiblePathSet,
         treeEntries,
+        omnibarFilePaths,
         directoryPaths,
         treeOrderedVisiblePaths,
         allModeDiffEntries,

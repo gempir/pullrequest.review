@@ -111,7 +111,7 @@ interface BitbucketCommentRaw {
     pending?: boolean;
     content?: { raw?: string; html?: string };
     user?: BitbucketUser;
-    inline?: { path?: string; to?: number; from?: number; start_to?: number; start_from?: number };
+    inline?: { path?: string; to?: number; from?: number; start_to?: number; start_from?: number; outdated?: boolean };
     parent?: { id?: number };
     resolution?: { user?: BitbucketUser } | null;
     hostThreadId?: string;
@@ -371,6 +371,7 @@ function mapComment(comment: BitbucketCommentRaw): Comment {
                   from: comment.inline.from,
                   startTo: comment.inline.start_to,
                   startFrom: comment.inline.start_from,
+                  outdated: comment.inline.outdated,
               }
             : undefined,
         parent: comment.parent,

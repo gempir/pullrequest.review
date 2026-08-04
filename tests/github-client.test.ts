@@ -69,4 +69,35 @@ describe("github comment normalization", () => {
         expect(comments[0]?.resolution).toBeUndefined();
         expect(comments[0]?.hostThreadId).toBe("THREAD_2");
     });
+
+    test("maps current right-side suggestion ranges and keeps outdated comments out of the live source preview", () => {
+        const comments = githubNormalization.mergeIssueAndReviewComments(
+            [],
+            [
+                {
+                    id: 30,
+                    created_at: "2026-01-01T00:00:00Z",
+                    body: "```suggestion\nreplacement\n```",
+                    path: "src/file.ts",
+                    start_line: 16,
+                    start_side: "RIGHT",
+                    line: 18,
+                    side: "RIGHT",
+                    position: 8,
+                },
+                {
+                    id: 31,
+                    created_at: "2026-01-01T00:01:00Z",
+                    body: "```suggestion\nreplacement\n```",
+                    path: "src/file.ts",
+                    original_line: 22,
+                    side: "RIGHT",
+                    position: null,
+                },
+            ],
+        );
+
+        expect(comments[0]?.inline).toEqual({ path: "src/file.ts", to: 18, from: undefined, startTo: 16 });
+        expect(comments[1]?.inline).toEqual({ path: "src/file.ts", to: 22, from: undefined, outdated: true });
+    });
 });

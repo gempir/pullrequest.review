@@ -1,11 +1,15 @@
+import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { Check, ChevronDown, Circle, LoaderCircle } from "lucide-react";
 import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useRef, useState } from "react";
 import { CommentEditor } from "@/components/comment-editor";
 import { CommentMarkdown as SharedCommentMarkdown } from "@/components/comment-markdown";
 import { CommentShareButton } from "@/components/comment-share-button";
+import { SuggestionDiffPreview } from "@/components/pull-request-review/bitbucket-suggestion-diff-preview";
 import type { CommentThread, CommentThreadNode } from "@/components/pull-request-review/review-threads";
 import { Button } from "@/components/ui/button";
 import { commentAnchorId } from "@/lib/file-anchors";
+import { getSuggestionOriginalContents, parseSuggestionMarkdown } from "@/lib/git-host/bitbucket-suggestions";
+import type { Comment as PullRequestComment } from "@/lib/git-host/types";
 import { formatTimestampLabel } from "@/lib/timestamp";
 
 type EditCommentHandler = (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
@@ -45,6 +49,16 @@ function CommentAvatar({ name, url, sizeClass = "size-6" }: { name?: string; url
 
 function CommentMarkdown({ text }: { text: string }) {
     return <SharedCommentMarkdown text={text} variant="thread" />;
+}
+
+function ThreadCommentBody({ comment, suggestionSourceFileDiff }: { comment: PullRequestComment; suggestionSourceFileDiff?: FileDiffMetadata }) {
+    const replacementContents = parseSuggestionMarkdown(comment.content?.raw);
+    const originalContents = getSuggestionOriginalContents(comment.inline, suggestionSourceFileDiff);
+    const path = comment.inline?.path;
+    if (path && replacementContents !== null && originalContents !== null && originalContents !== replacementContents) {
+        return <SuggestionDiffPreview path={path} originalContents={originalContents} replacementContents={replacementContents} />;
+    }
+    return <CommentMarkdown text={comment.content?.html ?? comment.content?.raw ?? ""} />;
 }
 
 function normalizeName(value?: string) {
@@ -126,6 +140,7 @@ type ThreadCardProps = {
     showBorder?: boolean;
     header?: ReactNode;
     showCommentShareLinks?: boolean;
+    suggestionSourceFileDiff?: FileDiffMetadata;
     canResolveThread: boolean;
     canCommentInline: boolean;
     createCommentPending: boolean;
@@ -522,6 +537,7 @@ type ThreadRootCommentCardProps = {
     onResolveThread: (commentId: number, resolve: boolean) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
     showCommentShareLinks: boolean;
+    suggestionSourceFileDiff?: FileDiffMetadata;
 };
 
 function ThreadRootCommentCard({
@@ -551,6 +567,7 @@ function ThreadRootCommentCard({
     onResolveThread,
     onDeleteComment,
     showCommentShareLinks,
+    suggestionSourceFileDiff,
 }: ThreadRootCommentCardProps) {
     const dateLabel = formatCommentDate(rootComment.createdAt);
     const dateTimeLabel = formatCommentDateTime(rootComment.createdAt);
@@ -616,7 +633,7 @@ function ThreadRootCommentCard({
                             />
                         ) : (
                             <div className={isCommentPending ? "opacity-70" : undefined}>
-                                <CommentMarkdown text={rootComment.content?.html ?? rootComment.content?.raw ?? ""} />
+                                <ThreadCommentBody comment={rootComment} suggestionSourceFileDiff={suggestionSourceFileDiff} />
                             </div>
                         )}
                         {editorState.replyTargetCommentId === rootComment.id ? (
@@ -671,6 +688,7 @@ export function ThreadCard({
     showBorder = true,
     header,
     showCommentShareLinks = true,
+    suggestionSourceFileDiff,
     canResolveThread,
     canCommentInline,
     createCommentPending,
@@ -839,6 +857,7 @@ export function ThreadCard({
                     onResolveThread={onResolveThread}
                     onDeleteComment={handleDeleteComment}
                     showCommentShareLinks={showCommentShareLinks}
+                    suggestionSourceFileDiff={suggestionSourceFileDiff}
                 />
                 {!collapsed && thread.root.children.length > 0 ? (
                     <div className="relative z-10 px-4 pb-2 pt-2.5">

@@ -75,6 +75,7 @@ export function ShortcutsTab() {
             </div>
 
             <div>
+                <ShortcutRow label="Open Omnibar" shortcut={shortcuts.openOmnibar} onChange={(config) => updateShortcut("openOmnibar", config)} />
                 <ShortcutRow
                     label="Next Unviewed File"
                     shortcut={shortcuts.nextUnviewedFile}

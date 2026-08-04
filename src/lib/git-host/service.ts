@@ -34,6 +34,10 @@ export async function fetchPullRequestDeferredByRef(data: { prRef: PullRequestRe
     return getHostClient(data.prRef.host).fetchPullRequestDeferredByRef(data);
 }
 
+export async function fetchPullRequestCommentsByRef(data: { prRef: PullRequestRef }) {
+    return getHostClient(data.prRef.host).fetchPullRequestCommentsByRef(data);
+}
+
 export async function approvePullRequest(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).approvePullRequest(data);
 }
@@ -69,7 +73,7 @@ export async function updatePullRequestDescription(data: { prRef: PullRequestRef
 export async function createPullRequestComment(data: {
     prRef: PullRequestRef;
     content: string;
-    inline?: { path: string; to?: number; from?: number };
+    inline?: { path: string; to?: number; from?: number; startTo?: number; startFrom?: number };
     parentId?: number;
 }) {
     return getHostClient(data.prRef.host).createPullRequestComment(data);

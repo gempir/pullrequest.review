@@ -116,6 +116,7 @@ export function InlineDiffAnnotation({
             ) : (
                 <ThreadCard
                     thread={metadata.thread}
+                    suggestionSourceFileDiff={metadata.suggestionSourceFileDiff}
                     allowNestedReplies={allowNestedReplies}
                     showBorder={false}
                     canResolveThread={canResolveThread}

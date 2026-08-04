@@ -448,6 +448,11 @@
         cursor: copy;
     }
 
+    [data-component="suggestion-diff-preview"] [data-line],
+    [data-component="suggestion-diff-preview"] [data-column-number] {
+        cursor: text;
+    }
+
     .commentable-diff {
         --diffs-bg-context-override: var(--comment);
     }

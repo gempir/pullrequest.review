@@ -1,4 +1,4 @@
-import type { FileDiffOptions } from "@pierre/diffs";
+import { cloneFileDiffMetadata, type FileDiffMetadata, type FileDiffOptions } from "@pierre/diffs";
 import { type CSSProperties, type ReactNode, type SetStateAction, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReviewCommentsSidebar } from "@/components/pull-request-review/review-comments-sidebar";
 import { ReviewCommitScopeControl } from "@/components/pull-request-review/review-commit-scope-control";
@@ -45,6 +45,7 @@ import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
 import { commentAnchorId, fileAnchorId } from "@/lib/file-anchors";
 import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
+import { buildBitbucketSuggestions, getBitbucketSuggestionKey } from "@/lib/git-host/bitbucket-suggestions";
 import { getPullRequestFileHistoryCollection } from "@/lib/git-host/query-collections";
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import type { GitHost } from "@/lib/git-host/types";
@@ -63,6 +64,13 @@ export interface PullRequestReviewPageProps {
     onRequireAuth?: (reason: "write" | "rate_limit") => void;
     authPromptSlot?: ReactNode;
 }
+
+type BitbucketSuggestionEditSession = {
+    path: string;
+    originalContents: string;
+    editedContents: string;
+    fileDiff: FileDiffMetadata;
+};
 
 export function useReviewPageController({
     host,
@@ -125,6 +133,7 @@ export function useReviewPageController({
     const searchQuery = useReviewPageUiValue(uiStore, (state) => state.searchQuery);
     const showUnviewedOnly = useReviewPageUiValue(uiStore, (state) => state.showUnviewedOnly);
     const showSettingsPanel = useReviewPageUiValue(uiStore, (state) => state.showSettingsPanel);
+    const omnibarOpen = useReviewPageUiValue(uiStore, (state) => state.omnibarOpen);
     const mergeOpen = useReviewPageUiValue(uiStore, (state) => state.mergeOpen);
     const mergeMessage = useReviewPageUiValue(uiStore, (state) => state.mergeMessage);
     const mergeStrategy = useReviewPageUiValue(uiStore, (state) => state.mergeStrategy);
@@ -142,6 +151,15 @@ export function useReviewPageController({
         },
         [uiStore],
     );
+    const clearSearchQuery = useCallback(() => {
+        uiStore.setState((prev) => {
+            if (!prev.searchQuery) return prev;
+            return {
+                ...prev,
+                searchQuery: "",
+            };
+        });
+    }, [uiStore]);
     const setShowUnviewedOnly = useCallback(
         (next: SetStateAction<boolean>) => {
             startTransition(() => {
@@ -158,6 +176,15 @@ export function useReviewPageController({
             uiStore.setState((prev) => ({
                 ...prev,
                 showSettingsPanel: typeof next === "function" ? (next as (current: boolean) => boolean)(prev.showSettingsPanel) : next,
+            }));
+        },
+        [uiStore],
+    );
+    const setOmnibarOpen = useCallback(
+        (next: SetStateAction<boolean>) => {
+            uiStore.setState((prev) => ({
+                ...prev,
+                omnibarOpen: typeof next === "function" ? (next as (current: boolean) => boolean)(prev.omnibarOpen) : next,
             }));
         },
         [uiStore],
@@ -220,6 +247,9 @@ export function useReviewPageController({
     const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<Record<string, boolean>>({});
     const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
+    const [suggestionEditSession, setSuggestionEditSession] = useState<BitbucketSuggestionEditSession | null>(null);
+    const [pendingSuggestionEditPath, setPendingSuggestionEditPath] = useState<string | null>(null);
+    const [submittedSuggestionKeys, setSubmittedSuggestionKeys] = useState<Set<string>>(() => new Set());
     const [pendingCommentTick, setPendingCommentTick] = useState(0);
     const autoMarkedViewedVersionIdsRef = useRef<Set<string>>(new Set());
     const copyResetTimeoutRef = useRef<number | null>(null);
@@ -291,6 +321,13 @@ export function useReviewPageController({
         setInlineComment(null);
     }, [resolvedScope.mode, setInlineComment]);
 
+    useEffect(() => {
+        if (host === "bitbucket" && resolvedScope.mode === "full") return;
+        setSuggestionEditSession(null);
+        setPendingSuggestionEditPath(null);
+        setSubmittedSuggestionKeys(new Set());
+    }, [host, resolvedScope.mode]);
+
     useCopyTimeoutCleanup({
         copyResetTimeoutRef,
         copySourceBranchResetTimeoutRef,
@@ -337,6 +374,7 @@ export function useReviewPageController({
         selectableDiffPathSet,
         visiblePathSet,
         treeEntries,
+        omnibarFilePaths,
         treeOrderedVisiblePaths,
         allModeDiffEntries,
         selectedFilePath,
@@ -474,6 +512,40 @@ export function useReviewPageController({
                 : { fileDiff: selectedFileDiff, readOnlyHistorical: false, selectedVersionId: undefined },
         [resolveDisplayedDiffForPath, selectedFileDiff, selectedFilePath],
     );
+    useEffect(() => {
+        if (!pendingSuggestionEditPath) return;
+        if (selectedFilePath !== pendingSuggestionEditPath) return;
+
+        const fileDiff = selectedFileDisplayState.fileDiff;
+        if (fileDiff && !fileDiff.isPartial) {
+            const originalContents = fileDiff.additionLines.join("");
+            setSuggestionEditSession({
+                path: pendingSuggestionEditPath,
+                originalContents,
+                editedContents: originalContents,
+                fileDiff: cloneFileDiffMetadata(fileDiff),
+            });
+            setSubmittedSuggestionKeys(new Set());
+            setPendingSuggestionEditPath(null);
+            return;
+        }
+
+        const fileContext = fileContextStatus[pendingSuggestionEditPath];
+        if (fileContext?.status === "error") {
+            setActionError(fileContext.error);
+            setPendingSuggestionEditPath(null);
+        }
+    }, [fileContextStatus, pendingSuggestionEditPath, selectedFileDisplayState.fileDiff, selectedFilePath]);
+    const isSuggestionEditingSelectedFile = suggestionEditSession?.path === selectedFilePath;
+    const pendingBitbucketSuggestions = useMemo(() => {
+        if (!suggestionEditSession) return [];
+        return buildBitbucketSuggestions({
+            path: suggestionEditSession.path,
+            originalContents: suggestionEditSession.originalContents,
+            editedContents: suggestionEditSession.editedContents,
+            language: suggestionEditSession.fileDiff.lang,
+        }).filter((suggestion) => !submittedSuggestionKeys.has(getBitbucketSuggestionKey(suggestion)));
+    }, [submittedSuggestionKeys, suggestionEditSession]);
     const hasRenderableSingleDiff = Boolean(selectedFileDisplayState.fileDiff) && !isSummarySelected;
     const hasRenderableAllDiffs = allModeDiffEntries.length > 0;
     useEffect(() => {
@@ -592,6 +664,7 @@ export function useReviewPageController({
         markDraftMutation,
         mergeMutation,
         createCommentMutation,
+        createSuggestionCommentsMutation,
         resolveCommentMutation,
         updateCommentMutation,
         updateDescriptionMutation,
@@ -600,6 +673,7 @@ export function useReviewPageController({
         handleRequestChangesPullRequest,
         handleDeclinePullRequest,
         handleMarkPullRequestAsDraft,
+        submitBitbucketSuggestions,
         submitInlineComment,
         submitPullRequestComment,
         submitThreadReply,
@@ -615,6 +689,7 @@ export function useReviewPageController({
         pullRequest,
         isApprovedByCurrentUser: isApproved,
         refetchPullRequest: refetchPrQuery,
+        refetchComments: prQuery.refetchComments,
         mergeMessage,
         mergeStrategy,
         closeSourceBranch,
@@ -631,6 +706,73 @@ export function useReviewPageController({
         onOptimisticCommentCreate: createOptimisticComment,
         onOptimisticCommentRemove: removeOptimisticComment,
     });
+    const canSuggestChanges =
+        host === "bitbucket" &&
+        actionPolicy.canCommentInline &&
+        resolvedScope.mode === "full" &&
+        viewMode === "single" &&
+        !selectedFileDisplayState.readOnlyHistorical &&
+        selectedFileDisplayState.fileDiff?.type !== "deleted" &&
+        (!suggestionEditSession || isSuggestionEditingSelectedFile);
+    const startBitbucketSuggestionEdit = useCallback(() => {
+        if (!canSuggestChanges || !selectedFilePath || !selectedFileDisplayState.fileDiff) return;
+
+        setActionError(null);
+        const fileDiff = selectedFileDisplayState.fileDiff;
+        if (!fileDiff.isPartial) {
+            const originalContents = fileDiff.additionLines.join("");
+            setSuggestionEditSession({
+                path: selectedFilePath,
+                originalContents,
+                editedContents: originalContents,
+                fileDiff: cloneFileDiffMetadata(fileDiff),
+            });
+            setSubmittedSuggestionKeys(new Set());
+            return;
+        }
+
+        setPendingSuggestionEditPath(selectedFilePath);
+        void handleLoadFullFileContext(selectedFilePath, fileDiff);
+    }, [canSuggestChanges, handleLoadFullFileContext, selectedFileDisplayState.fileDiff, selectedFilePath]);
+    const cancelBitbucketSuggestionEdit = useCallback(() => {
+        setSuggestionEditSession(null);
+        setPendingSuggestionEditPath(null);
+        setSubmittedSuggestionKeys(new Set());
+    }, []);
+    const handleBitbucketSuggestionEditChange = useCallback((editedContents: string) => {
+        setSuggestionEditSession((current) => {
+            if (!current || current.editedContents === editedContents) return current;
+            return { ...current, editedContents };
+        });
+    }, []);
+    const submitCurrentBitbucketSuggestions = useCallback(() => {
+        if (!suggestionEditSession || pendingBitbucketSuggestions.length === 0) {
+            setActionError("Make a non-empty replacement before suggesting changes.");
+            return undefined;
+        }
+        const submission = submitBitbucketSuggestions(pendingBitbucketSuggestions);
+        return submission
+            ?.then((result) => {
+                if (result.failedSuggestions.length === 0) {
+                    setSuggestionEditSession(null);
+                    setSubmittedSuggestionKeys(new Set());
+                    return result;
+                }
+
+                setSubmittedSuggestionKeys((current) => {
+                    const next = new Set(current);
+                    for (const suggestion of result.successfulSuggestions) {
+                        next.add(getBitbucketSuggestionKey(suggestion));
+                    }
+                    return next;
+                });
+                setActionError(
+                    `${result.successfulSuggestions.length > 0 ? `Created ${result.successfulSuggestions.length} suggestion${result.successfulSuggestions.length === 1 ? "" : "s"}; ` : ""}${result.failedSuggestions.length} suggestion${result.failedSuggestions.length === 1 ? "" : "s"} failed. Retry to send only the remaining suggestion${result.failedSuggestions.length === 1 ? "" : "s"}.`,
+                );
+                return result;
+            })
+            .catch(() => undefined);
+    }, [pendingBitbucketSuggestions, submitBitbucketSuggestions, suggestionEditSession]);
     const clearAllModePendingScrollPath = useCallback(() => {
         setAllModePendingScrollPath(null);
     }, []);
@@ -646,7 +788,12 @@ export function useReviewPageController({
         [deleteCommentMutation],
     );
 
+    const handleOpenOmnibar = useCallback(() => {
+        if (mergeOpen) return;
+        setOmnibarOpen(true);
+    }, [mergeOpen, setOmnibarOpen]);
     const { handleToggleSettingsPanel, selectAndRevealFile, toggleViewed } = useReviewPageNavigation({
+        onOpenOmnibar: handleOpenOmnibar,
         activeFile,
         settingsPathSet,
         viewMode,
@@ -666,6 +813,13 @@ export function useReviewPageController({
         onApprovePullRequest: handleApprovePullRequest,
         onRequestChangesPullRequest: handleRequestChangesPullRequest,
     });
+    const handleOmnibarSelectFile = useCallback(
+        (path: string) => {
+            clearSearchQuery();
+            selectAndRevealFile(path);
+        },
+        [clearSearchQuery, selectAndRevealFile],
+    );
     const handleHistoryCommentNavigate = useCallback(
         ({ path, commentId }: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => {
             if (!path) return;
@@ -952,7 +1106,7 @@ export function useReviewPageController({
         [commitScopeLoading, commitScopeOptions, handleSetFullScope, handleToggleCommitSelection, resolvedScope.mode, selectedRangeCommitHashes, scopeNotice],
     );
 
-    const { sidebarProps, navbarProps, mergeDialogProps } = useReviewPageViewProps({
+    const { sidebarProps, navbarProps, omnibarProps, mergeDialogProps } = useReviewPageViewProps({
         treeWidth,
         treeCollapsed,
         rightSidebarCollapsed,
@@ -982,6 +1136,8 @@ export function useReviewPageController({
         markDraftPending: markDraftMutation.isPending,
         copiedSourceBranch,
         commitScopeSlot,
+        omnibarOpen,
+        omnibarFilePaths,
         onRefresh: refreshCurrentReviewView,
         onToggleSettings: handleToggleSettingsPanel,
         onCollapseTree: () => setTreeCollapsed(true),
@@ -997,6 +1153,8 @@ export function useReviewPageController({
         onDecline: handleDeclinePullRequest,
         onMarkDraft: handleMarkPullRequestAsDraft,
         onOpenMerge: () => setMergeOpen(true),
+        onOmnibarOpenChange: setOmnibarOpen,
+        onOmnibarSelectFile: handleOmnibarSelectFile,
         mergeOpen,
         onMergeDialogOpenChange: setMergeOpen,
         mergeStrategies: hostCapabilities.mergeStrategies,
@@ -1087,6 +1245,7 @@ export function useReviewPageController({
             navbarProps={navbarProps}
             actionError={actionError}
             rightSidebar={rightSidebar}
+            omnibarProps={omnibarProps}
             diffContent={
                 <ReviewPageDiffContent
                     showSettingsPanel={showSettingsPanel}
@@ -1117,6 +1276,12 @@ export function useReviewPageController({
                     pullRequestId={pullRequestId}
                     createCommentPending={createCommentMutation.isPending}
                     canCommentInline={actionPolicy.canCommentInline && resolvedScope.mode === "full"}
+                    canSuggestChanges={canSuggestChanges}
+                    isSuggestionEditActive={isSuggestionEditingSelectedFile}
+                    isPreparingSuggestionEdit={pendingSuggestionEditPath === selectedFilePath}
+                    suggestionCount={pendingBitbucketSuggestions.length}
+                    suggestionSubmitPending={createSuggestionCommentsMutation.isPending}
+                    editableFileDiff={isSuggestionEditingSelectedFile ? suggestionEditSession?.fileDiff : undefined}
                     canResolveThread={actionPolicy.canResolveThread}
                     resolveCommentPending={resolveCommentMutation.isPending}
                     deleteCommentPending={deleteCommentMutation.isPending}
@@ -1149,6 +1314,10 @@ export function useReviewPageController({
                     getInlineDraftContent={getInlineDraftContent}
                     setInlineDraftContent={setInlineDraftContent}
                     onSubmitInlineComment={submitInlineComment}
+                    onStartSuggestionEdit={startBitbucketSuggestionEdit}
+                    onCancelSuggestionEdit={cancelBitbucketSuggestionEdit}
+                    onSuggestionEditChange={handleBitbucketSuggestionEditChange}
+                    onSubmitSuggestions={submitCurrentBitbucketSuggestions}
                     onInlineDraftReady={(focus) => {
                         inlineDraftFocusRef.current = focus;
                     }}

@@ -11,11 +11,9 @@ export const Route = createFileRoute("/oauth/callback")({
 function OAuthCallback() {
     const { login } = usePrContext();
     const startedRef = useRef(false);
-    const [mounted, setMounted] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        setMounted(true);
         if (startedRef.current) return;
         startedRef.current = true;
 
@@ -47,8 +45,6 @@ function OAuthCallback() {
                 setError(err instanceof Error ? err.message : "Bitbucket OAuth authentication failed");
             });
     }, [login]);
-
-    if (!mounted) return null;
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-background p-6">

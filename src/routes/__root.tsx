@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import { QueryClientProvider } from "@tanstack/react-query";
-import { createRootRoute, HeadContent, Link, Outlet, Scripts, useNavigate, useRouterState } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Link, Outlet, Scripts, useHydrated, useNavigate, useRouterState } from "@tanstack/react-router";
 import { GitPullRequest } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
@@ -25,6 +25,7 @@ export const Route = createRootRoute({
     head: () => ({
         meta: [{ charSet: "utf-8" }, { name: "viewport", content: "width=device-width, initial-scale=1" }, { title: "pullrequest.review" }],
     }),
+    shellComponent: RootDocument,
     component: RootComponent,
     notFoundComponent: NotFoundComponent,
 });
@@ -57,22 +58,20 @@ function RootComponent() {
     }, []);
 
     return (
-        <RootDocument>
-            <QueryClientProvider client={appQueryClient}>
-                <AppearanceProvider>
-                    <PrProvider>
-                        <DiffOptionsProvider>
-                            <ShikiAppThemeSync />
-                            <FileTreeProvider>
-                                <ShortcutsProvider>
-                                    <AppLayout />
-                                </ShortcutsProvider>
-                            </FileTreeProvider>
-                        </DiffOptionsProvider>
-                    </PrProvider>
-                </AppearanceProvider>
-            </QueryClientProvider>
-        </RootDocument>
+        <QueryClientProvider client={appQueryClient}>
+            <AppearanceProvider>
+                <PrProvider>
+                    <DiffOptionsProvider>
+                        <ShikiAppThemeSync />
+                        <FileTreeProvider>
+                            <ShortcutsProvider>
+                                <AppLayout />
+                            </ShortcutsProvider>
+                        </FileTreeProvider>
+                    </DiffOptionsProvider>
+                </PrProvider>
+            </AppearanceProvider>
+        </QueryClientProvider>
     );
 }
 
@@ -133,11 +132,16 @@ function OnboardingScreen() {
 
 function AppLayout() {
     const { authHydrated, isAuthenticated } = usePrContext();
+    const hydrated = useHydrated();
     const pathname = useRouterState({
         select: (state) => state.location.pathname,
     });
     const isGithubPullPath = /^\/[^/]+\/[^/]+\/pull\/[^/]+/.test(pathname);
     const isSettingsPath = pathname === "/settings" || pathname === "/settings/";
+
+    if (!hydrated) {
+        return null;
+    }
 
     if (pathname.startsWith("/oauth/callback")) {
         return <Outlet />;

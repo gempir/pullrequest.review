@@ -280,6 +280,7 @@ export interface GitHostClient {
     fetchPullRequestCriticalByRef(data: { prRef: PullRequestRef }): Promise<PullRequestCriticalBundle>;
     fetchPullRequestDeferredByRef(data: { prRef: PullRequestRef }): Promise<PullRequestDeferredBundle>;
     fetchPullRequestBundleByRef(data: { prRef: PullRequestRef }): Promise<PullRequestBundle>;
+    fetchPullRequestCommentsByRef(data: { prRef: PullRequestRef }): Promise<Comment[]>;
     approvePullRequest(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     removePullRequestApproval(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     requestChanges(data: { prRef: PullRequestRef; body?: string }): Promise<{ ok: true }>;

@@ -1,4 +1,5 @@
 export {
+    type BitbucketAuthCredential,
     clearBitbucketAuthCredential,
     clearGithubAuthCredential,
     readAppearanceSettingsRecord,
@@ -10,6 +11,7 @@ export {
     readTreeSettingsRecord,
     writeAppearanceSettingsRecord,
     writeBitbucketAuthCredential,
+    writeBitbucketOAuthCredential,
     writeDiffOptionsRecord,
     writeGithubAuthCredential,
     writeHostPreferencesRecord,

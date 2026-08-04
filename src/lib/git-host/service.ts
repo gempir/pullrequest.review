@@ -1,5 +1,5 @@
 import { getHostCapabilities, getHostClient } from "@/lib/git-host/registry";
-import type { Commit, GitHost, PullRequestRef, RepoRef } from "@/lib/git-host/types";
+import type { BitbucketOAuthTokens, Commit, GitHost, PullRequestRef, RepoRef } from "@/lib/git-host/types";
 
 export async function fetchRepoPullRequestsForHost(data: { host: GitHost; repos: RepoRef[] }) {
     if (data.repos.length === 0) {
@@ -116,7 +116,12 @@ export async function getAuthStateForHost(host: GitHost) {
     return getHostClient(host).getAuthState();
 }
 
-export async function loginToHost(data: { host: "bitbucket"; email: string; apiToken: string } | { host: "github"; token: string }) {
+export async function loginToHost(
+    data:
+        | { host: "bitbucket"; email: string; apiToken: string }
+        | ({ host: "bitbucket"; method: "oauth" } & BitbucketOAuthTokens)
+        | { host: "github"; token: string },
+) {
     return getHostClient(data.host).login(data);
 }
 

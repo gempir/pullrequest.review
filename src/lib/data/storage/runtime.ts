@@ -121,12 +121,9 @@ type HostPreferencesRecord = BaseCollectionRecord & {
     reposByHost: Record<GitHost, RepoRef[]>;
 };
 
-type BitbucketAuthCredentialRecord = BaseCollectionRecord & {
-    id: "bitbucket";
-    host: "bitbucket";
-    email: string;
-    apiToken: string;
-};
+export type BitbucketAuthCredential =
+    | { host: "bitbucket"; method: "apiToken"; email: string; apiToken: string }
+    | { host: "bitbucket"; method: "oauth"; accessToken: string; refreshToken?: string; expiresAt?: number };
 
 type GithubAuthCredentialRecord = BaseCollectionRecord & {
     id: "github";
@@ -882,13 +879,29 @@ export function writeHostPreferencesRecord(data: { activeHost: GitHost; reposByH
 }
 
 export function readBitbucketAuthCredential() {
-    const record = readPermanentRecord<Omit<BitbucketAuthCredentialRecord, keyof BaseCollectionRecord | "id">>("bitbucket");
+    const record = readPermanentRecord<Record<string, unknown>>("bitbucket");
     if (record?.host !== "bitbucket") return null;
+
+    if (record.method === "oauth") {
+        if (typeof record.accessToken !== "string" || !record.accessToken.trim()) return null;
+        return {
+            host: "bitbucket",
+            method: "oauth",
+            accessToken: record.accessToken,
+            refreshToken: typeof record.refreshToken === "string" && record.refreshToken.trim() ? record.refreshToken : undefined,
+            expiresAt:
+                typeof record.accessTokenExpiresAt === "number" && Number.isFinite(record.accessTokenExpiresAt) ? record.accessTokenExpiresAt : undefined,
+        } satisfies BitbucketAuthCredential;
+    }
+
+    // Records written before auth methods were introduced are API-token records.
     if (typeof record.email !== "string" || typeof record.apiToken !== "string") return null;
     return {
+        host: "bitbucket",
+        method: "apiToken",
         email: record.email,
         apiToken: record.apiToken,
-    };
+    } satisfies BitbucketAuthCredential;
 }
 
 export async function writeBitbucketAuthCredential(data: { email: string; apiToken: string }) {
@@ -896,8 +909,23 @@ export async function writeBitbucketAuthCredential(data: { email: string; apiTok
         "bitbucket",
         {
             host: "bitbucket",
+            method: "apiToken",
             email: data.email,
             apiToken: data.apiToken,
+        },
+        "auth:bitbucket",
+    );
+}
+
+export async function writeBitbucketOAuthCredential(data: { accessToken: string; refreshToken?: string; expiresAt?: number }) {
+    await writePermanentRecord(
+        "bitbucket",
+        {
+            host: "bitbucket",
+            method: "oauth",
+            accessToken: data.accessToken,
+            ...(data.refreshToken ? { refreshToken: data.refreshToken } : {}),
+            ...(typeof data.expiresAt === "number" ? { accessTokenExpiresAt: data.expiresAt } : {}),
         },
         "auth:bitbucket",
     );

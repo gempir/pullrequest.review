@@ -6,11 +6,6 @@ export const githubAuthSchema = v.object({
     token: v.string(),
 });
 
-export const bitbucketAuthSchema = v.object({
-    email: v.string(),
-    apiToken: v.string(),
-});
-
 export const pullRequestBundleSchema = v.object({
     prRef: v.object({
         host: gitHostSchema,

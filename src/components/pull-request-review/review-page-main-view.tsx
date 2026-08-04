@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactNode, RefObject } from "react";
 import { ReviewFileTreeSidebar } from "@/components/pull-request-review/review-file-tree-sidebar";
 import { ReviewMergeDialog } from "@/components/pull-request-review/review-merge-dialog";
+import { ReviewOmnibar } from "@/components/pull-request-review/review-omnibar";
 import { ReviewTopNavbar } from "@/components/pull-request-review/review-top-navbar";
 
 type ReviewPageMainViewProps = {
@@ -11,6 +12,7 @@ type ReviewPageMainViewProps = {
     actionError: string | null;
     diffContent: ReactNode;
     rightSidebar?: ReactNode;
+    omnibarProps: ComponentProps<typeof ReviewOmnibar>;
     mergeDialogProps: ComponentProps<typeof ReviewMergeDialog>;
 };
 
@@ -22,6 +24,7 @@ export function ReviewPageMainView({
     actionError,
     diffContent,
     rightSidebar,
+    omnibarProps,
     mergeDialogProps,
 }: ReviewPageMainViewProps) {
     return (
@@ -42,6 +45,7 @@ export function ReviewPageMainView({
 
             {rightSidebar}
 
+            <ReviewOmnibar {...omnibarProps} />
             <ReviewMergeDialog {...mergeDialogProps} />
         </div>
     );

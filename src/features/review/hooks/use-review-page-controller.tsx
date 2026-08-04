@@ -125,6 +125,7 @@ export function useReviewPageController({
     const searchQuery = useReviewPageUiValue(uiStore, (state) => state.searchQuery);
     const showUnviewedOnly = useReviewPageUiValue(uiStore, (state) => state.showUnviewedOnly);
     const showSettingsPanel = useReviewPageUiValue(uiStore, (state) => state.showSettingsPanel);
+    const omnibarOpen = useReviewPageUiValue(uiStore, (state) => state.omnibarOpen);
     const mergeOpen = useReviewPageUiValue(uiStore, (state) => state.mergeOpen);
     const mergeMessage = useReviewPageUiValue(uiStore, (state) => state.mergeMessage);
     const mergeStrategy = useReviewPageUiValue(uiStore, (state) => state.mergeStrategy);
@@ -142,6 +143,15 @@ export function useReviewPageController({
         },
         [uiStore],
     );
+    const clearSearchQuery = useCallback(() => {
+        uiStore.setState((prev) => {
+            if (!prev.searchQuery) return prev;
+            return {
+                ...prev,
+                searchQuery: "",
+            };
+        });
+    }, [uiStore]);
     const setShowUnviewedOnly = useCallback(
         (next: SetStateAction<boolean>) => {
             startTransition(() => {
@@ -158,6 +168,15 @@ export function useReviewPageController({
             uiStore.setState((prev) => ({
                 ...prev,
                 showSettingsPanel: typeof next === "function" ? (next as (current: boolean) => boolean)(prev.showSettingsPanel) : next,
+            }));
+        },
+        [uiStore],
+    );
+    const setOmnibarOpen = useCallback(
+        (next: SetStateAction<boolean>) => {
+            uiStore.setState((prev) => ({
+                ...prev,
+                omnibarOpen: typeof next === "function" ? (next as (current: boolean) => boolean)(prev.omnibarOpen) : next,
             }));
         },
         [uiStore],
@@ -337,6 +356,7 @@ export function useReviewPageController({
         selectableDiffPathSet,
         visiblePathSet,
         treeEntries,
+        omnibarFilePaths,
         treeOrderedVisiblePaths,
         allModeDiffEntries,
         selectedFilePath,
@@ -646,7 +666,12 @@ export function useReviewPageController({
         [deleteCommentMutation],
     );
 
+    const handleOpenOmnibar = useCallback(() => {
+        if (mergeOpen) return;
+        setOmnibarOpen(true);
+    }, [mergeOpen, setOmnibarOpen]);
     const { handleToggleSettingsPanel, selectAndRevealFile, toggleViewed } = useReviewPageNavigation({
+        onOpenOmnibar: handleOpenOmnibar,
         activeFile,
         settingsPathSet,
         viewMode,
@@ -666,6 +691,13 @@ export function useReviewPageController({
         onApprovePullRequest: handleApprovePullRequest,
         onRequestChangesPullRequest: handleRequestChangesPullRequest,
     });
+    const handleOmnibarSelectFile = useCallback(
+        (path: string) => {
+            clearSearchQuery();
+            selectAndRevealFile(path);
+        },
+        [clearSearchQuery, selectAndRevealFile],
+    );
     const handleHistoryCommentNavigate = useCallback(
         ({ path, commentId }: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => {
             if (!path) return;
@@ -952,7 +984,7 @@ export function useReviewPageController({
         [commitScopeLoading, commitScopeOptions, handleSetFullScope, handleToggleCommitSelection, resolvedScope.mode, selectedRangeCommitHashes, scopeNotice],
     );
 
-    const { sidebarProps, navbarProps, mergeDialogProps } = useReviewPageViewProps({
+    const { sidebarProps, navbarProps, omnibarProps, mergeDialogProps } = useReviewPageViewProps({
         treeWidth,
         treeCollapsed,
         rightSidebarCollapsed,
@@ -982,6 +1014,8 @@ export function useReviewPageController({
         markDraftPending: markDraftMutation.isPending,
         copiedSourceBranch,
         commitScopeSlot,
+        omnibarOpen,
+        omnibarFilePaths,
         onRefresh: refreshCurrentReviewView,
         onToggleSettings: handleToggleSettingsPanel,
         onCollapseTree: () => setTreeCollapsed(true),
@@ -997,6 +1031,8 @@ export function useReviewPageController({
         onDecline: handleDeclinePullRequest,
         onMarkDraft: handleMarkPullRequestAsDraft,
         onOpenMerge: () => setMergeOpen(true),
+        onOmnibarOpenChange: setOmnibarOpen,
+        onOmnibarSelectFile: handleOmnibarSelectFile,
         mergeOpen,
         onMergeDialogOpenChange: setMergeOpen,
         mergeStrategies: hostCapabilities.mergeStrategies,
@@ -1087,6 +1123,7 @@ export function useReviewPageController({
             navbarProps={navbarProps}
             actionError={actionError}
             rightSidebar={rightSidebar}
+            omnibarProps={omnibarProps}
             diffContent={
                 <ReviewPageDiffContent
                     showSettingsPanel={showSettingsPanel}

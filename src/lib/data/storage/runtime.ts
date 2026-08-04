@@ -99,6 +99,7 @@ type ShortcutConfigRecord = {
 
 type ShortcutsRecord = BaseCollectionRecord & {
     id: typeof SHORTCUTS_RECORD_ID;
+    openOmnibar: ShortcutConfigRecord;
     nextUnviewedFile: ShortcutConfigRecord;
     previousUnviewedFile: ShortcutConfigRecord;
     openFileTree: ShortcutConfigRecord;

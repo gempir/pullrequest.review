@@ -96,7 +96,7 @@ const TREE_UNSAFE_CSS = `
 
   [data-file-tree-search-container]:has([data-file-tree-search-input]:placeholder-shown)::after {
     color: var(--trees-fg-muted);
-    content: 'Search... (cmd + k)';
+    content: 'Search...';
     font-size: var(--trees-font-size);
     inset: 0;
     line-height: 40px;
@@ -217,16 +217,8 @@ function blurActiveTreeItem(hostElement: HTMLElement) {
     activeElement.blur();
 }
 
-function getTreeSearchInput(hostElement: HTMLElement) {
-    return hostElement.shadowRoot?.querySelector<HTMLInputElement>("[data-file-tree-search-input]") ?? null;
-}
-
 function isTreeSearchInputEvent(event: ReactKeyboardEvent<HTMLElement>) {
     return event.nativeEvent.composedPath().some((target) => target instanceof HTMLElement && target.hasAttribute("data-file-tree-search-input"));
-}
-
-function isTreeSearchShortcut(event: Pick<globalThis.KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">) {
-    return event.key.toLowerCase() === "k" && event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
 }
 
 function isImplicitTreeSearchKey(event: ReactKeyboardEvent<HTMLElement>) {
@@ -495,18 +487,6 @@ export function AppFileTreeView({
     style?: CSSProperties;
 }) {
     const hostStyle = useMemo(() => ({ ...TREE_HOST_STYLE, ...style }), [style]);
-    useEffect(() => {
-        const handleSearchShortcut = (event: globalThis.KeyboardEvent) => {
-            if (!isTreeSearchShortcut(event)) return;
-            const hostElement = model.getFileTreeContainer();
-            if (!hostElement) return;
-            event.preventDefault();
-            event.stopPropagation();
-            getTreeSearchInput(hostElement)?.focus();
-        };
-        window.addEventListener("keydown", handleSearchShortcut, true);
-        return () => window.removeEventListener("keydown", handleSearchShortcut, true);
-    }, [model]);
     const handleClickCapture = useCallback(
         (event: MouseEvent<HTMLElement>) => {
             if (!eventPathContainsTreeItem(event)) return;
@@ -521,12 +501,6 @@ export function AppFileTreeView({
     );
     const handleKeyDownCapture = useCallback((event: ReactKeyboardEvent<HTMLElement>) => {
         if (isTreeSearchInputEvent(event)) return;
-        if (isTreeSearchShortcut(event)) {
-            event.preventDefault();
-            event.stopPropagation();
-            getTreeSearchInput(event.currentTarget)?.focus();
-            return;
-        }
         if (!isImplicitTreeSearchKey(event)) return;
         event.preventDefault();
         event.stopPropagation();

@@ -7,6 +7,7 @@ export {
     type StorageTier,
 } from "@/lib/data/storage/debug";
 export {
+    type BitbucketAuthCredential,
     clearBitbucketAuthCredential,
     clearGithubAuthCredential,
     readAppearanceSettingsRecord,
@@ -18,6 +19,7 @@ export {
     readTreeSettingsRecord,
     writeAppearanceSettingsRecord,
     writeBitbucketAuthCredential,
+    writeBitbucketOAuthCredential,
     writeDiffOptionsRecord,
     writeGithubAuthCredential,
     writeHostPreferencesRecord,

@@ -1,4 +1,4 @@
-import { parseDiffFromFile } from "@pierre/diffs";
+import { type FileDiffMetadata, parseDiffFromFile } from "@pierre/diffs";
 
 export type BitbucketSuggestion = {
     content: string;
@@ -18,11 +18,50 @@ type BuildBitbucketSuggestionsParams = {
 
 const BITBUCKET_SUGGESTION_TRAILER = "\u200c";
 
+type BitbucketSuggestionInline = {
+    to?: number;
+    startTo?: number;
+    outdated?: boolean;
+};
+
 export function formatBitbucketSuggestion(replacement: string) {
     const code = replacement.endsWith("\n") ? replacement : `${replacement}\n`;
     const longestBacktickRun = Math.max(0, ...Array.from(code.matchAll(/`+/g), (match) => match[0].length));
     const fence = "`".repeat(Math.max(3, longestBacktickRun + 1));
     return `${fence}suggestion\n${code}${fence}\n\n${BITBUCKET_SUGGESTION_TRAILER}`;
+}
+
+/**
+ * Parses the canonical Bitbucket suggestion Markdown emitted by
+ * `formatBitbucketSuggestion`. Comments with surrounding prose deliberately
+ * fall back to normal Markdown so their meaning is never hidden.
+ */
+export function parseBitbucketSuggestion(raw?: string) {
+    if (!raw) return null;
+    const match = /^(`{3,})suggestion[ \t]*\r?\n([\s\S]*)(\r?\n)\1[ \t]*(?:\r?\n[\s\u200c]*)?$/.exec(raw);
+    if (!match) return null;
+    return `${match[2]}${match[3]}`;
+}
+
+/**
+ * Gets the current PR source lines covered by an inline suggestion. This only
+ * trusts the raw patch metadata: persisted full-file contexts are not keyed
+ * by commit and could otherwise render a stale before-side.
+ */
+export function getBitbucketSuggestionOriginalContents(inline: BitbucketSuggestionInline | undefined, fileDiff?: FileDiffMetadata) {
+    if (inline?.outdated || !fileDiff?.isPartial) return null;
+
+    const start = inline?.startTo ?? inline?.to;
+    const end = inline?.to;
+    if (!start || !end || start > end) return null;
+
+    const hunk = fileDiff.hunks.find((candidate) => start >= candidate.additionStart && end <= candidate.additionStart + candidate.additionCount - 1);
+    if (!hunk) return null;
+
+    const startIndex = hunk.additionLineIndex + start - hunk.additionStart;
+    const sourceLines = fileDiff.additionLines.slice(startIndex, startIndex + end - start + 1);
+    if (sourceLines.length !== end - start + 1) return null;
+    return sourceLines.join("");
 }
 
 export function getBitbucketSuggestionKey(suggestion: BitbucketSuggestion) {

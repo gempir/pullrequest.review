@@ -448,6 +448,11 @@
         cursor: copy;
     }
 
+    [data-component="bitbucket-suggestion-diff"] [data-line],
+    [data-component="bitbucket-suggestion-diff"] [data-column-number] {
+        cursor: text;
+    }
+
     .commentable-diff {
         --diffs-bg-context-override: var(--comment);
     }

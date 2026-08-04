@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { buildBitbucketSuggestions, formatBitbucketSuggestion, getBitbucketSuggestionKey } from "../src/lib/git-host/bitbucket-suggestions";
+import { parsePatchFiles } from "@pierre/diffs";
+import {
+    buildBitbucketSuggestions,
+    formatBitbucketSuggestion,
+    getBitbucketSuggestionKey,
+    getBitbucketSuggestionOriginalContents,
+    parseBitbucketSuggestion,
+} from "../src/lib/git-host/bitbucket-suggestions";
 import { bitbucketNormalization } from "../src/lib/git-host/providers/bitbucket/client";
 
 describe("Bitbucket suggestions", () => {
@@ -85,5 +92,33 @@ describe("Bitbucket suggestions", () => {
         });
 
         expect(getBitbucketSuggestionKey(suggestion)).toBe(JSON.stringify(["src/example.ts", 2, 2, "```suggestion\nTWO\n```\n\n‌"]));
+    });
+
+    test("parses only a standalone suggestion fence while preserving its replacement newline", () => {
+        expect(parseBitbucketSuggestion("````suggestion\n    const markdown = ` ``` `;\n````\n\n‌")).toBe("    const markdown = ` ``` `;\n");
+        expect(parseBitbucketSuggestion("A comment before\n\n```suggestion\nnext\n```\n")).toBeNull();
+    });
+
+    test("recovers source lines from the current partial patch and rejects stale contexts", () => {
+        const [parsedPatch] = parsePatchFiles(
+            [
+                "diff --git a/src/example.ts b/src/example.ts",
+                "index 1111111..2222222 100644",
+                "--- a/src/example.ts",
+                "+++ b/src/example.ts",
+                "@@ -10,3 +10,3 @@",
+                " alpha",
+                "-old value",
+                "+current value",
+                " omega",
+                "",
+            ].join("\n"),
+        );
+        const fileDiff = parsedPatch?.files[0];
+        if (!fileDiff) throw new Error("Expected a parsed file diff");
+
+        expect(getBitbucketSuggestionOriginalContents({ path: "src/example.ts", to: 11 }, fileDiff)).toBe("current value\n");
+        expect(getBitbucketSuggestionOriginalContents({ path: "src/example.ts", to: 11, outdated: true }, fileDiff)).toBeNull();
+        expect(getBitbucketSuggestionOriginalContents({ path: "src/example.ts", to: 11 }, { ...fileDiff, isPartial: false })).toBeNull();
     });
 });

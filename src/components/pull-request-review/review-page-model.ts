@@ -12,6 +12,7 @@ export type InlineCommentLineTarget = {
 type ExistingThreadAnnotation = {
     kind: "thread";
     thread: CommentThread;
+    suggestionSourceFileDiff?: FileDiffMetadata;
 };
 
 type DraftThreadAnnotation = {

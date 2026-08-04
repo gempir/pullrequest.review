@@ -5,7 +5,7 @@ import { useDiffOptions } from "@/lib/diff-options-context";
 
 const SUGGESTION_PREVIEW_LANGUAGE = "text";
 
-export function BitbucketSuggestionDiffPreview({
+export function SuggestionDiffPreview({
     path,
     originalContents,
     replacementContents,
@@ -42,7 +42,7 @@ export function BitbucketSuggestionDiffPreview({
     if (!fileDiff) return null;
 
     return (
-        <div data-component="bitbucket-suggestion-diff" className="mt-2 overflow-hidden rounded border border-comment-border">
+        <div data-component="suggestion-diff-preview" className="mt-2 overflow-hidden rounded border border-comment-border">
             <FileDiff fileDiff={fileDiff} options={previewOptions} disableWorkerPool className="compact-diff pr-diff-font" />
         </div>
     );

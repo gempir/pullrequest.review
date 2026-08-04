@@ -1,6 +1,7 @@
 import { type Collection, createCollection, localOnlyCollectionOptions } from "@tanstack/db";
 import {
     fetchPullRequestBundleByRef,
+    fetchPullRequestCommentsByRef,
     fetchPullRequestCommitRangeDiff,
     fetchPullRequestCriticalByRef,
     fetchPullRequestDeferredByRef,
@@ -139,6 +140,7 @@ const repoPullRequestScopedCollections = new LruCache<string, ScopedCollection<P
 const pullRequestBundleScopedCollections = new LruCache<string, ScopedCollection<PersistedPullRequestBundleRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
 const pullRequestFileHistoryScopedCollections = new LruCache<string, ScopedCollection<PullRequestFileHistoryRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
 const pullRequestCommitRangeDiffScopedCollections = new LruCache<string, ScopedCollection<PullRequestCommitRangeDiffRecord>>(SCOPED_COLLECTION_CACHE_SIZE);
+const pullRequestCommentRefreshes = new Map<string, Promise<void>>();
 const fetchActivityListeners = new Set<() => void>();
 const activeFetchesByScope = new Map<string, FetchActivity>();
 const refetchRegistry = new LruCache<string, RefetchRegistryEntry>(SCOPED_COLLECTION_CACHE_SIZE);
@@ -257,6 +259,10 @@ function pullRequestBundleId(prRef: PullRequestRef) {
 
 export function pullRequestDetailsFetchScopeId(prRef: PullRequestRef) {
     return `pr-bundle:${pullRequestBundleId(prRef)}`;
+}
+
+function pullRequestCommentsFetchScopeId(prRef: PullRequestRef) {
+    return `pr-comments:${pullRequestBundleId(prRef)}`;
 }
 
 function pullRequestFileContextId(prRef: PullRequestRef, path: string) {
@@ -670,6 +676,43 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: 
     }
     registerRefetchScope(scopeId, scopeLabel, utils.refetch);
     return scoped;
+}
+
+export function refreshPullRequestComments(prRef: PullRequestRef) {
+    ensureCollectionsInitialized();
+    const bundleId = pullRequestBundleId(prRef);
+    const pendingRefresh = pullRequestCommentRefreshes.get(bundleId);
+    if (pendingRefresh) return pendingRefresh;
+
+    const scopeId = pullRequestCommentsFetchScopeId(prRef);
+    const scopeLabel = `Pull request comments (${prRef.host}:${prRef.workspace}/${prRef.repo}#${prRef.pullRequestId})`;
+    const refresh = (async () => {
+        setFetchActivity(scopeId, scopeLabel, true);
+        try {
+            const comments = await fetchPullRequestCommentsByRef({ prRef });
+            const collection = getHostDataCollection("pullRequestBundles");
+            const existing = collection.get(bundleId);
+            if (!existing) return;
+            await upsertRecord("pullRequestBundles", { ...existing, comments });
+        } finally {
+            setFetchActivity(scopeId, scopeLabel, false);
+        }
+    })();
+
+    pullRequestCommentRefreshes.set(bundleId, refresh);
+    void refresh.then(
+        () => {
+            if (pullRequestCommentRefreshes.get(bundleId) === refresh) {
+                pullRequestCommentRefreshes.delete(bundleId);
+            }
+        },
+        () => {
+            if (pullRequestCommentRefreshes.get(bundleId) === refresh) {
+                pullRequestCommentRefreshes.delete(bundleId);
+            }
+        },
+    );
+    return refresh;
 }
 
 export function getPullRequestFileContextCollection() {

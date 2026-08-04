@@ -615,6 +615,7 @@ export function useReviewPageController({
         pullRequest,
         isApprovedByCurrentUser: isApproved,
         refetchPullRequest: refetchPrQuery,
+        refetchComments: prQuery.refetchComments,
         mergeMessage,
         mergeStrategy,
         closeSourceBranch,

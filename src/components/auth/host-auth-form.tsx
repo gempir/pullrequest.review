@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { startBitbucketOAuth } from "@/lib/bitbucket-oauth";
 import { getHostLabel } from "@/lib/git-host/service";
 import type { GitHost } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
@@ -16,6 +17,7 @@ function useHostAuthFormState({ host, onSuccess }: { host: GitHost; onSuccess?: 
     const [githubToken, setGithubToken] = useState("");
     const [copiedScopes, setCopiedScopes] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isOAuthStarting, setIsOAuthStarting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const isBitbucket = host === "bitbucket";
@@ -45,6 +47,17 @@ function useHostAuthFormState({ host, onSuccess }: { host: GitHost; onSuccess?: 
         setIsSubmitting(false);
     };
 
+    const authenticateWithOAuth = () => {
+        setError(null);
+        setIsOAuthStarting(true);
+        try {
+            startBitbucketOAuth();
+        } catch (err) {
+            setIsOAuthStarting(false);
+            setError(err instanceof Error ? err.message : "Failed to start Bitbucket OAuth");
+        }
+    };
+
     return {
         isBitbucket,
         email,
@@ -52,6 +65,7 @@ function useHostAuthFormState({ host, onSuccess }: { host: GitHost; onSuccess?: 
         githubToken,
         copiedScopes,
         isSubmitting,
+        isOAuthStarting,
         error,
         bitbucketScopeText,
         setEmail,
@@ -59,6 +73,7 @@ function useHostAuthFormState({ host, onSuccess }: { host: GitHost; onSuccess?: 
         setGithubToken,
         setCopiedScopes,
         authenticate,
+        authenticateWithOAuth,
     };
 }
 
@@ -70,6 +85,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
         githubToken,
         copiedScopes,
         isSubmitting,
+        isOAuthStarting,
         error,
         bitbucketScopeText,
         setEmail,
@@ -77,6 +93,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
         setGithubToken,
         setCopiedScopes,
         authenticate,
+        authenticateWithOAuth,
     } = useHostAuthFormState({ host, onSuccess });
     const ctaLabel = mode === "inline" ? "Authenticate" : `Connect ${getHostLabel(host)}`;
     const isOnboarding = mode === "onboarding";
@@ -87,18 +104,39 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
             <div className="rounded-md border border-border-muted bg-surface-1 p-4">
                 <div className="space-y-1">
                     <p className="text-[13px] text-muted-foreground">
-                        {isBitbucket ? "Use your Bitbucket email and API token to continue." : "Use a GitHub fine-grained personal access token to continue."}
+                        {isBitbucket
+                            ? "Continue with Bitbucket OAuth, or use an email and API token."
+                            : "Use a GitHub fine-grained personal access token to continue."}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                        {isBitbucket ? "Authentication stays local to this app." : "Create a token, paste it below, and continue."}
+                        {isBitbucket ? "OAuth uses your existing Bitbucket access across workspaces." : "Create a token, paste it below, and continue."}
                     </p>
                 </div>
 
                 <div className="mt-4 space-y-3">
+                    {isBitbucket ? (
+                        <>
+                            <Button
+                                type="button"
+                                className={isOnboarding ? "h-10 w-full rounded-md text-[13px]" : "w-full rounded-md"}
+                                disabled={isSubmitting || isOAuthStarting}
+                                onClick={authenticateWithOAuth}
+                            >
+                                {isOAuthStarting ? "Opening Bitbucket..." : "Continue with Bitbucket OAuth"}
+                            </Button>
+                            <div className="flex items-center gap-3" aria-hidden="true">
+                                <div className="h-px flex-1 bg-border-muted" />
+                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">or use an API token</span>
+                                <div className="h-px flex-1 bg-border-muted" />
+                            </div>
+                        </>
+                    ) : null}
+
                     <Button
                         type="button"
-                        variant={isOnboarding ? "default" : "outline"}
+                        variant={isBitbucket || !isOnboarding ? "outline" : "default"}
                         className="h-9 w-full rounded-md justify-center"
+                        disabled={isOAuthStarting}
                         onClick={() =>
                             window.open(
                                 isBitbucket
@@ -151,7 +189,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
                                     placeholder="name@example.com"
                                     autoComplete="email"
                                     className={fieldClassName}
-                                    disabled={isSubmitting}
+                                    disabled={isSubmitting || isOAuthStarting}
                                 />
                             </div>
                             <div className="space-y-1.5">
@@ -163,7 +201,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
                                     placeholder="Paste your Bitbucket API token"
                                     autoComplete="current-password"
                                     className={fieldClassName}
-                                    disabled={isSubmitting}
+                                    disabled={isSubmitting || isOAuthStarting}
                                 />
                             </div>
                         </div>
@@ -187,7 +225,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
             <Button
                 type="submit"
                 className={isOnboarding ? "h-10 w-full rounded-md text-[13px]" : "w-full rounded-md"}
-                disabled={isSubmitting || (isBitbucket ? !email.trim() || !apiToken.trim() : !githubToken.trim())}
+                disabled={isSubmitting || isOAuthStarting || (isBitbucket ? !email.trim() || !apiToken.trim() : !githubToken.trim())}
             >
                 {isSubmitting ? "Authenticating..." : ctaLabel}
             </Button>
@@ -195,7 +233,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
             {error ? (
                 <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-destructive text-[13px]">[AUTH ERROR] {error}</div>
             ) : null}
-            <p className="text-[12px] text-muted-foreground">Credentials are stored in the local app database.</p>
+            <p className="text-[12px] text-muted-foreground">Your selected credentials are stored in the local app database.</p>
         </form>
     );
 }

@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { ensureDataCollectionsReady, readHostPreferencesRecord, writeHostPreferencesRecord } from "@/lib/data/query-collections";
 import { getAuthStateForHost, loginToHost, logoutHost } from "@/lib/git-host/service";
-import type { GitHost, RepoRef } from "@/lib/git-host/types";
+import type { BitbucketOAuthTokens, GitHost, RepoRef } from "@/lib/git-host/types";
 
 const HOSTS: GitHost[] = ["bitbucket", "github"];
 
@@ -19,7 +19,12 @@ interface PrContextType {
     clearReposForHost: (host: GitHost) => void;
     clearAllRepos: () => void;
     refreshAuth: () => Promise<void>;
-    login: (data: { host: "bitbucket"; email: string; apiToken: string } | { host: "github"; token: string }) => Promise<void>;
+    login: (
+        data:
+            | { host: "bitbucket"; email: string; apiToken: string }
+            | ({ host: "bitbucket"; method: "oauth" } & BitbucketOAuthTokens)
+            | { host: "github"; token: string },
+    ) => Promise<void>;
     logout: (host?: GitHost) => Promise<void>;
 }
 

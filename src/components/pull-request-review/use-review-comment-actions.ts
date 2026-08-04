@@ -15,7 +15,7 @@ type UseReviewCommentActionsParams = {
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     inlineComment: InlineCommentDraft | null;
     onOptimisticCommentRemove: (commentId: number) => void;
-    refreshPullRequest: () => Promise<void>;
+    refreshComments: () => Promise<void>;
     requestAuth: (reason: "write" | "rate_limit") => void;
     setActionError: (message: string | null) => void;
     setInlineComment: (next: InlineCommentDraft | null | ((prev: InlineCommentDraft | null) => InlineCommentDraft | null)) => void;
@@ -48,7 +48,7 @@ export function useReviewCommentActions({
     getInlineDraftContent,
     inlineComment,
     onOptimisticCommentRemove,
-    refreshPullRequest,
+    refreshComments,
     requestAuth,
     setActionError,
     setInlineComment,
@@ -91,7 +91,7 @@ export function useReviewCommentActions({
         onSuccess: async (_, vars, context) => {
             void context;
             void vars;
-            await refreshPullRequest();
+            await refreshComments();
         },
         onError: (error, _vars, context) => {
             if (typeof context?.optimisticCommentId === "number") {
@@ -157,7 +157,7 @@ export function useReviewCommentActions({
             return resolvePullRequestComment({ prRef, commentId: payload.commentId, resolve: payload.resolve });
         },
         onSuccess: async () => {
-            await refreshPullRequest();
+            await refreshComments();
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to update comment resolution");
@@ -172,7 +172,7 @@ export function useReviewCommentActions({
             return updatePullRequestComment({ prRef: ensurePrRef(), ...payload });
         },
         onSuccess: async () => {
-            await refreshPullRequest();
+            await refreshComments();
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to edit comment");
@@ -187,7 +187,7 @@ export function useReviewCommentActions({
             return deletePullRequestComment({ prRef: ensurePrRef(), ...payload });
         },
         onSuccess: async () => {
-            await refreshPullRequest();
+            await refreshComments();
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to delete comment");

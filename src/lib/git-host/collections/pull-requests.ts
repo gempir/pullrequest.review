@@ -8,5 +8,6 @@ export {
     type PullRequestBundleRecord,
     type PullRequestCommitRangeDiffRecord,
     pullRequestDetailsFetchScopeId,
+    refreshPullRequestComments,
     savePullRequestFileContextRecord,
 } from "./runtime";

@@ -768,6 +768,11 @@ async function fetchBitbucketPullRequestDeferred(prRef: { workspace: string; rep
     };
 }
 
+async function fetchBitbucketPullRequestComments(prRef: { workspace: string; repo: string; pullRequestId: string }) {
+    const baseApi = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/pullrequests/${prRef.pullRequestId}`;
+    return fetchAllComments(`${baseApi}/comments?pagelen=100&sort=created_on`);
+}
+
 export const bitbucketClient: GitHostClient = {
     host: "bitbucket",
     capabilities: {
@@ -848,6 +853,13 @@ export const bitbucketClient: GitHostClient = {
     },
     async fetchPullRequestDeferredByRef(data): Promise<PullRequestDeferredBundle> {
         return fetchBitbucketPullRequestDeferred({
+            workspace: data.prRef.workspace,
+            repo: data.prRef.repo,
+            pullRequestId: data.prRef.pullRequestId,
+        });
+    },
+    async fetchPullRequestCommentsByRef(data): Promise<Comment[]> {
+        return fetchBitbucketPullRequestComments({
             workspace: data.prRef.workspace,
             repo: data.prRef.repo,
             pullRequestId: data.prRef.pullRequestId,

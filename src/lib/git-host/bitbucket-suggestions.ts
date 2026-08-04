@@ -32,11 +32,11 @@ export function formatBitbucketSuggestion(replacement: string) {
 }
 
 /**
- * Parses the canonical Bitbucket suggestion Markdown emitted by
- * `formatBitbucketSuggestion`. Comments with surrounding prose deliberately
- * fall back to normal Markdown so their meaning is never hidden.
+ * Parses standard GitHub and Bitbucket suggestion Markdown. Comments with
+ * surrounding prose deliberately fall back to normal Markdown so their
+ * meaning is never hidden.
  */
-export function parseBitbucketSuggestion(raw?: string) {
+export function parseSuggestionMarkdown(raw?: string) {
     if (!raw) return null;
     const match = /^(`{3,})suggestion[ \t]*\r?\n([\s\S]*)(\r?\n)\1[ \t]*(?:\r?\n[\s\u200c]*)?$/.exec(raw);
     if (!match) return null;
@@ -48,7 +48,7 @@ export function parseBitbucketSuggestion(raw?: string) {
  * trusts the raw patch metadata: persisted full-file contexts are not keyed
  * by commit and could otherwise render a stale before-side.
  */
-export function getBitbucketSuggestionOriginalContents(inline: BitbucketSuggestionInline | undefined, fileDiff?: FileDiffMetadata) {
+export function getSuggestionOriginalContents(inline: BitbucketSuggestionInline | undefined, fileDiff?: FileDiffMetadata) {
     if (inline?.outdated || !fileDiff?.isPartial) return null;
 
     const start = inline?.startTo ?? inline?.to;
@@ -63,6 +63,9 @@ export function getBitbucketSuggestionOriginalContents(inline: BitbucketSuggesti
     if (sourceLines.length !== end - start + 1) return null;
     return sourceLines.join("");
 }
+
+export const parseBitbucketSuggestion = parseSuggestionMarkdown;
+export const getBitbucketSuggestionOriginalContents = getSuggestionOriginalContents;
 
 export function getBitbucketSuggestionKey(suggestion: BitbucketSuggestion) {
     return JSON.stringify([suggestion.inline.path, suggestion.inline.startTo ?? suggestion.inline.to, suggestion.inline.to, suggestion.content]);

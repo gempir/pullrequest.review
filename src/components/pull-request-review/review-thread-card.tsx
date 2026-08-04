@@ -4,11 +4,11 @@ import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useRef, 
 import { CommentEditor } from "@/components/comment-editor";
 import { CommentMarkdown as SharedCommentMarkdown } from "@/components/comment-markdown";
 import { CommentShareButton } from "@/components/comment-share-button";
-import { BitbucketSuggestionDiffPreview } from "@/components/pull-request-review/bitbucket-suggestion-diff-preview";
+import { SuggestionDiffPreview } from "@/components/pull-request-review/bitbucket-suggestion-diff-preview";
 import type { CommentThread, CommentThreadNode } from "@/components/pull-request-review/review-threads";
 import { Button } from "@/components/ui/button";
 import { commentAnchorId } from "@/lib/file-anchors";
-import { getBitbucketSuggestionOriginalContents, parseBitbucketSuggestion } from "@/lib/git-host/bitbucket-suggestions";
+import { getSuggestionOriginalContents, parseSuggestionMarkdown } from "@/lib/git-host/bitbucket-suggestions";
 import type { Comment as PullRequestComment } from "@/lib/git-host/types";
 import { formatTimestampLabel } from "@/lib/timestamp";
 
@@ -52,11 +52,11 @@ function CommentMarkdown({ text }: { text: string }) {
 }
 
 function ThreadCommentBody({ comment, suggestionSourceFileDiff }: { comment: PullRequestComment; suggestionSourceFileDiff?: FileDiffMetadata }) {
-    const replacementContents = parseBitbucketSuggestion(comment.content?.raw);
-    const originalContents = getBitbucketSuggestionOriginalContents(comment.inline, suggestionSourceFileDiff);
+    const replacementContents = parseSuggestionMarkdown(comment.content?.raw);
+    const originalContents = getSuggestionOriginalContents(comment.inline, suggestionSourceFileDiff);
     const path = comment.inline?.path;
     if (path && replacementContents !== null && originalContents !== null && originalContents !== replacementContents) {
-        return <BitbucketSuggestionDiffPreview path={path} originalContents={originalContents} replacementContents={replacementContents} />;
+        return <SuggestionDiffPreview path={path} originalContents={originalContents} replacementContents={replacementContents} />;
     }
     return <CommentMarkdown text={comment.content?.html ?? comment.content?.raw ?? ""} />;
 }

@@ -448,8 +448,8 @@
         cursor: copy;
     }
 
-    [data-component="bitbucket-suggestion-diff"] [data-line],
-    [data-component="bitbucket-suggestion-diff"] [data-column-number] {
+    [data-component="suggestion-diff-preview"] [data-line],
+    [data-component="suggestion-diff-preview"] [data-column-number] {
         cursor: text;
     }
 

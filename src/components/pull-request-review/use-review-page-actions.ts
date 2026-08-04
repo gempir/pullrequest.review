@@ -16,6 +16,7 @@ type UseReviewPageActionsProps = {
     pullRequest: PullRequestDetails | undefined;
     isApprovedByCurrentUser: boolean;
     refetchPullRequest: () => Promise<unknown>;
+    refetchComments: () => Promise<void>;
     mergeMessage: string;
     mergeStrategy: string;
     closeSourceBranch: boolean;
@@ -41,6 +42,7 @@ export function useReviewPageActions({
     pullRequest,
     isApprovedByCurrentUser,
     refetchPullRequest,
+    refetchComments,
     mergeMessage,
     mergeStrategy,
     closeSourceBranch,
@@ -111,7 +113,7 @@ export function useReviewPageActions({
         getInlineDraftContent,
         inlineComment,
         onOptimisticCommentRemove,
-        refreshPullRequest,
+        refreshComments: refetchComments,
         requestAuth,
         setActionError,
         setInlineComment,

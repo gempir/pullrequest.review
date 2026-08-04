@@ -6,6 +6,7 @@ import {
     getPullRequestBundleCollection,
     type PullRequestBundleRecord,
     pullRequestDetailsFetchScopeId,
+    refreshPullRequestComments,
     subscribeGitHostFetchActivity,
     subscribeHostDataCollectionsVersion,
 } from "@/lib/git-host/query-collections";
@@ -57,8 +58,9 @@ function normalizeBundleRecord(value: unknown): PullRequestBundleRecord | undefi
 export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, canWrite, onRequireAuth }: UseReviewQueryProps) {
     const hostCapabilities = useMemo(() => getCapabilitiesForHost(host), [host]);
     const canLoadPullRequest = canRead || hostCapabilities.publicReadSupported;
+    const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, pullRequestId, repo, workspace]);
     const bundleId = useMemo(() => `${host}:${workspace}/${repo}/${pullRequestId}`, [host, pullRequestId, repo, workspace]);
-    const fetchScopeId = useMemo(() => pullRequestDetailsFetchScopeId({ host, workspace, repo, pullRequestId }), [host, workspace, repo, pullRequestId]);
+    const fetchScopeId = useMemo(() => pullRequestDetailsFetchScopeId(prRef), [prRef]);
     const fetchActivity = useSyncExternalStore(subscribeGitHostFetchActivity, getGitHostFetchActivitySnapshot, getGitHostFetchActivitySnapshot);
     const hostDataCollectionsVersion = useSyncExternalStore(
         subscribeHostDataCollectionsVersion,
@@ -70,18 +72,8 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
         // Depend on host-data collection version so we rescope when persistence falls back.
         void hostDataCollectionsVersion;
         if (!canLoadPullRequest) return null;
-        return getPullRequestBundleCollection(
-            {
-                host,
-                workspace,
-                repo,
-                pullRequestId,
-            },
-            {
-                staged: true,
-            },
-        );
-    }, [canLoadPullRequest, host, hostDataCollectionsVersion, pullRequestId, repo, workspace]);
+        return getPullRequestBundleCollection(prRef, { staged: true });
+    }, [canLoadPullRequest, hostDataCollectionsVersion, prRef]);
 
     const bundleQuery = useLiveQuery(
         (q) => {
@@ -136,6 +128,13 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
     const isDeferredLoading = canLoadPullRequest ? Boolean(critical) && (!queryData?.deferredFetchedAt || queryData?.deferredStatus === "loading") : false;
     // Keep auto/manual review refresh scoped to the active PR fetch scope only.
     const refetchQuery = useCallback(() => bundleStore?.utils.refetch({ throwOnError: false }) ?? Promise.resolve(), [bundleStore]);
+    const refetchComments = useCallback(async () => {
+        try {
+            await refreshPullRequestComments(prRef);
+        } catch {
+            // Keep a successful comment mutation successful if its follow-up refresh fails.
+        }
+    }, [prRef]);
 
     const query = useMemo(
         () => ({
@@ -144,8 +143,9 @@ export function useReviewQuery({ host, workspace, repo, pullRequestId, canRead, 
             isLoading: isCriticalLoading,
             isFetching: queryIsFetching,
             refetch: refetchQuery,
+            refetchComments,
         }),
-        [isCriticalLoading, queryError, queryIsFetching, refetchQuery, stagedBundle],
+        [isCriticalLoading, queryError, queryIsFetching, refetchComments, refetchQuery, stagedBundle],
     );
 
     const criticalMarkRef = useRef<string>("");

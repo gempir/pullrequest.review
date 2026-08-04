@@ -34,6 +34,10 @@ export async function fetchPullRequestDeferredByRef(data: { prRef: PullRequestRe
     return getHostClient(data.prRef.host).fetchPullRequestDeferredByRef(data);
 }
 
+export async function fetchPullRequestCommentsByRef(data: { prRef: PullRequestRef }) {
+    return getHostClient(data.prRef.host).fetchPullRequestCommentsByRef(data);
+}
+
 export async function approvePullRequest(data: { prRef: PullRequestRef }) {
     return getHostClient(data.prRef.host).approvePullRequest(data);
 }

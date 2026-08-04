@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { exchangeBitbucketOAuthCode } from "@/lib/bitbucket-oauth";
 import { usePrContext } from "@/lib/pr-context";
@@ -10,9 +11,11 @@ export const Route = createFileRoute("/oauth/callback")({
 function OAuthCallback() {
     const { login } = usePrContext();
     const startedRef = useRef(false);
+    const [mounted, setMounted] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        setMounted(true);
         if (startedRef.current) return;
         startedRef.current = true;
 
@@ -45,6 +48,8 @@ function OAuthCallback() {
             });
     }, [login]);
 
+    if (!mounted) return null;
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-background p-6">
             <div className="w-full max-w-lg border border-border bg-card">
@@ -52,9 +57,14 @@ function OAuthCallback() {
                     <span className="text-[13px] font-medium">Bitbucket OAuth</span>
                 </div>
                 <div className="space-y-4 p-6">
-                    <div className={error ? "text-[13px] text-destructive" : "text-[13px] text-muted-foreground"}>
-                        {error ? `[AUTH ERROR] ${error}` : "Completing sign-in..."}
-                    </div>
+                    {error ? (
+                        <div className="text-[13px] text-destructive">[AUTH ERROR] {error}</div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-[13px] text-muted-foreground" role="status" aria-live="polite">
+                            <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+                            <span>Completing sign-in...</span>
+                        </div>
+                    )}
                     {error ? (
                         <Link
                             to="/"

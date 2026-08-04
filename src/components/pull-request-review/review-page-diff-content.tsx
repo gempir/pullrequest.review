@@ -43,6 +43,12 @@ type ReviewPageDiffContentProps = {
     pullRequestId: string;
     createCommentPending: boolean;
     canCommentInline: boolean;
+    canSuggestChanges: boolean;
+    isSuggestionEditActive: boolean;
+    isPreparingSuggestionEdit: boolean;
+    suggestionCount: number;
+    suggestionSubmitPending: boolean;
+    editableFileDiff?: FileDiffMetadata;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
     deleteCommentPending: boolean;
@@ -76,6 +82,10 @@ type ReviewPageDiffContentProps = {
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
     onSubmitInlineComment: () => Promise<unknown> | undefined;
+    onStartSuggestionEdit: () => void;
+    onCancelSuggestionEdit: () => void;
+    onSuggestionEditChange: (editedContents: string) => void;
+    onSubmitSuggestions: () => Promise<unknown> | undefined;
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
@@ -126,6 +136,12 @@ export function ReviewPageDiffContent({
     pullRequestId,
     createCommentPending,
     canCommentInline,
+    canSuggestChanges,
+    isSuggestionEditActive,
+    isPreparingSuggestionEdit,
+    suggestionCount,
+    suggestionSubmitPending,
+    editableFileDiff,
     canResolveThread,
     resolveCommentPending,
     deleteCommentPending,
@@ -156,6 +172,10 @@ export function ReviewPageDiffContent({
     getInlineDraftContent,
     setInlineDraftContent,
     onSubmitInlineComment,
+    onStartSuggestionEdit,
+    onCancelSuggestionEdit,
+    onSuggestionEditChange,
+    onSubmitSuggestions,
     onInlineDraftReady,
     onCancelInlineDraft,
     onDeleteComment,
@@ -235,6 +255,12 @@ export function ReviewPageDiffContent({
                 pullRequestId={pullRequestId}
                 createCommentPending={createCommentPending}
                 canCommentInline={canCommentInline}
+                canSuggestChanges={canSuggestChanges}
+                isSuggestionEditActive={isSuggestionEditActive}
+                isPreparingSuggestionEdit={isPreparingSuggestionEdit}
+                suggestionCount={suggestionCount}
+                suggestionSubmitPending={suggestionSubmitPending}
+                editableFileDiff={editableFileDiff}
                 canResolveThread={canResolveThread}
                 resolveCommentPending={resolveCommentPending}
                 deleteCommentPending={deleteCommentPending}
@@ -257,6 +283,10 @@ export function ReviewPageDiffContent({
                 getInlineDraftContent={getInlineDraftContent}
                 setInlineDraftContent={setInlineDraftContent}
                 onSubmitInlineComment={onSubmitInlineComment}
+                onStartSuggestionEdit={onStartSuggestionEdit}
+                onCancelSuggestionEdit={onCancelSuggestionEdit}
+                onSuggestionEditChange={onSuggestionEditChange}
+                onSubmitSuggestions={onSubmitSuggestions}
                 onInlineDraftReady={onInlineDraftReady}
                 onCancelInlineDraft={onCancelInlineDraft}
                 onDeleteComment={onDeleteComment}

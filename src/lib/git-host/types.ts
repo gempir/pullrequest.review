@@ -54,7 +54,7 @@ export interface Comment {
     pending?: boolean;
     content?: { raw?: string; html?: string };
     user?: { displayName?: string; avatarUrl?: string };
-    inline?: { path?: string; to?: number; from?: number };
+    inline?: { path?: string; to?: number; from?: number; startTo?: number; startFrom?: number };
     parent?: { id?: number };
     resolution?: { user?: { displayName?: string; avatarUrl?: string } } | null;
     hostThreadId?: string;
@@ -218,7 +218,7 @@ export interface MergeOptions {
 
 export interface CommentPayload {
     content: string;
-    inline?: { path: string; to?: number; from?: number };
+    inline?: { path: string; to?: number; from?: number; startTo?: number; startFrom?: number };
     parentId?: number;
 }
 

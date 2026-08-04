@@ -4,6 +4,7 @@ import { parseFailureBody } from "@/lib/git-host/shared/http";
 import {
     type AuthState,
     type Comment,
+    type CommentPayload,
     type Commit,
     type DiffStatEntry,
     type GitHostClient,
@@ -110,7 +111,7 @@ interface BitbucketCommentRaw {
     pending?: boolean;
     content?: { raw?: string; html?: string };
     user?: BitbucketUser;
-    inline?: { path?: string; to?: number; from?: number };
+    inline?: { path?: string; to?: number; from?: number; start_to?: number; start_from?: number };
     parent?: { id?: number };
     resolution?: { user?: BitbucketUser } | null;
     hostThreadId?: string;
@@ -363,7 +364,15 @@ function mapComment(comment: BitbucketCommentRaw): Comment {
             displayName: comment.user?.display_name,
             avatarUrl: getAvatarUrl(comment.user),
         },
-        inline: comment.inline,
+        inline: comment.inline
+            ? {
+                  path: comment.inline.path,
+                  to: comment.inline.to,
+                  from: comment.inline.from,
+                  startTo: comment.inline.start_to,
+                  startFrom: comment.inline.start_from,
+              }
+            : undefined,
         parent: comment.parent,
         resolution: comment.resolution
             ? {
@@ -374,6 +383,17 @@ function mapComment(comment: BitbucketCommentRaw): Comment {
               }
             : comment.resolution,
         hostThreadId: comment.hostThreadId,
+    };
+}
+
+function mapBitbucketInlineComment(inline: CommentPayload["inline"]) {
+    if (!inline) return undefined;
+    return {
+        path: inline.path,
+        to: inline.to,
+        from: inline.from,
+        start_to: inline.startTo,
+        start_from: inline.startFrom,
     };
 }
 
@@ -680,6 +700,7 @@ export const bitbucketNormalization = {
     mapReviewers,
     mapComment,
     mapActivityToHistory,
+    mapBitbucketInlineComment,
 };
 
 async function fetchBitbucketPullRequestCritical(prRef: { workspace: string; repo: string; pullRequestId: string }): Promise<PullRequestCriticalBundle> {
@@ -958,7 +979,7 @@ export const bitbucketClient: GitHostClient = {
         const payload: Record<string, unknown> = {
             content: { raw: data.content },
         };
-        if (data.inline) payload.inline = data.inline;
+        if (data.inline) payload.inline = mapBitbucketInlineComment(data.inline);
         if (data.parentId) payload.parent = { id: data.parentId };
 
         await request(url, {

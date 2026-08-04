@@ -54,10 +54,10 @@ describe("review top navbar actions", () => {
         expect(html).toContain("Merge</button>");
         expect(html).toContain('aria-label="Pull request actions"');
         expect(html.includes("[&amp;&gt;*+*]:border-l")).toBe(false);
-        expect(html).toContain("border-status-renamed/45");
-        expect(html).toContain("border-status-added/45");
-        expect(html).toContain("border-status-modified/45");
-        expect(html).toContain("border-status-merged/45");
+        expect(html).toContain("border-status-renamed/50");
+        expect(html).toContain("border-status-added/50");
+        expect(html).toContain("border-status-modified/50");
+        expect(html).toContain("border-status-merged/50");
         expect(html).toContain("h-full w-12 rounded-none pl-0 pr-0");
         expect(html.includes(">OPEN<")).toBe(false);
         expect(html.includes(">DRAFT<")).toBe(false);
@@ -153,7 +153,7 @@ describe("review top navbar actions", () => {
         expect(html.includes("Approve")).toBe(false);
         expect(html.includes("Revise")).toBe(false);
         expect(html.includes("Mark as Ready")).toBe(false);
-        expect(html).toContain("border-status-merged/40 bg-status-merged/10 text-status-merged");
+        expect(html).toContain("border-status-merged/40 bg-status-merged/12 text-status-merged");
         expect(html).toContain('aria-disabled="true"');
         expect(html).toContain("MERGED</button>");
     });
@@ -167,7 +167,7 @@ describe("review top navbar actions", () => {
             expect(html.includes("Mark as Ready")).toBe(false);
             expect(html.includes('aria-label="Merge pull request"')).toBe(false);
             expect(html).toContain('aria-label="Pull request closed"');
-            expect(html).toContain("border-status-removed/40 bg-status-removed/10 text-status-removed");
+            expect(html).toContain("border-status-removed/40 bg-status-removed/12 text-status-removed");
             expect(html).toContain('aria-disabled="true"');
             expect(html).toContain('aria-label="Pull request actions"');
             expect(html).toContain(`${state}</button>`);

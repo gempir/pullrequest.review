@@ -113,9 +113,12 @@ interface GithubReviewComment {
     body_html?: string;
     user?: { login?: string; avatar_url?: string };
     path?: string;
-    line?: number;
-    original_line?: number;
+    line?: number | null;
+    start_line?: number | null;
+    original_line?: number | null;
     side?: "LEFT" | "RIGHT";
+    start_side?: "LEFT" | "RIGHT";
+    position?: number | null;
     in_reply_to_id?: number;
 }
 
@@ -752,8 +755,10 @@ function mapReviewComment(
         threadIdByRootCommentId?: ReadonlyMap<number, string>;
     },
 ): Comment {
-    const line = comment.line ?? comment.original_line;
+    const line = comment.line ?? comment.original_line ?? undefined;
     const isLeft = comment.side === "LEFT";
+    const startLine = comment.start_line ?? undefined;
+    const isStartLeft = comment.start_side === "LEFT";
     const content = mapCommentContent(comment.body, comment.body_text, comment.body_html);
     const isRootComment = !comment.in_reply_to_id;
     return {
@@ -769,6 +774,9 @@ function mapReviewComment(
             path: comment.path,
             to: !isLeft ? line : undefined,
             from: isLeft ? line : undefined,
+            ...(!isLeft && !isStartLeft && startLine ? { startTo: startLine } : {}),
+            ...(isLeft && isStartLeft && startLine ? { startFrom: startLine } : {}),
+            ...(comment.position === null ? { outdated: true } : {}),
         },
         parent: comment.in_reply_to_id ? { id: comment.in_reply_to_id } : undefined,
         resolution: isRootComment && metadata?.resolvedRootCommentIds?.has(comment.id) ? {} : undefined,

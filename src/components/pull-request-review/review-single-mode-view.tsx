@@ -1,7 +1,8 @@
 import type { FileDiffOptions } from "@pierre/diffs";
-import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
-import { Check, CheckCheck, Copy } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+import { Editor, type EditorOptions } from "@pierre/diffs/edit";
+import { EditProvider, FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
+import { Check, CheckCheck, Copy, LoaderCircle, PencilLine, Send, X } from "lucide-react";
+import { type CSSProperties, type ReactNode, useMemo } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
 import { DiffContextButton, type DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import { FileVersionSelect, type FileVersionSelectOption } from "@/components/pull-request-review/file-version-select";
@@ -16,6 +17,12 @@ import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import type { SingleFileAnnotation, SingleFileAnnotationMetadata } from "./review-page-model";
 import type { CommentThread } from "./review-threads";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
+
+const EMPTY_FILE_ANNOTATIONS: SingleFileAnnotation[] = [];
+
+function createSuggestionEditor(options: EditorOptions<SingleFileAnnotationMetadata | undefined>) {
+    return new Editor(options);
+}
 
 type ReviewSingleModeViewProps = {
     viewMode: "single" | "all";
@@ -43,6 +50,12 @@ type ReviewSingleModeViewProps = {
     pullRequestId: string;
     createCommentPending: boolean;
     canCommentInline: boolean;
+    canSuggestChanges: boolean;
+    isSuggestionEditActive: boolean;
+    isPreparingSuggestionEdit: boolean;
+    suggestionCount: number;
+    suggestionSubmitPending: boolean;
+    editableFileDiff?: FileDiffMetadata;
     canResolveThread: boolean;
     resolveCommentPending: boolean;
     deleteCommentPending: boolean;
@@ -59,6 +72,10 @@ type ReviewSingleModeViewProps = {
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
     onSubmitInlineComment: () => Promise<unknown> | undefined;
+    onStartSuggestionEdit: () => void;
+    onCancelSuggestionEdit: () => void;
+    onSuggestionEditChange: (editedContents: string) => void;
+    onSubmitSuggestions: () => Promise<unknown> | undefined;
     onInlineDraftReady: (focus: () => void) => void;
     onCancelInlineDraft: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
@@ -99,6 +116,12 @@ export function ReviewSingleModeView({
     pullRequestId,
     createCommentPending,
     canCommentInline,
+    canSuggestChanges,
+    isSuggestionEditActive,
+    isPreparingSuggestionEdit,
+    suggestionCount,
+    suggestionSubmitPending,
+    editableFileDiff,
     canResolveThread,
     resolveCommentPending,
     deleteCommentPending,
@@ -115,6 +138,10 @@ export function ReviewSingleModeView({
     getInlineDraftContent,
     setInlineDraftContent,
     onSubmitInlineComment,
+    onStartSuggestionEdit,
+    onCancelSuggestionEdit,
+    onSuggestionEditChange,
+    onSubmitSuggestions,
     onInlineDraftReady,
     onCancelInlineDraft,
     onDeleteComment,
@@ -138,7 +165,8 @@ export function ReviewSingleModeView({
                 ? singleFileDiffOptions
                 : { ...singleFileDiffOptions, hunkSeparators: "line-info" as const }
             : singleFileDiffOptions;
-    const canOpenInlineDraft = canCommentInline && !selectedFileReadOnlyHistorical;
+    const isSuggestionEditing = isSuggestionEditActive && editableFileDiff !== undefined;
+    const canOpenInlineDraft = canCommentInline && !selectedFileReadOnlyHistorical && !isSuggestionEditing;
     const interactiveSingleFileDiffOptions = canOpenInlineDraft
         ? resolvedFileDiffOptions
         : {
@@ -147,6 +175,14 @@ export function ReviewSingleModeView({
               onLineLeave: undefined,
           };
     const singleDiffRenderKey = `${selectedFilePath}:${selectedFileVersionId ?? "latest"}:${selectedFileReadOnlyHistorical ? "historical" : "current"}:${hasFullContext ? "full-context" : "patch-context"}`;
+    const suggestionEditorOptions = useMemo<EditorOptions<SingleFileAnnotationMetadata | undefined>>(
+        () => ({
+            onChange: (file) => {
+                onSuggestionEditChange(file.contents);
+            },
+        }),
+        [onSuggestionEditChange],
+    );
     if (isSummarySelected) {
         return (
             <div
@@ -233,16 +269,65 @@ export function ReviewSingleModeView({
                             if (!open) return;
                             onFileVersionMenuOpen();
                         }}
+                        disabled={isSuggestionEditing || isPreparingSuggestionEdit}
                     />
                     <DiffContextButton
                         state={fileContextState[selectedFilePath]}
                         onClick={() => onLoadFullFileContext(selectedFilePath, selectedFileDiff)}
-                        disabled={selectedFileReadOnlyHistorical}
+                        disabled={selectedFileReadOnlyHistorical || isSuggestionEditing}
                     />
                 </div>
                 <div className="ml-auto flex items-center gap-2 text-[12px]">
                     <span className="select-none text-status-added">+{fileLineStats.get(selectedFilePath)?.added ?? 0}</span>
                     <span className="select-none text-status-removed">-{fileLineStats.get(selectedFilePath)?.removed ?? 0}</span>
+                    {canSuggestChanges || isSuggestionEditing || isPreparingSuggestionEdit ? (
+                        isSuggestionEditing ? (
+                            <>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2"
+                                    onClick={onCancelSuggestionEdit}
+                                    disabled={suggestionSubmitPending}
+                                    title="Discard this local edit session"
+                                >
+                                    <X className="size-3.5" />
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    className="h-7 px-2"
+                                    onClick={() => {
+                                        void onSubmitSuggestions();
+                                    }}
+                                    disabled={suggestionSubmitPending || suggestionCount === 0}
+                                    title={
+                                        suggestionCount > 0
+                                            ? `Create ${suggestionCount} Bitbucket suggestion${suggestionCount === 1 ? "" : "s"}`
+                                            : "Replace existing source lines to create a Bitbucket suggestion"
+                                    }
+                                >
+                                    {suggestionSubmitPending ? <LoaderCircle className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                                    {suggestionCount > 0 ? `Suggest ${suggestionCount}` : "Suggest changes"}
+                                </Button>
+                            </>
+                        ) : (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2"
+                                onClick={onStartSuggestionEdit}
+                                disabled={isPreparingSuggestionEdit}
+                                title="Edit this source file and turn replacements into Bitbucket suggestions"
+                            >
+                                {isPreparingSuggestionEdit ? <LoaderCircle className="size-3.5 animate-spin" /> : <PencilLine className="size-3.5" />}
+                                Suggest edits
+                            </Button>
+                        )
+                    ) : null}
                     <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
                     <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(selectedFilePath)}>
                         <span
@@ -260,45 +345,49 @@ export function ReviewSingleModeView({
 
             <div className="diff-content-scroll min-h-0 min-w-0 w-full max-w-full flex-1 overflow-x-auto">
                 {diffHighlighterReady ? (
-                    <FileDiff
-                        key={singleDiffRenderKey}
-                        fileDiff={toRenderableFileDiff(selectedFileDiff)}
-                        options={interactiveSingleFileDiffOptions}
-                        className="compact-diff commentable-diff pr-diff-font"
-                        style={diffTypographyStyle}
-                        lineAnnotations={selectedFileReadOnlyHistorical ? [] : singleFileAnnotations}
-                        renderAnnotation={(annotation) => (
-                            <InlineDiffAnnotation
-                                annotation={annotation as SingleFileAnnotation}
-                                allowNestedReplies={allowNestedReplies}
-                                workspace={workspace}
-                                repo={repo}
-                                pullRequestId={pullRequestId}
-                                createCommentPending={createCommentPending}
-                                canCommentInline={canCommentInline && !selectedFileReadOnlyHistorical}
-                                canResolveThread={canResolveThread}
-                                resolveCommentPending={resolveCommentPending}
-                                deleteCommentPending={deleteCommentPending}
-                                updateCommentPending={updateCommentPending}
-                                getInlineDraftContent={getInlineDraftContent}
-                                setInlineDraftContent={setInlineDraftContent}
-                                onSubmitInlineComment={onSubmitInlineComment}
-                                onInlineDraftReady={onInlineDraftReady}
-                                onCancelInlineDraft={onCancelInlineDraft}
-                                currentUserDisplayName={currentUserDisplayName}
-                                onDeleteComment={onDeleteComment}
-                                onResolveThread={onResolveThread}
-                                onReplyToThread={onReplyToThread}
-                                onEditComment={onEditComment}
-                            />
-                        )}
-                    />
+                    <EditProvider createEditor={createSuggestionEditor}>
+                        <FileDiff
+                            key={singleDiffRenderKey}
+                            fileDiff={toRenderableFileDiff(isSuggestionEditing ? (editableFileDiff ?? selectedFileDiff) : selectedFileDiff)}
+                            options={interactiveSingleFileDiffOptions}
+                            editorOptions={suggestionEditorOptions}
+                            edit={isSuggestionEditing}
+                            className="compact-diff commentable-diff pr-diff-font"
+                            style={diffTypographyStyle}
+                            lineAnnotations={isSuggestionEditing || selectedFileReadOnlyHistorical ? EMPTY_FILE_ANNOTATIONS : singleFileAnnotations}
+                            renderAnnotation={(annotation) => (
+                                <InlineDiffAnnotation
+                                    annotation={annotation as SingleFileAnnotation}
+                                    allowNestedReplies={allowNestedReplies}
+                                    workspace={workspace}
+                                    repo={repo}
+                                    pullRequestId={pullRequestId}
+                                    createCommentPending={createCommentPending}
+                                    canCommentInline={canCommentInline && !selectedFileReadOnlyHistorical && !isSuggestionEditing}
+                                    canResolveThread={canResolveThread}
+                                    resolveCommentPending={resolveCommentPending}
+                                    deleteCommentPending={deleteCommentPending}
+                                    updateCommentPending={updateCommentPending}
+                                    getInlineDraftContent={getInlineDraftContent}
+                                    setInlineDraftContent={setInlineDraftContent}
+                                    onSubmitInlineComment={onSubmitInlineComment}
+                                    onInlineDraftReady={onInlineDraftReady}
+                                    onCancelInlineDraft={onCancelInlineDraft}
+                                    currentUserDisplayName={currentUserDisplayName}
+                                    onDeleteComment={onDeleteComment}
+                                    onResolveThread={onResolveThread}
+                                    onReplyToThread={onReplyToThread}
+                                    onEditComment={onEditComment}
+                                />
+                            )}
+                        />
+                    </EditProvider>
                 ) : (
                     <div className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">Loading syntax highlighting...</div>
                 )}
             </div>
 
-            {!selectedFileReadOnlyHistorical && selectedFileLevelThreads.length > 0 ? (
+            {!selectedFileReadOnlyHistorical && !isSuggestionEditing && selectedFileLevelThreads.length > 0 ? (
                 <div className="border-t border-border px-3 py-2 space-y-2">
                     {selectedFileLevelThreads.map((thread) => (
                         <ThreadCard

@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useCallback } from "react";
+import type { BitbucketSuggestion } from "@/lib/git-host/bitbucket-suggestions";
 import { createPullRequestComment, deletePullRequestComment, resolvePullRequestComment, updatePullRequestComment } from "@/lib/git-host/service";
 import type { PullRequestBundle } from "@/lib/git-host/types";
 import type { ActionPolicy, CommentLineSide } from "./review-page-actions.types";
@@ -14,7 +15,7 @@ type UseReviewCommentActionsParams = {
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     inlineComment: InlineCommentDraft | null;
     onOptimisticCommentRemove: (commentId: number) => void;
-    refreshPullRequest: () => Promise<void>;
+    refreshComments: () => Promise<void>;
     requestAuth: (reason: "write" | "rate_limit") => void;
     setActionError: (message: string | null) => void;
     setInlineComment: (next: InlineCommentDraft | null | ((prev: InlineCommentDraft | null) => InlineCommentDraft | null)) => void;
@@ -29,6 +30,15 @@ type CreateCommentPayload = {
     optimistic?: boolean;
 };
 
+type CreateSuggestionCommentsPayload = {
+    suggestions: BitbucketSuggestion[];
+};
+
+type SuggestionSubmissionResult = {
+    successfulSuggestions: BitbucketSuggestion[];
+    failedSuggestions: Array<{ suggestion: BitbucketSuggestion; error: unknown }>;
+};
+
 export function useReviewCommentActions({
     actionPolicy,
     authCanWrite,
@@ -38,7 +48,7 @@ export function useReviewCommentActions({
     getInlineDraftContent,
     inlineComment,
     onOptimisticCommentRemove,
-    refreshPullRequest,
+    refreshComments,
     requestAuth,
     setActionError,
     setInlineComment,
@@ -81,13 +91,60 @@ export function useReviewCommentActions({
         onSuccess: async (_, vars, context) => {
             void context;
             void vars;
-            await refreshPullRequest();
+            await refreshComments();
         },
         onError: (error, _vars, context) => {
             if (typeof context?.optimisticCommentId === "number") {
                 onOptimisticCommentRemove(context.optimisticCommentId);
             }
             setActionError(error instanceof Error ? error.message : "Failed to create comment");
+        },
+    });
+    const createSuggestionCommentsMutation = useMutation({
+        mutationFn: async ({ suggestions }: CreateSuggestionCommentsPayload) => {
+            if (!actionPolicy.canCommentInline) {
+                if (!authCanWrite) requestAuth("write");
+                throw new Error(actionPolicy.disabledReason.commentInline ?? "Sign in required");
+            }
+            const prRef = ensurePrRef();
+            if (prRef.host !== "bitbucket") {
+                throw new Error("Suggestions are not supported for this host yet");
+            }
+            const outcomes = await Promise.all(
+                suggestions.map((suggestion) =>
+                    Promise.resolve()
+                        .then(() =>
+                            createPullRequestComment({
+                                prRef,
+                                content: suggestion.content,
+                                inline: suggestion.inline,
+                            }),
+                        )
+                        .then(
+                            () => ({ successful: true as const, suggestion }),
+                            (error) => ({ successful: false as const, suggestion, error }),
+                        ),
+                ),
+            );
+            const result: SuggestionSubmissionResult = {
+                successfulSuggestions: [],
+                failedSuggestions: [],
+            };
+            for (const outcome of outcomes) {
+                if (outcome.successful) {
+                    result.successfulSuggestions.push(outcome.suggestion);
+                    continue;
+                }
+                result.failedSuggestions.push(outcome);
+            }
+            return result;
+        },
+        onSuccess: async () => {
+            await refreshPullRequest();
+        },
+        onError: async (error) => {
+            await refreshPullRequest();
+            setActionError(error instanceof Error ? error.message : "Failed to create suggestion comments");
         },
     });
     const resolveCommentMutation = useMutation({
@@ -100,7 +157,7 @@ export function useReviewCommentActions({
             return resolvePullRequestComment({ prRef, commentId: payload.commentId, resolve: payload.resolve });
         },
         onSuccess: async () => {
-            await refreshPullRequest();
+            await refreshComments();
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to update comment resolution");
@@ -115,7 +172,7 @@ export function useReviewCommentActions({
             return updatePullRequestComment({ prRef: ensurePrRef(), ...payload });
         },
         onSuccess: async () => {
-            await refreshPullRequest();
+            await refreshComments();
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to edit comment");
@@ -130,7 +187,7 @@ export function useReviewCommentActions({
             return deletePullRequestComment({ prRef: ensurePrRef(), ...payload });
         },
         onSuccess: async () => {
-            await refreshPullRequest();
+            await refreshComments();
         },
         onError: (error) => {
             setActionError(error instanceof Error ? error.message : "Failed to delete comment");
@@ -177,6 +234,18 @@ export function useReviewCommentActions({
         setActionError,
         setInlineComment,
     ]);
+    const submitBitbucketSuggestions = useCallback(
+        (suggestions: BitbucketSuggestion[]) => {
+            if (!actionPolicy.canCommentInline) {
+                setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
+                if (!authCanWrite) requestAuth("write");
+                return undefined;
+            }
+            if (suggestions.length === 0) return undefined;
+            return createSuggestionCommentsMutation.mutateAsync({ suggestions });
+        },
+        [actionPolicy.canCommentInline, actionPolicy.disabledReason.commentInline, authCanWrite, createSuggestionCommentsMutation, requestAuth, setActionError],
+    );
     const submitThreadReply = useCallback(
         (parentCommentId: number, content: string) => {
             if (!actionPolicy.canCommentInline) {
@@ -214,9 +283,11 @@ export function useReviewCommentActions({
 
     return {
         createCommentMutation,
+        createSuggestionCommentsMutation,
         deleteCommentMutation,
         resolveCommentMutation,
         submitCommentEdit,
+        submitBitbucketSuggestions,
         submitInlineComment,
         submitPullRequestComment,
         submitThreadReply,

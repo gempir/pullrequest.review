@@ -54,7 +54,7 @@ export interface Comment {
     pending?: boolean;
     content?: { raw?: string; html?: string };
     user?: { displayName?: string; avatarUrl?: string };
-    inline?: { path?: string; to?: number; from?: number };
+    inline?: { path?: string; to?: number; from?: number; startTo?: number; startFrom?: number; outdated?: boolean };
     parent?: { id?: number };
     resolution?: { user?: { displayName?: string; avatarUrl?: string } } | null;
     hostThreadId?: string;
@@ -218,7 +218,7 @@ export interface MergeOptions {
 
 export interface CommentPayload {
     content: string;
-    inline?: { path: string; to?: number; from?: number };
+    inline?: { path: string; to?: number; from?: number; startTo?: number; startFrom?: number };
     parentId?: number;
 }
 
@@ -289,6 +289,7 @@ export interface GitHostClient {
     fetchPullRequestCriticalByRef(data: { prRef: PullRequestRef }): Promise<PullRequestCriticalBundle>;
     fetchPullRequestDeferredByRef(data: { prRef: PullRequestRef }): Promise<PullRequestDeferredBundle>;
     fetchPullRequestBundleByRef(data: { prRef: PullRequestRef }): Promise<PullRequestBundle>;
+    fetchPullRequestCommentsByRef(data: { prRef: PullRequestRef }): Promise<Comment[]>;
     approvePullRequest(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     removePullRequestApproval(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     requestChanges(data: { prRef: PullRequestRef; body?: string }): Promise<{ ok: true }>;

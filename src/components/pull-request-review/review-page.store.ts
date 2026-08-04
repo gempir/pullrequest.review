@@ -5,6 +5,7 @@ type ReviewPageUiState = {
     searchQuery: string;
     showUnviewedOnly: boolean;
     showSettingsPanel: boolean;
+    omnibarOpen: boolean;
     mergeOpen: boolean;
     mergeMessage: string;
     mergeStrategy: string;
@@ -18,6 +19,7 @@ export function createReviewPageUiStore() {
         searchQuery: "",
         showUnviewedOnly: false,
         showSettingsPanel: false,
+        omnibarOpen: false,
         mergeOpen: false,
         mergeMessage: "",
         mergeStrategy: "merge_commit",

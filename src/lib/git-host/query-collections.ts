@@ -14,6 +14,7 @@ export {
     type PullRequestBundleRecord,
     type PullRequestCommitRangeDiffRecord,
     pullRequestDetailsFetchScopeId,
+    refreshPullRequestComments,
     savePullRequestFileContextRecord,
 } from "@/lib/git-host/collections/pull-requests";
 export {

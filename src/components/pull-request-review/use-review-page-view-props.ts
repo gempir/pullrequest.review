@@ -36,6 +36,8 @@ export function useReviewPageViewProps({
     markDraftPending,
     copiedSourceBranch,
     commitScopeSlot,
+    omnibarOpen,
+    omnibarFilePaths,
     onRefresh,
     onToggleSettings,
     onCollapseTree,
@@ -51,6 +53,8 @@ export function useReviewPageViewProps({
     onDecline,
     onMarkDraft,
     onOpenMerge,
+    onOmnibarOpenChange,
+    onOmnibarSelectFile,
     mergeOpen,
     onMergeDialogOpenChange,
     mergeStrategies,
@@ -93,6 +97,8 @@ export function useReviewPageViewProps({
     markDraftPending: boolean;
     copiedSourceBranch: boolean;
     commitScopeSlot?: MainViewProps["navbarProps"]["commitScopeSlot"];
+    omnibarOpen: boolean;
+    omnibarFilePaths: readonly string[];
     onRefresh: MainViewProps["sidebarProps"]["onRefresh"];
     onToggleSettings: MainViewProps["sidebarProps"]["onToggleSettings"];
     onCollapseTree: MainViewProps["sidebarProps"]["onCollapseTree"];
@@ -108,6 +114,8 @@ export function useReviewPageViewProps({
     onDecline: MainViewProps["navbarProps"]["onDecline"];
     onMarkDraft: MainViewProps["navbarProps"]["onMarkDraft"];
     onOpenMerge: MainViewProps["navbarProps"]["onOpenMerge"];
+    onOmnibarOpenChange: MainViewProps["omnibarProps"]["onOpenChange"];
+    onOmnibarSelectFile: MainViewProps["omnibarProps"]["onSelectFile"];
     mergeOpen: boolean;
     onMergeDialogOpenChange: (open: boolean) => void;
     mergeStrategies: string[] | undefined;
@@ -239,6 +247,51 @@ export function useReviewPageViewProps({
         ],
     );
 
+    const omnibarProps = useMemo<MainViewProps["omnibarProps"]>(
+        () => ({
+            open: omnibarOpen,
+            onOpenChange: onOmnibarOpenChange,
+            filePaths: omnibarFilePaths,
+            currentUserReviewStatus,
+            isDraft: Boolean(pullRequest?.draft),
+            canApprove: actionPolicy.canApprove,
+            canRequestChanges: actionPolicy.canRequestChanges,
+            canMerge: actionPolicy.canMerge,
+            canDecline: actionPolicy.canDecline,
+            canMarkDraft: actionPolicy.canMarkDraft,
+            actionBusy: approvePending || requestChangesPending || declinePending || markDraftPending || isMerging,
+            onSelectFile: onOmnibarSelectFile,
+            onApprove,
+            onRequestChanges,
+            onOpenMerge,
+            onDecline,
+            onMarkDraft,
+        }),
+        [
+            actionPolicy.canApprove,
+            actionPolicy.canDecline,
+            actionPolicy.canMarkDraft,
+            actionPolicy.canMerge,
+            actionPolicy.canRequestChanges,
+            approvePending,
+            currentUserReviewStatus,
+            declinePending,
+            isMerging,
+            markDraftPending,
+            omnibarFilePaths,
+            omnibarOpen,
+            onApprove,
+            onDecline,
+            onMarkDraft,
+            onOmnibarOpenChange,
+            onOmnibarSelectFile,
+            onOpenMerge,
+            onRequestChanges,
+            pullRequest?.draft,
+            requestChangesPending,
+        ],
+    );
+
     const mergeDialogProps = useMemo<MainViewProps["mergeDialogProps"]>(
         () => ({
             open: mergeOpen,
@@ -270,5 +323,5 @@ export function useReviewPageViewProps({
         ],
     );
 
-    return { sidebarProps, navbarProps, mergeDialogProps };
+    return { sidebarProps, navbarProps, omnibarProps, mergeDialogProps };
 }

@@ -220,6 +220,24 @@ export function useReviewPageDerived({
 
     const rawFileDiffs = workerDerived.fileDiffs;
 
+    const rawDiffByPath = useMemo(() => {
+        const map = new Map<string, FileDiffMetadata>();
+        rawFileDiffs.forEach((fileDiff, index) => {
+            const path = getFilePath(fileDiff, index);
+            if (!map.has(path)) map.set(path, fileDiff);
+        });
+        return map;
+    }, [rawFileDiffs]);
+    const rawDiffByNormalizedPath = useMemo(() => {
+        const map = new Map<string, FileDiffMetadata>();
+        for (const [path, fileDiff] of rawDiffByPath.entries()) {
+            const normalizedPath = normalizeDiffSelectionPath(path);
+            if (!normalizedPath || map.has(normalizedPath)) continue;
+            map.set(normalizedPath, fileDiff);
+        }
+        return map;
+    }, [rawDiffByPath]);
+
     const fileDiffs = useMemo(() => {
         if (!rawFileDiffs.length) return rawFileDiffs;
         if (Object.keys(fullFileContexts).length === 0) return rawFileDiffs;
@@ -522,6 +540,7 @@ export function useReviewPageDerived({
 
     const buildFileAnnotations = useCallback(
         (filePath: string) => {
+            const suggestionSourceFileDiff = rawDiffByPath.get(filePath) ?? rawDiffByNormalizedPath.get(normalizeDiffSelectionPath(filePath));
             const fileThreads = (threadsByPath.get(filePath) ?? []).filter(
                 (thread) => !thread.root.comment.deleted && Boolean(getCommentInlinePosition(thread.root.comment)),
             );
@@ -533,7 +552,7 @@ export function useReviewPageDerived({
                 annotations.push({
                     side: position.side,
                     lineNumber: position.lineNumber,
-                    metadata: { kind: "thread", thread },
+                    metadata: { kind: "thread", thread, suggestionSourceFileDiff },
                 });
             }
 
@@ -547,7 +566,7 @@ export function useReviewPageDerived({
 
             return annotations;
         },
-        [inlineComment, threadsByPath],
+        [inlineComment, rawDiffByNormalizedPath, rawDiffByPath, threadsByPath],
     );
 
     const singleFileAnnotations = useMemo(() => {

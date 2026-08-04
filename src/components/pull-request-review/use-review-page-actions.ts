@@ -95,9 +95,11 @@ export function useReviewPageActions({
     });
     const {
         createCommentMutation,
+        createSuggestionCommentsMutation,
         deleteCommentMutation,
         resolveCommentMutation,
         submitCommentEdit,
+        submitBitbucketSuggestions,
         submitInlineComment,
         submitPullRequestComment,
         submitThreadReply,
@@ -153,6 +155,7 @@ export function useReviewPageActions({
         markDraftMutation,
         mergeMutation,
         createCommentMutation,
+        createSuggestionCommentsMutation,
         resolveCommentMutation,
         updateCommentMutation,
         updateDescriptionMutation,
@@ -162,6 +165,7 @@ export function useReviewPageActions({
         handleDeclinePullRequest,
         handleMarkPullRequestAsDraft,
         submitInlineComment,
+        submitBitbucketSuggestions,
         submitPullRequestComment,
         submitThreadReply,
         submitCommentEdit,

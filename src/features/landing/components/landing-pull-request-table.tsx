@@ -1,4 +1,5 @@
 import {
+    type Column,
     type ColumnDef,
     columnFilteringFeature,
     columnVisibilityFeature,
@@ -6,7 +7,6 @@ import {
     createSortedRowModel,
     filterFn_equalsString,
     filterFn_includesString,
-    globalFilteringFeature,
     rowSortingFeature,
     sortFn_alphanumeric,
     sortFn_datetime,
@@ -14,15 +14,36 @@ import {
     tableFeatures,
     useTable,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown } from "lucide-react";
+import { type ReactNode, useMemo } from "react";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { Timestamp } from "@/components/timestamp";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
 import { getHostLabel } from "@/lib/git-host/service";
 import type { RepoRef } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
+
+const UPDATED_WITHIN_OPTIONS = [
+    { value: "", label: "Any" },
+    { value: "1m", label: "1m" },
+    { value: "5m", label: "5m" },
+    { value: "1h", label: "1h" },
+    { value: "1d", label: "1d" },
+    { value: "7d", label: "7d" },
+    { value: "30d", label: "30d" },
+] as const;
+
+const UPDATED_WITHIN_MS: Record<string, number> = {
+    "1m": 60 * 1000,
+    "5m": 5 * 60 * 1000,
+    "1h": 60 * 60 * 1000,
+    "1d": 24 * 60 * 60 * 1000,
+    "7d": 7 * 24 * 60 * 60 * 1000,
+    "30d": 30 * 24 * 60 * 60 * 1000,
+};
 
 function authorInitials(name?: string) {
     if (!name) return "?";
@@ -84,7 +105,6 @@ const landingPullRequestTableFeatures = tableFeatures({
     rowSortingFeature,
     columnFilteringFeature,
     columnVisibilityFeature,
-    globalFilteringFeature,
     sortedRowModel: createSortedRowModel(),
     filteredRowModel: createFilteredRowModel(),
     filterFns: {
@@ -100,65 +120,210 @@ const landingPullRequestTableFeatures = tableFeatures({
 
 type LandingPullRequestTableFeatures = typeof landingPullRequestTableFeatures;
 
+const filterControlClassName = "h-7 w-full min-w-0 rounded-sm border-border-muted bg-surface-1 px-1.5 text-[11px] font-normal normal-case tracking-normal";
+
 function SortIndicator({ sorted }: { sorted: false | "asc" | "desc" }) {
     if (sorted === "asc") return <ArrowUp className="size-3" />;
     if (sorted === "desc") return <ArrowDown className="size-3" />;
     return <ArrowUpDown className="size-3 opacity-40" />;
 }
 
+function ColumnTextFilter({ column, placeholder }: { column: Column<LandingPullRequestTableFeatures, SortedRootPullRequest>; placeholder: string }) {
+    const value = String(column.getFilterValue() ?? "");
+    return (
+        <Input
+            className={filterControlClassName}
+            value={value}
+            placeholder={placeholder}
+            aria-label={`Filter ${column.id}`}
+            onChange={(event) => {
+                const next = event.target.value;
+                column.setFilterValue(next.trim().length > 0 ? next : undefined);
+            }}
+            onClick={(event) => {
+                event.stopPropagation();
+            }}
+        />
+    );
+}
+
+function ColumnSelectFilter({
+    column,
+    ariaLabel,
+    options,
+}: {
+    column: Column<LandingPullRequestTableFeatures, SortedRootPullRequest>;
+    ariaLabel: string;
+    options: Array<{ value: string; label: string }>;
+}) {
+    const value = String(column.getFilterValue() ?? "");
+    return (
+        <select
+            className={cn(filterControlClassName, "text-foreground")}
+            value={value}
+            aria-label={ariaLabel}
+            onChange={(event) => {
+                const next = event.target.value;
+                column.setFilterValue(next.length > 0 ? next : undefined);
+            }}
+            onClick={(event) => {
+                event.stopPropagation();
+            }}
+        >
+            {options.map((option) => (
+                <option key={option.value || "__all__"} value={option.value}>
+                    {option.label}
+                </option>
+            ))}
+        </select>
+    );
+}
+
+function ColumnMenuFilter({
+    column,
+    ariaLabel,
+    options,
+    renderOptionLabel,
+}: {
+    column: Column<LandingPullRequestTableFeatures, SortedRootPullRequest>;
+    ariaLabel: string;
+    options: Array<{ value: string; label: string }>;
+    renderOptionLabel?: (option: { value: string; label: string }) => ReactNode;
+}) {
+    const value = String(column.getFilterValue() ?? "");
+    const active = value.length > 0;
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    className={cn(
+                        "inline-flex size-7 shrink-0 items-center justify-center rounded-sm border border-border-muted bg-surface-1 text-muted-foreground transition-colors hover:text-foreground",
+                        active ? "border-foreground/40 text-foreground" : null,
+                    )}
+                    aria-label={ariaLabel}
+                    title={active ? options.find((option) => option.value === value)?.label || ariaLabel : ariaLabel}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                    }}
+                >
+                    <ChevronDown className="size-3.5" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
+                {options.map((option) => {
+                    const selected = option.value === value || (!option.value && !active);
+                    return (
+                        <DropdownMenuItem
+                            key={option.value || "__all__"}
+                            className="gap-2"
+                            onSelect={() => {
+                                column.setFilterValue(option.value.length > 0 ? option.value : undefined);
+                            }}
+                        >
+                            <Check className={cn("size-3.5 shrink-0", selected ? "opacity-100" : "opacity-0")} />
+                            {renderOptionLabel ? renderOptionLabel(option) : <span className="truncate">{option.label}</span>}
+                        </DropdownMenuItem>
+                    );
+                })}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+function columnWidthClass(columnId: string) {
+    switch (columnId) {
+        case "author":
+            return "w-10";
+        case "state":
+            return "w-16";
+        case "title":
+            return "w-[34%]";
+        case "branches":
+            return "w-[22%]";
+        case "updated":
+            return "w-24";
+        case "repository":
+            return "w-[20%]";
+        default:
+            return undefined;
+    }
+}
+
 function createLandingPullRequestColumns(): Array<ColumnDef<LandingPullRequestTableFeatures, SortedRootPullRequest>> {
     return [
         {
             id: "author",
-            accessorFn: (row) => row.pullRequest.author?.displayName ?? "",
+            accessorFn: (row) => row.pullRequest.author?.displayName?.trim() || "Unknown",
             header: () => <span className="sr-only">Author</span>,
-            filterFn: "includesString",
+            filterFn: "equalsString",
             sortFn: "text",
             cell: ({ row }) => {
                 const name = row.original.pullRequest.author?.displayName?.trim() || "Unknown";
                 return <AuthorAvatar name={name} url={row.original.pullRequest.author?.avatarUrl} />;
             },
+            meta: { filter: "author" as const },
         },
         {
             id: "state",
             accessorFn: (row) => row.pullRequest.state,
-            header: "State",
+            header: () => <span className="sr-only">State</span>,
             filterFn: "equalsString",
             sortFn: "text",
             cell: ({ getValue }) => <PullRequestStateBadge state={getValue<string>()} />,
+            meta: { filter: "state" as const },
         },
         {
             id: "title",
-            accessorFn: (row) => row.pullRequest.title,
+            accessorFn: (row) => `#${row.pullRequest.id} ${row.pullRequest.title}`,
             header: "Title",
             filterFn: "includesString",
             sortFn: "text",
-            cell: ({ row }) => (
-                <span className="block min-w-0 max-w-full truncate font-medium text-foreground">
-                    <span className="text-muted-foreground">#{row.original.pullRequest.id}</span> {row.original.pullRequest.title}
-                </span>
-            ),
+            cell: ({ row }) => {
+                const label = `#${row.original.pullRequest.id} ${row.original.pullRequest.title}`;
+                return (
+                    <span className="block min-w-0 truncate font-medium text-foreground" title={label}>
+                        <span className="text-muted-foreground">#{row.original.pullRequest.id}</span> {row.original.pullRequest.title}
+                    </span>
+                );
+            },
+            meta: { filter: "title" as const },
         },
         {
             id: "branches",
             accessorFn: (row) => `${row.pullRequest.source?.branch?.name ?? "source"} -> ${row.pullRequest.destination?.branch?.name ?? "target"}`,
             header: "Branches",
             enableSorting: false,
-            enableColumnFilter: false,
-            cell: ({ getValue }) => <span className="font-mono text-[11px] text-muted-foreground">{getValue<string>()}</span>,
+            filterFn: "includesString",
+            cell: ({ getValue }) => (
+                <span className="block min-w-0 truncate font-mono text-[11px] text-muted-foreground" title={getValue<string>()}>
+                    {getValue<string>()}
+                </span>
+            ),
+            meta: { filter: "branches" as const },
         },
         {
             id: "updated",
             accessorFn: (row) => row.pullRequest.updatedAt ?? "",
             header: "Updated",
             sortFn: "datetime",
-            enableColumnFilter: false,
+            filterFn: (row, columnId, filterValue) => {
+                if (!filterValue) return true;
+                const windowMs = UPDATED_WITHIN_MS[String(filterValue)];
+                if (!windowMs) return true;
+                const raw = row.getValue<string>(columnId);
+                if (!raw) return false;
+                const updatedAt = Date.parse(raw);
+                if (Number.isNaN(updatedAt)) return false;
+                return Date.now() - updatedAt <= windowMs;
+            },
             cell: ({ row }) =>
                 row.original.pullRequest.updatedAt ? (
                     <Timestamp value={row.original.pullRequest.updatedAt} className="text-muted-foreground" />
                 ) : (
                     <span>—</span>
                 ),
+            meta: { filter: "updated" as const },
         },
         {
             id: "repository",
@@ -172,9 +337,12 @@ function createLandingPullRequestColumns(): Array<ColumnDef<LandingPullRequestTa
                         <GitHostIcon host={row.original.host} className="size-3.5" />
                         <span className="sr-only">{getHostLabel(row.original.host)}</span>
                     </span>
-                    <span className="truncate font-mono text-[12px] text-muted-foreground">{row.original.repo.fullName}</span>
+                    <span className="min-w-0 truncate font-mono text-[12px] text-muted-foreground" title={row.original.repo.fullName}>
+                        {row.original.repo.fullName}
+                    </span>
                 </span>
             ),
+            meta: { filter: "repository" as const },
         },
         {
             id: "host",
@@ -182,33 +350,83 @@ function createLandingPullRequestColumns(): Array<ColumnDef<LandingPullRequestTa
             header: "Host",
             filterFn: "equalsString",
             enableSorting: false,
+            enableColumnFilter: false,
             cell: () => null,
         },
     ];
 }
 
+function renderColumnFilter(
+    column: Column<LandingPullRequestTableFeatures, SortedRootPullRequest>,
+    authorOptions: Array<{ value: string; label: string }>,
+    stateOptions: Array<{ value: string; label: string }>,
+) {
+    const filterKind = (column.columnDef.meta as { filter?: string } | undefined)?.filter;
+    switch (filterKind) {
+        case "author":
+            return <ColumnMenuFilter column={column} ariaLabel="Filter by author" options={authorOptions} />;
+        case "state":
+            return (
+                <ColumnMenuFilter
+                    column={column}
+                    ariaLabel="Filter by state"
+                    options={stateOptions}
+                    renderOptionLabel={(option) =>
+                        option.value ? <PullRequestStateBadge state={option.value} /> : <span className="text-muted-foreground">Any</span>
+                    }
+                />
+            );
+        case "title":
+            return <ColumnTextFilter column={column} placeholder="Title or #id" />;
+        case "branches":
+            return <ColumnTextFilter column={column} placeholder="Branch" />;
+        case "updated":
+            return (
+                <ColumnSelectFilter
+                    column={column}
+                    ariaLabel="Filter by updated time"
+                    options={UPDATED_WITHIN_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+                />
+            );
+        case "repository":
+            return <ColumnTextFilter column={column} placeholder="Repository" />;
+        default:
+            return null;
+    }
+}
+
 export function LandingPullRequestTable({
     data,
-    globalFilter,
-    hostFilter,
-    stateFilter,
     onOpenPullRequest,
-    onFilteredCountChange,
 }: {
     data: SortedRootPullRequest[];
-    globalFilter: string;
-    hostFilter: string;
-    stateFilter: string;
     onOpenPullRequest: (repo: RepoRef, pullRequestId: string) => void;
-    onFilteredCountChange?: (filteredCount: number, totalCount: number) => void;
 }) {
     const columns = useMemo(() => createLandingPullRequestColumns(), []);
-    const columnFilters = useMemo(() => {
-        const filters: Array<{ id: string; value: string }> = [];
-        if (hostFilter) filters.push({ id: "host", value: hostFilter });
-        if (stateFilter) filters.push({ id: "state", value: stateFilter });
-        return filters;
-    }, [hostFilter, stateFilter]);
+    const authorOptions = useMemo(() => {
+        const authors = new Set<string>();
+        for (const row of data) {
+            authors.add(row.pullRequest.author?.displayName?.trim() || "Unknown");
+        }
+        return [
+            { value: "", label: "Any" },
+            ...Array.from(authors)
+                .sort((a, b) => a.localeCompare(b))
+                .map((author) => ({ value: author, label: author })),
+        ];
+    }, [data]);
+    const stateOptions = useMemo(() => {
+        const states = new Set<string>();
+        for (const row of data) {
+            if (row.pullRequest.state) states.add(row.pullRequest.state);
+        }
+        return [
+            { value: "", label: "Any" },
+            ...Array.from(states)
+                .sort((a, b) => a.localeCompare(b))
+                .map((state) => ({ value: state, label: state })),
+        ];
+    }, [data]);
 
     const table = useTable(
         {
@@ -216,10 +434,6 @@ export function LandingPullRequestTable({
             columns,
             data,
             getRowId: (row) => `${row.host}:${row.repo.fullName}:${row.pullRequest.id}`,
-            state: {
-                globalFilter,
-                columnFilters,
-            },
             initialState: {
                 sorting: [{ id: "updated", desc: true }],
                 columnVisibility: { host: false },
@@ -228,28 +442,40 @@ export function LandingPullRequestTable({
         (state) => ({
             sorting: state.sorting,
             columnFilters: state.columnFilters,
-            globalFilter: state.globalFilter,
             columnVisibility: state.columnVisibility,
         }),
     );
 
     const filteredCount = table.getRowModel().rows.length;
 
-    useEffect(() => {
-        onFilteredCountChange?.(filteredCount, data.length);
-    }, [data.length, filteredCount, onFilteredCountChange]);
-
     return (
         <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border-muted bg-surface-1">
-            <table className="w-full border-collapse text-left text-[13px]">
+            <table className="w-full table-fixed border-collapse text-left text-[13px]">
                 <thead className="sticky top-0 z-10 bg-chrome">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                        <tr key={`${headerGroup.id}-filters`} className="border-b border-border-muted">
+                            {headerGroup.headers.map((header) => (
+                                <th key={`${header.id}-filter`} className={cn("px-2 py-1.5 align-bottom font-normal", columnWidthClass(header.column.id))}>
+                                    {header.isPlaceholder || !header.column.getCanFilter()
+                                        ? null
+                                        : renderColumnFilter(header.column, authorOptions, stateOptions)}
+                                </th>
+                            ))}
+                        </tr>
+                    ))}
                     {table.getHeaderGroups().map((headerGroup) => (
                         <tr key={headerGroup.id} className="border-b border-border-muted">
                             {headerGroup.headers.map((header) => {
                                 const canSort = header.column.getCanSort();
                                 const sorted = header.column.getIsSorted();
                                 return (
-                                    <th key={header.id} className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    <th
+                                        key={header.id}
+                                        className={cn(
+                                            "px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
+                                            columnWidthClass(header.column.id),
+                                        )}
+                                    >
                                         {header.isPlaceholder ? null : canSort ? (
                                             <button
                                                 type="button"
@@ -286,7 +512,7 @@ export function LandingPullRequestTable({
                                 onClick={() => onOpenPullRequest(row.original.repo, String(row.original.pullRequest.id))}
                             >
                                 {row.getVisibleCells().map((cell) => (
-                                    <td key={cell.id} className="px-3 py-2 align-middle">
+                                    <td key={cell.id} className={cn("overflow-hidden px-3 py-2 align-middle", columnWidthClass(cell.column.id))}>
                                         <table.FlexRender cell={cell} />
                                     </td>
                                 ))}

@@ -1,6 +1,7 @@
 import { Check, ChevronRight, Copy, GitMerge, GlassWater, Loader2, Menu, MessageSquare, Minus, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { GitHostIcon } from "@/components/git-host-icon";
+import { OmnibarMenubarInput } from "@/components/omnibar/omnibar-menubar-input";
 import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
 import { aggregateBuildState, buildRunningTime, buildStatusBubbleClass, buildStatusLabel } from "@/components/pull-request-review/review-formatters";
 import { Timestamp } from "@/components/timestamp";
@@ -48,6 +49,7 @@ type ReviewTopNavbarProps = {
     onDecline: () => void;
     onMarkDraft: () => void;
     onOpenMerge: () => void;
+    onOpenOmnibar: () => void;
 };
 
 export function ReviewTopNavbar({
@@ -86,6 +88,7 @@ export function ReviewTopNavbar({
     onDecline,
     onMarkDraft,
     onOpenMerge,
+    onOpenOmnibar,
 }: ReviewTopNavbarProps) {
     const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
     const normalizedNavbarState = navbarState.toLowerCase();
@@ -118,8 +121,8 @@ export function ReviewTopNavbar({
                     <span className="text-[11px] text-muted-foreground">Loading pull request...</span>
                 </>
             ) : (
-                <div className="flex h-full w-full items-stretch justify-between">
-                    <div className="min-w-0 flex h-full items-center gap-2 text-[11px] text-faint-foreground">
+                <div className="flex h-full w-full min-w-0 items-stretch">
+                    <div className="flex h-full min-w-0 shrink items-center gap-2 text-[11px] text-faint-foreground">
                         {treeCollapsed ? (
                             <Button
                                 variant="ghost"
@@ -164,7 +167,9 @@ export function ReviewTopNavbar({
                         {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
                     </div>
 
-                    <div className="ml-2 -mr-1.5 flex h-full shrink-0 items-center gap-2" data-component="navbar-actions">
+                    <OmnibarMenubarInput onOpen={onOpenOmnibar} />
+
+                    <div className="-mr-1.5 flex h-full shrink-0 items-center gap-2" data-component="navbar-actions">
                         <ReviewerStatusAvatars reviewers={reviewers} />
                         {!isTerminal && isDraft ? (
                             <Button

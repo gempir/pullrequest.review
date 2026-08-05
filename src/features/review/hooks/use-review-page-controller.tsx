@@ -1157,6 +1157,7 @@ export function useReviewPageController({
         onDecline: handleDeclinePullRequest,
         onMarkDraft: handleMarkPullRequestAsDraft,
         onOpenMerge: () => setMergeOpen(true),
+        onOpenOmnibar: handleOpenOmnibar,
         onOmnibarOpenChange: setOmnibarOpen,
         onOmnibarSelectFile: handleOmnibarSelectFile,
         onOmnibarSelectPullRequest: openPullRequest,

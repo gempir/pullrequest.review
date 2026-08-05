@@ -54,6 +54,7 @@ export function useReviewPageViewProps({
     onDecline,
     onMarkDraft,
     onOpenMerge,
+    onOpenOmnibar,
     onOmnibarOpenChange,
     onOmnibarSelectFile,
     onOmnibarSelectPullRequest,
@@ -117,6 +118,7 @@ export function useReviewPageViewProps({
     onDecline: MainViewProps["navbarProps"]["onDecline"];
     onMarkDraft: MainViewProps["navbarProps"]["onMarkDraft"];
     onOpenMerge: MainViewProps["navbarProps"]["onOpenMerge"];
+    onOpenOmnibar: MainViewProps["navbarProps"]["onOpenOmnibar"];
     onOmnibarOpenChange: MainViewProps["omnibarProps"]["onOpenChange"];
     onOmnibarSelectFile: MainViewProps["omnibarProps"]["onSelectFile"];
     onOmnibarSelectPullRequest: MainViewProps["omnibarProps"]["onSelectPullRequest"];
@@ -213,6 +215,7 @@ export function useReviewPageViewProps({
             onDecline,
             onMarkDraft,
             onOpenMerge,
+            onOpenOmnibar,
         }),
         [
             actionPolicy.canApprove,
@@ -243,6 +246,7 @@ export function useReviewPageViewProps({
             onExpandRightSidebar,
             onMarkDraft,
             onOpenMerge,
+            onOpenOmnibar,
             onRequestChanges,
             pullRequest,
             requestChangesPending,

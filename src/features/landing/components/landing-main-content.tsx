@@ -1,10 +1,8 @@
 import { AlertCircle, GitPullRequest, House, Loader2, RefreshCw, Settings2 } from "lucide-react";
-import { useMemo, useState } from "react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { RepositorySelector } from "@/components/repository-selector";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { LandingPullRequestTable } from "@/features/landing/components/landing-pull-request-table";
 import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
 import { getHostLabel } from "@/lib/git-host/service";
@@ -75,25 +73,6 @@ export function LandingMainContent({
     onOpenRepositorySelection: (host: GitHost) => void;
     onOpenPullRequest: (repo: RepoRef, pullRequestId: string) => void;
 }) {
-    const [globalFilter, setGlobalFilter] = useState("");
-    const [hostFilter, setHostFilter] = useState("");
-    const [stateFilter, setStateFilter] = useState("");
-    const [filteredCount, setFilteredCount] = useState(0);
-    const showPullRequestFilters = !showRepositoryPanel && selectedRepoCount > 0 && sortedRootPullRequests.length > 0;
-
-    const hostOptions = useMemo(() => {
-        const hosts = new Set<GitHost>();
-        for (const row of sortedRootPullRequests) hosts.add(row.host);
-        return Array.from(hosts).sort();
-    }, [sortedRootPullRequests]);
-    const stateOptions = useMemo(() => {
-        const states = new Set<string>();
-        for (const row of sortedRootPullRequests) {
-            if (row.pullRequest.state) states.add(row.pullRequest.state);
-        }
-        return Array.from(states).sort((a, b) => a.localeCompare(b));
-    }, [sortedRootPullRequests]);
-
     return (
         <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
             <header data-component="navbar" className="flex h-11 items-center gap-1 border-b border-border-muted bg-chrome px-2 text-[12px]">
@@ -130,49 +109,8 @@ export function LandingMainContent({
                     <RefreshCw className={cn("size-3.5", isRefreshing ? "animate-spin" : undefined)} />
                 </Button>
                 {showRepositoryPanel ? <span className="ml-2 shrink-0 text-muted-foreground">Repository Selection</span> : null}
-                {showPullRequestFilters ? (
-                    <div className="ml-2 flex min-w-0 flex-1 items-center gap-2">
-                        <Input
-                            className="h-8 w-full min-w-[18rem] max-w-xl rounded-sm border-border-muted bg-surface-1 text-[12px]"
-                            placeholder="Search title, author, repo..."
-                            value={globalFilter}
-                            onChange={(event) => setGlobalFilter(event.target.value)}
-                            aria-label="Search pull requests"
-                        />
-                        <select
-                            className="h-8 shrink-0 rounded-sm border border-border-muted bg-surface-1 px-2 text-[12px] text-foreground"
-                            value={hostFilter}
-                            onChange={(event) => setHostFilter(event.target.value)}
-                            aria-label="Filter by host"
-                        >
-                            <option value="">All hosts</option>
-                            {hostOptions.map((host) => (
-                                <option key={host} value={host}>
-                                    {getHostLabel(host)}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            className="h-8 shrink-0 rounded-sm border border-border-muted bg-surface-1 px-2 text-[12px] text-foreground"
-                            value={stateFilter}
-                            onChange={(event) => setStateFilter(event.target.value)}
-                            aria-label="Filter by state"
-                        >
-                            <option value="">All states</option>
-                            {stateOptions.map((state) => (
-                                <option key={state} value={state}>
-                                    {state}
-                                </option>
-                            ))}
-                        </select>
-                        <span className="shrink-0 text-[11px] text-muted-foreground">
-                            {filteredCount} of {sortedRootPullRequests.length}
-                        </span>
-                    </div>
-                ) : (
-                    <span className="ml-auto shrink-0 text-muted-foreground">{selectedRepoCount} selected repos</span>
-                )}
-                <div className={cn("flex shrink-0 items-center gap-1 pl-2", showPullRequestFilters ? "ml-auto" : null)}>
+                {!showRepositoryPanel ? <span className="ml-2 shrink-0 text-muted-foreground">{selectedRepoCount} selected repos</span> : null}
+                <div className="ml-auto flex shrink-0 items-center gap-1 pl-2">
                     {HOST_MENU_ORDER.map((host) => {
                         const isActive = showRepositoryPanel && activeHost === host;
                         const repoCount = reposByHost[host].length;
@@ -262,16 +200,7 @@ export function LandingMainContent({
                     </div>
                 ) : (
                     <div className="flex h-full min-h-0 flex-col">
-                        <LandingPullRequestTable
-                            data={sortedRootPullRequests}
-                            globalFilter={globalFilter}
-                            hostFilter={hostFilter}
-                            stateFilter={stateFilter}
-                            onOpenPullRequest={onOpenPullRequest}
-                            onFilteredCountChange={(nextFilteredCount) => {
-                                setFilteredCount(nextFilteredCount);
-                            }}
-                        />
+                        <LandingPullRequestTable data={sortedRootPullRequests} onOpenPullRequest={onOpenPullRequest} />
                     </div>
                 )}
             </main>

@@ -1,6 +1,9 @@
 import { Command } from "cmdk";
 import { Check, ChevronRight, FileCode2, GitMerge, PanelTop, PenSquare, Search, TriangleAlert, XCircle } from "lucide-react";
 import { useState } from "react";
+import { OMNIBAR_GROUP_CLASS_NAME, OMNIBAR_ITEM_CLASS_NAME, PullRequestOmnibarGroup } from "@/components/omnibar/pull-request-omnibar";
+import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
+import type { RepoRef } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +11,7 @@ type ReviewOmnibarProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     filePaths: readonly string[];
+    pullRequests?: readonly SortedRootPullRequest[];
     currentUserReviewStatus: "approved" | "changesRequested" | "none";
     isDraft: boolean;
     canApprove: boolean;
@@ -17,15 +21,13 @@ type ReviewOmnibarProps = {
     canMarkDraft: boolean;
     actionBusy: boolean;
     onSelectFile: (path: string) => void;
+    onSelectPullRequest?: (repo: RepoRef, pullRequestId: string) => void;
     onApprove: () => void;
     onRequestChanges: () => void;
     onOpenMerge: () => void;
     onDecline: () => void;
     onMarkDraft: () => void;
 };
-
-const COMMAND_ITEM_CLASS_NAME =
-    "flex min-h-9 cursor-default select-none items-center gap-2 px-2 text-[12px] text-foreground outline-none data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-45 data-[selected=true]:bg-selection";
 
 export function getOmnibarFileName(path: string) {
     const separatorIndex = path.lastIndexOf("/");
@@ -41,6 +43,7 @@ export function ReviewOmnibar({
     open,
     onOpenChange,
     filePaths,
+    pullRequests = [],
     currentUserReviewStatus,
     isDraft,
     canApprove,
@@ -50,6 +53,7 @@ export function ReviewOmnibar({
     canMarkDraft,
     actionBusy,
     onSelectFile,
+    onSelectPullRequest,
     onApprove,
     onRequestChanges,
     onOpenMerge,
@@ -58,6 +62,7 @@ export function ReviewOmnibar({
 }: ReviewOmnibarProps) {
     const [search, setSearch] = useState("");
     const hasActions = canApprove || canRequestChanges || canMerge || canDecline || (isDraft && canMarkDraft);
+    const hasPullRequests = pullRequests.length > 0 && Boolean(onSelectPullRequest);
 
     const closeAndRun = (action: () => void) => {
         setSearch("");
@@ -86,25 +91,22 @@ export function ReviewOmnibar({
                     autoFocus
                     value={search}
                     onValueChange={setSearch}
-                    placeholder="Search files and actions..."
-                    aria-label="Search pull request files and actions"
+                    placeholder="Search files, actions, or pull requests..."
+                    aria-label="Search pull request files, actions, and pull requests"
                     className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
                 />
                 <span className="border border-border-muted bg-surface-1 px-1.5 py-0.5 text-[10px] text-muted-foreground">ESC</span>
             </div>
 
             <Command.List className="max-h-[min(28rem,calc(100vh-11rem))] overflow-y-auto p-1 [scroll-padding-block:0.25rem]">
-                <Command.Empty className="px-2 py-8 text-center text-[12px] text-muted-foreground">No matching files or actions.</Command.Empty>
+                <Command.Empty className="px-2 py-8 text-center text-[12px] text-muted-foreground">No matching files, actions, or pull requests.</Command.Empty>
 
-                <Command.Group
-                    heading="Navigate"
-                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground"
-                >
+                <Command.Group heading="Navigate" className={OMNIBAR_GROUP_CLASS_NAME}>
                     <Command.Item
                         value="navigation summary pull request overview"
                         keywords={["summary", "overview", "pull request"]}
                         onSelect={() => closeAndRun(() => onSelectFile(PR_SUMMARY_PATH))}
-                        className={COMMAND_ITEM_CLASS_NAME}
+                        className={OMNIBAR_ITEM_CLASS_NAME}
                     >
                         <PanelTop className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                         <span className="min-w-0 flex-1 truncate">Summary</span>
@@ -114,10 +116,7 @@ export function ReviewOmnibar({
 
                 <Command.Separator className="my-1 h-px bg-border-muted" />
 
-                <Command.Group
-                    heading="Files"
-                    className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground"
-                >
+                <Command.Group heading="Files" className={OMNIBAR_GROUP_CLASS_NAME}>
                     {filePaths.map((path) => {
                         const fileName = getOmnibarFileName(path);
                         const directory = getOmnibarDirectory(path);
@@ -127,7 +126,7 @@ export function ReviewOmnibar({
                                 value={`file:${path}`}
                                 keywords={[path, fileName, ...directory.split("/").filter(Boolean)]}
                                 onSelect={() => closeAndRun(() => onSelectFile(path))}
-                                className={COMMAND_ITEM_CLASS_NAME}
+                                className={OMNIBAR_ITEM_CLASS_NAME}
                             >
                                 <FileCode2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                                 <span className="min-w-0 flex-1 truncate">{fileName}</span>
@@ -137,19 +136,24 @@ export function ReviewOmnibar({
                     })}
                 </Command.Group>
 
+                {hasPullRequests ? <Command.Separator className="my-1 h-px bg-border-muted" /> : null}
+                {hasPullRequests && onSelectPullRequest ? (
+                    <PullRequestOmnibarGroup
+                        pullRequests={pullRequests}
+                        onSelectPullRequest={(repo, pullRequestId) => closeAndRun(() => onSelectPullRequest(repo, pullRequestId))}
+                    />
+                ) : null}
+
                 {hasActions ? <Command.Separator className="my-1 h-px bg-border-muted" /> : null}
                 {hasActions ? (
-                    <Command.Group
-                        heading="Actions"
-                        className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground"
-                    >
+                    <Command.Group heading="Actions" className={OMNIBAR_GROUP_CLASS_NAME}>
                         {canApprove ? (
                             <Command.Item
                                 value={currentUserReviewStatus === "approved" ? "action remove approval" : "action approve pull request"}
                                 keywords={["approve", "review"]}
                                 disabled={actionBusy}
                                 onSelect={() => closeAndRun(onApprove)}
-                                className={cn(COMMAND_ITEM_CLASS_NAME, "data-[selected=true]:text-status-added")}
+                                className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-added")}
                             >
                                 <Check className="size-3.5 shrink-0 text-status-added" aria-hidden="true" />
                                 <span className="min-w-0 flex-1 truncate">{currentUserReviewStatus === "approved" ? "Remove approval" : "Approve"}</span>
@@ -161,7 +165,7 @@ export function ReviewOmnibar({
                                 keywords={["request changes", "revise"]}
                                 disabled={actionBusy}
                                 onSelect={() => closeAndRun(onRequestChanges)}
-                                className={cn(COMMAND_ITEM_CLASS_NAME, "data-[selected=true]:text-status-modified")}
+                                className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-modified")}
                             >
                                 <TriangleAlert className="size-3.5 shrink-0 text-status-modified" aria-hidden="true" />
                                 <span className="min-w-0 flex-1 truncate">Request changes</span>
@@ -173,7 +177,7 @@ export function ReviewOmnibar({
                                 keywords={["merge"]}
                                 disabled={actionBusy}
                                 onSelect={() => closeAndRun(onOpenMerge)}
-                                className={cn(COMMAND_ITEM_CLASS_NAME, "data-[selected=true]:text-status-merged")}
+                                className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-merged")}
                             >
                                 <GitMerge className="size-3.5 shrink-0 text-status-merged" aria-hidden="true" />
                                 <span className="min-w-0 flex-1 truncate">Merge pull request</span>
@@ -185,7 +189,7 @@ export function ReviewOmnibar({
                                 keywords={["ready", "draft"]}
                                 disabled={actionBusy}
                                 onSelect={() => closeAndRun(onMarkDraft)}
-                                className={COMMAND_ITEM_CLASS_NAME}
+                                className={OMNIBAR_ITEM_CLASS_NAME}
                             >
                                 <PenSquare className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                                 <span className="min-w-0 flex-1 truncate">Mark as ready</span>
@@ -197,7 +201,7 @@ export function ReviewOmnibar({
                                 keywords={["decline", "close"]}
                                 disabled={actionBusy}
                                 onSelect={() => closeAndRun(onDecline)}
-                                className={cn(COMMAND_ITEM_CLASS_NAME, "data-[selected=true]:text-status-removed")}
+                                className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-removed")}
                             >
                                 <XCircle className="size-3.5 shrink-0 text-status-removed" aria-hidden="true" />
                                 <span className="min-w-0 flex-1 truncate">Decline pull request</span>

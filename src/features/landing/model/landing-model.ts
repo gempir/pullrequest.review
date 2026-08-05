@@ -1,23 +1,9 @@
 import type { GitHost, PullRequestSummary, RepoRef } from "@/lib/git-host/types";
 
 export const HOSTS: GitHost[] = ["bitbucket", "github"];
-export const HOST_PATH_PREFIX = "host:";
-const WORKSPACE_PATH_PREFIX = "workspace:";
 export const DEFAULT_REVIEW_SCOPE_SEARCH = {} as const;
 
 export type DiffPanel = "pull-requests" | "repositories";
-
-export type PullRequestTreeMeta = {
-    host: GitHost;
-    workspace: string;
-    repo: string;
-    pullRequestId: string;
-};
-
-export type LandingTreeEntry = {
-    appPath: string;
-    treePath: string;
-};
 
 export type GroupedPullRequestEntry = {
     host: GitHost;
@@ -124,34 +110,6 @@ function getDateSortTimestamp(value?: string) {
     return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
 }
 
-function normalizeWorkspaceLabel(workspace: string, hostDomain: string) {
-    const normalized = workspace
-        .trim()
-        .replace(/^https?:\/\//i, "")
-        .replace(/\/+$/, "");
-    const hostVariants = new Set([hostDomain.toLowerCase(), `www.${hostDomain.toLowerCase()}`]);
-    const segments = normalized.split("/").flatMap((segment) => {
-        const trimmed = segment.trim();
-        return trimmed ? [trimmed] : [];
-    });
-    while (segments.length > 0 && hostVariants.has(segments[0].toLowerCase())) {
-        segments.shift();
-    }
-    return segments.join("/");
-}
-
-export function hostFromLandingTreePath(path: string): GitHost | null {
-    if (!path.startsWith(HOST_PATH_PREFIX) && !path.startsWith(WORKSPACE_PATH_PREFIX) && !path.startsWith("repo:")) {
-        return null;
-    }
-    const [, host] = path.split(":");
-    return host === "bitbucket" || host === "github" ? host : null;
-}
-
-function sanitizeTreeSegment(label: string) {
-    return label.replace(/[\\/]+/g, " - ").trim() || "(untitled)";
-}
-
 export function buildGroupedPullRequests(repoPullRequestRecords: unknown[], reposByHost: Record<GitHost, RepoRef[]>): GroupedPullRequestEntry[] {
     const selectedRepoKeys = new Set<string>();
     for (const host of HOSTS) {
@@ -189,16 +147,6 @@ export function buildGroupedPullRequests(repoPullRequestRecords: unknown[], repo
         });
 }
 
-export function buildPullRequestsByRepo(groupedPullRequests: GroupedPullRequestEntry[]) {
-    const map = new Map<string, PullRequestSummary[]>();
-    for (const item of groupedPullRequests) {
-        const fullName = item.repo.fullName?.trim() || `${item.repo.workspace.trim()}/${item.repo.repo.trim()}`;
-        if (!fullName) continue;
-        map.set(`${item.host}:${fullName}`, item.pullRequests);
-    }
-    return map;
-}
-
 export function buildSortedRootPullRequests(groupedPullRequests: GroupedPullRequestEntry[]): SortedRootPullRequest[] {
     const rows = groupedPullRequests.flatMap(({ host, repo, pullRequests }) => {
         const repoKey = `${host}:${repo.fullName}`;
@@ -220,62 +168,4 @@ export function buildSortedRootPullRequests(groupedPullRequests: GroupedPullRequ
     });
 
     return rows;
-}
-
-export function buildPullRequestTree(reposByHost: Record<GitHost, RepoRef[]>, pullRequestsByRepo: Map<string, PullRequestSummary[]>, query: string) {
-    const term = query.trim().toLowerCase();
-    const pullRequestMeta = new Map<string, PullRequestTreeMeta>();
-    const entries: LandingTreeEntry[] = [];
-
-    for (const host of HOSTS) {
-        const hostDomain = host === "github" ? "github.com" : "bitbucket.org";
-        const hostAppPath = `host:${host}`;
-        const hostTreePath = `${sanitizeTreeSegment(hostDomain)}/`;
-        const workspaceTreePaths = new Set<string>();
-        entries.push({ appPath: hostAppPath, treePath: hostTreePath });
-
-        for (const repo of reposByHost[host]) {
-            const key = `${host}:${repo.fullName}`;
-            const prs = pullRequestsByRepo.get(key) ?? [];
-            const repoMatches = !term || repo.fullName.toLowerCase().includes(term) || repo.displayName.toLowerCase().includes(term);
-            const filteredPrs = repoMatches
-                ? prs
-                : prs.filter((pr) => {
-                      const author = pr.author?.displayName ?? "";
-                      return pr.title.toLowerCase().includes(term) || String(pr.id).includes(term) || author.toLowerCase().includes(term);
-                  });
-
-            if (!repoMatches && filteredPrs.length === 0) continue;
-
-            const workspaceLabel = normalizeWorkspaceLabel(repo.workspace, hostDomain);
-            const workspaceAppPath = `workspace:${host}:${repo.workspace}`;
-            const workspaceTreePath = `${hostTreePath}${sanitizeTreeSegment(workspaceLabel || repo.workspace)}/`;
-            if (!workspaceTreePaths.has(workspaceTreePath)) {
-                workspaceTreePaths.add(workspaceTreePath);
-                entries.push({ appPath: workspaceAppPath, treePath: workspaceTreePath });
-            }
-
-            const repoTreePath = `${workspaceTreePath}${sanitizeTreeSegment(repo.repo)}/`;
-            entries.push({
-                appPath: `repo:${host}:${repo.workspace}:${repo.repo}`,
-                treePath: repoTreePath,
-            });
-
-            filteredPrs.forEach((pr) => {
-                const path = `pr:${host}:${repo.workspace}:${repo.repo}:${pr.id}`;
-                pullRequestMeta.set(path, {
-                    host: repo.host,
-                    workspace: repo.workspace,
-                    repo: repo.repo,
-                    pullRequestId: String(pr.id),
-                });
-                entries.push({
-                    appPath: path,
-                    treePath: `${repoTreePath}${sanitizeTreeSegment(`#${pr.id} ${pr.title}`)}`,
-                });
-            });
-        }
-    }
-
-    return { entries, pullRequestMeta };
 }

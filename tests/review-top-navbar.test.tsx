@@ -3,43 +3,47 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { normalizeNavbarState } from "../src/components/pull-request-review/review-formatters";
 import { ReviewTopNavbar } from "../src/components/pull-request-review/review-top-navbar";
 import type { PullRequestReviewer } from "../src/lib/git-host/types";
+import { ShortcutsProvider } from "../src/lib/shortcuts-context";
 
 function renderNavbar(navbarState: string, isDraft = false, reviewers?: PullRequestReviewer[]) {
     return renderToStaticMarkup(
-        <ReviewTopNavbar
-            loading={false}
-            isRefreshing={false}
-            treeCollapsed={false}
-            unviewedFileCount={0}
-            rightSidebarCollapsed
-            unresolvedCommentCount={0}
-            host="bitbucket"
-            pullRequestUrl="https://bitbucket.example/pull-requests/1"
-            sourceBranch="feature"
-            destinationBranch="main"
-            navbarState={navbarState}
-            reviewers={reviewers}
-            canApprove
-            canRequestChanges
-            canMerge
-            canDecline
-            canMarkDraft
-            isDraft={isDraft}
-            currentUserReviewStatus="none"
-            isApprovePending={false}
-            isRequestChangesPending={false}
-            isDeclinePending={false}
-            isMarkDraftPending={false}
-            copiedSourceBranch={false}
-            onExpandTree={() => {}}
-            onExpandRightSidebar={() => {}}
-            onCopySourceBranch={() => {}}
-            onApprove={() => {}}
-            onRequestChanges={() => {}}
-            onDecline={() => {}}
-            onMarkDraft={() => {}}
-            onOpenMerge={() => {}}
-        />,
+        <ShortcutsProvider>
+            <ReviewTopNavbar
+                loading={false}
+                isRefreshing={false}
+                treeCollapsed={false}
+                unviewedFileCount={0}
+                rightSidebarCollapsed
+                unresolvedCommentCount={0}
+                host="bitbucket"
+                pullRequestUrl="https://bitbucket.example/pull-requests/1"
+                sourceBranch="feature"
+                destinationBranch="main"
+                navbarState={navbarState}
+                reviewers={reviewers}
+                canApprove
+                canRequestChanges
+                canMerge
+                canDecline
+                canMarkDraft
+                isDraft={isDraft}
+                currentUserReviewStatus="none"
+                isApprovePending={false}
+                isRequestChangesPending={false}
+                isDeclinePending={false}
+                isMarkDraftPending={false}
+                copiedSourceBranch={false}
+                onExpandTree={() => {}}
+                onExpandRightSidebar={() => {}}
+                onCopySourceBranch={() => {}}
+                onApprove={() => {}}
+                onRequestChanges={() => {}}
+                onDecline={() => {}}
+                onMarkDraft={() => {}}
+                onOpenMerge={() => {}}
+                onOpenOmnibar={() => {}}
+            />
+        </ShortcutsProvider>,
     );
 }
 

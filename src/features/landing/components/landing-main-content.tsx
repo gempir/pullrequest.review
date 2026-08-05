@@ -1,6 +1,8 @@
 import { AlertCircle, GitPullRequest, House, Loader2, RefreshCw, Settings2 } from "lucide-react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { GitHostIcon } from "@/components/git-host-icon";
+import { requestOpenAppPullRequestOmnibar } from "@/components/omnibar/app-pull-request-omnibar";
+import { OmnibarMenubarInput } from "@/components/omnibar/omnibar-menubar-input";
 import { RepositorySelector } from "@/components/repository-selector";
 import { Button } from "@/components/ui/button";
 import { LandingPullRequestTable } from "@/features/landing/components/landing-pull-request-table";
@@ -109,8 +111,8 @@ export function LandingMainContent({
                     <RefreshCw className={cn("size-3.5", isRefreshing ? "animate-spin" : undefined)} />
                 </Button>
                 {showRepositoryPanel ? <span className="ml-2 shrink-0 text-muted-foreground">Repository Selection</span> : null}
-                {!showRepositoryPanel ? <span className="ml-2 shrink-0 text-muted-foreground">{selectedRepoCount} selected repos</span> : null}
-                <div className="ml-auto flex shrink-0 items-center gap-1 pl-2">
+                <OmnibarMenubarInput onOpen={requestOpenAppPullRequestOmnibar} />
+                <div className="flex shrink-0 items-center gap-1 pl-2">
                     {HOST_MENU_ORDER.map((host) => {
                         const isActive = showRepositoryPanel && activeHost === host;
                         const repoCount = reposByHost[host].length;

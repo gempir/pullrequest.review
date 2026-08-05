@@ -453,9 +453,9 @@ export function LandingPullRequestTable({
             <table className="w-full table-fixed border-collapse text-left text-[13px]">
                 <thead className="sticky top-0 z-10 bg-chrome">
                     {table.getHeaderGroups().map((headerGroup) => (
-                        <tr key={`${headerGroup.id}-filters`} className="border-b border-border-muted">
+                        <tr key={`${headerGroup.id}-filters`}>
                             {headerGroup.headers.map((header) => (
-                                <th key={`${header.id}-filter`} className={cn("px-2 py-1.5 align-bottom font-normal", columnWidthClass(header.column.id))}>
+                                <th key={`${header.id}-filter`} className={cn("px-2 pb-0 pt-1.5 align-bottom font-normal", columnWidthClass(header.column.id))}>
                                     {header.isPlaceholder || !header.column.getCanFilter()
                                         ? null
                                         : renderColumnFilter(header.column, authorOptions, stateOptions)}
@@ -472,7 +472,7 @@ export function LandingPullRequestTable({
                                     <th
                                         key={header.id}
                                         className={cn(
-                                            "px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
+                                            "px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
                                             columnWidthClass(header.column.id),
                                         )}
                                     >

@@ -35,6 +35,7 @@ import { useReviewPageNavigation } from "@/components/pull-request-review/use-re
 import { useReviewPageViewProps } from "@/components/pull-request-review/use-review-page-view-props";
 import { isRateLimitedError as isRateLimitedQueryError } from "@/components/pull-request-review/use-review-query";
 import { getSettingsTreeItems } from "@/components/settings-navigation";
+import { useSelectedRepoPullRequests } from "@/features/landing/hooks/use-selected-repo-pull-requests";
 import { useReviewFileContexts } from "@/features/review/data/use-review-file-contexts";
 import { useReviewScopedData } from "@/features/review/data/use-review-scoped-data";
 import { ALL_MODE_SCROLL_RETRY_DELAYS, ALL_MODE_STICKY_OFFSET } from "@/features/review/model/review-page-controller-helpers";
@@ -1106,6 +1107,8 @@ export function useReviewPageController({
         [commitScopeLoading, commitScopeOptions, handleSetFullScope, handleToggleCommitSelection, resolvedScope.mode, selectedRangeCommitHashes, scopeNotice],
     );
 
+    const { sortedRootPullRequests, openPullRequest } = useSelectedRepoPullRequests({ autoRefetch: true });
+
     const { sidebarProps, navbarProps, omnibarProps, mergeDialogProps } = useReviewPageViewProps({
         treeWidth,
         treeCollapsed,
@@ -1138,6 +1141,7 @@ export function useReviewPageController({
         commitScopeSlot,
         omnibarOpen,
         omnibarFilePaths,
+        omnibarPullRequests: sortedRootPullRequests,
         onRefresh: refreshCurrentReviewView,
         onToggleSettings: handleToggleSettingsPanel,
         onCollapseTree: () => setTreeCollapsed(true),
@@ -1155,6 +1159,7 @@ export function useReviewPageController({
         onOpenMerge: () => setMergeOpen(true),
         onOmnibarOpenChange: setOmnibarOpen,
         onOmnibarSelectFile: handleOmnibarSelectFile,
+        onOmnibarSelectPullRequest: openPullRequest,
         mergeOpen,
         onMergeDialogOpenChange: setMergeOpen,
         mergeStrategies: hostCapabilities.mergeStrategies,

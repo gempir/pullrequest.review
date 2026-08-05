@@ -38,6 +38,7 @@ export function useReviewPageViewProps({
     commitScopeSlot,
     omnibarOpen,
     omnibarFilePaths,
+    omnibarPullRequests,
     onRefresh,
     onToggleSettings,
     onCollapseTree,
@@ -55,6 +56,7 @@ export function useReviewPageViewProps({
     onOpenMerge,
     onOmnibarOpenChange,
     onOmnibarSelectFile,
+    onOmnibarSelectPullRequest,
     mergeOpen,
     onMergeDialogOpenChange,
     mergeStrategies,
@@ -99,6 +101,7 @@ export function useReviewPageViewProps({
     commitScopeSlot?: MainViewProps["navbarProps"]["commitScopeSlot"];
     omnibarOpen: boolean;
     omnibarFilePaths: readonly string[];
+    omnibarPullRequests: MainViewProps["omnibarProps"]["pullRequests"];
     onRefresh: MainViewProps["sidebarProps"]["onRefresh"];
     onToggleSettings: MainViewProps["sidebarProps"]["onToggleSettings"];
     onCollapseTree: MainViewProps["sidebarProps"]["onCollapseTree"];
@@ -116,6 +119,7 @@ export function useReviewPageViewProps({
     onOpenMerge: MainViewProps["navbarProps"]["onOpenMerge"];
     onOmnibarOpenChange: MainViewProps["omnibarProps"]["onOpenChange"];
     onOmnibarSelectFile: MainViewProps["omnibarProps"]["onSelectFile"];
+    onOmnibarSelectPullRequest: MainViewProps["omnibarProps"]["onSelectPullRequest"];
     mergeOpen: boolean;
     onMergeDialogOpenChange: (open: boolean) => void;
     mergeStrategies: string[] | undefined;
@@ -252,6 +256,7 @@ export function useReviewPageViewProps({
             open: omnibarOpen,
             onOpenChange: onOmnibarOpenChange,
             filePaths: omnibarFilePaths,
+            pullRequests: omnibarPullRequests,
             currentUserReviewStatus,
             isDraft: Boolean(pullRequest?.draft),
             canApprove: actionPolicy.canApprove,
@@ -261,6 +266,7 @@ export function useReviewPageViewProps({
             canMarkDraft: actionPolicy.canMarkDraft,
             actionBusy: approvePending || requestChangesPending || declinePending || markDraftPending || isMerging,
             onSelectFile: onOmnibarSelectFile,
+            onSelectPullRequest: onOmnibarSelectPullRequest,
             onApprove,
             onRequestChanges,
             onOpenMerge,
@@ -280,11 +286,13 @@ export function useReviewPageViewProps({
             markDraftPending,
             omnibarFilePaths,
             omnibarOpen,
+            omnibarPullRequests,
             onApprove,
             onDecline,
             onMarkDraft,
             onOmnibarOpenChange,
             onOmnibarSelectFile,
+            onOmnibarSelectPullRequest,
             onOpenMerge,
             onRequestChanges,
             pullRequest?.draft,

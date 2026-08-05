@@ -1,12 +1,12 @@
 /// <reference types="vite/client" />
 
 import { QueryClientProvider } from "@tanstack/react-query";
-import { createRootRoute, HeadContent, Link, Outlet, Scripts, useHydrated, useNavigate, useRouterState } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Link, Outlet, Scripts, useHydrated, useRouterState } from "@tanstack/react-router";
 import { GitPullRequest } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { GitHostIcon } from "@/components/git-host-icon";
-import { SidebarTopControls } from "@/components/sidebar-top-controls";
+import { AppPullRequestOmnibar } from "@/components/omnibar/app-pull-request-omnibar";
 import { AppearanceProvider } from "@/lib/appearance-context";
 import { ensureDataCollectionsReady } from "@/lib/data/query-collections";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
@@ -18,6 +18,9 @@ import { appQueryClient } from "@/lib/query-client";
 import { ensureLongTaskObserver } from "@/lib/review-performance/metrics";
 import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
+import { cn } from "@/lib/utils";
+
+const ONBOARDING_HOSTS: GitHost[] = ["bitbucket", "github"];
 
 import "../../styles.css";
 
@@ -76,56 +79,51 @@ function RootComponent() {
 }
 
 function OnboardingScreen() {
-    const { setActiveHost, activeHost, refreshAuth } = usePrContext();
-    const navigate = useNavigate();
+    const { setActiveHost, activeHost } = usePrContext();
 
     return (
-        <div className="h-full min-h-0 flex bg-background">
-            <aside data-component="sidebar" className="w-[300px] shrink-0 bg-sidebar flex flex-col border-r border-sidebar-border">
-                <SidebarTopControls
-                    onHome={() => {
-                        navigate({ to: "/" });
-                    }}
-                    onRefresh={() => refreshAuth()}
-                    onSettings={() => {
-                        navigate({ to: "/settings" });
-                    }}
-                />
-                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-sidebar-chrome border-b border-sidebar-border flex items-center">
-                    <span className="text-[11px] text-muted-foreground px-1">Select host</span>
-                </div>
-                <div className="flex-1 min-h-0 overflow-y-auto" data-component="tree">
-                    {(["bitbucket", "github"] as GitHost[]).map((host) => (
-                        <button
-                            key={host}
-                            type="button"
-                            className={`w-full flex items-center gap-2 px-2 py-1 text-left text-[12px] hover:bg-surface-hover ${
-                                activeHost === host ? "bg-selection text-foreground" : "text-muted-foreground"
-                            }`}
-                            onClick={() => {
-                                setActiveHost(host);
-                            }}
-                        >
-                            <GitHostIcon host={host} className="size-3.5" />
-                            <span className="truncate">{getHostLabel(host)}</span>
-                        </button>
-                    ))}
-                </div>
-            </aside>
+        <div className="h-full min-h-0 flex flex-col bg-background">
+            <header data-component="navbar" className="h-11 shrink-0 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 text-[12px]">
+                <GitPullRequest className="size-3.5 text-muted-foreground" />
+                <span className="text-muted-foreground">Connect Git Host</span>
+            </header>
 
-            <section className="flex-1 min-w-0 min-h-0 flex flex-col">
-                <header data-component="navbar" className="h-11 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 text-[12px]">
-                    <GitPullRequest className="size-3.5 text-muted-foreground" />
-                    <span className="text-muted-foreground">Connect Git Host</span>
-                    <span className="ml-auto text-muted-foreground">{getHostLabel(activeHost)}</span>
-                </header>
+            <main data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto p-4">
+                <div className="mx-auto w-full max-w-2xl space-y-4">
+                    <div role="tablist" aria-label="Git host" className="flex border-b border-border-muted">
+                        {ONBOARDING_HOSTS.map((host) => {
+                            const isActive = activeHost === host;
+                            return (
+                                <button
+                                    key={host}
+                                    type="button"
+                                    role="tab"
+                                    id={`onboarding-host-tab-${host}`}
+                                    aria-selected={isActive}
+                                    aria-controls={`onboarding-host-panel-${host}`}
+                                    tabIndex={isActive ? 0 : -1}
+                                    className={cn(
+                                        "inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-[12px] transition-colors",
+                                        isActive
+                                            ? "-mb-px border-foreground text-foreground"
+                                            : "border-transparent text-muted-foreground hover:text-foreground",
+                                    )}
+                                    onClick={() => {
+                                        setActiveHost(host);
+                                    }}
+                                >
+                                    <GitHostIcon host={host} className="size-3.5" />
+                                    <span>{getHostLabel(host)}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
 
-                <main data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto p-4">
-                    <div className="max-w-2xl space-y-4">
+                    <div role="tabpanel" id={`onboarding-host-panel-${activeHost}`} aria-labelledby={`onboarding-host-tab-${activeHost}`}>
                         <HostAuthForm host={activeHost} mode="onboarding" />
                     </div>
-                </main>
-            </section>
+                </div>
+            </main>
         </div>
     );
 }
@@ -160,6 +158,7 @@ function AppLayout() {
             <main className="h-full min-h-0 overflow-hidden bg-background">
                 <Outlet />
             </main>
+            <AppPullRequestOmnibar />
         </div>
     );
 }

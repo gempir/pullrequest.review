@@ -1,7 +1,7 @@
 import { clearGithubAuthCredential, readGithubAuthCredential, writeGithubAuthCredential } from "@/lib/data/query-collections";
 import { githubAuthSchema, parseSchema } from "@/lib/git-host/schemas";
 import { parseFailureBody } from "@/lib/git-host/shared/http";
-import { collectPaginated } from "@/lib/git-host/shared/pagination";
+import { collectPaginated, REPO_PULL_REQUEST_LIST_LIMIT } from "@/lib/git-host/shared/pagination";
 import {
     type AuthState,
     type Comment,
@@ -374,11 +374,16 @@ function extractSingleFilePatchFromUnifiedDiff(diffText: string, targetPath: str
     return null;
 }
 
+function mapGithubPullState(pr: Pick<GithubPull, "state" | "merged_at">) {
+    if (pr.merged_at) return "MERGED";
+    return (pr.state ?? "OPEN").toUpperCase();
+}
+
 function mapPullRequestSummary(pr: GithubPull): PullRequestSummary {
     const summary: PullRequestSummary = {
         id: pr.number,
         title: pr.title,
-        state: (pr.state ?? "OPEN").toUpperCase(),
+        state: mapGithubPullState(pr),
         links: { html: { href: pr.html_url } },
         author: { displayName: pr.user?.login, avatarUrl: pr.user?.avatar_url },
     };
@@ -412,7 +417,7 @@ function mapPullRequestDetails(
         id: pr.number,
         title: pr.title,
         description: pickCommentBody(pr.body, pr.body_text),
-        state: (pr.state ?? "OPEN").toUpperCase(),
+        state: mapGithubPullState(pr),
         draft: Boolean(pr.draft),
         commentCount: Number(pr.comments ?? 0) + Number(pr.review_comments ?? 0),
         createdAt: pr.created_at,
@@ -1137,7 +1142,15 @@ export const githubClient: GitHostClient = {
     async listPullRequestsForRepos(data) {
         if (!data.repos.length) return [];
         return mapWithConcurrency(data.repos, 4, async (repo) => {
-            const pulls = await listPaginated<GithubPull>(`/repos/${repo.workspace}/${repo.repo}/pulls?state=open`);
+            const pulls = await collectPaginated(
+                async (page) => {
+                    const path = `/repos/${repo.workspace}/${repo.repo}/pulls?state=all&sort=updated&direction=desc`;
+                    const res = await request(`${path}&per_page=100&page=${page}`);
+                    return (await res.json()) as GithubPull[];
+                },
+                100,
+                REPO_PULL_REQUEST_LIST_LIMIT,
+            );
             return {
                 repo,
                 pullRequests: pulls.map(mapPullRequestSummary),

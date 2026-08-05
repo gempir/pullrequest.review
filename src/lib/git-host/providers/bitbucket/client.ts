@@ -7,6 +7,7 @@ import {
     writeBitbucketOAuthCredential,
 } from "@/lib/data/query-collections";
 import { parseFailureBody } from "@/lib/git-host/shared/http";
+import { REPO_PULL_REQUEST_LIST_LIMIT } from "@/lib/git-host/shared/pagination";
 import {
     type AuthState,
     type Comment,
@@ -34,6 +35,7 @@ type BitbucketOAuthCredential = Extract<BitbucketAuthCredential, { method: "oaut
 
 interface BitbucketPullRequestPage {
     values: BitbucketPullRequestSummaryRaw[];
+    next?: string;
 }
 
 interface BitbucketPullRequestSummaryRaw {
@@ -905,15 +907,24 @@ export const bitbucketClient: GitHostClient = {
     async listPullRequestsForRepos(data) {
         if (!data.repos.length) return [];
         return mapWithConcurrency(data.repos, 4, async (repo) => {
-            const url = `https://api.bitbucket.org/2.0/repositories/${repo.workspace}/${repo.repo}/pullrequests?pagelen=20`;
-            const res = await request(url, {
-                headers: { Accept: "application/json" },
-            });
-            const page = (await res.json()) as BitbucketPullRequestPage;
-            return {
-                repo,
-                pullRequests: (page.values ?? []).map(mapPullRequestSummary),
-            };
+            const stateQuery = ["OPEN", "MERGED", "DECLINED", "SUPERSEDED"].map((state) => `state=${state}`).join("&");
+            let nextUrl: string | undefined =
+                `https://api.bitbucket.org/2.0/repositories/${repo.workspace}/${repo.repo}/pullrequests?${stateQuery}&pagelen=50&sort=-updated_on`;
+            const pullRequests: PullRequestSummary[] = [];
+
+            while (nextUrl && pullRequests.length < REPO_PULL_REQUEST_LIST_LIMIT) {
+                const res = await request(nextUrl, {
+                    headers: { Accept: "application/json" },
+                });
+                const page = (await res.json()) as BitbucketPullRequestPage;
+                for (const pullRequest of page.values ?? []) {
+                    pullRequests.push(mapPullRequestSummary(pullRequest));
+                    if (pullRequests.length >= REPO_PULL_REQUEST_LIST_LIMIT) break;
+                }
+                nextUrl = page.next;
+            }
+
+            return { repo, pullRequests };
         });
     },
     async fetchPullRequestCriticalByRef(data): Promise<PullRequestCriticalBundle> {

@@ -1,16 +1,18 @@
-import { AlertCircle, GitPullRequest, Loader2 } from "lucide-react";
+import { AlertCircle, GitPullRequest, House, Loader2, RefreshCw, Settings2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { RepositorySelector } from "@/components/repository-selector";
-import { SettingsPanelContentOnly } from "@/components/settings-menu";
-import { settingsPathForTab, settingsTabFromPath } from "@/components/settings-navigation";
-import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LandingPullRequestTable } from "@/features/landing/components/landing-pull-request-table";
 import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
 import { getHostLabel } from "@/lib/git-host/service";
-import type { GitHost, PullRequestSummary, RepoRef } from "@/lib/git-host/types";
+import type { GitHost, RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
 import { cn } from "@/lib/utils";
+
+const HOST_MENU_ORDER: GitHost[] = ["bitbucket", "github"];
 
 function HostAuthPanel({ host }: { host: GitHost }) {
     const { authByHost, logout } = usePrContext();
@@ -36,118 +38,169 @@ function HostAuthPanel({ host }: { host: GitHost }) {
     return <HostAuthForm host={host} mode="panel" />;
 }
 
-function PullRequestListItem({
-    host,
-    repo,
-    pullRequest,
-    showRepoLabel,
-    onOpenPullRequest,
-}: {
-    host: GitHost;
-    repo: RepoRef;
-    pullRequest: PullRequestSummary;
-    showRepoLabel: boolean;
-    onOpenPullRequest: (repo: RepoRef, pullRequestId: string) => void;
-}) {
-    return (
-        <div className="space-y-1">
-            {showRepoLabel ? (
-                <div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                    <span className="inline-flex items-center justify-center text-foreground">
-                        <GitHostIcon host={host} className="size-3.5" />
-                    </span>
-                    <span className="font-mono">{repo.fullName}</span>
-                </div>
-            ) : null}
-            <button
-                type="button"
-                className="w-full rounded-md border border-transparent bg-surface-1 px-3 py-2 text-left text-[13px] transition-colors hover:border-border-muted hover:bg-surface-hover"
-                onClick={() => onOpenPullRequest(repo, String(pullRequest.id))}
-            >
-                <div className="flex items-start justify-between gap-3">
-                    <div className="truncate font-medium text-foreground">{pullRequest.title}</div>
-                    {pullRequest.updatedAt ? (
-                        <span className="shrink-0 text-muted-foreground">
-                            Updated <Timestamp value={pullRequest.updatedAt} />
-                        </span>
-                    ) : null}
-                </div>
-                <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    #{pullRequest.id} - {pullRequest.author?.displayName ?? "Unknown author"}
-                </div>
-                <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-muted-foreground">
-                    <span>
-                        {pullRequest.source?.branch?.name ?? "source"} -&gt; {pullRequest.destination?.branch?.name ?? "target"}
-                    </span>
-                    {pullRequest.createdAt ? (
-                        <span className="shrink-0">
-                            Created <Timestamp value={pullRequest.createdAt} />
-                        </span>
-                    ) : null}
-                </div>
-            </button>
-        </div>
-    );
-}
-
 export function LandingMainContent({
-    showSettingsPanel,
     showRepositoryPanel,
+    isRefreshing,
     activeHost,
-    activeFile,
     authByHost,
     reposByHost,
     selectedRepoCount,
     isRepoPullRequestLoading,
     repoPullRequestError,
     sortedRootPullRequests,
-    onSetActiveFile,
-    onSettingsClose,
+    onHome,
+    onRefresh,
+    onToggleSettings,
     onSaveSelectedRepos,
     onClearRepos,
     onDisconnectHost,
     onOpenRepositorySelection,
     onOpenPullRequest,
 }: {
-    showSettingsPanel: boolean;
     showRepositoryPanel: boolean;
+    isRefreshing: boolean;
     activeHost: GitHost;
-    activeFile: string | undefined;
     authByHost: Record<GitHost, boolean>;
     reposByHost: Record<GitHost, RepoRef[]>;
     selectedRepoCount: number;
     isRepoPullRequestLoading: boolean;
     repoPullRequestError: unknown;
     sortedRootPullRequests: SortedRootPullRequest[];
-    onSetActiveFile: (path: string | undefined) => void;
-    onSettingsClose: () => void;
+    onHome: () => void;
+    onRefresh: () => Promise<void> | void;
+    onToggleSettings: () => void;
     onSaveSelectedRepos: (host: GitHost, repos: RepoRef[]) => void;
     onClearRepos: (host: GitHost) => void;
     onDisconnectHost: (host: GitHost) => void;
     onOpenRepositorySelection: (host: GitHost) => void;
     onOpenPullRequest: (repo: RepoRef, pullRequestId: string) => void;
 }) {
+    const [globalFilter, setGlobalFilter] = useState("");
+    const [hostFilter, setHostFilter] = useState("");
+    const [stateFilter, setStateFilter] = useState("");
+    const [filteredCount, setFilteredCount] = useState(0);
+    const showPullRequestFilters = !showRepositoryPanel && selectedRepoCount > 0 && sortedRootPullRequests.length > 0;
+
+    const hostOptions = useMemo(() => {
+        const hosts = new Set<GitHost>();
+        for (const row of sortedRootPullRequests) hosts.add(row.host);
+        return Array.from(hosts).sort();
+    }, [sortedRootPullRequests]);
+    const stateOptions = useMemo(() => {
+        const states = new Set<string>();
+        for (const row of sortedRootPullRequests) {
+            if (row.pullRequest.state) states.add(row.pullRequest.state);
+        }
+        return Array.from(states).sort((a, b) => a.localeCompare(b));
+    }, [sortedRootPullRequests]);
+
     return (
-        <section className="flex-1 min-w-0 min-h-0 flex flex-col">
-            <header data-component="navbar" className="h-11 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 text-[12px]">
-                <span className="text-muted-foreground">
-                    {showSettingsPanel ? "Settings" : showRepositoryPanel ? "Repository Selection" : "Open Pull Requests"}
-                </span>
-                <span className="ml-auto text-muted-foreground">{selectedRepoCount} selected repos</span>
+        <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+            <header data-component="navbar" className="flex h-11 items-center gap-1 border-b border-border-muted bg-chrome px-2 text-[12px]">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={onHome}
+                    aria-label="Home"
+                >
+                    <House className="size-3.5" />
+                </Button>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={onToggleSettings}
+                    aria-label="Settings"
+                >
+                    <Settings2 className="size-3.5" />
+                </Button>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                        void onRefresh();
+                    }}
+                    aria-label="Refresh current view data"
+                >
+                    <RefreshCw className={cn("size-3.5", isRefreshing ? "animate-spin" : undefined)} />
+                </Button>
+                {showRepositoryPanel ? <span className="ml-2 shrink-0 text-muted-foreground">Repository Selection</span> : null}
+                {showPullRequestFilters ? (
+                    <div className="ml-2 flex min-w-0 flex-1 items-center gap-2">
+                        <Input
+                            className="h-8 w-full min-w-[18rem] max-w-xl rounded-sm border-border-muted bg-surface-1 text-[12px]"
+                            placeholder="Search title, author, repo..."
+                            value={globalFilter}
+                            onChange={(event) => setGlobalFilter(event.target.value)}
+                            aria-label="Search pull requests"
+                        />
+                        <select
+                            className="h-8 shrink-0 rounded-sm border border-border-muted bg-surface-1 px-2 text-[12px] text-foreground"
+                            value={hostFilter}
+                            onChange={(event) => setHostFilter(event.target.value)}
+                            aria-label="Filter by host"
+                        >
+                            <option value="">All hosts</option>
+                            {hostOptions.map((host) => (
+                                <option key={host} value={host}>
+                                    {getHostLabel(host)}
+                                </option>
+                            ))}
+                        </select>
+                        <select
+                            className="h-8 shrink-0 rounded-sm border border-border-muted bg-surface-1 px-2 text-[12px] text-foreground"
+                            value={stateFilter}
+                            onChange={(event) => setStateFilter(event.target.value)}
+                            aria-label="Filter by state"
+                        >
+                            <option value="">All states</option>
+                            {stateOptions.map((state) => (
+                                <option key={state} value={state}>
+                                    {state}
+                                </option>
+                            ))}
+                        </select>
+                        <span className="shrink-0 text-[11px] text-muted-foreground">
+                            {filteredCount} of {sortedRootPullRequests.length}
+                        </span>
+                    </div>
+                ) : (
+                    <span className="ml-auto shrink-0 text-muted-foreground">{selectedRepoCount} selected repos</span>
+                )}
+                <div className={cn("flex shrink-0 items-center gap-1 pl-2", showPullRequestFilters ? "ml-auto" : null)}>
+                    {HOST_MENU_ORDER.map((host) => {
+                        const isActive = showRepositoryPanel && activeHost === host;
+                        const repoCount = reposByHost[host].length;
+                        return (
+                            <Button
+                                key={host}
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className={cn(
+                                    "h-8 gap-1.5 rounded-sm px-2 text-[11px] text-muted-foreground hover:text-foreground",
+                                    isActive ? "bg-selection text-foreground" : null,
+                                )}
+                                onClick={() => onOpenRepositorySelection(host)}
+                                aria-label={`${getHostLabel(host)} settings`}
+                                title={`${getHostLabel(host)} repositories${repoCount > 0 ? ` (${repoCount})` : ""}`}
+                            >
+                                <GitHostIcon host={host} className="size-3.5" />
+                                <span>{getHostLabel(host)}</span>
+                                {repoCount > 0 ? <span className="font-mono text-muted-foreground">{repoCount}</span> : null}
+                            </Button>
+                        );
+                    })}
+                </div>
             </header>
 
-            <main data-component="diff-view" className={cn("flex-1 min-h-0 overflow-y-auto", showSettingsPanel ? "p-0" : "p-4")}>
-                {showSettingsPanel ? (
-                    <div className="h-full min-h-0">
-                        <SettingsPanelContentOnly
-                            activeTab={settingsTabFromPath(activeFile) ?? "appearance"}
-                            onActiveTabChange={(tab) => {
-                                onSetActiveFile(settingsPathForTab(tab));
-                            }}
-                            onClose={onSettingsClose}
-                        />
-                    </div>
-                ) : showRepositoryPanel ? (
+            <main data-component="diff-view" className={cn("min-h-0 flex-1", showRepositoryPanel ? "overflow-y-auto p-4" : "overflow-hidden p-4")}>
+                {showRepositoryPanel ? (
                     <div className="max-w-3xl space-y-4">
                         {authByHost[activeHost] ? (
                             <>
@@ -162,7 +215,7 @@ export function LandingMainContent({
                                         Clear {getHostLabel(activeHost)} repositories
                                     </Button>
                                 </div>
-                                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+                                <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-4">
                                     <div className="text-[12px] text-muted-foreground">Danger zone</div>
                                     <Button
                                         variant="outline"
@@ -181,64 +234,44 @@ export function LandingMainContent({
                         )}
                     </div>
                 ) : selectedRepoCount === 0 ? (
-                    <div className="rounded-md border border-border-muted bg-surface-1 p-8 text-center space-y-3 max-w-2xl">
+                    <div className="max-w-2xl space-y-2 rounded-md border border-border-muted bg-surface-1 p-8 text-center">
                         <div className="flex items-center justify-center gap-2 text-muted-foreground">
                             <GitPullRequest className="size-4" />
                             <span className="text-[13px]">No repositories selected.</span>
                         </div>
-                        <Button
-                            variant="outline"
-                            className="h-8 rounded-sm border-border-muted bg-background font-mono text-[12px] tracking-wide hover:bg-surface-hover"
-                            onClick={() => onOpenRepositorySelection(activeHost)}
-                        >
-                            Select Repositories
-                        </Button>
+                        <p className="text-[12px] text-muted-foreground">Use Bitbucket or GitHub in the top right to choose repositories.</p>
                     </div>
                 ) : isRepoPullRequestLoading ? (
-                    <div className="rounded-md border border-border-muted bg-surface-1 p-4 max-w-2xl">
-                        <div className="flex items-center gap-2 text-muted-foreground text-[13px]">
+                    <div className="max-w-2xl rounded-md border border-border-muted bg-surface-1 p-4">
+                        <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
                             <Loader2 className="size-4 animate-spin" />
                             <span>Loading pull requests...</span>
                         </div>
                     </div>
                 ) : repoPullRequestError ? (
-                    <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-destructive text-[13px] max-w-2xl">
+                    <div className="max-w-2xl rounded-md border border-destructive/40 bg-destructive/10 p-4 text-[13px] text-destructive">
                         <div className="flex items-center gap-2">
                             <AlertCircle className="size-4" />
                             <span>[ERROR] {repoPullRequestError instanceof Error ? repoPullRequestError.message : "Failed to load pull requests"}</span>
                         </div>
                     </div>
                 ) : sortedRootPullRequests.length === 0 ? (
-                    <div className="rounded-md border border-border-muted bg-surface-1 p-8 text-center space-y-3 max-w-2xl">
+                    <div className="max-w-2xl space-y-2 rounded-md border border-border-muted bg-surface-1 p-8 text-center">
                         <p className="text-[13px] text-muted-foreground">No pull requests in selected repositories.</p>
-                        <Button
-                            variant="outline"
-                            className="h-8 rounded-sm border-border-muted bg-background font-mono text-[12px] tracking-wide hover:bg-surface-hover"
-                            onClick={() => onOpenRepositorySelection(activeHost)}
-                        >
-                            Manage Repositories
-                        </Button>
+                        <p className="text-[12px] text-muted-foreground">Use Bitbucket or GitHub in the top right to manage repositories.</p>
                     </div>
                 ) : (
-                    <div className="max-w-4xl">
-                        <div className="space-y-2">
-                            {sortedRootPullRequests.map(({ host, repo, repoKey, pullRequest, updatedDateLabel }, index) => {
-                                const previous = sortedRootPullRequests[index - 1];
-                                const showRepoLabel =
-                                    !previous || previous.repoKey !== repoKey || !updatedDateLabel || previous.updatedDateLabel !== updatedDateLabel;
-
-                                return (
-                                    <PullRequestListItem
-                                        key={`${host}:${repo.fullName}-${pullRequest.id}`}
-                                        host={host}
-                                        repo={repo}
-                                        pullRequest={pullRequest}
-                                        showRepoLabel={showRepoLabel}
-                                        onOpenPullRequest={onOpenPullRequest}
-                                    />
-                                );
-                            })}
-                        </div>
+                    <div className="flex h-full min-h-0 flex-col">
+                        <LandingPullRequestTable
+                            data={sortedRootPullRequests}
+                            globalFilter={globalFilter}
+                            hostFilter={hostFilter}
+                            stateFilter={stateFilter}
+                            onOpenPullRequest={onOpenPullRequest}
+                            onFilteredCountChange={(nextFilteredCount) => {
+                                setFilteredCount(nextFilteredCount);
+                            }}
+                        />
                     </div>
                 )}
             </main>

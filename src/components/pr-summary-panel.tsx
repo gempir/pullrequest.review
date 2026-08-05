@@ -475,16 +475,16 @@ function HistoryCommentActions({
                             Reply
                         </Button>
                     ) : null}
-                    {canEdit ? (
-                        <Button variant="outline" size="sm" className={actionButtonClass} disabled={updateCommentPending} onClick={onStartEdit}>
-                            <PenSquare className={actionIconClass} />
-                            Edit
-                        </Button>
-                    ) : null}
                     {canToggleResolve ? (
                         <Button variant="outline" size="sm" className={actionButtonClass} disabled={resolveCommentPending} onClick={onToggleResolve}>
                             <Circle className={actionIconClass} />
                             {isResolved ? "Unresolve" : "Resolve"}
+                        </Button>
+                    ) : null}
+                    {canEdit ? (
+                        <Button variant="outline" size="sm" className={actionButtonClass} disabled={updateCommentPending} onClick={onStartEdit}>
+                            <PenSquare className={actionIconClass} />
+                            Edit
                         </Button>
                     ) : null}
                     {canDelete ? (
@@ -1044,19 +1044,6 @@ function HistoryCommentSurface({
                                         relativeThresholdMs={COMMENT_RELATIVE_THRESHOLD_MS}
                                     />
                                 </div>
-                                {canToggleResolve && typeof commentId === "number" && !isEditing && !isReplying ? (
-                                    <button
-                                        type="button"
-                                        className="inline-flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-                                        data-comment-action-root="true"
-                                        aria-label={isResolved ? "Unresolve thread" : "Resolve thread"}
-                                        title={isResolved ? "Unresolve thread" : "Resolve thread"}
-                                        disabled={Boolean(resolveCommentPending)}
-                                        onClick={() => onResolveThread?.(commentId, !isResolved)}
-                                    >
-                                        <Circle className={cn("size-4", isResolved ? "fill-current" : "")} />
-                                    </button>
-                                ) : null}
                             </div>
                             <div className="mt-1.5 min-w-0">
                                 {isEditing ? (
@@ -1401,9 +1388,7 @@ export function PullRequestSummaryPanel({
     const { pr, commits, history, prRef } = bundle;
     const diffByPath = useMemo(() => buildDiffByPath(bundle.diff), [bundle.diff]);
     const baseHistory: PullRequestHistoryEvent[] = history ?? [];
-    const summaryCommentThreads = buildCommentThreads(bundle.comments).filter(
-        (thread) => !thread.root.comment.deleted && Boolean(thread.root.comment.inline?.path),
-    );
+    const summaryCommentThreads = buildCommentThreads(bundle.comments).filter((thread) => !thread.root.comment.deleted);
     const commentById = new Map(bundle.comments.map((comment) => [comment.id, comment] as const));
     const commentHistoryById = new Map<number, PullRequestHistoryEvent>();
     for (const event of baseHistory) {

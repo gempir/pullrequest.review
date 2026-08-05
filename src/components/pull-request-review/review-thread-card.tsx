@@ -1,5 +1,5 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
-import { Check, ChevronDown, Circle, LoaderCircle } from "lucide-react";
+import { ChevronDown, LoaderCircle } from "lucide-react";
 import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useRef, useState } from "react";
 import { CommentEditor } from "@/components/comment-editor";
 import { CommentMarkdown as SharedCommentMarkdown } from "@/components/comment-markdown";
@@ -97,38 +97,6 @@ function formatCommentDateTime(value?: string) {
     });
 }
 
-function ThreadResolveButton({
-    commentId,
-    isResolved,
-    disabled,
-    onResolveThread,
-}: {
-    commentId: number;
-    isResolved: boolean;
-    disabled: boolean;
-    onResolveThread: (commentId: number, resolve: boolean) => void;
-}) {
-    return (
-        <button
-            type="button"
-            className="group/status relative inline-flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => onResolveThread(commentId, !isResolved)}
-            disabled={disabled}
-            aria-label={isResolved ? "Unresolve thread" : "Resolve thread"}
-            title={isResolved ? "Unresolve thread" : "Resolve thread"}
-        >
-            <Circle className="size-4" />
-            <Check
-                className={[
-                    "absolute size-2.5 transition-opacity",
-                    isResolved ? "opacity-100" : "opacity-0",
-                    !isResolved && !disabled ? "group-hover/status:opacity-50" : "",
-                ].join(" ")}
-            />
-        </button>
-    );
-}
-
 function CommentPendingIndicator() {
     return <LoaderCircle className="size-3.5 animate-spin text-accent" aria-label="Syncing comment" />;
 }
@@ -166,9 +134,12 @@ type ThreadActionsProps = {
     hasInlineContext: boolean;
     canEdit: boolean;
     canDelete: boolean;
+    canResolveThread?: boolean;
+    isResolved?: boolean;
     canCommentInline: boolean;
     createCommentPending: boolean;
     replySavePending: boolean;
+    resolveCommentPending?: boolean;
     deleteCommentPending: boolean;
     updateCommentPending: boolean;
     editSavePending: boolean;
@@ -180,6 +151,7 @@ type ThreadActionsProps = {
     onStartEdit: (commentId: number, hasInlineContext: boolean) => void;
     onSubmitEdit: (commentId: number, hasInlineContext: boolean) => void;
     onCancelEdit: () => void;
+    onResolveThread?: (commentId: number, resolve: boolean) => void;
     onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
 };
 
@@ -188,9 +160,12 @@ function ThreadActions({
     hasInlineContext,
     canEdit,
     canDelete,
+    canResolveThread = false,
+    isResolved = false,
     canCommentInline,
     createCommentPending,
     replySavePending,
+    resolveCommentPending = false,
     deleteCommentPending,
     updateCommentPending,
     editSavePending,
@@ -202,6 +177,7 @@ function ThreadActions({
     onStartEdit,
     onSubmitEdit,
     onCancelEdit,
+    onResolveThread,
     onDeleteComment,
 }: ThreadActionsProps) {
     const textActionClass =
@@ -300,6 +276,15 @@ function ThreadActions({
             Reply
         </button>,
     );
+
+    if (canResolveThread && onResolveThread) {
+        appendAction(
+            "resolve",
+            <button type="button" className={textActionClass} disabled={resolveCommentPending} onClick={() => onResolveThread(commentId, !isResolved)}>
+                {isResolved ? "Unresolve" : "Resolve"}
+            </button>,
+        );
+    }
 
     if (canEdit) {
         appendAction(
@@ -603,16 +588,6 @@ function ThreadRootCommentCard({
                             <ChevronDown className={collapsed ? "size-5 transition-transform" : "size-5 rotate-180 transition-transform"} />
                         </button>
                     ) : null}
-                    {!isCommentPending ? (
-                        <div className="ml-auto flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
-                            <ThreadResolveButton
-                                commentId={rootComment.id}
-                                isResolved={isResolved}
-                                disabled={resolveCommentPending || !canResolveThread}
-                                onResolveThread={onResolveThread}
-                            />
-                        </div>
-                    ) : null}
                 </div>
                 {!collapsed ? (
                     <>
@@ -657,9 +632,12 @@ function ThreadRootCommentCard({
                                 hasInlineContext={Boolean(rootComment.inline?.path)}
                                 canEdit={rootIsOwn}
                                 canDelete={rootIsOwn}
+                                canResolveThread={canResolveThread}
+                                isResolved={isResolved}
                                 canCommentInline={canCommentInline}
                                 createCommentPending={createCommentPending}
                                 replySavePending={isSavingRootReply}
+                                resolveCommentPending={resolveCommentPending}
                                 deleteCommentPending={deleteCommentPending}
                                 updateCommentPending={updateCommentPending}
                                 editSavePending={isSavingRootEdit}
@@ -671,6 +649,7 @@ function ThreadRootCommentCard({
                                 onStartEdit={onStartEdit}
                                 onSubmitEdit={onSubmitEdit}
                                 onCancelEdit={onCancelEdit}
+                                onResolveThread={onResolveThread}
                                 onDeleteComment={onDeleteComment}
                             />
                         )}

@@ -1,4 +1,5 @@
 import type { FileTreeIcons, GitStatusEntry } from "@pierre/trees";
+import { useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { type MouseEventHandler, useMemo } from "react";
 import { AppFileTreeView, type FileTreeEntry, useAppFileTreeModel } from "@/components/file-tree";
@@ -88,6 +89,7 @@ export function ReviewFileTreeSidebar({
     onFileClick,
     onStartTreeResize,
 }: ReviewFileTreeSidebarProps) {
+    const navigate = useNavigate();
     const badgeValue = unviewedFileCount > 999 ? "999+" : unviewedFileCount.toString();
     const diffStatIcons = useMemo(() => createDiffStatIcons(fileLineStats), [fileLineStats]);
     const treePathToAppPath = useMemo(() => new Map(treeEntries.map((entry) => [entry.treePath.replace(/\/+$/, ""), entry.appPath] as const)), [treeEntries]);
@@ -135,6 +137,9 @@ export function ReviewFileTreeSidebar({
             {!treeCollapsed ? (
                 <>
                     <SidebarTopControls
+                        onHome={() => {
+                            navigate({ to: "/" });
+                        }}
                         onRefresh={onRefresh}
                         onSettings={onToggleSettings}
                         settingsActive={showSettingsPanel}

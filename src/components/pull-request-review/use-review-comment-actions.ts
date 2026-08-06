@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useCallback } from "react";
-import type { BitbucketSuggestion } from "@/lib/git-host/bitbucket-suggestions";
 import { createPullRequestComment, deletePullRequestComment, resolvePullRequestComment, updatePullRequestComment } from "@/lib/git-host/service";
+import type { Suggestion } from "@/lib/git-host/suggestions";
 import type { PullRequestBundle } from "@/lib/git-host/types";
 import type { ActionPolicy, CommentLineSide } from "./review-page-actions.types";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
@@ -31,12 +31,12 @@ type CreateCommentPayload = {
 };
 
 type CreateSuggestionCommentsPayload = {
-    suggestions: BitbucketSuggestion[];
+    suggestions: Suggestion[];
 };
 
 type SuggestionSubmissionResult = {
-    successfulSuggestions: BitbucketSuggestion[];
-    failedSuggestions: Array<{ suggestion: BitbucketSuggestion; error: unknown }>;
+    successfulSuggestions: Suggestion[];
+    failedSuggestions: Array<{ suggestion: Suggestion; error: unknown }>;
 };
 
 export function useReviewCommentActions({
@@ -107,9 +107,6 @@ export function useReviewCommentActions({
                 throw new Error(actionPolicy.disabledReason.commentInline ?? "Sign in required");
             }
             const prRef = ensurePrRef();
-            if (prRef.host !== "bitbucket") {
-                throw new Error("Suggestions are not supported for this host yet");
-            }
             const outcomes = await Promise.all(
                 suggestions.map((suggestion) =>
                     Promise.resolve()
@@ -234,8 +231,8 @@ export function useReviewCommentActions({
         setActionError,
         setInlineComment,
     ]);
-    const submitBitbucketSuggestions = useCallback(
-        (suggestions: BitbucketSuggestion[]) => {
+    const submitSuggestions = useCallback(
+        (suggestions: Suggestion[]) => {
             if (!actionPolicy.canCommentInline) {
                 setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
                 if (!authCanWrite) requestAuth("write");
@@ -287,7 +284,7 @@ export function useReviewCommentActions({
         deleteCommentMutation,
         resolveCommentMutation,
         submitCommentEdit,
-        submitBitbucketSuggestions,
+        submitSuggestions,
         submitInlineComment,
         submitPullRequestComment,
         submitThreadReply,

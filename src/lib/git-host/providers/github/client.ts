@@ -5,6 +5,7 @@ import { collectPaginated, REPO_PULL_REQUEST_LIST_LIMIT } from "@/lib/git-host/s
 import {
     type AuthState,
     type Comment,
+    type CommentPayload,
     type Commit,
     type DiffStatEntry,
     type GitHostClient,
@@ -866,6 +867,22 @@ function mergeIssueAndReviewComments(
     return all;
 }
 
+function mapGithubInlineComment(inline: CommentPayload["inline"]) {
+    if (!inline) return undefined;
+
+    const line = inline.to ?? inline.from;
+    if (!line) return undefined;
+
+    const side = inline.from ? ("LEFT" as const) : ("RIGHT" as const);
+    const startLine = side === "LEFT" ? inline.startFrom : inline.startTo;
+    return {
+        path: inline.path,
+        side,
+        line,
+        ...(startLine ? { start_line: startLine, start_side: side } : {}),
+    };
+}
+
 // Export pure normalizers for focused mapping tests without network requests.
 export const githubNormalization = {
     mapPullRequestSummary,
@@ -875,6 +892,7 @@ export const githubNormalization = {
     normalizeGithubReviewCommentParents,
     buildGithubReviewThreadMetadata,
     mergeIssueAndReviewComments,
+    mapGithubInlineComment,
 };
 
 async function fetchGithubPullRequestCritical(prRef: { workspace: string; repo: string; pullRequestId: string }): Promise<PullRequestCriticalBundle> {
@@ -1383,11 +1401,10 @@ export const githubClient: GitHostClient = {
             return { ok: true as const };
         }
 
-        if (data.inline && (data.inline.to || data.inline.from)) {
+        const inline = mapGithubInlineComment(data.inline);
+        if (inline) {
             const prRes = await request(prBase);
             const pr = (await prRes.json()) as GithubPull;
-            const line = data.inline.to ?? data.inline.from;
-            const side = data.inline.from ? "LEFT" : "RIGHT";
 
             await request(
                 `${prBase}/comments`,
@@ -1397,9 +1414,7 @@ export const githubClient: GitHostClient = {
                     body: JSON.stringify({
                         body: data.content,
                         commit_id: pr.head?.sha,
-                        path: data.inline.path,
-                        side,
-                        line,
+                        ...inline,
                     }),
                 },
                 { requireAuth: true },

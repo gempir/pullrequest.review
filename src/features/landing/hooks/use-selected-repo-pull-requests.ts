@@ -1,7 +1,13 @@
 import { useLiveQuery } from "@tanstack/react-db";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { buildGroupedPullRequests, buildSortedRootPullRequests, DEFAULT_REVIEW_SCOPE_SEARCH, HOSTS } from "@/features/landing/model/landing-model";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+    buildGroupedPullRequests,
+    buildSortedRootPullRequests,
+    DEFAULT_REVIEW_SCOPE_SEARCH,
+    HOSTS,
+    shouldShowRepoPullRequestLoading,
+} from "@/features/landing/model/landing-model";
 import { getRepoPullRequestCollection } from "@/lib/git-host/query-collections";
 import type { RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
@@ -10,6 +16,8 @@ export function useSelectedRepoPullRequests({ autoRefetch = true }: { autoRefetc
     const navigate = useNavigate();
     const { reposByHost } = usePrContext();
     const [autoRefetchRepoPrScopeKey, setAutoRefetchRepoPrScopeKey] = useState<string | null>(null);
+    const [pendingRepoPrScopeKey, setPendingRepoPrScopeKey] = useState<string | null>(null);
+    const latestRefetchIdRef = useRef(0);
 
     const hostsWithSelectedRepos = useMemo(() => HOSTS.filter((host) => reposByHost[host].length > 0), [reposByHost]);
     const repoPullRequestScopeKey = useMemo(
@@ -39,13 +47,25 @@ export function useSelectedRepoPullRequests({ autoRefetch = true }: { autoRefetc
         [repoPullRequestCollection],
     );
 
+    const refetch = useCallback(async () => {
+        const refetchId = ++latestRefetchIdRef.current;
+        setPendingRepoPrScopeKey(repoPullRequestScopeKey);
+        try {
+            await repoPullRequestCollection.utils.refetch({ throwOnError: false });
+        } finally {
+            if (latestRefetchIdRef.current === refetchId) {
+                setPendingRepoPrScopeKey(null);
+            }
+        }
+    }, [repoPullRequestCollection, repoPullRequestScopeKey]);
+
     useEffect(() => {
         if (!autoRefetch) return;
         if (hostsWithSelectedRepos.length === 0 || repoPullRequestCollection.utils.isFetching || repoPullRequestCollection.utils.lastError) return;
         if (autoRefetchRepoPrScopeKey === repoPullRequestScopeKey) return;
         setAutoRefetchRepoPrScopeKey(repoPullRequestScopeKey);
-        void repoPullRequestCollection.utils.refetch({ throwOnError: false });
-    }, [autoRefetch, autoRefetchRepoPrScopeKey, hostsWithSelectedRepos.length, repoPullRequestCollection, repoPullRequestScopeKey]);
+        void refetch();
+    }, [autoRefetch, autoRefetchRepoPrScopeKey, hostsWithSelectedRepos.length, refetch, repoPullRequestCollection, repoPullRequestScopeKey]);
 
     const groupedPullRequests = useMemo(
         () => buildGroupedPullRequests(repoPullRequestsQuery.data ?? [], reposByHost),
@@ -82,19 +102,24 @@ export function useSelectedRepoPullRequests({ autoRefetch = true }: { autoRefetc
         [navigate],
     );
 
-    const refetch = useCallback(async () => {
-        await repoPullRequestCollection.utils.refetch({ throwOnError: false });
-    }, [repoPullRequestCollection]);
+    const repoPullRequestError = repoPullRequestCollection.utils.lastError;
+    const repoPullRequestRecordCount = repoPullRequestsQuery.data?.length ?? 0;
+    const isRepoPullRequestFetching = pendingRepoPrScopeKey === repoPullRequestScopeKey || repoPullRequestCollection.utils.isFetching;
 
     return {
         hostsWithSelectedRepos,
         sortedRootPullRequests,
         selectedRepoCount: reposByHost.bitbucket.length + reposByHost.github.length,
-        repoPullRequestError: repoPullRequestCollection.utils.lastError,
-        isRepoPullRequestLoading:
-            hostsWithSelectedRepos.length > 0 &&
-            (repoPullRequestsQuery.isLoading || (repoPullRequestCollection.utils.isFetching && (repoPullRequestsQuery.data?.length ?? 0) === 0)),
-        isRepoPullRequestFetching: repoPullRequestCollection.utils.isFetching,
+        repoPullRequestError,
+        isRepoPullRequestLoading: shouldShowRepoPullRequestLoading({
+            hasSelectedRepositories: hostsWithSelectedRepos.length > 0,
+            recordCount: repoPullRequestRecordCount,
+            isLiveQueryLoading: repoPullRequestsQuery.isLoading,
+            isFetching: isRepoPullRequestFetching,
+            dataUpdatedAt: repoPullRequestCollection.utils.dataUpdatedAt,
+            error: repoPullRequestError,
+        }),
+        isRepoPullRequestFetching,
         openPullRequest,
         refetch,
     };

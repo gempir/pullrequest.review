@@ -1,6 +1,7 @@
 import { type FileDiffMetadata, parseDiffFromFile } from "@pierre/diffs";
+import type { GitHost } from "@/lib/git-host/types";
 
-export type BitbucketSuggestion = {
+export type Suggestion = {
     content: string;
     inline: {
         path: string;
@@ -9,7 +10,8 @@ export type BitbucketSuggestion = {
     };
 };
 
-type BuildBitbucketSuggestionsParams = {
+type BuildSuggestionsParams = {
+    host: GitHost;
     path: string;
     originalContents: string;
     editedContents: string;
@@ -18,17 +20,18 @@ type BuildBitbucketSuggestionsParams = {
 
 const BITBUCKET_SUGGESTION_TRAILER = "\u200c";
 
-type BitbucketSuggestionInline = {
+type SuggestionInline = {
     to?: number;
     startTo?: number;
     outdated?: boolean;
 };
 
-export function formatBitbucketSuggestion(replacement: string) {
-    const code = replacement.endsWith("\n") ? replacement : `${replacement}\n`;
+export function formatSuggestion(replacement: string, host: GitHost) {
+    const code = replacement === "" || replacement.endsWith("\n") ? replacement : `${replacement}\n`;
     const longestBacktickRun = Math.max(0, ...Array.from(code.matchAll(/`+/g), (match) => match[0].length));
     const fence = "`".repeat(Math.max(3, longestBacktickRun + 1));
-    return `${fence}suggestion\n${code}${fence}\n\n${BITBUCKET_SUGGESTION_TRAILER}`;
+    const suggestion = `${fence}suggestion\n${code}${fence}`;
+    return host === "bitbucket" ? `${suggestion}\n\n${BITBUCKET_SUGGESTION_TRAILER}` : suggestion;
 }
 
 /**
@@ -38,9 +41,9 @@ export function formatBitbucketSuggestion(replacement: string) {
  */
 export function parseSuggestionMarkdown(raw?: string) {
     if (!raw) return null;
-    const match = /^(`{3,})suggestion[ \t]*\r?\n([\s\S]*)(\r?\n)\1[ \t]*(?:\r?\n[\s\u200c]*)?$/.exec(raw);
+    const match = /^(`{3,})suggestion[ \t]*\r?\n((?:[\s\S]*\r?\n)?)\1[ \t]*(?:\r?\n[\s\u200c]*)?$/.exec(raw);
     if (!match) return null;
-    return `${match[2]}${match[3]}`;
+    return match[2] ?? "";
 }
 
 /**
@@ -48,7 +51,7 @@ export function parseSuggestionMarkdown(raw?: string) {
  * trusts the raw patch metadata: persisted full-file contexts are not keyed
  * by commit and could otherwise render a stale before-side.
  */
-export function getSuggestionOriginalContents(inline: BitbucketSuggestionInline | undefined, fileDiff?: FileDiffMetadata) {
+export function getSuggestionOriginalContents(inline: SuggestionInline | undefined, fileDiff?: FileDiffMetadata) {
     if (inline?.outdated || !fileDiff?.isPartial) return null;
 
     const start = inline?.startTo ?? inline?.to;
@@ -64,49 +67,60 @@ export function getSuggestionOriginalContents(inline: BitbucketSuggestionInline 
     return sourceLines.join("");
 }
 
-export const parseBitbucketSuggestion = parseSuggestionMarkdown;
-export const getBitbucketSuggestionOriginalContents = getSuggestionOriginalContents;
-
-export function getBitbucketSuggestionKey(suggestion: BitbucketSuggestion) {
+export function getSuggestionKey(suggestion: Suggestion) {
     return JSON.stringify([suggestion.inline.path, suggestion.inline.startTo ?? suggestion.inline.to, suggestion.inline.to, suggestion.content]);
 }
 
 /**
- * Turns a complete edited source file into Bitbucket suggestion comments.
+ * Turns a complete edited source file into suggestion comments anchored to
+ * the pull request's current source lines.
  *
- * Bitbucket applies a suggestion against the pull request's source (the
- * originalContents side), so all anchors deliberately use that file's line
- * numbers. The initial flow limits itself to replacement blocks, which have
- * a stable, apply-able inline range.
+ * Replacements and deletions map directly to their source range. Insertions
+ * borrow one neighboring source line and replace it with itself plus the
+ * inserted text, giving the host a stable line on which to anchor the
+ * suggestion.
  */
-export function buildBitbucketSuggestions({ path, originalContents, editedContents, language }: BuildBitbucketSuggestionsParams): BitbucketSuggestion[] {
+export function buildSuggestions({ host, path, originalContents, editedContents, language }: BuildSuggestionsParams): Suggestion[] {
     if (originalContents === editedContents) return [];
 
     const fileDiff = parseDiffFromFile({ name: path, contents: originalContents, lang: language }, { name: path, contents: editedContents, lang: language });
-    const suggestions: BitbucketSuggestion[] = [];
+    const suggestions: Suggestion[] = [];
 
     for (const hunk of fileDiff.hunks) {
         for (const change of hunk.hunkContent) {
             if (change.type !== "change") continue;
 
-            const replacement = fileDiff.additionLines.slice(change.additionLineIndex, change.additionLineIndex + change.additions).join("");
+            const addedContents = fileDiff.additionLines.slice(change.additionLineIndex, change.additionLineIndex + change.additions).join("");
 
-            if (change.deletions > 0 && change.additions > 0) {
+            if (change.deletions > 0) {
                 const startTo = change.deletionLineIndex + 1;
                 const to = change.deletionLineIndex + change.deletions;
                 suggestions.push({
-                    content: formatBitbucketSuggestion(replacement),
+                    content: formatSuggestion(addedContents, host),
                     inline: {
                         path,
                         to,
                         ...(startTo < to ? { startTo } : {}),
                     },
                 });
+                continue;
             }
 
-            // Bitbucket suggestions are line replacements. A pure insertion or
-            // deletion has no reliable, user-selected replacement range, so it
-            // is intentionally left out of this first Bitbucket implementation.
+            if (change.deletions === 0 && change.additions > 0 && fileDiff.deletionLines.length > 0) {
+                const insertionIndex = change.deletionLineIndex;
+                const anchorIndex = insertionIndex > 0 ? insertionIndex - 1 : 0;
+                const anchorContents = fileDiff.deletionLines[anchorIndex];
+                if (anchorContents === undefined) continue;
+
+                const replacement = insertionIndex > 0 ? `${anchorContents}${addedContents}` : `${addedContents}${anchorContents}`;
+                suggestions.push({
+                    content: formatSuggestion(replacement, host),
+                    inline: {
+                        path,
+                        to: anchorIndex + 1,
+                    },
+                });
+            }
         }
     }
 

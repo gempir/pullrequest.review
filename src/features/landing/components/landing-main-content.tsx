@@ -182,11 +182,9 @@ export function LandingMainContent({
                         <p className="text-[12px] text-muted-foreground">Use Bitbucket or GitHub in the top right to choose repositories.</p>
                     </div>
                 ) : isRepoPullRequestLoading ? (
-                    <div className="max-w-2xl rounded-md border border-border-muted bg-surface-1 p-4">
-                        <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-                            <Loader2 className="size-4 animate-spin" />
-                            <span>Loading pull requests...</span>
-                        </div>
+                    <div className="flex h-full items-center justify-center gap-2 text-[13px] text-muted-foreground" role="status">
+                        <Loader2 className="size-4 animate-spin" />
+                        <span>Loading pull requests...</span>
                     </div>
                 ) : repoPullRequestError ? (
                     <div className="max-w-2xl rounded-md border border-destructive/40 bg-destructive/10 p-4 text-[13px] text-destructive">

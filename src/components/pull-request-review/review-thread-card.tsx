@@ -8,7 +8,7 @@ import { SuggestionDiffPreview } from "@/components/pull-request-review/bitbucke
 import type { CommentThread, CommentThreadNode } from "@/components/pull-request-review/review-threads";
 import { Button } from "@/components/ui/button";
 import { commentAnchorId } from "@/lib/file-anchors";
-import { getSuggestionOriginalContents, parseSuggestionMarkdown } from "@/lib/git-host/bitbucket-suggestions";
+import { getSuggestionOriginalContents, parseSuggestionMarkdown } from "@/lib/git-host/suggestions";
 import type { Comment as PullRequestComment } from "@/lib/git-host/types";
 import { formatTimestampLabel } from "@/lib/timestamp";
 

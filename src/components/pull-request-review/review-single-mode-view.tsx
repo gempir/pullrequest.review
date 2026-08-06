@@ -305,8 +305,8 @@ export function ReviewSingleModeView({
                                     disabled={suggestionSubmitPending || suggestionCount === 0}
                                     title={
                                         suggestionCount > 0
-                                            ? `Create ${suggestionCount} Bitbucket suggestion${suggestionCount === 1 ? "" : "s"}`
-                                            : "Replace existing source lines to create a Bitbucket suggestion"
+                                            ? `Create ${suggestionCount} suggestion${suggestionCount === 1 ? "" : "s"}`
+                                            : "Replace, insert, or delete source lines to create a suggestion"
                                     }
                                 >
                                     {suggestionSubmitPending ? <LoaderCircle className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
@@ -321,7 +321,7 @@ export function ReviewSingleModeView({
                                 className="h-7 px-2"
                                 onClick={onStartSuggestionEdit}
                                 disabled={isPreparingSuggestionEdit}
-                                title="Edit this source file and turn replacements into Bitbucket suggestions"
+                                title="Edit this source file and turn changes into suggestions"
                             >
                                 {isPreparingSuggestionEdit ? <LoaderCircle className="size-3.5 animate-spin" /> : <PencilLine className="size-3.5" />}
                                 Suggest edits

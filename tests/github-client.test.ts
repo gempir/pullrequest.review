@@ -100,4 +100,20 @@ describe("github comment normalization", () => {
         expect(comments[0]?.inline).toEqual({ path: "src/file.ts", to: 18, from: undefined, startTo: 16 });
         expect(comments[1]?.inline).toEqual({ path: "src/file.ts", to: 22, from: undefined, outdated: true });
     });
+
+    test("maps app-facing suggestion ranges to GitHub's review comment payload", () => {
+        expect(
+            githubNormalization.mapGithubInlineComment({
+                path: "src/file.ts",
+                startTo: 16,
+                to: 18,
+            }),
+        ).toEqual({
+            path: "src/file.ts",
+            start_line: 16,
+            start_side: "RIGHT",
+            line: 18,
+            side: "RIGHT",
+        });
+    });
 });

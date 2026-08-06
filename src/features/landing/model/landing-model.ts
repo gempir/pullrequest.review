@@ -3,6 +3,25 @@ import type { GitHost, PullRequestSummary, RepoRef } from "@/lib/git-host/types"
 export const HOSTS: GitHost[] = ["bitbucket", "github"];
 export const DEFAULT_REVIEW_SCOPE_SEARCH = {} as const;
 
+export function shouldShowRepoPullRequestLoading({
+    hasSelectedRepositories,
+    recordCount,
+    isLiveQueryLoading,
+    isFetching,
+    dataUpdatedAt,
+    error,
+}: {
+    hasSelectedRepositories: boolean;
+    recordCount: number;
+    isLiveQueryLoading: boolean;
+    isFetching: boolean;
+    dataUpdatedAt: number;
+    error: unknown;
+}) {
+    if (!hasSelectedRepositories || error || dataUpdatedAt > 0) return false;
+    return isLiveQueryLoading || (isFetching && recordCount === 0);
+}
+
 export type DiffPanel = "pull-requests" | "repositories";
 
 export type GroupedPullRequestEntry = {

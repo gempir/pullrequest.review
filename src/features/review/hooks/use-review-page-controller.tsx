@@ -46,9 +46,9 @@ import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
 import { commentAnchorId, fileAnchorId } from "@/lib/file-anchors";
 import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
-import { buildBitbucketSuggestions, getBitbucketSuggestionKey } from "@/lib/git-host/bitbucket-suggestions";
 import { getPullRequestFileHistoryCollection } from "@/lib/git-host/query-collections";
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
+import { buildSuggestions, getSuggestionKey } from "@/lib/git-host/suggestions";
 import type { GitHost } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import type { ReviewDiffScopeSearch } from "@/lib/review-diff-scope";
@@ -66,7 +66,7 @@ export interface PullRequestReviewPageProps {
     authPromptSlot?: ReactNode;
 }
 
-type BitbucketSuggestionEditSession = {
+type SuggestionEditSession = {
     path: string;
     originalContents: string;
     editedContents: string;
@@ -248,7 +248,7 @@ export function useReviewPageController({
     const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<Record<string, boolean>>({});
     const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
-    const [suggestionEditSession, setSuggestionEditSession] = useState<BitbucketSuggestionEditSession | null>(null);
+    const [suggestionEditSession, setSuggestionEditSession] = useState<SuggestionEditSession | null>(null);
     const [pendingSuggestionEditPath, setPendingSuggestionEditPath] = useState<string | null>(null);
     const [submittedSuggestionKeys, setSubmittedSuggestionKeys] = useState<Set<string>>(() => new Set());
     const [pendingCommentTick, setPendingCommentTick] = useState(0);
@@ -538,15 +538,16 @@ export function useReviewPageController({
         }
     }, [fileContextStatus, pendingSuggestionEditPath, selectedFileDisplayState.fileDiff, selectedFilePath]);
     const isSuggestionEditingSelectedFile = suggestionEditSession?.path === selectedFilePath;
-    const pendingBitbucketSuggestions = useMemo(() => {
+    const pendingSuggestions = useMemo(() => {
         if (!suggestionEditSession) return [];
-        return buildBitbucketSuggestions({
+        return buildSuggestions({
+            host,
             path: suggestionEditSession.path,
             originalContents: suggestionEditSession.originalContents,
             editedContents: suggestionEditSession.editedContents,
             language: suggestionEditSession.fileDiff.lang,
-        }).filter((suggestion) => !submittedSuggestionKeys.has(getBitbucketSuggestionKey(suggestion)));
-    }, [submittedSuggestionKeys, suggestionEditSession]);
+        }).filter((suggestion) => !submittedSuggestionKeys.has(getSuggestionKey(suggestion)));
+    }, [host, submittedSuggestionKeys, suggestionEditSession]);
     const hasRenderableSingleDiff = Boolean(selectedFileDisplayState.fileDiff) && !isSummarySelected;
     const hasRenderableAllDiffs = allModeDiffEntries.length > 0;
     useEffect(() => {
@@ -674,7 +675,7 @@ export function useReviewPageController({
         handleRequestChangesPullRequest,
         handleDeclinePullRequest,
         handleMarkPullRequestAsDraft,
-        submitBitbucketSuggestions,
+        submitSuggestions,
         submitInlineComment,
         submitPullRequestComment,
         submitThreadReply,
@@ -708,15 +709,18 @@ export function useReviewPageController({
         onOptimisticCommentRemove: removeOptimisticComment,
     });
     const canSuggestChanges =
-        host === "bitbucket" &&
-        actionPolicy.canCommentInline &&
         resolvedScope.mode === "full" &&
         viewMode === "single" &&
         !selectedFileDisplayState.readOnlyHistorical &&
         selectedFileDisplayState.fileDiff?.type !== "deleted" &&
         (!suggestionEditSession || isSuggestionEditingSelectedFile);
-    const startBitbucketSuggestionEdit = useCallback(() => {
+    const startSuggestionEdit = useCallback(() => {
         if (!canSuggestChanges || !selectedFilePath || !selectedFileDisplayState.fileDiff) return;
+        if (!actionPolicy.canCommentInline) {
+            setActionError(actionPolicy.disabledReason.commentInline ?? "Authentication required");
+            if (!auth.canWrite) requestAuth("write");
+            return;
+        }
 
         setActionError(null);
         const fileDiff = selectedFileDisplayState.fileDiff;
@@ -734,24 +738,33 @@ export function useReviewPageController({
 
         setPendingSuggestionEditPath(selectedFilePath);
         void handleLoadFullFileContext(selectedFilePath, fileDiff);
-    }, [canSuggestChanges, handleLoadFullFileContext, selectedFileDisplayState.fileDiff, selectedFilePath]);
-    const cancelBitbucketSuggestionEdit = useCallback(() => {
+    }, [
+        actionPolicy.canCommentInline,
+        actionPolicy.disabledReason.commentInline,
+        auth.canWrite,
+        canSuggestChanges,
+        handleLoadFullFileContext,
+        requestAuth,
+        selectedFileDisplayState.fileDiff,
+        selectedFilePath,
+    ]);
+    const cancelSuggestionEdit = useCallback(() => {
         setSuggestionEditSession(null);
         setPendingSuggestionEditPath(null);
         setSubmittedSuggestionKeys(new Set());
     }, []);
-    const handleBitbucketSuggestionEditChange = useCallback((editedContents: string) => {
+    const handleSuggestionEditChange = useCallback((editedContents: string) => {
         setSuggestionEditSession((current) => {
             if (!current || current.editedContents === editedContents) return current;
             return { ...current, editedContents };
         });
     }, []);
-    const submitCurrentBitbucketSuggestions = useCallback(() => {
-        if (!suggestionEditSession || pendingBitbucketSuggestions.length === 0) {
-            setActionError("Make a non-empty replacement before suggesting changes.");
+    const submitCurrentSuggestions = useCallback(() => {
+        if (!suggestionEditSession || pendingSuggestions.length === 0) {
+            setActionError("Make a replacement, insertion, or deletion before suggesting changes.");
             return undefined;
         }
-        const submission = submitBitbucketSuggestions(pendingBitbucketSuggestions);
+        const submission = submitSuggestions(pendingSuggestions);
         return submission
             ?.then((result) => {
                 if (result.failedSuggestions.length === 0) {
@@ -763,7 +776,7 @@ export function useReviewPageController({
                 setSubmittedSuggestionKeys((current) => {
                     const next = new Set(current);
                     for (const suggestion of result.successfulSuggestions) {
-                        next.add(getBitbucketSuggestionKey(suggestion));
+                        next.add(getSuggestionKey(suggestion));
                     }
                     return next;
                 });
@@ -773,7 +786,7 @@ export function useReviewPageController({
                 return result;
             })
             .catch(() => undefined);
-    }, [pendingBitbucketSuggestions, submitBitbucketSuggestions, suggestionEditSession]);
+    }, [pendingSuggestions, submitSuggestions, suggestionEditSession]);
     const clearAllModePendingScrollPath = useCallback(() => {
         setAllModePendingScrollPath(null);
     }, []);
@@ -1285,7 +1298,7 @@ export function useReviewPageController({
                     canSuggestChanges={canSuggestChanges}
                     isSuggestionEditActive={isSuggestionEditingSelectedFile}
                     isPreparingSuggestionEdit={pendingSuggestionEditPath === selectedFilePath}
-                    suggestionCount={pendingBitbucketSuggestions.length}
+                    suggestionCount={pendingSuggestions.length}
                     suggestionSubmitPending={createSuggestionCommentsMutation.isPending}
                     editableFileDiff={isSuggestionEditingSelectedFile ? suggestionEditSession?.fileDiff : undefined}
                     canResolveThread={actionPolicy.canResolveThread}
@@ -1320,10 +1333,10 @@ export function useReviewPageController({
                     getInlineDraftContent={getInlineDraftContent}
                     setInlineDraftContent={setInlineDraftContent}
                     onSubmitInlineComment={submitInlineComment}
-                    onStartSuggestionEdit={startBitbucketSuggestionEdit}
-                    onCancelSuggestionEdit={cancelBitbucketSuggestionEdit}
-                    onSuggestionEditChange={handleBitbucketSuggestionEditChange}
-                    onSubmitSuggestions={submitCurrentBitbucketSuggestions}
+                    onStartSuggestionEdit={startSuggestionEdit}
+                    onCancelSuggestionEdit={cancelSuggestionEdit}
+                    onSuggestionEditChange={handleSuggestionEditChange}
+                    onSubmitSuggestions={submitCurrentSuggestions}
                     onInlineDraftReady={(focus) => {
                         inlineDraftFocusRef.current = focus;
                     }}

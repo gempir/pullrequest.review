@@ -83,7 +83,7 @@ describe("Bitbucket OAuth worker", () => {
         );
 
         expect(response.status).toBe(403);
-        expect(await response.json()).toEqual({ error: "Invalid request origin" });
+        expect((await response.json()) as Record<string, unknown>).toEqual({ error: "Invalid request origin" });
     });
 
     test("does not allow an external return URL", async () => {

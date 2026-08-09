@@ -14,7 +14,9 @@
         "worker:dev": "wrangler dev --config wrangler.jsonc",
         "worker:preview": "wrangler dev --config wrangler.jsonc --remote",
         "cf-typegen": "wrangler types",
-        "deploy": "wrangler deploy --config wrangler.jsonc",
+        "deploy": "bun run build && wrangler deploy --config wrangler.jsonc",
+        "secret:put:client-id": "wrangler secret put BITBUCKET_OAUTH_CLIENT_ID --config wrangler.jsonc",
+        "secret:put:client-secret": "wrangler secret put BITBUCKET_OAUTH_CLIENT_SECRET --config wrangler.jsonc",
         "wrangler": "wrangler",
         "react-doctor": "react-doctor -y --verbose --offline src"
     },

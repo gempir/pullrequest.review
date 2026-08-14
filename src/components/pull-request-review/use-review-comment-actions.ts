@@ -39,6 +39,31 @@ type SuggestionSubmissionResult = {
     failedSuggestions: Array<{ suggestion: Suggestion; error: unknown }>;
 };
 
+export const REVIEW_COMMENT_ERROR_MESSAGES = {
+    postComment: "Unable to post comment. Try again.",
+    postInlineComment: "Unable to post inline comment. Try again.",
+    postReply: "Unable to post reply. Try again.",
+    postSuggestions: "Unable to post suggestions. Try again.",
+    resolveThread: "Unable to resolve thread. Try again.",
+    unresolveThread: "Unable to unresolve thread. Try again.",
+    saveComment: "Unable to save comment changes. Try again.",
+    deleteComment: "Unable to delete comment. Try again.",
+} as const;
+
+function logCommentActionFailure(action: string, error: unknown) {
+    console.error(`Failed to ${action}.`, error);
+}
+
+export function getCreateCommentErrorMessage(payload: CreateCommentPayload) {
+    if (payload.parentId) return REVIEW_COMMENT_ERROR_MESSAGES.postReply;
+    if (payload.path) return REVIEW_COMMENT_ERROR_MESSAGES.postInlineComment;
+    return REVIEW_COMMENT_ERROR_MESSAGES.postComment;
+}
+
+export function getThreadResolutionErrorMessage(resolve: boolean) {
+    return resolve ? REVIEW_COMMENT_ERROR_MESSAGES.resolveThread : REVIEW_COMMENT_ERROR_MESSAGES.unresolveThread;
+}
+
 export function useReviewCommentActions({
     actionPolicy,
     authCanWrite,
@@ -93,11 +118,12 @@ export function useReviewCommentActions({
             void vars;
             await refreshComments();
         },
-        onError: (error, _vars, context) => {
+        onError: (error, vars, context) => {
             if (typeof context?.optimisticCommentId === "number") {
                 onOptimisticCommentRemove(context.optimisticCommentId);
             }
-            setActionError(error instanceof Error ? error.message : "Failed to create comment");
+            logCommentActionFailure("post pull request comment", error);
+            setActionError(getCreateCommentErrorMessage(vars));
         },
     });
     const createSuggestionCommentsMutation = useMutation({
@@ -132,6 +158,7 @@ export function useReviewCommentActions({
                     result.successfulSuggestions.push(outcome.suggestion);
                     continue;
                 }
+                logCommentActionFailure("post suggestion comment", outcome.error);
                 result.failedSuggestions.push(outcome);
             }
             return result;
@@ -140,8 +167,9 @@ export function useReviewCommentActions({
             await refreshComments();
         },
         onError: async (error) => {
+            logCommentActionFailure("post suggestion comments", error);
+            setActionError(REVIEW_COMMENT_ERROR_MESSAGES.postSuggestions);
             await refreshComments();
-            setActionError(error instanceof Error ? error.message : "Failed to create suggestion comments");
         },
     });
     const resolveCommentMutation = useMutation({
@@ -156,8 +184,9 @@ export function useReviewCommentActions({
         onSuccess: async () => {
             await refreshComments();
         },
-        onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to update comment resolution");
+        onError: (error, payload) => {
+            logCommentActionFailure(payload.resolve ? "resolve comment thread" : "unresolve comment thread", error);
+            setActionError(getThreadResolutionErrorMessage(payload.resolve));
         },
     });
     const updateCommentMutation = useMutation({
@@ -172,7 +201,8 @@ export function useReviewCommentActions({
             await refreshComments();
         },
         onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to edit comment");
+            logCommentActionFailure("save comment changes", error);
+            setActionError(REVIEW_COMMENT_ERROR_MESSAGES.saveComment);
         },
     });
     const deleteCommentMutation = useMutation({
@@ -187,12 +217,13 @@ export function useReviewCommentActions({
             await refreshComments();
         },
         onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to delete comment");
+            logCommentActionFailure("delete comment", error);
+            setActionError(REVIEW_COMMENT_ERROR_MESSAGES.deleteComment);
         },
     });
     const submitInlineComment = useCallback(() => {
         if (!actionPolicy.canCommentInline) {
-            setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
+            setActionError(authCanWrite ? "Inline comments are unavailable for this pull request." : "Sign in to post an inline comment.");
             if (!authCanWrite) requestAuth("write");
             return undefined;
         }
@@ -221,7 +252,6 @@ export function useReviewCommentActions({
             });
     }, [
         actionPolicy.canCommentInline,
-        actionPolicy.disabledReason.commentInline,
         authCanWrite,
         clearInlineDraftContent,
         createCommentMutation,
@@ -234,19 +264,19 @@ export function useReviewCommentActions({
     const submitSuggestions = useCallback(
         (suggestions: Suggestion[]) => {
             if (!actionPolicy.canCommentInline) {
-                setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
+                setActionError(authCanWrite ? "Suggestions are unavailable for this pull request." : "Sign in to post suggestions.");
                 if (!authCanWrite) requestAuth("write");
                 return undefined;
             }
             if (suggestions.length === 0) return undefined;
             return createSuggestionCommentsMutation.mutateAsync({ suggestions });
         },
-        [actionPolicy.canCommentInline, actionPolicy.disabledReason.commentInline, authCanWrite, createSuggestionCommentsMutation, requestAuth, setActionError],
+        [actionPolicy.canCommentInline, authCanWrite, createSuggestionCommentsMutation, requestAuth, setActionError],
     );
     const submitThreadReply = useCallback(
         (parentCommentId: number, content: string) => {
             if (!actionPolicy.canCommentInline) {
-                setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
+                setActionError(authCanWrite ? "Replies are unavailable for this pull request." : "Sign in to post a reply.");
                 if (!authCanWrite) requestAuth("write");
                 return undefined;
             }
@@ -254,12 +284,12 @@ export function useReviewCommentActions({
             if (!trimmed) return undefined;
             return createCommentMutation.mutateAsync({ content: trimmed, parentId: parentCommentId, optimistic: false });
         },
-        [actionPolicy.canCommentInline, actionPolicy.disabledReason.commentInline, authCanWrite, createCommentMutation, requestAuth, setActionError],
+        [actionPolicy.canCommentInline, authCanWrite, createCommentMutation, requestAuth, setActionError],
     );
     const submitPullRequestComment = useCallback(
         (content: string) => {
             if (!actionPolicy.canCommentInline) {
-                setActionError(actionPolicy.disabledReason.commentInline ?? "Sign in required");
+                setActionError(authCanWrite ? "Comments are unavailable for this pull request." : "Sign in to post a comment.");
                 if (!authCanWrite) requestAuth("write");
                 return false;
             }
@@ -267,7 +297,7 @@ export function useReviewCommentActions({
             if (!trimmed) return false;
             return createCommentMutation.mutateAsync({ content: trimmed, optimistic: false }).then(() => true);
         },
-        [actionPolicy.canCommentInline, actionPolicy.disabledReason.commentInline, authCanWrite, createCommentMutation, requestAuth, setActionError],
+        [actionPolicy.canCommentInline, authCanWrite, createCommentMutation, requestAuth, setActionError],
     );
     const submitCommentEdit = useCallback(
         (commentId: number, content: string, hasInlineContext: boolean) => {

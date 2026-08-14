@@ -240,24 +240,30 @@ export function ReviewSingleModeView({
     }
 
     if (!selectedFileDiff || !selectedFilePath) {
-        return <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">No file selected for the current filter.</div>;
+        return (
+            <div role="status" className="flex h-full items-center justify-center p-8 text-center text-[13px] text-muted-foreground">
+                No files match the current filter.
+            </div>
+        );
     }
 
     return (
         <div id={fileAnchorId(selectedFilePath)} data-component="diff-file-view" className="h-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
-            <div className="h-10 min-w-0 bg-chrome px-3 flex items-center gap-2 overflow-hidden">
+            <div className="h-10 min-w-0 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 overflow-hidden">
                 <span className="size-4 flex items-center justify-center shrink-0">
                     <RepositoryFileIcon fileName={selectedFilePath.split("/").pop() || selectedFilePath} className="size-3.5" />
                 </span>
                 <div className="min-w-0 flex-1 flex items-center gap-2">
-                    <span className="min-w-0 truncate font-mono text-[12px]">{selectedFilePath}</span>
+                    <span className="min-w-0 truncate font-mono text-[12px]" title={selectedFilePath}>
+                        {selectedFilePath}
+                    </span>
                     <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0 shrink-0"
                         onClick={() => onCopyPath(selectedFilePath)}
-                        aria-label="Copy file path"
+                        aria-label={copiedPath === selectedFilePath ? "File path copied" : "Copy file path"}
                     >
                         {copiedPath === selectedFilePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                     </Button>
@@ -277,7 +283,7 @@ export function ReviewSingleModeView({
                         disabled={selectedFileReadOnlyHistorical || isSuggestionEditing}
                     />
                 </div>
-                <div className="ml-auto flex items-center gap-2 text-[12px]">
+                <div className="ml-auto flex items-center gap-2 text-[12px] tabular-nums">
                     <span className="select-none text-status-added">+{fileLineStats.get(selectedFilePath)?.added ?? 0}</span>
                     <span className="select-none text-status-removed">-{fileLineStats.get(selectedFilePath)?.removed ?? 0}</span>
                     {canSuggestChanges || isSuggestionEditing || isPreparingSuggestionEdit ? (
@@ -329,17 +335,26 @@ export function ReviewSingleModeView({
                         )
                     ) : null}
                     <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
-                    <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(selectedFilePath)}>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-7 text-muted-foreground"
+                        onClick={() => onToggleViewed(selectedFilePath)}
+                        aria-label={isSelectedVersionViewed ? "Mark file as unviewed" : "Mark file as viewed"}
+                        aria-pressed={isSelectedVersionViewed}
+                        title={isSelectedVersionViewed ? "Mark file as unviewed" : "Mark file as viewed"}
+                    >
                         <span
                             className={
                                 isSelectedVersionViewed
-                                    ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                    : "size-4 bg-surface-1 border border-border text-transparent flex items-center justify-center"
+                                    ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center rounded-[2px]"
+                                    : "size-4 bg-surface-1 border border-border text-transparent flex items-center justify-center rounded-[2px]"
                             }
                         >
                             <Check className="size-3" />
                         </span>
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -383,7 +398,9 @@ export function ReviewSingleModeView({
                         />
                     </EditProvider>
                 ) : (
-                    <div className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">Loading syntax highlighting...</div>
+                    <div role="status" className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">
+                        Loading syntax highlighting…
+                    </div>
                 )}
             </div>
 

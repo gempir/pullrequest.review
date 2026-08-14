@@ -48,7 +48,6 @@ export type ReviewSidebarThreadItem = {
 const EMPTY_COMMENTS: PullRequestBundle["comments"] = [];
 const INLINE_COMMENT_TRIGGER_ATTR = "data-inline-comment-trigger";
 const INLINE_COMMENT_TRIGGER_ID_ATTR = "data-inline-comment-trigger-id";
-const INLINE_COMMENT_TRIGGER_LABEL = "Add line comment";
 
 function buildFileDiffFingerprint(fileDiff: FileDiffMetadata) {
     const normalized = {
@@ -498,9 +497,11 @@ export function useReviewPageDerived({
             const button = document.createElement("button");
             button.type = "button";
             button.className =
-                "inline-flex h-4 w-4 items-center justify-center rounded border border-status-added/80 bg-status-added/20 text-status-added shadow-sm";
-            button.title = INLINE_COMMENT_TRIGGER_LABEL;
-            button.setAttribute("aria-label", INLINE_COMMENT_TRIGGER_LABEL);
+                "inline-flex h-6 w-6 items-center justify-center rounded border border-status-added/80 bg-status-added/20 text-status-added shadow-sm";
+            const buttonLabel =
+                props.annotationSide === "deletions" ? `Add comment on old line ${props.lineNumber}` : `Add comment on line ${props.lineNumber}`;
+            button.title = buttonLabel;
+            button.setAttribute("aria-label", buttonLabel);
             button.setAttribute(INLINE_COMMENT_TRIGGER_ATTR, "true");
             button.setAttribute(INLINE_COMMENT_TRIGGER_ID_ATTR, `${props.annotationSide}:${props.lineNumber}`);
             button.innerHTML =

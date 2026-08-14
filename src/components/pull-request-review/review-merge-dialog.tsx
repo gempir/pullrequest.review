@@ -1,6 +1,6 @@
 import { GitMerge, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,9 +36,10 @@ export function ReviewMergeDialog({
 }: ReviewMergeDialogProps) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[34rem] overflow-hidden rounded-xl border-border-muted bg-popover p-0 shadow-2xl [&>button]:right-3 [&>button]:top-5 [&>button]:-translate-y-1/2 [&>button]:rounded-md [&>button]:p-1 [&>button]:text-muted-foreground [&>button]:opacity-100 [&>button]:transition-colors [&>button]:hover:bg-surface-hover [&>button]:hover:text-foreground [&>button]:focus-visible:ring-1 [&>button]:focus-visible:ring-ring">
+            <DialogContent className="max-w-[34rem] overflow-hidden rounded-lg border-border-muted bg-popover p-0 shadow-2xl [&>button]:right-3 [&>button]:top-5 [&>button]:-translate-y-1/2 [&>button]:rounded-md [&>button]:p-1 [&>button]:text-muted-foreground [&>button]:opacity-100 [&>button]:transition-colors [&>button]:hover:bg-surface-hover [&>button]:hover:text-foreground [&>button]:focus-visible:ring-2 [&>button]:focus-visible:ring-ring">
                 <div className="flex h-10 items-center border-b border-border-muted bg-chrome px-3 pr-12">
                     <DialogTitle className="text-[13px] font-medium text-foreground">Merge pull request</DialogTitle>
+                    <DialogDescription className="sr-only">Choose how to merge this pull request and whether to close its source branch.</DialogDescription>
                 </div>
 
                 <div className="space-y-4 bg-surface-1 px-3 py-2.5 text-[12px]">
@@ -96,7 +97,7 @@ export function ReviewMergeDialog({
                                 type="checkbox"
                                 checked={closeSourceBranch}
                                 onChange={(e) => onCloseSourceBranchChange(e.target.checked)}
-                                className="size-4 shrink-0 rounded-[3px] border border-border-muted bg-muted accent-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                className="size-4 shrink-0 rounded-[3px] border border-border-muted bg-muted accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             />
                             <span>Close source branch</span>
                         </label>
@@ -106,15 +107,13 @@ export function ReviewMergeDialog({
                                 <X className="size-3.5" />
                                 Cancel
                             </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 rounded-md border-status-renamed/35 text-[11px] text-status-renamed hover:bg-status-renamed/12 hover:text-status-renamed"
-                                disabled={isMerging || !canMerge}
-                                onClick={onMerge}
-                            >
-                                {isMerging ? <Loader2 className="size-3.5 animate-spin" /> : <GitMerge className="size-3.5" />}
-                                {isMerging ? "Merging..." : "Merge"}
+                            <Button size="sm" className="h-8 rounded-md text-[11px]" disabled={isMerging || !canMerge} onClick={onMerge} aria-busy={isMerging}>
+                                {isMerging ? (
+                                    <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                                ) : (
+                                    <GitMerge className="size-3.5" aria-hidden="true" />
+                                )}
+                                Merge pull request
                             </Button>
                         </div>
                     </div>

@@ -1,9 +1,10 @@
 import type { FileTreeIcons, GitStatusEntry } from "@pierre/trees";
 import { useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
-import { type MouseEventHandler, useMemo } from "react";
+import { type ReactEventHandler, useMemo } from "react";
 import { AppFileTreeView, type FileTreeEntry, useAppFileTreeModel } from "@/components/file-tree";
 import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
+import { MAX_TREE_WIDTH, MIN_TREE_WIDTH } from "@/components/pull-request-review/use-review-layout-preferences";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,7 @@ type ReviewFileTreeSidebarProps = {
     onSearchQueryChange: (value: string) => void;
     onToggleUnviewedOnly: () => void;
     onFileClick: (path: string) => void;
-    onStartTreeResize: MouseEventHandler<HTMLButtonElement>;
+    onStartTreeResize: ReactEventHandler<HTMLElement>;
 };
 
 function getDiffStatIconName(stats: { added: number; removed: number }) {
@@ -131,6 +132,7 @@ export function ReviewFileTreeSidebar({
 
     return (
         <aside
+            aria-label="Changed files"
             className={cn("relative shrink-0 bg-sidebar flex flex-col overflow-hidden border-r border-sidebar-border")}
             style={{ width: treeCollapsed ? 0 : treeWidth }}
         >
@@ -147,8 +149,8 @@ export function ReviewFileTreeSidebar({
                         rightContent={
                             <>
                                 <Input
-                                    className="h-7 min-w-0 flex-1 rounded-sm border-0 bg-[var(--diffs-bg,var(--background))] px-2 text-[12px] hover:bg-[var(--diffs-bg,var(--background))] focus-visible:ring-0"
-                                    placeholder="Search..."
+                                    className="h-7 min-w-0 flex-1 rounded-sm border-0 bg-[var(--diffs-bg,var(--background))] px-2 text-[12px] hover:bg-[var(--diffs-bg,var(--background))] focus-visible:ring-2"
+                                    placeholder="Search files…"
                                     value={searchQuery}
                                     onChange={(event) => onSearchQueryChange(event.target.value)}
                                     aria-label="Search files"
@@ -174,7 +176,7 @@ export function ReviewFileTreeSidebar({
                                             ) : null}
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="bottom">{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>
+                                    <TooltipContent side="bottom">{showUnviewedOnly ? "Show all files" : "Show unviewed files only"}</TooltipContent>
                                 </Tooltip>
                                 <Button
                                     variant="ghost"
@@ -189,7 +191,9 @@ export function ReviewFileTreeSidebar({
                         }
                     />
                     {loading ? (
-                        <div className="flex-1 min-h-0 px-2 py-3 text-[12px] text-muted-foreground">Loading file tree...</div>
+                        <div role="status" className="flex-1 min-h-0 px-2 py-3 text-[12px] text-muted-foreground">
+                            Loading file tree…
+                        </div>
                     ) : (
                         <div className="flex-1 min-h-0 overflow-hidden tree-font-scope pb-2" data-component="tree">
                             <AppFileTreeView
@@ -203,10 +207,16 @@ export function ReviewFileTreeSidebar({
                             />
                         </div>
                     )}
-                    <button
-                        type="button"
-                        className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-accent/40"
+                    <hr
+                        className="absolute inset-y-0 right-0 z-20 m-0 w-6 cursor-col-resize border-0 bg-transparent p-0 after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-transparent after:transition-colors hover:after:bg-accent/40 active:after:bg-accent focus-visible:outline-none focus-visible:after:w-0.5 focus-visible:after:bg-ring"
                         onMouseDown={onStartTreeResize}
+                        onKeyDown={onStartTreeResize}
+                        tabIndex={0}
+                        aria-orientation="vertical"
+                        aria-valuemin={MIN_TREE_WIDTH}
+                        aria-valuemax={MAX_TREE_WIDTH}
+                        aria-valuenow={treeWidth}
+                        aria-valuetext={`${treeWidth} pixels`}
                         aria-label="Resize file tree"
                     />
                 </>

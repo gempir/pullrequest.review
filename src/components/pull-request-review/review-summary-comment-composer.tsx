@@ -3,9 +3,6 @@ import { useState } from "react";
 import { CommentEditor } from "@/components/comment-editor";
 import { Button } from "@/components/ui/button";
 
-const COMMENT_PRIMARY_BUTTON_CLASS =
-    "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none";
-
 function initials(value?: string) {
     if (!value) return "??";
     const trimmed = value.trim();
@@ -17,11 +14,11 @@ function initials(value?: string) {
 
 function CommentAvatar({ name, url }: { name?: string; url?: string }) {
     if (url) {
-        return <img src={url} alt={name ?? "avatar"} className="size-10 rounded-full object-cover shrink-0" />;
+        return <img src={url} alt="" className="avatar-outline size-8 rounded-full object-cover shrink-0" />;
     }
     return (
         <span
-            className="size-10 rounded-full shrink-0 border border-comment-border bg-comment-muted text-[11px] text-muted-foreground flex items-center justify-center"
+            className="size-8 rounded-full shrink-0 border border-comment-border bg-comment-muted text-[11px] text-muted-foreground flex items-center justify-center"
             aria-hidden
         >
             {initials(name)}
@@ -64,29 +61,24 @@ export function ReviewSummaryCommentComposer({
     };
 
     return (
-        <div className="flex gap-3">
+        <div className="flex gap-2.5">
             <CommentAvatar name={currentUserDisplayName ?? "You"} url={currentUserAvatarUrl} />
             <div className="min-w-0 flex-1 space-y-2">
                 <CommentEditor
                     value={value}
-                    placeholder="Add your comment here..."
+                    ariaLabel="Pull request comment"
+                    placeholder="Add a comment…"
                     disabled={saving || !canComment}
                     onChange={setValue}
                     onSubmit={handleSubmit}
                     contentStyle={{ minHeight: "5rem" }}
                 />
-                <div className="flex items-center gap-2 pt-1">
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={`h-8 ${COMMENT_PRIMARY_BUTTON_CLASS}`}
-                        disabled={!hasContent || saving || !canComment}
-                        onClick={handleSubmit}
-                    >
+                <div className="flex items-center gap-3 pt-1">
+                    <Button type="button" size="sm" className="h-8" disabled={!hasContent || saving || !canComment} onClick={handleSubmit}>
                         {saving ? <Loader2 className="size-3.5 animate-spin" /> : <SendHorizontal className="size-3.5" />}
-                        Comment
+                        Post comment
                     </Button>
+                    <span className="text-[11px] text-faint-foreground">Ctrl/⌘ Enter to post</span>
                 </div>
             </div>
         </div>

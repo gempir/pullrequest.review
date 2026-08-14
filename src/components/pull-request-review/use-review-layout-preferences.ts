@@ -1,13 +1,33 @@
-import { type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction, useCallback, useEffect, useState } from "react";
+import {
+    type Dispatch,
+    type ReactEventHandler,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type MouseEvent as ReactMouseEvent,
+    type SetStateAction,
+    useCallback,
+    useEffect,
+    useState,
+} from "react";
 import { readReviewLayoutState, writeReviewLayoutState } from "@/lib/data/query-collections";
 
 type ReviewViewMode = "single" | "all";
 
 const DEFAULT_TREE_WIDTH = 280;
-const MIN_TREE_WIDTH = 180;
+export const MIN_TREE_WIDTH = 180;
+export const MAX_TREE_WIDTH = 720;
 const DEFAULT_RIGHT_SIDEBAR_WIDTH = 320;
-const MIN_RIGHT_SIDEBAR_WIDTH = 240;
-const MAX_RIGHT_SIDEBAR_WIDTH = 520;
+export const MIN_RIGHT_SIDEBAR_WIDTH = 240;
+export const MAX_RIGHT_SIDEBAR_WIDTH = 520;
+const KEYBOARD_RESIZE_STEP = 16;
+
+export function getPaneWidthForResizeKey(key: string, width: number, minWidth: number, maxWidth: number, arrowLeftDirection: -1 | 1): number | null {
+    if (key === "Home") return minWidth;
+    if (key === "End") return maxWidth;
+    if (key !== "ArrowLeft" && key !== "ArrowRight") return null;
+
+    const direction = key === "ArrowLeft" ? arrowLeftDirection : -arrowLeftDirection;
+    return Math.min(maxWidth, Math.max(minWidth, width + direction * KEYBOARD_RESIZE_STEP));
+}
 
 type UseReviewLayoutPreferencesReturn = {
     treeWidth: number;
@@ -21,15 +41,15 @@ type UseReviewLayoutPreferencesReturn = {
     viewMode: ReviewViewMode;
     setViewMode: (next: ReviewViewMode) => void;
     viewModeHydrated: boolean;
-    startTreeResize: (event: ReactMouseEvent<HTMLButtonElement>) => void;
-    startRightSidebarResize: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+    startTreeResize: ReactEventHandler<HTMLElement>;
+    startRightSidebarResize: ReactEventHandler<HTMLElement>;
 };
 
 export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
     const [treeWidth, setTreeWidth] = useState(DEFAULT_TREE_WIDTH);
     const [treeCollapsed, setTreeCollapsed] = useState(false);
     const [rightSidebarWidth, setRightSidebarWidth] = useState(DEFAULT_RIGHT_SIDEBAR_WIDTH);
-    const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
+    const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(true);
     const [viewMode, setViewMode] = useState<ReviewViewMode>("single");
     const [viewModeHydrated, setViewModeHydrated] = useState(false);
 
@@ -38,7 +58,7 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
         const stored = readReviewLayoutState();
         if (stored) {
             if (Number.isFinite(stored.treeWidth) && stored.treeWidth >= MIN_TREE_WIDTH) {
-                setTreeWidth(stored.treeWidth);
+                setTreeWidth(Math.min(stored.treeWidth, MAX_TREE_WIDTH));
             }
             setTreeCollapsed(stored.treeCollapsed);
             const storedRightSidebarWidth = stored.rightSidebarWidth;
@@ -72,17 +92,29 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
         });
     }, [rightSidebarCollapsed, rightSidebarWidth, treeCollapsed, treeWidth, viewMode, viewModeHydrated]);
 
-    const startTreeResize = useCallback(
-        (event: ReactMouseEvent<HTMLButtonElement>) => {
-            event.preventDefault();
+    const startTreeResize = useCallback<ReactEventHandler<HTMLElement>>(
+        (event) => {
+            if (event.type === "keydown") {
+                const keyboardEvent = event as ReactKeyboardEvent<HTMLElement>;
+                const next = getPaneWidthForResizeKey(keyboardEvent.key, treeWidth, MIN_TREE_WIDTH, MAX_TREE_WIDTH, -1);
+                if (next === null) return;
+
+                keyboardEvent.preventDefault();
+                keyboardEvent.stopPropagation();
+                setTreeWidth((currentWidth) => getPaneWidthForResizeKey(keyboardEvent.key, currentWidth, MIN_TREE_WIDTH, MAX_TREE_WIDTH, -1) ?? currentWidth);
+                return;
+            }
+
+            const mouseEvent = event as ReactMouseEvent<HTMLElement>;
+            mouseEvent.preventDefault();
 
             const initialWidth = treeWidth;
-            const startX = event.clientX;
+            const startX = mouseEvent.clientX;
             document.body.style.userSelect = "none";
 
             const onMouseMove = (moveEvent: MouseEvent) => {
                 const delta = moveEvent.clientX - startX;
-                const next = Math.max(MIN_TREE_WIDTH, initialWidth + delta);
+                const next = Math.min(MAX_TREE_WIDTH, Math.max(MIN_TREE_WIDTH, initialWidth + delta));
                 setTreeWidth(next);
             };
 
@@ -98,12 +130,27 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
         [treeWidth],
     );
 
-    const startRightSidebarResize = useCallback(
-        (event: ReactMouseEvent<HTMLButtonElement>) => {
-            event.preventDefault();
+    const startRightSidebarResize = useCallback<ReactEventHandler<HTMLElement>>(
+        (event) => {
+            if (event.type === "keydown") {
+                const keyboardEvent = event as ReactKeyboardEvent<HTMLElement>;
+                const next = getPaneWidthForResizeKey(keyboardEvent.key, rightSidebarWidth, MIN_RIGHT_SIDEBAR_WIDTH, MAX_RIGHT_SIDEBAR_WIDTH, 1);
+                if (next === null) return;
+
+                keyboardEvent.preventDefault();
+                keyboardEvent.stopPropagation();
+                setRightSidebarWidth(
+                    (currentWidth) =>
+                        getPaneWidthForResizeKey(keyboardEvent.key, currentWidth, MIN_RIGHT_SIDEBAR_WIDTH, MAX_RIGHT_SIDEBAR_WIDTH, 1) ?? currentWidth,
+                );
+                return;
+            }
+
+            const mouseEvent = event as ReactMouseEvent<HTMLElement>;
+            mouseEvent.preventDefault();
 
             const initialWidth = rightSidebarWidth;
-            const startX = event.clientX;
+            const startX = mouseEvent.clientX;
             document.body.style.userSelect = "none";
 
             const onMouseMove = (moveEvent: MouseEvent) => {

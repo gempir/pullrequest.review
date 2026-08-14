@@ -14,16 +14,18 @@ export function ReviewPageLoadingView({ workspaceRef, sidebarProps, navbarProps 
         <div ref={workspaceRef} className="h-full min-h-0 flex bg-background">
             <ReviewFileTreeSidebar {...sidebarProps} loading />
 
-            <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+            <div className="review-pane flex-1 min-w-0 min-h-0 flex flex-col">
                 <ReviewTopNavbar {...navbarProps} loading />
-                <div data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                <main id="review-content" data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                     <div className="h-full flex items-center justify-center p-8">
                         <div className="flex items-center gap-3 text-muted-foreground">
                             <Loader2 className="size-5 animate-spin" />
-                            <span className="text-[13px]">Loading pull request...</span>
+                            <span role="status" className="text-[13px]">
+                                Loading pull request…
+                            </span>
                         </div>
                     </div>
-                </div>
+                </main>
             </div>
         </div>
     );

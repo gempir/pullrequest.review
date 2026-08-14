@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { OmnibarMenubarInput } from "../src/components/omnibar/omnibar-menubar-input";
 import { getPullRequestOmnibarKeywords } from "../src/components/omnibar/pull-request-omnibar";
-import { getOmnibarFileName } from "../src/components/pull-request-review/review-omnibar";
+import { getOmnibarFileName, ReviewOmnibarShortcutHint } from "../src/components/pull-request-review/review-omnibar";
 import { createOmnibarFilePaths } from "../src/components/pull-request-review/review-page-model";
+import { ShortcutsProvider } from "../src/lib/shortcuts-context";
 
 describe("review omnibar helpers", () => {
     test("uses the complete diff catalog instead of the sidebar-filtered fallback", () => {
@@ -15,6 +19,17 @@ describe("review omnibar helpers", () => {
     test("renders a concise file name while preserving directories for search", () => {
         expect(getOmnibarFileName("src/components/review-omnibar.tsx")).toBe("review-omnibar.tsx");
         expect(getOmnibarFileName("README.md")).toBe("README.md");
+    });
+
+    test("uses consistent search copy and a semantic configured shortcut hint", () => {
+        const triggerHtml = renderToStaticMarkup(createElement(ShortcutsProvider, null, createElement(OmnibarMenubarInput, { onOpen: () => {} })));
+        const hintHtml = renderToStaticMarkup(createElement(ReviewOmnibarShortcutHint, { shortcutLabel: "Ctrl+Shift+P" }));
+
+        expect(triggerHtml).toContain("Search files, actions, and pull requests");
+        expect(triggerHtml).toContain("<kbd");
+        expect(triggerHtml).toContain("Cmd+K</kbd>");
+        expect(hintHtml).toContain("<kbd");
+        expect(hintHtml).toContain("Ctrl+Shift+P</kbd>");
     });
 
     test("indexes pull requests by id, title, and branches", () => {

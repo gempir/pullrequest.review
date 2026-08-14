@@ -51,17 +51,17 @@ describe("review top navbar actions", () => {
     test("renders primary actions in the navbar with a labeled merge button", () => {
         const html = renderNavbar("OPEN", true);
 
-        expect(html).toContain("Mark as Ready");
+        expect(html).toContain("Mark ready");
         expect(html).toContain("Approve");
-        expect(html).toContain("Revise");
+        expect(html).toContain("Request changes");
         expect(html).toContain('aria-label="Merge pull request"');
-        expect(html).toContain("Merge</button>");
+        expect(html).toContain(">Merge</span>");
         expect(html).toContain('aria-label="Pull request actions"');
         expect(html.includes("[&amp;&gt;*+*]:border-l")).toBe(false);
-        expect(html).toContain("border-status-renamed/50");
-        expect(html).toContain("border-status-added/50");
-        expect(html).toContain("border-status-modified/50");
-        expect(html).toContain("border-status-merged/50");
+        expect(html).toContain('aria-label="Mark pull request as ready"');
+        expect(html).toContain("text-status-added");
+        expect(html).toContain("text-status-modified");
+        expect(html).toContain("text-status-merged");
         expect(html).toContain("h-full w-12 rounded-none pl-0 pr-0");
         expect(html.includes(">OPEN<")).toBe(false);
         expect(html.includes(">DRAFT<")).toBe(false);
@@ -131,7 +131,7 @@ describe("review top navbar actions", () => {
         expect(html.includes(">+1</span>")).toBe(false);
         expect(html).toContain("bg-status-added/15");
         expect(html).toContain("bg-status-removed/15");
-        expect(html.indexOf('aria-label="Ada Lovelace approved"') < html.indexOf(">Approve</button>")).toBe(true);
+        expect(html.indexOf('aria-label="Ada Lovelace approved"') < html.indexOf('aria-label="Approve pull request"')).toBe(true);
     });
 
     test("does not scroll or fade the reviewer strip when it is not overflowing", () => {
@@ -155,11 +155,11 @@ describe("review top navbar actions", () => {
         const html = renderNavbar("MERGED");
 
         expect(html.includes("Approve")).toBe(false);
-        expect(html.includes("Revise")).toBe(false);
-        expect(html.includes("Mark as Ready")).toBe(false);
+        expect(html.includes("Request changes")).toBe(false);
+        expect(html.includes("Mark ready")).toBe(false);
         expect(html).toContain("border-status-merged/40 bg-status-merged/12 text-status-merged");
         expect(html).toContain('aria-disabled="true"');
-        expect(html).toContain("MERGED</button>");
+        expect(html).toContain(">MERGED</span>");
     });
 
     for (const state of ["CLOSED", "DECLINED"]) {
@@ -167,14 +167,14 @@ describe("review top navbar actions", () => {
             const html = renderNavbar(state);
 
             expect(html.includes("Approve")).toBe(false);
-            expect(html.includes("Revise")).toBe(false);
-            expect(html.includes("Mark as Ready")).toBe(false);
+            expect(html.includes("Request changes")).toBe(false);
+            expect(html.includes("Mark ready")).toBe(false);
             expect(html.includes('aria-label="Merge pull request"')).toBe(false);
             expect(html).toContain('aria-label="Pull request closed"');
             expect(html).toContain("border-status-removed/40 bg-status-removed/12 text-status-removed");
             expect(html).toContain('aria-disabled="true"');
             expect(html).toContain('aria-label="Pull request actions"');
-            expect(html).toContain(`${state}</button>`);
+            expect(html).toContain(`>${state}</span>`);
         });
     }
 

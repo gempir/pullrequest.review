@@ -15,7 +15,16 @@ function DialogPortal({ ...props }: React.ComponentProps<typeof DialogPrimitive.
 }
 
 function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
-    return <DialogPrimitive.Overlay data-slot="dialog-overlay" className={cn("fixed inset-0 z-50 bg-overlay/70", className)} {...props} />;
+    return (
+        <DialogPrimitive.Overlay
+            data-slot="dialog-overlay"
+            className={cn(
+                "fixed inset-0 z-50 bg-overlay/70 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
+                className,
+            )}
+            {...props}
+        />
+    );
 }
 
 function DialogContent({ className, children, ...props }: React.ComponentProps<typeof DialogPrimitive.Content>) {
@@ -25,13 +34,14 @@ function DialogContent({ className, children, ...props }: React.ComponentProps<t
             <DialogPrimitive.Content
                 data-slot="dialog-content"
                 className={cn(
-                    "bg-popover border border-border fixed left-[50%] top-[50%] z-50 grid w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] shadow-xl",
+                    "bg-popover border border-border fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-2xl translate-x-[-50%] translate-y-[-50%] rounded-lg shadow-xl",
+                    "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
                     className,
                 )}
                 {...props}
             >
                 {children}
-                <DialogPrimitive.Close className="absolute right-4 top-4 opacity-70 hover:opacity-100 focus:outline-none disabled:pointer-events-none">
+                <DialogPrimitive.Close className="absolute right-3 top-3 flex size-8 items-center justify-center rounded-sm text-muted-foreground opacity-80 transition-[color,background-color,opacity] hover:bg-surface-hover hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none">
                     <X className="h-4 w-4" />
                     <span className="sr-only">Close</span>
                 </DialogPrimitive.Close>
@@ -44,4 +54,10 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
     return <DialogPrimitive.Title data-slot="dialog-title" className={cn("text-lg font-semibold leading-none tracking-tight", className)} {...props} />;
 }
 
-export { Dialog, DialogContent, DialogTitle };
+function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
+    return (
+        <DialogPrimitive.Description data-slot="dialog-description" className={cn("text-[13px] leading-relaxed text-muted-foreground", className)} {...props} />
+    );
+}
+
+export { Dialog, DialogContent, DialogDescription, DialogTitle };

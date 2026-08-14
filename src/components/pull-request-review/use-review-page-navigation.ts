@@ -1,6 +1,7 @@
 import { type Dispatch, type MutableRefObject, type SetStateAction, useCallback } from "react";
 import { settingsPathForTab } from "@/components/settings-navigation";
 import { fileAnchorId } from "@/lib/file-anchors";
+import { motionSafeScrollBehavior } from "@/lib/motion";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
 
@@ -64,7 +65,7 @@ export function useReviewPageNavigation({
             if (settingsPathSet.has(path)) {
                 setShowSettingsPanel(true);
                 setActiveFile(path);
-                diffScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                diffScrollRef.current?.scrollTo({ top: 0, behavior: motionSafeScrollBehavior() });
                 return;
             }
 
@@ -79,12 +80,12 @@ export function useReviewPageNavigation({
                 requestAnimationFrame(() => {
                     onProgrammaticAllModeRevealStart?.(path);
                     const anchor = document.getElementById(fileAnchorId(path));
-                    anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    anchor?.scrollIntoView({ behavior: motionSafeScrollBehavior(), block: "start" });
                 });
                 return;
             }
 
-            diffScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+            diffScrollRef.current?.scrollTo({ top: 0, behavior: motionSafeScrollBehavior() });
         },
         [
             diffScrollRef,
@@ -129,10 +130,9 @@ export function useReviewPageNavigation({
         (direction: 1 | -1, event: KeyboardEvent) => {
             const target = getScrollTarget();
             if (!target) return;
-            const isHeldKey = event.repeat;
             target.scrollBy({
-                top: direction * (isHeldKey ? 180 : 120),
-                behavior: isHeldKey ? "auto" : "smooth",
+                top: direction * (event.repeat ? 180 : 120),
+                behavior: "auto",
             });
         },
         [getScrollTarget],

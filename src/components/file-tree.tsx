@@ -49,8 +49,11 @@ const TREE_HOST_STYLE: CSSProperties = {
     "--trees-accent-override": "var(--accent)",
     "--trees-search-bg-override": "var(--sidebar-chrome)",
     "--trees-selected-bg-override": "var(--selection)",
+    "--trees-selected-focused-border-color-override": "var(--sidebar-ring)",
     "--trees-git-renamed-color-override": "var(--status-renamed)",
-    "--trees-focus-ring-width-override": "0px",
+    "--trees-focus-ring-color-override": "var(--sidebar-ring)",
+    "--trees-focus-ring-width-override": "2px",
+    "--trees-focus-ring-offset-override": "-2px",
     "--trees-border-radius-override": "0px",
     "--trees-item-margin-x-override": "0px",
     "--trees-item-padding-x-override": "4px",
@@ -73,11 +76,6 @@ const TREE_UNSAFE_CSS = `
     grid-column: 2;
     grid-row: 1;
     min-width: 0;
-  }
-
-  [data-type='item'][data-item-focused='true']::before,
-  [data-type='item']:focus-visible::before {
-    display: none;
   }
 
   [data-type='item'][data-item-focused='true'] [data-item-flattened-subitems],
@@ -119,7 +117,8 @@ const TREE_UNSAFE_CSS = `
 
   [data-file-tree-search-input]:focus-visible,
   [data-file-tree-search-input][data-file-tree-search-input-fake-focus='true'] {
-    outline: none;
+    outline: 2px solid var(--trees-focus-ring-color);
+    outline-offset: -2px;
   }
 
   [data-file-tree-virtualized-scroll='true'] {

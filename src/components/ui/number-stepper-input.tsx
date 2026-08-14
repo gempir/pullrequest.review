@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 interface NumberStepperInputProps {
+    id?: string;
     value: number;
     onValueChange: (value: number) => void;
     min?: number;
@@ -27,7 +28,7 @@ function stepPrecision(step?: number) {
     return value.length - dotIndex - 1;
 }
 
-export function NumberStepperInput({ value, onValueChange, min, max, step = 1, className, disabled = false }: NumberStepperInputProps) {
+export function NumberStepperInput({ id, value, onValueChange, min, max, step = 1, className, disabled = false }: NumberStepperInputProps) {
     const precision = stepPrecision(step);
     const applyValue = (next: number) => {
         const fixed = Number(next.toFixed(precision));
@@ -37,6 +38,7 @@ export function NumberStepperInput({ value, onValueChange, min, max, step = 1, c
     return (
         <div className={cn("relative", disabled ? "opacity-60" : "", className)}>
             <Input
+                id={id}
                 type="number"
                 value={value}
                 disabled={disabled}

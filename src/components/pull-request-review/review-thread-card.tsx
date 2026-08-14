@@ -7,6 +7,7 @@ import { CommentShareButton } from "@/components/comment-share-button";
 import { SuggestionDiffPreview } from "@/components/pull-request-review/bitbucket-suggestion-diff-preview";
 import type { CommentThread, CommentThreadNode } from "@/components/pull-request-review/review-threads";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { commentAnchorId } from "@/lib/file-anchors";
 import { getSuggestionOriginalContents, parseSuggestionMarkdown } from "@/lib/git-host/suggestions";
 import type { Comment as PullRequestComment } from "@/lib/git-host/types";
@@ -16,7 +17,7 @@ type EditCommentHandler = (commentId: number, content: string, hasInlineContext:
 type ReplyCommentHandler = (commentId: number, content: string) => Promise<unknown> | undefined;
 const COMMENT_RELATIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000;
 const COMMENT_PRIMARY_BUTTON_CLASS =
-    "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none";
+    "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent";
 
 function initials(value?: string) {
     if (!value) return "??";
@@ -35,7 +36,7 @@ function initials(value?: string) {
 function CommentAvatar({ name, url, sizeClass = "size-6" }: { name?: string; url?: string; sizeClass?: string }) {
     const size = sizeClass ?? "size-6";
     if (url) {
-        return <img src={url} alt={name ?? "avatar"} className={`${size} rounded-full object-cover shrink-0`} />;
+        return <img src={url} alt="" className={`${size} avatar-outline rounded-full object-cover shrink-0`} />;
     }
     return (
         <span
@@ -180,32 +181,65 @@ function ThreadActions({
     onResolveThread,
     onDeleteComment,
 }: ThreadActionsProps) {
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const textActionClass =
-        "text-[12px] font-semibold leading-none text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50";
+        "inline-flex min-h-6 items-center rounded-sm px-1 text-[11px] font-medium leading-none text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50";
     const actions: Array<{ id: string; node: ReactNode }> = [];
 
     const appendAction = (id: string, node: ReactNode) => {
         actions.push({ id, node });
     };
 
+    const deleteDialog = (
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+            <DialogContent className="max-w-md gap-0 overflow-hidden">
+                <div className="border-b border-border-muted px-5 py-4 pr-12">
+                    <DialogTitle className="text-[15px]">Delete comment?</DialogTitle>
+                    <DialogDescription className="mt-1">This permanently removes the comment from the pull request.</DialogDescription>
+                </div>
+                <div className="flex justify-end gap-2 bg-surface-1 px-5 py-3">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteConfirmOpen(false)}>
+                        Cancel
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        disabled={deleteCommentPending}
+                        onClick={() => {
+                            setDeleteConfirmOpen(false);
+                            onDeleteComment(commentId, hasInlineContext);
+                        }}
+                    >
+                        Delete comment
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
     const renderActions = () => (
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
-            {actions.map(({ id, node }, index) => (
-                <span key={id} className="inline-flex items-center gap-1.5">
-                    {index > 0 ? <span className="text-muted-foreground/70">·</span> : null}
-                    {node}
-                </span>
-            ))}
-        </div>
+        <>
+            <div className="mt-1 flex flex-wrap items-center gap-x-0.5 gap-y-1">
+                {actions.map(({ id, node }) => (
+                    <span key={id} className="inline-flex items-center">
+                        {node}
+                    </span>
+                ))}
+            </div>
+            {deleteDialog}
+        </>
     );
     const renderButtonActions = () => (
-        <div className="mt-2 flex flex-wrap items-center gap-1">
-            {actions.map(({ id, node }) => (
-                <span key={id} className="inline-flex items-center gap-1.5">
-                    {node}
-                </span>
-            ))}
-        </div>
+        <>
+            <div className="mt-2 flex flex-wrap items-center gap-1">
+                {actions.map(({ id, node }) => (
+                    <span key={id} className="inline-flex items-center gap-1.5">
+                        {node}
+                    </span>
+                ))}
+            </div>
+            {deleteDialog}
+        </>
     );
 
     if (editTargetCommentId === commentId) {
@@ -298,7 +332,7 @@ function ThreadActions({
     if (canDelete) {
         appendAction(
             "delete",
-            <button type="button" className={textActionClass} disabled={deleteCommentPending} onClick={() => onDeleteComment(commentId, hasInlineContext)}>
+            <button type="button" className={textActionClass} disabled={deleteCommentPending} onClick={() => setDeleteConfirmOpen(true)}>
                 Delete
             </button>,
         );
@@ -384,10 +418,10 @@ function ThreadReplyNode({
             <div id={commentAnchorId(reply.id)} className="relative z-10 flex gap-3 py-[3px] pr-4">
                 <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-6" />
                 <div className="relative z-10 min-w-0 flex-1">
-                    <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
-                        <span className="font-semibold text-foreground text-[14px]">{reply.user?.displayName ?? "Unknown"}</span>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <span className="text-[13px] font-semibold text-foreground">{reply.user?.displayName ?? "Unknown"}</span>
                         {dateLabel ? (
-                            <span className="font-semibold tabular-nums" title={dateTimeLabel}>
+                            <span className="font-normal tabular-nums" title={dateTimeLabel}>
                                 {dateLabel}
                             </span>
                         ) : null}
@@ -397,6 +431,7 @@ function ThreadReplyNode({
                     {isEditingOnNode ? (
                         <CommentEditor
                             value={editorState.editValue}
+                            ariaLabel={`Edit comment by ${reply.user?.displayName ?? "Unknown"}`}
                             placeholder="Edit comment"
                             disabled={updateCommentPending || isSavingEdit}
                             onReady={(focus) => {
@@ -417,6 +452,7 @@ function ThreadReplyNode({
                     {isReplyingOnNode ? (
                         <CommentEditor
                             value={editorState.replyValue}
+                            ariaLabel={`Reply to ${reply.user?.displayName ?? "comment author"}`}
                             placeholder="Reply to this thread"
                             disabled={createCommentPending || isSavingReply || !canCommentInline}
                             onReady={(focus) => {
@@ -567,10 +603,10 @@ function ThreadRootCommentCard({
         <div id={commentAnchorId(rootComment.id)} className={rootCardClassName}>
             <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} sizeClass="size-6" />
             <div className="min-w-0 flex-1">
-                <div className="relative flex items-center gap-3 text-[13px] text-muted-foreground">
-                    <span className="font-semibold text-foreground text-[16px]">{rootComment.user?.displayName ?? "Unknown"}</span>
+                <div className="relative flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className="text-[13px] font-semibold text-foreground">{rootComment.user?.displayName ?? "Unknown"}</span>
                     {dateLabel ? (
-                        <span className="font-semibold tabular-nums" title={dateTimeLabel}>
+                        <span className="font-normal tabular-nums" title={dateTimeLabel}>
                             {dateLabel}
                         </span>
                     ) : null}
@@ -594,6 +630,7 @@ function ThreadRootCommentCard({
                         {editorState.editTargetCommentId === rootComment.id ? (
                             <CommentEditor
                                 value={editorState.editValue}
+                                ariaLabel={`Edit comment by ${rootComment.user?.displayName ?? "Unknown"}`}
                                 placeholder="Edit comment"
                                 disabled={updateCommentPending || isSavingRootEdit}
                                 onReady={(focus) => {
@@ -614,6 +651,7 @@ function ThreadRootCommentCard({
                         {editorState.replyTargetCommentId === rootComment.id ? (
                             <CommentEditor
                                 value={editorState.replyValue}
+                                ariaLabel={`Reply to ${rootComment.user?.displayName ?? "comment author"}`}
                                 placeholder="Reply to this thread"
                                 disabled={createCommentPending || isSavingRootReply || !canCommentInline}
                                 onReady={(focus) => {

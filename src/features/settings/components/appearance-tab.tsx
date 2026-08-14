@@ -19,9 +19,11 @@ export function AppearanceTab() {
     return (
         <div className="max-w-3xl space-y-3">
             <div className="space-y-1">
-                <Label className="text-[12px] text-muted-foreground">App Theme</Label>
+                <Label htmlFor="appearance-app-theme" className="text-[12px] text-muted-foreground">
+                    App Theme
+                </Label>
                 <Select value={appearance.appThemeMode} onValueChange={(value) => appearance.setAppThemeMode(value as "auto" | "light" | "dark")}>
-                    <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                    <SelectTrigger id="appearance-app-theme" className="h-9 w-full text-[12px]" size="sm">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -40,9 +42,11 @@ export function AppearanceTab() {
             <div className="grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-3">
                     <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Sans Font</Label>
+                        <Label htmlFor="appearance-sans-font" className="text-[12px] text-muted-foreground">
+                            Sans Font
+                        </Label>
                         <Select value={appearance.sansFontFamily} onValueChange={(value) => appearance.setSansFontFamily(value as FontFamilyValue)}>
-                            <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                            <SelectTrigger id="appearance-sans-font" className="h-9 w-full text-[12px]" size="sm">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="max-h-60">
@@ -55,12 +59,30 @@ export function AppearanceTab() {
                         </Select>
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Sans Font Size</Label>
-                        <NumberStepperInput value={appearance.sansFontSize} min={11} max={20} step={1} onValueChange={appearance.setSansFontSize} />
+                        <Label htmlFor="appearance-sans-font-size" className="text-[12px] text-muted-foreground">
+                            Sans Font Size
+                        </Label>
+                        <NumberStepperInput
+                            id="appearance-sans-font-size"
+                            value={appearance.sansFontSize}
+                            min={11}
+                            max={20}
+                            step={1}
+                            onValueChange={appearance.setSansFontSize}
+                        />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Sans Line Height</Label>
-                        <NumberStepperInput value={appearance.sansLineHeight} min={1} max={2.2} step={0.05} onValueChange={appearance.setSansLineHeight} />
+                        <Label htmlFor="appearance-sans-line-height" className="text-[12px] text-muted-foreground">
+                            Sans Line Height
+                        </Label>
+                        <NumberStepperInput
+                            id="appearance-sans-line-height"
+                            value={appearance.sansLineHeight}
+                            min={1}
+                            max={2.2}
+                            step={0.05}
+                            onValueChange={appearance.setSansLineHeight}
+                        />
                     </div>
                     <div className="py-1">
                         <div className="mb-1 text-[11px] text-muted-foreground">Sans</div>
@@ -79,9 +101,11 @@ export function AppearanceTab() {
                 </div>
                 <div className="space-y-3">
                     <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Monospaced Font</Label>
+                        <Label htmlFor="appearance-monospace-font" className="text-[12px] text-muted-foreground">
+                            Monospaced Font
+                        </Label>
                         <Select value={appearance.monospaceFontFamily} onValueChange={(value) => appearance.setMonospaceFontFamily(value as FontFamilyValue)}>
-                            <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                            <SelectTrigger id="appearance-monospace-font" className="h-9 w-full text-[12px]" size="sm">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="max-h-60">
@@ -107,12 +131,24 @@ export function AppearanceTab() {
                         </Select>
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Monospaced Font Size</Label>
-                        <NumberStepperInput value={appearance.monospaceFontSize} min={10} max={18} step={1} onValueChange={appearance.setMonospaceFontSize} />
+                        <Label htmlFor="appearance-monospace-font-size" className="text-[12px] text-muted-foreground">
+                            Monospaced Font Size
+                        </Label>
+                        <NumberStepperInput
+                            id="appearance-monospace-font-size"
+                            value={appearance.monospaceFontSize}
+                            min={10}
+                            max={18}
+                            step={1}
+                            onValueChange={appearance.setMonospaceFontSize}
+                        />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Monospaced Line Height</Label>
+                        <Label htmlFor="appearance-monospace-line-height" className="text-[12px] text-muted-foreground">
+                            Monospaced Line Height
+                        </Label>
                         <NumberStepperInput
+                            id="appearance-monospace-line-height"
                             value={appearance.monospaceLineHeight}
                             min={1}
                             max={2.2}

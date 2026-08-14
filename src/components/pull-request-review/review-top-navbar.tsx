@@ -1,11 +1,27 @@
-import { Check, ChevronRight, Copy, GitMerge, GlassWater, Loader2, Menu, MessageSquare, Minus, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
-import type { ReactNode } from "react";
+import {
+    Check,
+    ChevronRight,
+    Copy,
+    GitBranch,
+    GitMerge,
+    GlassWater,
+    Loader2,
+    Menu,
+    MessageSquare,
+    Minus,
+    PenSquare,
+    TriangleAlert,
+    X,
+    XCircle,
+} from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { OmnibarMenubarInput } from "@/components/omnibar/omnibar-menubar-input";
 import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
 import { aggregateBuildState, buildRunningTime, buildStatusBubbleClass, buildStatusLabel } from "@/components/pull-request-review/review-formatters";
 import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { GitHost, PullRequestBuildStatus, PullRequestReviewer } from "@/lib/git-host/types";
@@ -90,6 +106,7 @@ export function ReviewTopNavbar({
     onOpenMerge,
     onOpenOmnibar,
 }: ReviewTopNavbarProps) {
+    const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
     const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
     const normalizedNavbarState = navbarState.toLowerCase();
     const isMerged = normalizedNavbarState === "merged";
@@ -98,10 +115,12 @@ export function ReviewTopNavbar({
     const terminalStatusLabel = normalizedNavbarState.toUpperCase();
     const commentsBadgeValue = unresolvedCommentCount > 99 ? "99+" : unresolvedCommentCount.toString();
     const unviewedBadgeValue = unviewedFileCount > 99 ? "99+" : unviewedFileCount.toString();
+    const declineActionLabel = host === "github" ? "Close pull request" : "Decline pull request";
+    const declineQuestion = host === "github" ? "Close this pull request?" : "Decline this pull request?";
 
     return (
-        <div
-            className="h-11 bg-chrome border-b border-border px-1.5 flex items-center gap-3"
+        <header
+            className="h-11 bg-chrome border-b border-border-muted px-2 flex items-center gap-2"
             style={{ fontFamily: "var(--comment-font-family)" }}
             data-component="navbar"
         >
@@ -111,23 +130,27 @@ export function ReviewTopNavbar({
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                            static
+                            className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                             onClick={onExpandTree}
                             aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
                         >
                             <ReviewFileTreeToggleIcon direction="expand" badgeValue={unviewedFileCount > 0 ? unviewedBadgeValue : null} />
                         </Button>
                     ) : null}
-                    <span className="text-[11px] text-muted-foreground">Loading pull request...</span>
+                    <span role="status" className="text-[11px] text-muted-foreground">
+                        Loading pull request…
+                    </span>
                 </>
             ) : (
                 <div className="flex h-full w-full min-w-0 items-stretch">
-                    <div className="flex h-full min-w-0 shrink items-center gap-2 text-[11px] text-faint-foreground">
+                    <div className="review-navbar-meta flex h-full min-w-0 shrink items-center gap-2 text-[11px] text-faint-foreground">
                         {treeCollapsed ? (
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                static
+                                className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                                 onClick={onExpandTree}
                                 aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
                             >
@@ -135,7 +158,8 @@ export function ReviewTopNavbar({
                             </Button>
                         ) : null}
                         {commitScopeSlot ? <div className="ml-0.5 shrink-0">{commitScopeSlot}</div> : null}
-                        <div className="flex h-7 min-w-0 items-center gap-2 rounded-sm bg-[var(--diffs-bg,var(--background))] px-2 text-[11px]">
+                        <div className="flex h-7 min-w-0 items-center gap-1.5 rounded-sm border border-border-muted bg-background/70 px-2 text-[11px] shadow-inner">
+                            <GitBranch className="size-3.5 shrink-0 text-faint-foreground" aria-hidden="true" />
                             <div className="group/source relative max-w-[180px] min-w-0">
                                 <span className="block truncate text-muted-foreground">{sourceBranch}</span>
                                 <Button
@@ -149,101 +173,141 @@ export function ReviewTopNavbar({
                                             : "opacity-0 pointer-events-none group-hover/source:opacity-100 group-hover/source:pointer-events-auto group-focus-within/source:opacity-100 group-focus-within/source:pointer-events-auto",
                                     )}
                                     onClick={() => onCopySourceBranch(sourceBranch)}
-                                    aria-label="Copy source branch"
+                                    aria-label={copiedSourceBranch ? "Source branch copied" : "Copy source branch"}
                                 >
                                     {copiedSourceBranch ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                                 </Button>
                             </div>
-                            <span className="text-faint-foreground" aria-hidden="true">
-                                -&gt;
-                            </span>
+                            <ChevronRight className="size-3 shrink-0 text-faint-foreground" aria-hidden="true" />
                             <span className="max-w-[180px] truncate text-muted-foreground">{destinationBranch}</span>
                         </div>
-                        <Timestamp
-                            value={navbarStatusTimestamp}
-                            tooltipLabel="updated at"
-                            className="max-w-[120px] truncate align-middle text-[10px] text-faint-foreground"
-                        />
-                        {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
+                        <div className="review-navbar-meta-secondary flex shrink-0 items-center gap-2">
+                            <Timestamp
+                                value={navbarStatusTimestamp}
+                                tooltipLabel="updated at"
+                                className="max-w-[120px] truncate align-middle text-[10px] text-faint-foreground"
+                            />
+                            {buildStatuses && buildStatuses.length > 0 ? (
+                                <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} />
+                            ) : null}
+                        </div>
                     </div>
 
                     <OmnibarMenubarInput onOpen={onOpenOmnibar} />
 
-                    <div className="-mr-1.5 flex h-full shrink-0 items-center gap-2" data-component="navbar-actions">
+                    <div className="-mr-2 flex h-full shrink-0 items-center gap-1.5" data-component="navbar-actions">
                         <ReviewerStatusAvatars reviewers={reviewers} />
                         {!isTerminal && isDraft ? (
                             <Button
-                                variant="ghost"
                                 size="sm"
-                                className="h-7 rounded-sm border border-status-renamed/50 px-2.5 bg-status-renamed/10 text-status-renamed hover:bg-status-renamed/18 hover:border-status-renamed/75 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                className="review-action-button h-7 rounded-sm px-2.5"
                                 disabled={!canMarkDraft || actionBusy}
                                 onClick={onMarkDraft}
+                                aria-label="Mark pull request as ready"
                             >
                                 {isMarkDraftPending ? <Loader2 className="size-3.5 animate-spin" /> : <PenSquare className="size-3.5" />}
-                                Mark as Ready
+                                <span className="review-action-label">Mark ready</span>
                             </Button>
                         ) : null}
                         {!isTerminal ? (
                             <>
                                 <Button
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
                                     className={cn(
-                                        "h-7 rounded-sm border border-status-added/50 px-2.5 bg-status-added/10 hover:bg-status-added/18 hover:border-status-added/75 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
-                                        currentUserReviewStatus === "approved" ? "bg-status-added/18 text-status-added" : "text-status-added",
+                                        "review-action-button h-7 rounded-sm border-border px-2.5 text-foreground hover:border-status-added/55",
+                                        currentUserReviewStatus === "approved" && "border-status-added/45 bg-status-added/12 text-status-added",
                                     )}
                                     disabled={!canApprove || actionBusy}
                                     onClick={onApprove}
+                                    aria-label={currentUserReviewStatus === "approved" ? "Remove pull request approval" : "Approve pull request"}
                                 >
-                                    {isApprovePending ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-                                    {currentUserReviewStatus === "approved" ? "Remove Approval" : "Approve"}
+                                    {isApprovePending ? (
+                                        <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                        <Check className={cn("size-3.5", currentUserReviewStatus !== "approved" && "text-status-added")} />
+                                    )}
+                                    <span className="review-action-label">{currentUserReviewStatus === "approved" ? "Remove approval" : "Approve"}</span>
                                 </Button>
                                 <Button
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
                                     className={cn(
-                                        "h-7 rounded-sm border border-status-modified/50 px-2.5 bg-status-modified/10 text-status-modified hover:bg-status-modified/18 hover:border-status-modified/75 hover:text-status-modified focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
-                                        currentUserReviewStatus === "changesRequested" && "bg-status-modified/18",
+                                        "review-action-button h-7 rounded-sm border-border px-2.5 text-foreground hover:border-status-modified/55",
+                                        currentUserReviewStatus === "changesRequested" &&
+                                            "border-status-modified/45 bg-status-modified/12 text-status-modified",
                                     )}
                                     disabled={!canRequestChanges || actionBusy}
                                     onClick={onRequestChanges}
+                                    aria-label="Request changes"
                                 >
-                                    {isRequestChangesPending ? <Loader2 className="size-3.5 animate-spin" /> : <TriangleAlert className="size-3.5" />}
-                                    Revise
+                                    {isRequestChangesPending ? (
+                                        <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                        <TriangleAlert className={cn("size-3.5", currentUserReviewStatus !== "changesRequested" && "text-status-modified")} />
+                                    )}
+                                    <span className="review-action-label">Request changes</span>
                                 </Button>
                             </>
                         ) : null}
                         <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             className={cn(
-                                "h-7 rounded-sm border px-2.5 font-medium focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                                "review-action-button h-7 rounded-sm border-border px-2.5 font-medium text-foreground hover:border-status-merged/55",
                                 isMerged
                                     ? "cursor-default border-status-merged/40 bg-status-merged/12 text-status-merged hover:bg-status-merged/12 hover:text-status-merged"
                                     : isDeclined
                                       ? "cursor-default border-status-removed/40 bg-status-removed/12 text-status-removed hover:bg-status-removed/12 hover:text-status-removed"
-                                      : "border-status-merged/50 bg-status-merged/10 text-status-merged hover:bg-status-merged/18 hover:border-status-merged/75 hover:text-status-merged",
+                                      : undefined,
                             )}
                             disabled={isTerminal ? undefined : !canMerge || actionBusy}
                             onClick={isTerminal ? undefined : onOpenMerge}
                             aria-disabled={isTerminal || undefined}
                             aria-label={isMerged ? "Pull request merged" : isDeclined ? "Pull request closed" : "Merge pull request"}
                         >
-                            {isDeclined ? <XCircle className="size-4" /> : <GitMerge className="size-4" />}
-                            {isTerminal ? terminalStatusLabel : "Merge"}
+                            {isDeclined ? <XCircle className="size-4" /> : <GitMerge className={cn("size-4", !isMerged && "text-status-merged")} />}
+                            <span className="review-action-label">{isTerminal ? terminalStatusLabel : "Merge"}</span>
                         </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground data-[state=open]:bg-surface-hover data-[state=open]:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                    static
+                                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground data-[state=open]:bg-surface-hover data-[state=open]:text-foreground"
                                     aria-label="Pull request actions"
                                 >
                                     <Menu className="size-4" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" side="bottom" sideOffset={0}>
+                                {!isTerminal && isDraft ? (
+                                    <DropdownMenuItem className="cursor-pointer py-2 text-[13px]" disabled={!canMarkDraft || actionBusy} onSelect={onMarkDraft}>
+                                        <PenSquare className="size-4 text-accent" />
+                                        Mark ready
+                                    </DropdownMenuItem>
+                                ) : null}
+                                {!isTerminal ? (
+                                    <>
+                                        <DropdownMenuItem className="cursor-pointer py-2 text-[13px]" disabled={!canApprove || actionBusy} onSelect={onApprove}>
+                                            <Check className="size-4 text-status-added" />
+                                            {currentUserReviewStatus === "approved" ? "Remove approval" : "Approve"}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            className="cursor-pointer py-2 text-[13px]"
+                                            disabled={!canRequestChanges || actionBusy}
+                                            onSelect={onRequestChanges}
+                                        >
+                                            <TriangleAlert className="size-4 text-status-modified" />
+                                            Request changes
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="cursor-pointer py-2 text-[13px]" disabled={!canMerge || actionBusy} onSelect={onOpenMerge}>
+                                            <GitMerge className="size-4 text-status-merged" />
+                                            Merge pull request
+                                        </DropdownMenuItem>
+                                    </>
+                                ) : null}
                                 {pullRequestUrl ? (
                                     <DropdownMenuItem asChild className="cursor-pointer py-2 text-[13px] focus:bg-surface-hover">
                                         <a href={pullRequestUrl} target="_blank" rel="noreferrer">
@@ -256,10 +320,10 @@ export function ReviewTopNavbar({
                                     <DropdownMenuItem
                                         className="cursor-pointer py-2 text-[13px] text-status-removed focus:bg-status-removed/20 focus:text-status-removed"
                                         disabled={!canDecline || actionBusy}
-                                        onSelect={onDecline}
+                                        onSelect={() => setDeclineDialogOpen(true)}
                                     >
                                         <XCircle className="size-4" />
-                                        Decline PR
+                                        {declineActionLabel}
                                     </DropdownMenuItem>
                                 ) : null}
                             </DropdownMenuContent>
@@ -268,7 +332,8 @@ export function ReviewTopNavbar({
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-full w-12 rounded-none pl-0 pr-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                                static
+                                className="h-full w-12 rounded-none pl-0 pr-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                                 onClick={onExpandRightSidebar}
                                 aria-label={`Expand comments sidebar (${unresolvedCommentCount} unresolved comments)`}
                             >
@@ -290,7 +355,34 @@ export function ReviewTopNavbar({
                     </div>
                 </div>
             )}
-        </div>
+            <Dialog open={declineDialogOpen} onOpenChange={setDeclineDialogOpen}>
+                <DialogContent className="max-w-md gap-0 overflow-hidden p-0">
+                    <div className="border-b border-border-muted px-5 py-4 pr-12">
+                        <DialogTitle className="text-[15px] leading-tight">{declineQuestion}</DialogTitle>
+                    </div>
+                    <div className="space-y-5 px-5 py-4">
+                        <DialogDescription>This closes the pull request without merging its changes.</DialogDescription>
+                        <div className="flex justify-end gap-2">
+                            <Button type="button" variant="outline" onClick={() => setDeclineDialogOpen(false)} disabled={isDeclinePending}>
+                                Cancel
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                disabled={isDeclinePending}
+                                onClick={() => {
+                                    setDeclineDialogOpen(false);
+                                    onDecline();
+                                }}
+                            >
+                                {isDeclinePending ? <Loader2 className="size-3.5 animate-spin" /> : <XCircle className="size-3.5" />}
+                                {declineActionLabel}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </header>
     );
 }
 
@@ -298,7 +390,7 @@ function ReviewerStatusAvatars({ reviewers }: { reviewers?: PullRequestReviewer[
     if (!reviewers || reviewers.length === 0) return null;
 
     return (
-        <div className="flex h-7 items-center gap-1 border-r border-border-muted pr-2">
+        <div className="review-navbar-reviewers flex h-7 items-center gap-1 border-r border-border-muted pr-2">
             <div
                 className={cn(
                     "flex max-w-[142px] items-center gap-1",
@@ -324,7 +416,7 @@ function ReviewerStatusAvatar({ reviewer }: { reviewer: PullRequestReviewer }) {
             <TooltipTrigger asChild>
                 <span className="relative inline-flex size-7 shrink-0 items-center justify-center" role="img" aria-label={`${name} ${decisionLabel}`}>
                     {reviewer.avatarUrl ? (
-                        <img src={reviewer.avatarUrl} alt="" className="size-6 rounded-full border border-border-muted object-cover" />
+                        <img src={reviewer.avatarUrl} alt="" className="avatar-outline size-6 rounded-full object-cover" />
                     ) : (
                         <span className="flex size-6 items-center justify-center rounded-full border border-border-muted bg-muted text-[10px] font-medium text-muted-foreground">
                             {reviewerInitials(name)}

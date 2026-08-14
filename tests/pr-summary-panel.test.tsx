@@ -38,14 +38,15 @@ describe("pull request summary comment header", () => {
 
         expect(html).toContain('href="#/src/example.ts?comment=42"');
         expect(html).toContain('aria-label="Open comment on src/example.ts"');
-        expect(html).toContain("cursor-pointer");
+        expect(html).toContain("focus-visible:outline-ring");
+        expect(html).not.toContain('class="absolute inset-0');
         expect(html).toContain('aria-label="Copy comment link"');
         expect(html.split('aria-label="Copy comment link"').length - 1).toBe(1);
         expect(html.indexOf("<a") >= 0).toBe(true);
         expect(html.indexOf("</a>") < html.indexOf('aria-label="Copy comment link"')).toBe(true);
         expect(html).toContain('class="relative border border-comment-border bg-comment"');
         expect(html).toContain('class="border-b border-comment-border" data-component="thread-card-header"');
-        expect(html).toContain('class="pointer-events-none flex size-4 shrink-0 items-center justify-center"');
+        expect(html).toContain('class="flex size-4 shrink-0 items-center justify-center" aria-hidden="true"');
         expect(html).toContain("size-3.5");
         expect(html).toContain("size-[15px]");
     });
@@ -112,11 +113,12 @@ describe("pull request summary comment header", () => {
         expect(html.indexOf("Older activity") < html.indexOf("opened the pull request")).toBe(true);
         expect(html.split("Thread moved by reply").length - 1).toBe(1);
         expect(html.split("Fresh reply").length - 1).toBe(1);
-        expect(html).toContain(
-            'data-component="summary-header"><img src="https://example.com/author.png" alt="Author" class="size-5 rounded-full object-cover shrink-0"/><span class="min-w-0 flex-1 text-foreground truncate">Test pull request</span>',
-        );
-        expect(html).toContain('class="min-w-0 px-2 py-1" data-component="summary-description"><div class="space-y-2 text-[13px] leading-relaxed"');
-        expect(html).toContain('class="mt-4 space-y-0 px-1" data-component="summary-timeline"');
+        expect(html).toContain('data-component="summary-header"><img src="https://example.com/author.png" alt=""');
+        expect(html).toContain("avatar-outline");
+        expect(html).toContain('<h1 class="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">Test pull request</h1>');
+        expect(html).toContain('data-component="summary-description"');
+        expect(html).toContain("max-w-[75ch]");
+        expect(html).toContain('class="mt-3 space-y-0 px-1" data-component="summary-timeline"');
         expect(html).toContain('class="relative grid grid-cols-[16px_minmax(0,1fr)] gap-[14px] pb-3"');
     });
 
@@ -132,7 +134,7 @@ describe("pull request summary comment header", () => {
 
         const html = renderToStaticMarkup(<PullRequestSummaryPanel bundle={headingBundle} />);
 
-        expect(html).toContain('<h4 class="text-sm font-bold">Fourth level</h4>');
-        expect(html).toContain('<h5 class="text-[13px] font-bold">Fifth level</h5>');
+        expect(html).toContain('<h4 class="text-[14px] font-semibold leading-tight [text-wrap:balance]">Fourth level</h4>');
+        expect(html).toContain('<h5 class="text-[13px] font-semibold leading-tight [text-wrap:balance]">Fifth level</h5>');
     });
 });

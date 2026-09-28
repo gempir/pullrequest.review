@@ -20,6 +20,7 @@ import type { CommentThread } from "./review-threads";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 type ReviewAllModeViewProps = {
+    linkedCommentId?: number;
     viewMode: "single" | "all";
     allowNestedReplies: boolean;
     onWorkspaceModeChange: (mode: "single" | "all") => void;
@@ -89,6 +90,7 @@ type ReviewAllModeViewProps = {
 };
 
 export function ReviewAllModeView({
+    linkedCommentId,
     viewMode,
     allowNestedReplies,
     onWorkspaceModeChange,
@@ -350,6 +352,7 @@ export function ReviewAllModeView({
                                             renderAnnotation={(annotation) => (
                                                 <InlineDiffAnnotation
                                                     annotation={annotation as SingleFileAnnotation}
+                                                    linkedCommentId={linkedCommentId}
                                                     allowNestedReplies={allowNestedReplies}
                                                     workspace={workspace}
                                                     repo={repo}

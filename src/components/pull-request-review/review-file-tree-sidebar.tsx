@@ -15,6 +15,7 @@ type ReviewFileTreeSidebarProps = {
     treeWidth: number;
     treeCollapsed: boolean;
     loading: boolean;
+    showLoadingActivity?: boolean;
     showSettingsPanel: boolean;
     activeFile?: string;
     treeEntries: FileTreeEntry[];
@@ -73,6 +74,7 @@ export function ReviewFileTreeSidebar({
     treeWidth,
     treeCollapsed,
     loading,
+    showLoadingActivity,
     showSettingsPanel,
     activeFile,
     treeEntries,
@@ -141,6 +143,7 @@ export function ReviewFileTreeSidebar({
                             navigate({ to: "/" });
                         }}
                         onRefresh={onRefresh}
+                        showLoadingActivity={showLoadingActivity}
                         onSettings={onToggleSettings}
                         settingsActive={showSettingsPanel}
                         settingsAriaLabel={showSettingsPanel ? "Close settings" : "Open settings"}

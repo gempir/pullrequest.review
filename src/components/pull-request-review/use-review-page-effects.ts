@@ -3,8 +3,21 @@ import { useWorkerPool } from "@pierre/diffs/react";
 import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fileAnchorId } from "@/lib/file-anchors";
 import type { PullRequestBundle } from "@/lib/git-host/types";
-import { clearableHashFromPath, type PrFileHashTarget, parsePrFileHashTarget } from "@/lib/pr-file-hash";
+import { buildPrFileHash, clearableHashFromPath, type PrFileHashTarget, parsePrFileHashTarget } from "@/lib/pr-file-hash";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
+
+function resolveCommentFilePath(comments: PullRequestBundle["comments"], commentId: number) {
+    const commentsById = new Map(comments.map((comment) => [comment.id, comment] as const));
+    const visited = new Set<number>();
+    let comment = commentsById.get(commentId);
+    while (comment && !visited.has(comment.id)) {
+        if (comment.inline?.path) return comment.inline.path;
+        visited.add(comment.id);
+        const parentId = comment.parent?.id;
+        comment = typeof parentId === "number" ? commentsById.get(parentId) : undefined;
+    }
+    return undefined;
+}
 
 export function useReviewDocumentTitle({ isLoading, pullRequestTitle }: { isLoading: boolean; pullRequestTitle?: string }) {
     useEffect(() => {
@@ -124,10 +137,14 @@ export function useReviewActiveFileSync({
 
 export function useReviewFileHashSelection({
     selectableFilePaths,
+    comments,
+    commentsLoading,
     onHashPathResolved,
 }: {
     selectableFilePaths: Set<string>;
-    onHashPathResolved: (target: PrFileHashTarget) => void;
+    comments: PullRequestBundle["comments"];
+    commentsLoading: boolean;
+    onHashPathResolved: (target: PrFileHashTarget & { path: string }) => void;
 }) {
     useLayoutEffect(() => {
         if (typeof window === "undefined") return;
@@ -135,8 +152,17 @@ export function useReviewFileHashSelection({
         const applyHashSelection = () => {
             const target = parsePrFileHashTarget(window.location.hash);
             if (!target) return;
-            if (!selectableFilePaths.has(target.path)) return;
-            onHashPathResolved(target);
+            let path = target.path;
+            if (!path && target.commentId !== undefined) {
+                if (commentsLoading) return;
+                path = resolveCommentFilePath(comments, target.commentId);
+            }
+            if (!path || !selectableFilePaths.has(path)) return;
+            if (!target.path && target.commentId !== undefined) {
+                const nextUrl = `${window.location.pathname}${window.location.search}#${buildPrFileHash(path, target.commentId)}`;
+                window.history.replaceState(window.history.state, "", nextUrl);
+            }
+            onHashPathResolved({ ...target, path });
         };
 
         applyHashSelection();
@@ -144,7 +170,7 @@ export function useReviewFileHashSelection({
         return () => {
             window.removeEventListener("hashchange", applyHashSelection);
         };
-    }, [onHashPathResolved, selectableFilePaths]);
+    }, [comments, commentsLoading, onHashPathResolved, selectableFilePaths]);
 }
 
 export function useReviewFileHashSync({
@@ -174,6 +200,7 @@ export function useReviewFileHashSync({
         }
 
         const hashTarget = parsePrFileHashTarget(window.location.hash);
+        if (hashTarget?.commentId && !hashTarget.path) return;
         const hashPath = hashTarget?.path ?? null;
         if (!showSettingsPanel && hashPath) {
             // Keep hash-based deep links intact until selectable file paths are loaded.

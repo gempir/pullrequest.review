@@ -15,6 +15,7 @@ import type { CommentThread } from "./review-threads";
 import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 type ReviewPageDiffContentProps = {
+    linkedCommentId?: number;
     showSettingsPanel: boolean;
     allowNestedReplies: boolean;
     viewMode: "single" | "all";
@@ -108,6 +109,7 @@ type ReviewPageDiffContentProps = {
 };
 
 export function ReviewPageDiffContent({
+    linkedCommentId,
     showSettingsPanel,
     allowNestedReplies,
     viewMode,
@@ -230,6 +232,7 @@ export function ReviewPageDiffContent({
     if (viewMode === "single") {
         return (
             <ReviewSingleModeView
+                linkedCommentId={linkedCommentId}
                 viewMode={viewMode}
                 allowNestedReplies={allowNestedReplies}
                 onWorkspaceModeChange={onWorkspaceModeChange}
@@ -305,6 +308,7 @@ export function ReviewPageDiffContent({
 
     return (
         <ReviewAllModeView
+            linkedCommentId={linkedCommentId}
             viewMode={viewMode}
             allowNestedReplies={allowNestedReplies}
             onWorkspaceModeChange={onWorkspaceModeChange}

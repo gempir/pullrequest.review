@@ -12,6 +12,7 @@ const COMMENT_PRIMARY_BUTTON_CLASS =
 
 type InlineDiffAnnotationProps = {
     annotation: SingleFileAnnotation;
+    linkedCommentId?: number;
     allowNestedReplies: boolean;
     workspace: string;
     repo: string;
@@ -36,6 +37,7 @@ type InlineDiffAnnotationProps = {
 
 export function InlineDiffAnnotation({
     annotation,
+    linkedCommentId,
     allowNestedReplies,
     workspace,
     repo,
@@ -116,6 +118,7 @@ export function InlineDiffAnnotation({
             ) : (
                 <ThreadCard
                     thread={metadata.thread}
+                    linkedCommentId={linkedCommentId}
                     suggestionSourceFileDiff={metadata.suggestionSourceFileDiff}
                     allowNestedReplies={allowNestedReplies}
                     showBorder={false}

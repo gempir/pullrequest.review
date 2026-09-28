@@ -103,6 +103,7 @@ function CommentPendingIndicator() {
 
 type ThreadCardProps = {
     thread: CommentThread;
+    linkedCommentId?: number;
     allowNestedReplies?: boolean;
     attachToDiffEdge?: boolean;
     showBorder?: boolean;
@@ -662,6 +663,7 @@ function ThreadRootCommentCard({
 
 export function ThreadCard({
     thread,
+    linkedCommentId,
     allowNestedReplies = true,
     attachToDiffEdge = true,
     showBorder = true,
@@ -705,6 +707,10 @@ export function ThreadCard({
             setCollapsed(Boolean(rootComment.resolution));
         }
     }, [rootComment.resolution]);
+    useEffect(() => {
+        if (linkedCommentId === undefined || !findCommentById(thread.root, linkedCommentId)) return;
+        setCollapsed(false);
+    }, [linkedCommentId, thread]);
     useEffect(() => {
         if (collapsed && editorState.replyTargetCommentId !== null) {
             setEditorState((prev) => ({ ...prev, replyTargetCommentId: null }));

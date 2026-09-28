@@ -3,7 +3,7 @@ import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 const PR_FILE_HASH_PREFIX = "/";
 
 export type PrFileHashTarget = {
-    path: string;
+    path?: string;
     commentId?: number;
 };
 
@@ -25,6 +25,11 @@ export function buildPrCommentUrl(location: Pick<Location, "origin" | "pathname"
 
 export function parsePrFileHashTarget(rawHash: string): PrFileHashTarget | null {
     let normalized = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+    const commentMatch = normalized.match(/^comment-(\d+)$/i);
+    if (commentMatch) {
+        const commentId = parseCommentId(commentMatch[1] ?? null);
+        return commentId ? { commentId } : null;
+    }
     // Bitbucket links to a changed file with #chg-<path>; keep accepting that
     // format so changing only the host preserves the selected file.
     if (normalized.startsWith("chg-")) {

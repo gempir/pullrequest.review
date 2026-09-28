@@ -50,6 +50,7 @@ import { getPullRequestFileHistoryCollection } from "@/lib/git-host/query-collec
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import { buildSuggestions, getSuggestionKey } from "@/lib/git-host/suggestions";
 import type { GitHost } from "@/lib/git-host/types";
+import { parsePrFileHashTarget } from "@/lib/pr-file-hash";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import type { ReviewDiffScopeSearch } from "@/lib/review-diff-scope";
 import { markReviewPerf } from "@/lib/review-performance/metrics";
@@ -282,6 +283,7 @@ export function useReviewPageController({
         effectivePrData,
         hostCapabilities,
         isCriticalLoading,
+        isDeferredLoading,
         isPrQueryFetching,
         persistedFileContexts,
         persistedFileHistoryByPath,
@@ -903,6 +905,8 @@ export function useReviewPageController({
 
     useReviewFileHashSelection({
         selectableFilePaths: selectableDiffPathSet,
+        comments: prData?.comments ?? [],
+        commentsLoading: isDeferredLoading,
         onHashPathResolved: handleHashPathResolved,
     });
     useAllModeScrollSelection({
@@ -1030,6 +1034,7 @@ export function useReviewPageController({
         isFileSelectionReady: isFileHashSelectionReady,
         suppressHashSyncRef,
     });
+    const rawHashTarget = typeof window === "undefined" ? null : parsePrFileHashTarget(window.location.hash);
 
     const commitScopeOptions = useMemo(
         () =>
@@ -1260,13 +1265,14 @@ export function useReviewPageController({
         <ReviewPageMainView
             workspaceRef={workspaceRef}
             diffScrollRef={diffScrollRef}
-            sidebarProps={sidebarProps}
+            sidebarProps={{ ...sidebarProps, showLoadingActivity: isDeferredLoading }}
             navbarProps={navbarProps}
             actionError={actionError}
             rightSidebar={rightSidebar}
             omnibarProps={omnibarProps}
             diffContent={
                 <ReviewPageDiffContent
+                    linkedCommentId={rawHashTarget?.commentId}
                     showSettingsPanel={showSettingsPanel}
                     allowNestedReplies={host === "bitbucket"}
                     viewMode={viewMode}

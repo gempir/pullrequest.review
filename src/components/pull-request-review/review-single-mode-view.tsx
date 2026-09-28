@@ -25,6 +25,7 @@ function createSuggestionEditor(options: EditorOptions<SingleFileAnnotationMetad
 }
 
 type ReviewSingleModeViewProps = {
+    linkedCommentId?: number;
     viewMode: "single" | "all";
     allowNestedReplies: boolean;
     onWorkspaceModeChange: (mode: "single" | "all") => void;
@@ -91,6 +92,7 @@ type ReviewSingleModeViewProps = {
 };
 
 export function ReviewSingleModeView({
+    linkedCommentId,
     viewMode,
     allowNestedReplies,
     onWorkspaceModeChange,
@@ -358,6 +360,7 @@ export function ReviewSingleModeView({
                             renderAnnotation={(annotation) => (
                                 <InlineDiffAnnotation
                                     annotation={annotation as SingleFileAnnotation}
+                                    linkedCommentId={linkedCommentId}
                                     allowNestedReplies={allowNestedReplies}
                                     workspace={workspace}
                                     repo={repo}

@@ -24,7 +24,12 @@ export function buildPrCommentUrl(location: Pick<Location, "origin" | "pathname"
 }
 
 export function parsePrFileHashTarget(rawHash: string): PrFileHashTarget | null {
-    const normalized = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+    let normalized = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+    // Bitbucket links to a changed file with #chg-<path>; keep accepting that
+    // format so changing only the host preserves the selected file.
+    if (normalized.startsWith("chg-")) {
+        normalized = `${PR_FILE_HASH_PREFIX}${normalized.slice("chg-".length)}`;
+    }
     if (!normalized.startsWith(PR_FILE_HASH_PREFIX)) return null;
     const queryIndex = normalized.indexOf("?");
     const encodedPath = normalized.slice(PR_FILE_HASH_PREFIX.length, queryIndex >= 0 ? queryIndex : undefined);

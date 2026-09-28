@@ -50,6 +50,7 @@ import { getPullRequestFileHistoryCollection } from "@/lib/git-host/query-collec
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import { buildSuggestions, getSuggestionKey } from "@/lib/git-host/suggestions";
 import type { GitHost } from "@/lib/git-host/types";
+import { motionSafeScrollBehavior } from "@/lib/motion";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import type { ReviewDiffScopeSearch } from "@/lib/review-diff-scope";
 import { markReviewPerf } from "@/lib/review-performance/metrics";
@@ -942,7 +943,7 @@ export function useReviewPageController({
             if (targetId === null) return;
             const anchor = document.getElementById(commentAnchorId(targetId));
             if (anchor) {
-                anchor.scrollIntoView({ behavior: "smooth", block: "center" });
+                anchor.scrollIntoView({ behavior: motionSafeScrollBehavior(), block: "center" });
                 pendingCommentScrollRef.current = null;
                 return;
             }
@@ -999,7 +1000,7 @@ export function useReviewPageController({
             if (settleIfAnchorVisible()) return;
             const anchor = document.getElementById(fileAnchorId(pendingPath));
             if (!anchor) return;
-            anchor.scrollIntoView({ behavior: attemptIndex === 0 ? "smooth" : "auto", block: "start" });
+            anchor.scrollIntoView({ behavior: motionSafeScrollBehavior(attemptIndex === 0 ? "smooth" : "auto"), block: "start" });
             window.requestAnimationFrame(() => {
                 void settleIfAnchorVisible();
             });

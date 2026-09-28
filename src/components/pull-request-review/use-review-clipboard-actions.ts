@@ -8,6 +8,13 @@ type UseReviewClipboardActionsParams = {
     setCopiedSourceBranch: (next: boolean) => void;
 };
 
+export const REVIEW_CLIPBOARD_ERROR_MESSAGES = {
+    copyPathUnavailable: "Unable to copy file path. Copy it manually.",
+    copyPathFailed: "Unable to copy file path. Try again.",
+    copyBranchUnavailable: "Unable to copy source branch. Copy it manually.",
+    copyBranchFailed: "Unable to copy source branch. Try again.",
+} as const;
+
 export function useReviewClipboardActions({
     copyResetTimeoutRef,
     copySourceBranchResetTimeoutRef,
@@ -18,7 +25,8 @@ export function useReviewClipboardActions({
     const handleCopyPath = useCallback(
         async (path: string) => {
             if (typeof navigator === "undefined" || !navigator.clipboard) {
-                setActionError("Clipboard is not available");
+                console.error("Failed to copy file path because the Clipboard API is unavailable.");
+                setActionError(REVIEW_CLIPBOARD_ERROR_MESSAGES.copyPathUnavailable);
                 return;
             }
             try {
@@ -31,8 +39,9 @@ export function useReviewClipboardActions({
                 copyResetTimeoutRef.current = window.setTimeout(() => {
                     setCopiedPath((current) => (current === path ? null : current));
                 }, 1400);
-            } catch {
-                setActionError("Failed to copy file path");
+            } catch (error) {
+                console.error("Failed to copy file path.", error);
+                setActionError(REVIEW_CLIPBOARD_ERROR_MESSAGES.copyPathFailed);
             }
         },
         [copyResetTimeoutRef, setActionError, setCopiedPath],
@@ -40,7 +49,8 @@ export function useReviewClipboardActions({
     const handleCopySourceBranch = useCallback(
         async (branchName: string) => {
             if (typeof navigator === "undefined" || !navigator.clipboard) {
-                setActionError("Clipboard is not available");
+                console.error("Failed to copy source branch because the Clipboard API is unavailable.");
+                setActionError(REVIEW_CLIPBOARD_ERROR_MESSAGES.copyBranchUnavailable);
                 return;
             }
             try {
@@ -53,8 +63,9 @@ export function useReviewClipboardActions({
                 copySourceBranchResetTimeoutRef.current = window.setTimeout(() => {
                     setCopiedSourceBranch(false);
                 }, 1400);
-            } catch {
-                setActionError("Failed to copy source branch");
+            } catch (error) {
+                console.error("Failed to copy source branch.", error);
+                setActionError(REVIEW_CLIPBOARD_ERROR_MESSAGES.copyBranchFailed);
             }
         },
         [copySourceBranchResetTimeoutRef, setActionError, setCopiedSourceBranch],

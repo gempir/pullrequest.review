@@ -29,18 +29,29 @@ export function ReviewPageMainView({
 }: ReviewPageMainViewProps) {
     return (
         <div ref={workspaceRef} className="h-full min-h-0 flex bg-background">
+            <a href="#review-content" className="skip-review-content">
+                Skip to review content
+            </a>
             <ReviewFileTreeSidebar {...sidebarProps} />
 
-            <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+            <div className="review-pane flex-1 min-w-0 min-h-0 flex flex-col">
                 <ReviewTopNavbar {...navbarProps} />
 
                 {actionError ? (
-                    <div className="border-b border-destructive bg-destructive/10 text-destructive px-3 py-1.5 text-[12px]">{actionError}</div>
+                    <div role="alert" className="border-b border-destructive bg-destructive/10 text-destructive px-3 py-1.5 text-[12px]">
+                        {actionError}
+                    </div>
                 ) : null}
 
-                <div ref={diffScrollRef} data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                <main
+                    id="review-content"
+                    ref={diffScrollRef}
+                    tabIndex={-1}
+                    data-component="diff-view"
+                    className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden outline-none"
+                >
                     {diffContent}
-                </div>
+                </main>
             </div>
 
             {rightSidebar}

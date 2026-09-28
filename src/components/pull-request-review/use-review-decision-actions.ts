@@ -27,6 +27,24 @@ type UseReviewDecisionActionsParams = {
     setMergeOpen: (open: boolean) => void;
 };
 
+export const REVIEW_DECISION_ERROR_MESSAGES = {
+    approve: "Unable to approve pull request. Try again.",
+    removeApproval: "Unable to remove approval. Try again.",
+    requestChanges: "Unable to request changes. Try again.",
+    merge: "Unable to merge pull request. Try again.",
+    decline: "Unable to decline pull request. Try again.",
+    markReady: "Unable to mark pull request as ready. Try again.",
+    markDraft: "Unable to mark pull request as draft. Try again.",
+} as const;
+
+function logDecisionActionFailure(action: string, error: unknown) {
+    console.error(`Failed to ${action}.`, error);
+}
+
+export function getDraftStatusErrorMessage(isDraft: boolean) {
+    return isDraft ? REVIEW_DECISION_ERROR_MESSAGES.markReady : REVIEW_DECISION_ERROR_MESSAGES.markDraft;
+}
+
 export function useReviewDecisionActions({
     actionPolicy,
     authCanWrite,
@@ -48,7 +66,8 @@ export function useReviewDecisionActions({
             await refreshPullRequest();
         },
         onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to approve pull request");
+            logDecisionActionFailure("approve pull request", error);
+            setActionError(REVIEW_DECISION_ERROR_MESSAGES.approve);
         },
     });
     const removeApprovalMutation = useMutation({
@@ -58,7 +77,8 @@ export function useReviewDecisionActions({
             await refreshPullRequest();
         },
         onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to remove approval");
+            logDecisionActionFailure("remove pull request approval", error);
+            setActionError(REVIEW_DECISION_ERROR_MESSAGES.removeApproval);
         },
     });
     const requestChangesMutation = useMutation({
@@ -68,7 +88,8 @@ export function useReviewDecisionActions({
             await refreshPullRequest();
         },
         onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to request changes");
+            logDecisionActionFailure("request changes on pull request", error);
+            setActionError(REVIEW_DECISION_ERROR_MESSAGES.requestChanges);
         },
     });
     const mergeMutation = useMutation({
@@ -85,7 +106,8 @@ export function useReviewDecisionActions({
             await refreshPullRequest();
         },
         onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to merge pull request");
+            logDecisionActionFailure("merge pull request", error);
+            setActionError(REVIEW_DECISION_ERROR_MESSAGES.merge);
         },
     });
     const declineMutation = useMutation({
@@ -95,7 +117,8 @@ export function useReviewDecisionActions({
             await refreshPullRequest();
         },
         onError: (error) => {
-            setActionError(error instanceof Error ? error.message : "Failed to decline pull request");
+            logDecisionActionFailure("decline pull request", error);
+            setActionError(REVIEW_DECISION_ERROR_MESSAGES.decline);
         },
     });
     const markDraftMutation = useMutation({
@@ -105,7 +128,8 @@ export function useReviewDecisionActions({
             await refreshPullRequest();
         },
         onError: (error) => {
-            setActionError(error instanceof Error ? error.message : isDraft ? "Failed to mark pull request as ready" : "Failed to mark pull request as draft");
+            logDecisionActionFailure(isDraft ? "mark pull request as ready" : "mark pull request as draft", error);
+            setActionError(getDraftStatusErrorMessage(isDraft));
         },
     });
 
@@ -132,7 +156,10 @@ export function useReviewDecisionActions({
     const handleDeclinePullRequest = useCallback(() => {
         if (!actionPolicy.canDecline) {
             if (!authCanWrite) requestAuth("write");
-            else setActionError(actionPolicy.disabledReason.decline ?? "Decline is not available");
+            else {
+                console.error("Decline action is unavailable.", actionPolicy.disabledReason.decline);
+                setActionError("Unable to decline this pull request.");
+            }
             return;
         }
         if (declineMutation.isPending) return;
@@ -141,7 +168,10 @@ export function useReviewDecisionActions({
     const handleMarkPullRequestAsDraft = useCallback(() => {
         if (!actionPolicy.canMarkDraft) {
             if (!authCanWrite) requestAuth("write");
-            else setActionError(actionPolicy.disabledReason.markDraft ?? (isDraft ? "Mark as ready is not available" : "Mark as draft is not available"));
+            else {
+                console.error("Draft status action is unavailable.", actionPolicy.disabledReason.markDraft);
+                setActionError(isDraft ? "Unable to mark this pull request as ready." : "Unable to mark this pull request as draft.");
+            }
             return;
         }
         if (markDraftMutation.isPending) return;

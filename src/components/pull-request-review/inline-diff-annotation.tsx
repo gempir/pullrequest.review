@@ -8,7 +8,7 @@ import { inlineDraftStorageKey } from "@/components/pull-request-review/use-inli
 import { Button } from "@/components/ui/button";
 
 const COMMENT_PRIMARY_BUTTON_CLASS =
-    "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none";
+    "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent";
 
 type InlineDiffAnnotationProps = {
     annotation: SingleFileAnnotation;
@@ -84,6 +84,7 @@ export function InlineDiffAnnotation({
                     <CommentEditor
                         key={inlineDraftStorageKey(workspace, repo, pullRequestId, metadata.draft)}
                         value={getInlineDraftContent(metadata.draft)}
+                        ariaLabel={`Line comment on ${metadata.draft.path}`}
                         placeholder="Add a line comment"
                         disabled={isSavingDraft || !canCommentInline}
                         onReady={onInlineDraftReady}

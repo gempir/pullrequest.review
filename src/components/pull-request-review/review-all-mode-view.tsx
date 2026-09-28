@@ -1,7 +1,7 @@
 import type { FileDiffOptions, OnDiffLineEnterLeaveProps } from "@pierre/diffs";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, CheckCheck, Copy, ScrollText } from "lucide-react";
+import { Check, CheckCheck, ChevronDown, Copy, ScrollText } from "lucide-react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
 import { useEffect, useMemo } from "react";
 import { PullRequestSummaryPanel } from "@/components/pr-summary-panel";
@@ -176,14 +176,28 @@ export function ReviewAllModeView({
         <div className="w-full max-w-full" data-component="diff-list-view" style={{ paddingBottom: diffListBottomPadding }}>
             {prData ? (
                 <div id={fileAnchorId(PR_SUMMARY_PATH)} className={cn("w-full max-w-full", isSummaryCollapsedInAllMode && "border-b-0")}>
-                    <div className={cn("group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
-                        <button type="button" className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden text-left" onClick={onToggleSummaryCollapsed}>
+                    <div
+                        className={cn(
+                            "group sticky top-0 z-20 h-10 min-w-0 bg-chrome border-b border-border-muted px-2.5 flex items-center gap-2 overflow-hidden text-[12px]",
+                        )}
+                    >
+                        <button
+                            type="button"
+                            className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden text-left"
+                            onClick={onToggleSummaryCollapsed}
+                            aria-expanded={!isSummaryCollapsedInAllMode}
+                            aria-controls="review-summary-content"
+                        >
                             <span className="size-4 flex items-center justify-center shrink-0">
                                 <ScrollText className="size-3.5" />
                             </span>
                             <span className="min-w-0 max-w-full truncate font-mono">{pullRequestTitle || PR_SUMMARY_NAME}</span>
+                            <ChevronDown
+                                className={cn("size-3.5 shrink-0 text-faint-foreground transition-transform", isSummaryCollapsedInAllMode && "-rotate-90")}
+                                aria-hidden="true"
+                            />
                         </button>
-                        <div className="shrink-0 font-mono text-[11px]">
+                        <div className="shrink-0 font-mono text-[11px] tabular-nums">
                             <span className="text-status-added">+{lineStats.added}</span>
                             <span className="ml-2 text-status-removed">-{lineStats.removed}</span>
                         </div>
@@ -211,26 +225,28 @@ export function ReviewAllModeView({
                         </div>
                     </div>
                     {!isSummaryCollapsedInAllMode && (
-                        <PullRequestSummaryPanel
-                            bundle={prData}
-                            diffStats={lineStats}
-                            currentUserDisplayName={currentUserDisplayName}
-                            onSelectComment={onHistoryCommentNavigate}
-                            createCommentPending={createCommentPending}
-                            canCommentInline={canCommentInline}
-                            canResolveThread={canResolveThread}
-                            resolveCommentPending={resolveCommentPending}
-                            deleteCommentPending={deleteCommentPending}
-                            updateCommentPending={updateCommentPending}
-                            updateDescriptionPending={updateDescriptionPending}
-                            canEditDescription={canEditDescription}
-                            onDeleteComment={onDeleteComment}
-                            onResolveThread={onResolveThread}
-                            onReplyToThread={onReplyToThread}
-                            onEditComment={onEditComment}
-                            onEditDescription={onEditDescription}
-                            footerRight={summaryFooter}
-                        />
+                        <div id="review-summary-content">
+                            <PullRequestSummaryPanel
+                                bundle={prData}
+                                diffStats={lineStats}
+                                currentUserDisplayName={currentUserDisplayName}
+                                onSelectComment={onHistoryCommentNavigate}
+                                createCommentPending={createCommentPending}
+                                canCommentInline={canCommentInline}
+                                canResolveThread={canResolveThread}
+                                resolveCommentPending={resolveCommentPending}
+                                deleteCommentPending={deleteCommentPending}
+                                updateCommentPending={updateCommentPending}
+                                updateDescriptionPending={updateDescriptionPending}
+                                canEditDescription={canEditDescription}
+                                onDeleteComment={onDeleteComment}
+                                onResolveThread={onResolveThread}
+                                onReplyToThread={onReplyToThread}
+                                onEditComment={onEditComment}
+                                onEditDescription={onEditDescription}
+                                footerRight={summaryFooter}
+                            />
+                        </div>
                     )}
                 </div>
             ) : null}
@@ -264,17 +280,27 @@ export function ReviewAllModeView({
                 return (
                     <div key={filePath} ref={rowVirtualizer.measureElement} data-index={virtualRow.index}>
                         <div id={fileAnchorId(filePath)} className={cn("w-full max-w-full bg-card", isCollapsed && "border-b-0")}>
-                            <div className={cn("group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
+                            <div
+                                className={cn(
+                                    "group sticky top-0 z-20 h-10 min-w-0 bg-chrome border-b border-border-muted px-2.5 flex items-center gap-2 overflow-hidden text-[12px]",
+                                )}
+                            >
                                 <div className="min-w-0 flex flex-1 items-center gap-2">
                                     <button
                                         type="button"
                                         className="h-full min-w-0 flex items-center gap-2 overflow-hidden text-left"
                                         onClick={() => onToggleCollapsedFile(filePath, !isCollapsed)}
+                                        aria-expanded={!isCollapsed}
+                                        aria-controls={`${fileAnchorId(filePath)}-content`}
                                     >
                                         <span className="size-4 flex items-center justify-center shrink-0">
                                             <RepositoryFileIcon fileName={fileName} className="size-3.5" />
                                         </span>
                                         <span className="min-w-0 flex-1 truncate font-mono">{filePath}</span>
+                                        <ChevronDown
+                                            className={cn("size-3.5 shrink-0 text-faint-foreground transition-transform", isCollapsed && "-rotate-90")}
+                                            aria-hidden="true"
+                                        />
                                     </button>
                                     <Button
                                         type="button"
@@ -282,7 +308,7 @@ export function ReviewAllModeView({
                                         size="sm"
                                         className="h-7 w-7 p-0 shrink-0"
                                         onClick={() => onCopyPath(filePath)}
-                                        aria-label="Copy file path"
+                                        aria-label={copiedPath === filePath ? "File path copied" : "Copy file path"}
                                     >
                                         {copiedPath === filePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                                     </Button>
@@ -301,7 +327,7 @@ export function ReviewAllModeView({
                                         disabled={readOnlyHistorical}
                                     />
                                 </div>
-                                <div className="ml-auto flex shrink-0 items-center gap-2 text-[12px]">
+                                <div className="ml-auto flex shrink-0 items-center gap-2 text-[12px] tabular-nums">
                                     <span className="select-none text-status-added">+{fileStats.added}</span>
                                     <span className="select-none text-status-removed">-{fileStats.removed}</span>
                                     {fileUnresolvedCount > 0 ? <span className="text-muted-foreground">{fileUnresolvedCount} unresolved</span> : null}
@@ -310,23 +336,32 @@ export function ReviewAllModeView({
                                         onViewModeChange={onWorkspaceModeChange}
                                         onOpenDiffSettings={onOpenDiffSettings}
                                     />
-                                    <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(filePath)}>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="size-7 text-muted-foreground"
+                                        onClick={() => onToggleViewed(filePath)}
+                                        aria-label={isSelectedVersionViewed ? "Mark file as unviewed" : "Mark file as viewed"}
+                                        aria-pressed={isSelectedVersionViewed}
+                                        title={isSelectedVersionViewed ? "Mark file as unviewed" : "Mark file as viewed"}
+                                    >
                                         <span
                                             className={
                                                 selectedVersionUnread
-                                                    ? "size-4 bg-surface-1 border border-border text-transparent flex items-center justify-center"
+                                                    ? "size-4 bg-surface-1 border border-border text-transparent flex items-center justify-center rounded-[2px]"
                                                     : isSelectedVersionViewed
-                                                      ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                                      : "size-4 bg-surface-1 border border-border text-transparent flex items-center justify-center"
+                                                      ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center rounded-[2px]"
+                                                      : "size-4 bg-surface-1 border border-border text-transparent flex items-center justify-center rounded-[2px]"
                                             }
                                         >
                                             <Check className="size-3" />
                                         </span>
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                             {!isCollapsed ? (
-                                <div className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">
+                                <div id={`${fileAnchorId(filePath)}-content`} className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">
                                     {diffHighlighterReady && displayedFileDiff ? (
                                         <FileDiff
                                             key={`${filePath}:${selectedVersionId ?? "latest"}:${readOnlyHistorical ? "historical" : "current"}:${hasFullContext ? "full-context" : "patch-context"}`}
@@ -374,8 +409,8 @@ export function ReviewAllModeView({
                                             )}
                                         />
                                     ) : (
-                                        <div className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">
-                                            Loading syntax highlighting...
+                                        <div role="status" className="w-full border border-border bg-card p-3 text-[12px] text-muted-foreground">
+                                            Loading syntax highlighting…
                                         </div>
                                     )}
                                 </div>
@@ -387,7 +422,9 @@ export function ReviewAllModeView({
             {paddingBottom > 0 ? <div style={{ height: paddingBottom }} /> : null}
 
             {allModeDiffEntries.length === 0 ? (
-                <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">No files match the current search.</div>
+                <div role="status" className="p-8 text-center text-muted-foreground text-[13px]">
+                    No files match the current filter.
+                </div>
             ) : null}
         </div>
     );

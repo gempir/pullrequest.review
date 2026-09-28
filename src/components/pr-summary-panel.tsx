@@ -39,7 +39,7 @@ const TIMELINE_TIMESTAMP_CLASS = "pt-px text-right";
 const TIMELINE_CONNECTOR_CENTER_CLASS = "left-[7.5px]";
 const COMMENT_DIFF_CONTEXT_LINES = 3;
 const COMMENT_PRIMARY_BUTTON_CLASS =
-    "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none";
+    "rounded-sm border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/15 hover:border-accent/70 hover:text-accent";
 
 type CommentLineSide = NonNullable<PullRequestHistoryEvent["comment"]>["side"];
 type EditCommentHandler = (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
@@ -316,7 +316,7 @@ function CommentDiffSnippetBlock({ snippet, className }: { snippet: CommentDiffS
 
 function Avatar({ name, url, sizeClass = "size-4" }: { name?: string; url?: string; sizeClass?: string }) {
     if (url) {
-        return <img src={url} alt={name ?? "avatar"} className={cn(sizeClass, "rounded-full object-cover shrink-0")} />;
+        return <img src={url} alt="" className={cn(sizeClass, "avatar-outline rounded-full object-cover shrink-0")} />;
     }
     return (
         <span
@@ -726,61 +726,55 @@ function SummaryDescription({
 
     if (isEditing) {
         return (
-            <section className="min-w-0 rounded-sm border border-surface-hover px-2 pb-2" data-component="summary-description">
-                <CommentEditor
-                    value={draft}
-                    placeholder="Add a pull request description..."
-                    disabled={isSaving}
-                    onChange={setDraft}
-                    onSubmit={handleSave}
-                    onReady={(focus) => {
-                        focus();
-                    }}
-                    chrome="toolbar"
-                    toolbarClassName="-mx-2 px-0.5"
-                    contentStyle={{ minHeight: "9rem" }}
-                />
-                <div className="mt-2 flex flex-wrap items-center gap-1">
-                    <Button variant="ghost" size="sm" className={`h-7 ${COMMENT_PRIMARY_BUTTON_CLASS}`} disabled={!hasChanges || isSaving} onClick={handleSave}>
-                        {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
-                        Save
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
+            <section
+                className="review-surface-shadow min-w-0 overflow-hidden rounded-md border border-border-muted bg-card"
+                data-component="summary-description"
+            >
+                <div className="flex h-9 items-center border-b border-border-muted px-3">
+                    <h2 className="text-[12px] font-semibold text-foreground">Edit description</h2>
+                </div>
+                <div className="p-3">
+                    <CommentEditor
+                        value={draft}
+                        ariaLabel="Pull request description"
+                        placeholder="Describe the change, context, and review notes…"
                         disabled={isSaving}
-                        onClick={handleCancel}
-                    >
-                        Cancel
-                    </Button>
+                        onChange={setDraft}
+                        onSubmit={handleSave}
+                        onReady={(focus) => {
+                            focus();
+                        }}
+                        chrome="toolbar"
+                        contentStyle={{ minHeight: "9rem" }}
+                    />
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <Button size="sm" className="h-7" disabled={!hasChanges || isSaving} onClick={handleSave}>
+                            {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                            Save description
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-7" disabled={isSaving} onClick={handleCancel}>
+                            Cancel
+                        </Button>
+                    </div>
                 </div>
             </section>
         );
     }
 
     return (
-        <section
-            className={cn(
-                "min-w-0 px-2 py-1",
-                canEdit &&
-                    "cursor-text rounded-sm transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-            )}
-            data-component="summary-description"
-            role={canEdit ? "button" : undefined}
-            tabIndex={canEdit ? 0 : undefined}
-            aria-label={canEdit ? "Edit pull request description" : undefined}
-            onClick={(event) => {
-                if ((event.target as Element).closest("a,button")) return;
-                startEditing();
-            }}
-            onKeyDown={(event) => {
-                if (event.key !== "Enter") return;
-                event.preventDefault();
-                startEditing();
-            }}
-        >
-            {description?.trim() ? <MarkdownBlock text={description} /> : <div className="text-[13px] text-muted-foreground">No description.</div>}
+        <section className="review-surface-shadow min-w-0 overflow-hidden rounded-md border border-border-muted bg-card" data-component="summary-description">
+            <div className="flex h-9 items-center border-b border-border-muted px-3">
+                <h2 className="text-[12px] font-semibold text-foreground">Description</h2>
+                {canEdit ? (
+                    <Button type="button" variant="ghost" size="xs" className="ml-auto" onClick={startEditing}>
+                        <PenSquare className="size-3" />
+                        {description?.trim() ? "Edit" : "Add description"}
+                    </Button>
+                ) : null}
+            </div>
+            <div className="max-w-[75ch] px-3 py-3 text-[13px] leading-relaxed [text-wrap:pretty]">
+                {description?.trim() ? <MarkdownBlock text={description} /> : <p className="text-muted-foreground">No description provided.</p>}
+            </div>
         </section>
     );
 }
@@ -1050,6 +1044,7 @@ function HistoryCommentSurface({
                                     <div data-comment-editor-root="true">
                                         <CommentEditor
                                             value={editValue}
+                                            ariaLabel={`Edit comment by ${event.actor?.displayName ?? "Unknown"}`}
                                             placeholder="Edit comment"
                                             disabled={isEditSaving}
                                             onChange={(value) => dispatch({ type: "setEditValue", value })}
@@ -1065,6 +1060,7 @@ function HistoryCommentSurface({
                                 <div className="mt-2" data-comment-editor-root="true">
                                     <CommentEditor
                                         value={replyValue}
+                                        ariaLabel={`Reply to comment by ${event.actor?.displayName ?? "Unknown"}`}
                                         placeholder="Reply to thread"
                                         disabled={isReplySaving}
                                         onChange={(value) => dispatch({ type: "setReplyValue", value })}
@@ -1235,24 +1231,22 @@ function CommentThreadPathHeader({
     const fileName = path.split("/").pop() || path;
 
     return (
-        <div className="relative flex min-w-0 cursor-pointer items-center gap-1.5 px-3 py-1 font-mono text-[11px] text-foreground transition-colors hover:bg-surface-hover focus-within:bg-surface-hover">
+        <div className="flex min-w-0 items-center gap-1 px-2 py-0.5 font-mono text-[11px] text-foreground">
             <a
                 href={`#${buildPrFileHash(path, commentId)}`}
-                className="absolute inset-0 cursor-pointer outline-none"
+                className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 py-0.5 transition-colors hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 aria-label={`Open comment on ${path}`}
                 onClick={() => {
                     if (!onSelectComment) return;
                     onSelectComment({ path, line, side, commentId });
                 }}
             >
-                <span className="sr-only">Open comment on {path}</span>
+                <span className="flex size-4 shrink-0 items-center justify-center" aria-hidden="true">
+                    <RepositoryFileIcon fileName={fileName} className="size-3.5" />
+                </span>
+                <span className="min-w-0 break-all">{path}</span>
             </a>
-            <span className="pointer-events-none flex size-4 shrink-0 items-center justify-center">
-                <RepositoryFileIcon fileName={fileName} className="size-3.5" />
-            </span>
-            <span className="pointer-events-none min-w-0 break-all">{path}</span>
-            <CommentShareButton path={path} commentId={commentId} className="relative z-10" />
-            <span className="pointer-events-none min-w-2 flex-1" />
+            <CommentShareButton path={path} commentId={commentId} />
         </div>
     );
 }
@@ -1456,16 +1450,16 @@ export function PullRequestSummaryPanel({
     });
 
     return (
-        <div className="pr-diff-font" style={{ fontFamily: "var(--comment-font-family)" }}>
+        <div className="pr-diff-font min-h-full" style={{ fontFamily: "var(--comment-font-family)" }}>
             {headerTitle ? (
                 <div
-                    className="h-10 bg-chrome border-b border-border-muted px-2.5 flex items-center gap-2 overflow-hidden text-[12px]"
+                    className="sticky top-0 z-20 h-10 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 overflow-hidden text-[12px]"
                     data-component="summary-header"
                 >
                     <Avatar name={pr.author?.displayName} url={pr.author?.avatarUrl} sizeClass="size-5" />
-                    <span className="min-w-0 flex-1 text-foreground truncate">{headerTitle}</span>
+                    <h1 className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{headerTitle}</h1>
                     {diffStats ? (
-                        <div className="ml-auto shrink-0 font-mono text-[11px]">
+                        <div className="ml-auto shrink-0 font-mono text-[11px] tabular-nums">
                             <span className="text-status-added">+{diffStats.added}</span>
                             <span className="ml-2 text-status-removed">-{diffStats.removed}</span>
                         </div>
@@ -1473,14 +1467,19 @@ export function PullRequestSummaryPanel({
                     {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
                 </div>
             ) : null}
-            <div className="px-2.5 pb-48 pt-2.5">
+            <div className="mx-auto w-full max-w-[1120px] px-4 pb-48 pt-4 xl:px-6">
+                {!headerTitle ? <h1 className="sr-only">{pr.title ?? "Pull request summary"}</h1> : null}
                 <SummaryDescription
                     description={pr.description}
                     canEdit={Boolean(canEditDescription && onEditDescription)}
                     isUpdating={Boolean(updateDescriptionPending)}
                     onEditDescription={onEditDescription}
                 />
-                <div className="mt-4 space-y-0 px-1" data-component="summary-timeline">
+                <div className="mt-6 flex items-center gap-3">
+                    <h2 className="text-[12px] font-semibold text-foreground">Activity</h2>
+                    <div className="h-px flex-1 bg-border-muted" aria-hidden="true" />
+                </div>
+                <div className="mt-3 space-y-0 px-1" data-component="summary-timeline">
                     {timelineEntries.map((entry, index) => {
                         const isFirst = index === 0;
                         const isLast = index === timelineEntries.length - 1;
@@ -1547,7 +1546,7 @@ export function PullRequestSummaryPanel({
                         );
                     })}
                 </div>
-                {footerRight ? <div className="mt-3 pt-3">{footerRight}</div> : null}
+                {footerRight ? <div className="mt-5 border-t border-border-muted pt-5">{footerRight}</div> : null}
             </div>
         </div>
     );

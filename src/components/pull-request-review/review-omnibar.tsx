@@ -5,6 +5,7 @@ import { OMNIBAR_GROUP_CLASS_NAME, OMNIBAR_ITEM_CLASS_NAME, PullRequestOmnibarGr
 import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
 import type { RepoRef } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
+import { useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
 type ReviewOmnibarProps = {
@@ -39,6 +40,10 @@ function getOmnibarDirectory(path: string) {
     return separatorIndex === -1 ? "" : path.slice(0, separatorIndex);
 }
 
+export function ReviewOmnibarShortcutHint({ shortcutLabel }: { shortcutLabel: string }) {
+    return <kbd className="hidden rounded-[3px] border border-border-muted bg-surface-1 px-1.5 py-0.5 font-mono leading-none sm:inline">{shortcutLabel}</kbd>;
+}
+
 export function ReviewOmnibar({
     open,
     onOpenChange,
@@ -61,6 +66,8 @@ export function ReviewOmnibar({
     onMarkDraft,
 }: ReviewOmnibarProps) {
     const [search, setSearch] = useState("");
+    const { shortcuts, getShortcutDisplay } = useShortcuts();
+    const shortcutLabel = getShortcutDisplay(shortcuts.openOmnibar);
     const hasActions = canApprove || canRequestChanges || canMerge || canDecline || (isDraft && canMarkDraft);
     const hasPullRequests = pullRequests.length > 0 && Boolean(onSelectPullRequest);
 
@@ -213,7 +220,7 @@ export function ReviewOmnibar({
 
             <div className="flex items-center justify-between border-t border-border-muted bg-chrome px-3 py-1.5 text-[10px] text-muted-foreground">
                 <span>Navigate with arrows, select with Enter</span>
-                <span className="hidden sm:inline">cmd + k</span>
+                <ReviewOmnibarShortcutHint shortcutLabel={shortcutLabel} />
             </div>
         </Command.Dialog>
     );

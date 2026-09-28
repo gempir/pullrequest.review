@@ -18,7 +18,7 @@ const commentMarkdownSchema = {
 
 const markdownClassByVariant = {
     summary: "space-y-2 text-[13px] leading-relaxed",
-    thread: "mt-1 text-[14px] leading-relaxed text-foreground",
+    thread: "mt-1 text-[13px] leading-relaxed text-foreground",
     sidebar: "text-[13px] leading-relaxed text-foreground",
 } as const;
 
@@ -36,42 +36,47 @@ export function CommentMarkdown({ className, text, variant = "summary" }: { clas
                 rehypePlugins={[rehypeRaw, [rehypeSanitize, commentMarkdownSchema]]}
                 components={{
                     a: ({ node: _node, ...props }) => (
-                        <a {...props} target="_blank" rel="noreferrer" className="break-all underline text-accent hover:text-accent-muted" />
+                        <a
+                            {...props}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="break-all text-accent underline underline-offset-2 [text-decoration-thickness:from-font] [text-underline-position:from-font] hover:text-accent-muted"
+                        />
                     ),
                     h1: ({ node: _node, children, ...props }) => (
-                        <h1 {...props} className="text-xl font-bold">
+                        <h1 {...props} className="text-base font-semibold leading-tight [text-wrap:balance]">
                             {children}
                         </h1>
                     ),
                     h2: ({ node: _node, children, ...props }) => (
-                        <h2 {...props} className="text-lg font-bold">
+                        <h2 {...props} className="text-[15px] font-semibold leading-tight [text-wrap:balance]">
                             {children}
                         </h2>
                     ),
                     h3: ({ node: _node, children, ...props }) => (
-                        <h3 {...props} className="text-base font-bold">
+                        <h3 {...props} className="text-[14px] font-semibold leading-tight [text-wrap:balance]">
                             {children}
                         </h3>
                     ),
                     h4: ({ node: _node, children, ...props }) => (
-                        <h4 {...props} className="text-sm font-bold">
+                        <h4 {...props} className="text-[14px] font-semibold leading-tight [text-wrap:balance]">
                             {children}
                         </h4>
                     ),
                     h5: ({ node: _node, children, ...props }) => (
-                        <h5 {...props} className="text-[13px] font-bold">
+                        <h5 {...props} className="text-[13px] font-semibold leading-tight [text-wrap:balance]">
                             {children}
                         </h5>
                     ),
                     h6: ({ node: _node, children, ...props }) => (
-                        <h6 {...props} className="text-xs font-bold">
+                        <h6 {...props} className="text-[13px] font-semibold leading-tight [text-wrap:balance]">
                             {children}
                         </h6>
                     ),
-                    p: ({ node: _node, ...props }) => <p {...props} className="whitespace-pre-wrap break-words" />,
+                    p: ({ node: _node, ...props }) => <p {...props} className="max-w-[75ch] whitespace-pre-wrap break-words [text-wrap:pretty]" />,
                     ul: ({ node: _node, ...props }) => <ul {...props} className="list-disc space-y-1 pl-5" />,
                     ol: ({ node: _node, ...props }) => <ol {...props} className="list-decimal space-y-1 pl-5" />,
-                    table: ({ node: _node, ...props }) => <table {...props} className="w-full border-collapse" />,
+                    table: ({ node: _node, ...props }) => <table {...props} className="w-full border-collapse text-[12px]" />,
                     th: ({ node: _node, ...props }) => <th {...props} className="border border-border p-2 text-left break-words" />,
                     td: ({ node: _node, ...props }) => <td {...props} className="border border-border p-2 break-words" />,
                     blockquote: ({ node: _node, ...props }) => <blockquote {...props} className="border-l-2 border-border pl-3 text-muted-foreground" />,

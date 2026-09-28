@@ -155,9 +155,9 @@ function AppLayout() {
 
     return (
         <div className="h-dvh overflow-hidden bg-background">
-            <main className="h-full min-h-0 overflow-hidden bg-background">
+            <div className="h-full min-h-0 overflow-hidden bg-background">
                 <Outlet />
-            </main>
+            </div>
             <AppPullRequestOmnibar />
         </div>
     );

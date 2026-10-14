@@ -9,23 +9,23 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as HostIndexRouteImport } from './routes/$host/index'
 import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
-import { Route as WorkspaceRepoPullPullRequestIdRouteImport } from './routes/$workspace/$repo/pull/$pullRequestId'
 import { Route as WorkspaceRepoPullRequestsPullRequestIdRouteImport } from './routes/$workspace/$repo/pull-requests/$pullRequestId'
-import { Route as WorkspaceRepoPullPullRequestIdChangesRouteImport } from './routes/$workspace/$repo/pull/$pullRequestId/changes'
+import { Route as WorkspaceRepoPullPullRequestIdRouteImport } from './routes/$workspace/$repo/pull/$pullRequestId'
 import { Route as WorkspaceRepoPullRequestsPullRequestIdDiffRouteImport } from './routes/$workspace/$repo/pull-requests/$pullRequestId/diff'
+import { Route as WorkspaceRepoPullPullRequestIdChangesRouteImport } from './routes/$workspace/$repo/pull/$pullRequestId/changes'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HostIndexRoute = HostIndexRouteImport.update({
@@ -38,29 +38,29 @@ const OauthCallbackRoute = OauthCallbackRouteImport.update({
   path: '/oauth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WorkspaceRepoPullPullRequestIdRoute =
-  WorkspaceRepoPullPullRequestIdRouteImport.update({
-    id: '/$workspace/$repo/pull/$pullRequestId',
-    path: '/$workspace/$repo/pull/$pullRequestId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const WorkspaceRepoPullRequestsPullRequestIdRoute =
   WorkspaceRepoPullRequestsPullRequestIdRouteImport.update({
     id: '/$workspace/$repo/pull-requests/$pullRequestId',
     path: '/$workspace/$repo/pull-requests/$pullRequestId',
     getParentRoute: () => rootRouteImport,
   } as any)
-const WorkspaceRepoPullPullRequestIdChangesRoute =
-  WorkspaceRepoPullPullRequestIdChangesRouteImport.update({
-    id: '/changes',
-    path: '/changes',
-    getParentRoute: () => WorkspaceRepoPullPullRequestIdRoute,
+const WorkspaceRepoPullPullRequestIdRoute =
+  WorkspaceRepoPullPullRequestIdRouteImport.update({
+    id: '/$workspace/$repo/pull/$pullRequestId',
+    path: '/$workspace/$repo/pull/$pullRequestId',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const WorkspaceRepoPullRequestsPullRequestIdDiffRoute =
   WorkspaceRepoPullRequestsPullRequestIdDiffRouteImport.update({
     id: '/diff',
     path: '/diff',
     getParentRoute: () => WorkspaceRepoPullRequestsPullRequestIdRoute,
+  } as any)
+const WorkspaceRepoPullPullRequestIdChangesRoute =
+  WorkspaceRepoPullPullRequestIdChangesRouteImport.update({
+    id: '/changes',
+    path: '/changes',
+    getParentRoute: () => WorkspaceRepoPullPullRequestIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -138,18 +138,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$host/': {
@@ -166,13 +166,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OauthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$workspace/$repo/pull/$pullRequestId': {
-      id: '/$workspace/$repo/pull/$pullRequestId'
-      path: '/$workspace/$repo/pull/$pullRequestId'
-      fullPath: '/$workspace/$repo/pull/$pullRequestId'
-      preLoaderRoute: typeof WorkspaceRepoPullPullRequestIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/$workspace/$repo/pull-requests/$pullRequestId': {
       id: '/$workspace/$repo/pull-requests/$pullRequestId'
       path: '/$workspace/$repo/pull-requests/$pullRequestId'
@@ -180,12 +173,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspaceRepoPullRequestsPullRequestIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$workspace/$repo/pull/$pullRequestId/changes': {
-      id: '/$workspace/$repo/pull/$pullRequestId/changes'
-      path: '/changes'
-      fullPath: '/$workspace/$repo/pull/$pullRequestId/changes'
-      preLoaderRoute: typeof WorkspaceRepoPullPullRequestIdChangesRouteImport
-      parentRoute: typeof WorkspaceRepoPullPullRequestIdRoute
+    '/$workspace/$repo/pull/$pullRequestId': {
+      id: '/$workspace/$repo/pull/$pullRequestId'
+      path: '/$workspace/$repo/pull/$pullRequestId'
+      fullPath: '/$workspace/$repo/pull/$pullRequestId'
+      preLoaderRoute: typeof WorkspaceRepoPullPullRequestIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/$workspace/$repo/pull-requests/$pullRequestId/diff': {
       id: '/$workspace/$repo/pull-requests/$pullRequestId/diff'
@@ -193,6 +186,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$workspace/$repo/pull-requests/$pullRequestId/diff'
       preLoaderRoute: typeof WorkspaceRepoPullRequestsPullRequestIdDiffRouteImport
       parentRoute: typeof WorkspaceRepoPullRequestsPullRequestIdRoute
+    }
+    '/$workspace/$repo/pull/$pullRequestId/changes': {
+      id: '/$workspace/$repo/pull/$pullRequestId/changes'
+      path: '/changes'
+      fullPath: '/$workspace/$repo/pull/$pullRequestId/changes'
+      preLoaderRoute: typeof WorkspaceRepoPullPullRequestIdChangesRouteImport
+      parentRoute: typeof WorkspaceRepoPullPullRequestIdRoute
     }
   }
 }

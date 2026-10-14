@@ -117,7 +117,7 @@ export function useReviewPageDerived({
     settingsTreeItems: Array<{ name: string; path: string }>;
     inlineComment: InlineCommentDraft | null;
     theme: Parameters<typeof useDiffHighlighterState>[0]["theme"];
-    compactDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined>;
+    compactDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>;
     onOpenInlineCommentDraft: (path: string, target: InlineCommentLineTarget) => void;
     fullFileContexts: Record<string, { oldLines: string[]; newLines: string[] }>;
 }) {
@@ -583,7 +583,7 @@ export function useReviewPageDerived({
         return buildFileAnnotations(selectedFilePath);
     }, [buildFileAnnotations, selectedFilePath]);
 
-    const singleFileDiffOptions = useMemo<FileDiffOptions<SingleFileAnnotationMetadata | undefined>>(
+    const singleFileDiffOptions = useMemo<FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>>(
         () => ({
             ...compactDiffOptions,
             onLineClick: undefined,

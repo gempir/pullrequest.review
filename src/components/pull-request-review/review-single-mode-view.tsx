@@ -1,5 +1,5 @@
 import type { FileDiffOptions } from "@pierre/diffs";
-import { Editor, type EditorOptions } from "@pierre/diffs/edit";
+import { Editor, type EditorOptions, type EditorType } from "@pierre/diffs/edit";
 import { EditProvider, FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { Check, CheckCheck, Copy, LoaderCircle, PencilLine, Send, X } from "lucide-react";
 import { type CSSProperties, type ReactNode, useMemo } from "react";
@@ -20,8 +20,12 @@ import type { InlineCommentDraft } from "./use-inline-comment-drafts";
 
 const EMPTY_FILE_ANNOTATIONS: SingleFileAnnotation[] = [];
 
-function createSuggestionEditor(options: EditorOptions<SingleFileAnnotationMetadata | undefined>) {
-    return new Editor(options);
+function createSuggestionEditor<EType extends EditorType>(
+    editorType: EType,
+    options: EditorOptions<EType, SingleFileAnnotationMetadata | undefined, undefined>,
+    editStateKey?: string,
+) {
+    return new Editor(editorType, options, editStateKey);
 }
 
 type ReviewSingleModeViewProps = {
@@ -43,7 +47,7 @@ type ReviewSingleModeViewProps = {
     fileLineStats: Map<string, { added: number; removed: number }>;
     diffHighlighterReady: boolean;
     diffTypographyStyle: CSSProperties;
-    singleFileDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined>;
+    singleFileDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>;
     singleFileAnnotations: SingleFileAnnotation[];
     selectedFileLevelThreads: CommentThread[];
     workspace: string;
@@ -177,10 +181,10 @@ export function ReviewSingleModeView({
               onLineLeave: undefined,
           };
     const singleDiffRenderKey = `${selectedFilePath}:${selectedFileVersionId ?? "latest"}:${selectedFileReadOnlyHistorical ? "historical" : "current"}:${hasFullContext ? "full-context" : "patch-context"}`;
-    const suggestionEditorOptions = useMemo<EditorOptions<SingleFileAnnotationMetadata | undefined>>(
+    const suggestionEditorOptions = useMemo<EditorOptions<"file-diff", SingleFileAnnotationMetadata | undefined, undefined>>(
         () => ({
-            onChange: (file) => {
-                onSuggestionEditChange(file.contents);
+            onChange: (event) => {
+                onSuggestionEditChange(event.file.contents);
             },
         }),
         [onSuggestionEditChange],

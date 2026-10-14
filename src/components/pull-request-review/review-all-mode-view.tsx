@@ -64,7 +64,7 @@ type ReviewAllModeViewProps = {
         latestFileDiff: FileDiffMetadata | undefined,
     ) => { fileDiff: FileDiffMetadata | undefined; readOnlyHistorical: boolean; selectedVersionId: string | undefined };
     isVersionViewed: (versionId: string) => boolean;
-    compactDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined>;
+    compactDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
     onSubmitInlineComment: () => Promise<unknown> | undefined;

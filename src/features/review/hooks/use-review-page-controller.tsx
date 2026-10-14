@@ -337,7 +337,7 @@ export function useReviewPageController({
     });
     const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
     const libOptions = toLibraryOptions(options);
-    const compactDiffOptions = useMemo<FileDiffOptions<SingleFileAnnotationMetadata | undefined>>(
+    const compactDiffOptions = useMemo<FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>>(
         () => ({
             ...libOptions,
             hunkSeparators: options.hunkSeparators,

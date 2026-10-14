@@ -15,7 +15,7 @@ export function SuggestionDiffPreview({
     replacementContents: string;
 }) {
     const { options } = useDiffOptions();
-    const previewOptions = useMemo<FileDiffOptions<undefined>>(
+    const previewOptions = useMemo<FileDiffOptions<undefined, undefined>>(
         () => ({
             theme: options.theme,
             diffStyle: "unified",

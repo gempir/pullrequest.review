@@ -36,7 +36,7 @@ type ReviewPageDiffContentProps = {
     areAllFilesViewed: boolean;
     diffHighlighterReady: boolean;
     diffTypographyStyle: CSSProperties;
-    singleFileDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined>;
+    singleFileDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>;
     singleFileAnnotations: SingleFileAnnotation[];
     selectedFileLevelThreads: CommentThread[];
     workspace: string;
@@ -98,10 +98,10 @@ type ReviewPageDiffContentProps = {
     onToggleCollapsedFile: (path: string, next: boolean) => void;
     onOpenInlineDraftForPath: (path: string, target: InlineCommentLineTarget) => void;
     onDiffLineEnter: (
-        props: Parameters<NonNullable<FileDiffOptions<SingleFileAnnotationMetadata | undefined>["onLineEnter"]>>[0],
+        props: Parameters<NonNullable<FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>["onLineEnter"]>>[0],
         onOpenInlineDraft?: (target: InlineCommentLineTarget) => void,
     ) => void;
-    onDiffLineLeave: NonNullable<FileDiffOptions<SingleFileAnnotationMetadata | undefined>["onLineLeave"]>;
+    onDiffLineLeave: NonNullable<FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>["onLineLeave"]>;
     onHistoryCommentNavigate: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
     scrollElementRef: RefObject<HTMLDivElement | null>;
     pendingScrollPath: string | null;

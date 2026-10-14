@@ -5,7 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
-import { bitbucketOAuthDevPlugin } from "./vite/bitbucket-oauth-dev-plugin";
+import { bitbucketOAuthDevPlugin } from "./vite/bitbucket-oauth-dev-plugin.ts";
 
 function loadWranglerDevVars() {
     try {

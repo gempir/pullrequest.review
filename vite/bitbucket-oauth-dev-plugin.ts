@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
-import { type BitbucketOAuthEnv, handleBitbucketOAuthRequest } from "../src/worker";
+import { type BitbucketOAuthEnv, handleBitbucketOAuthRequest } from "../src/worker.ts";
 
 const MAX_DEV_REQUEST_BODY_BYTES = 64 * 1024;
 

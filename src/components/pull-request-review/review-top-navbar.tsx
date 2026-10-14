@@ -52,43 +52,225 @@ type ReviewTopNavbarProps = {
     onOpenOmnibar: () => void;
 };
 
-export function ReviewTopNavbar({
-    loading,
-    isRefreshing,
+export function ReviewTopNavbar(props: ReviewTopNavbarProps) {
+    return (
+        <div
+            className="h-11 bg-chrome border-b border-border px-1.5 flex items-center gap-3"
+            style={{ fontFamily: "var(--comment-font-family)" }}
+            data-component="navbar"
+        >
+            {props.loading ? <ReviewTopNavbarLoading {...props} /> : <ReviewTopNavbarLoaded {...props} />}
+        </div>
+    );
+}
+
+function ReviewTopNavbarLoading({ treeCollapsed, unviewedFileCount, onExpandTree }: ReviewTopNavbarProps) {
+    const unviewedBadgeValue = unviewedFileCount > 99 ? "99+" : unviewedFileCount.toString();
+    return (
+        <>
+            {treeCollapsed ? (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                    onClick={onExpandTree}
+                    aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
+                >
+                    <ReviewFileTreeToggleIcon direction="expand" badgeValue={unviewedFileCount > 0 ? unviewedBadgeValue : null} />
+                </Button>
+            ) : null}
+            <span className="text-[11px] text-muted-foreground">Loading pull request...</span>
+        </>
+    );
+}
+
+function ReviewTopNavbarLoaded(props: ReviewTopNavbarProps) {
+    return (
+        <div className="flex h-full w-full min-w-0 items-stretch">
+            <NavbarBranchInfo {...props} />
+            <OmnibarMenubarInput onOpen={props.onOpenOmnibar} />
+            <NavbarActions {...props} />
+        </div>
+    );
+}
+
+function NavbarBranchInfo({
     treeCollapsed,
     unviewedFileCount,
-    rightSidebarCollapsed,
-    unresolvedCommentCount,
-    host,
-    pullRequestUrl,
+    commitScopeSlot,
     sourceBranch,
     destinationBranch,
-    navbarState,
+    copiedSourceBranch,
+    onExpandTree,
+    onCopySourceBranch,
     navbarStatusTimestamp,
     buildStatuses,
-    reviewers,
-    canApprove,
-    canRequestChanges,
-    canMerge,
-    canDecline,
-    canMarkDraft,
+    isRefreshing,
+}: ReviewTopNavbarProps) {
+    const unviewedBadgeValue = unviewedFileCount > 99 ? "99+" : unviewedFileCount.toString();
+    return (
+        <div className="flex h-full min-w-0 shrink items-center gap-2 text-[11px] text-faint-foreground">
+            {treeCollapsed ? (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                    onClick={onExpandTree}
+                    aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
+                >
+                    <ReviewFileTreeToggleIcon direction="expand" badgeValue={unviewedFileCount > 0 ? unviewedBadgeValue : null} />
+                </Button>
+            ) : null}
+            {commitScopeSlot ? <div className="ml-0.5 shrink-0">{commitScopeSlot}</div> : null}
+            <div className="flex h-7 min-w-0 items-center gap-2 rounded-sm bg-[var(--diffs-bg,var(--background))] px-2 text-[11px]">
+                <div className="group/source relative max-w-[180px] min-w-0">
+                    <span className="block truncate text-muted-foreground">{sourceBranch}</span>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                            "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 rounded-sm bg-[var(--diffs-bg,var(--background))] p-0 transition-opacity",
+                            copiedSourceBranch
+                                ? "opacity-100"
+                                : "opacity-0 pointer-events-none group-hover/source:opacity-100 group-hover/source:pointer-events-auto group-focus-within/source:opacity-100 group-focus-within/source:pointer-events-auto",
+                        )}
+                        onClick={() => onCopySourceBranch(sourceBranch)}
+                        aria-label="Copy source branch"
+                    >
+                        {copiedSourceBranch ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                    </Button>
+                </div>
+                <span className="text-faint-foreground" aria-hidden="true">
+                    -&gt;
+                </span>
+                <span className="max-w-[180px] truncate text-muted-foreground">{destinationBranch}</span>
+            </div>
+            <Timestamp
+                value={navbarStatusTimestamp}
+                tooltipLabel="updated at"
+                className="max-w-[120px] truncate align-middle text-[10px] text-faint-foreground"
+            />
+            {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
+        </div>
+    );
+}
+
+function NavbarActions(props: ReviewTopNavbarProps) {
+    return (
+        <div className="-mr-1.5 flex h-full shrink-0 items-center gap-2" data-component="navbar-actions">
+            <ReviewerStatusAvatars reviewers={props.reviewers} />
+            <NavbarReviewActions {...props} />
+            <NavbarMergeButton {...props} />
+            <NavbarOverflowMenu {...props} />
+            <NavbarCommentsToggle {...props} />
+        </div>
+    );
+}
+
+function NavbarReviewActions(props: ReviewTopNavbarProps) {
+    const normalizedNavbarState = props.navbarState.toLowerCase();
+    const isTerminal = normalizedNavbarState === "merged" || normalizedNavbarState === "closed" || normalizedNavbarState === "declined";
+    if (isTerminal) return null;
+    return (
+        <>
+            <NavbarDraftAction {...props} />
+            <NavbarApproveAction {...props} />
+            <NavbarReviseAction {...props} />
+        </>
+    );
+}
+
+function NavbarDraftAction({
     isDraft,
+    canMarkDraft,
+    isApprovePending,
+    isRequestChangesPending,
+    isDeclinePending,
+    isMarkDraftPending,
+    onMarkDraft,
+}: ReviewTopNavbarProps) {
+    const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
+    return (
+        <>
+            {isDraft ? (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 rounded-sm border border-status-renamed/50 px-2.5 bg-status-renamed/10 text-status-renamed hover:bg-status-renamed/18 hover:border-status-renamed/75 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                    disabled={!canMarkDraft || actionBusy}
+                    onClick={onMarkDraft}
+                >
+                    {isMarkDraftPending ? <Loader2 className="size-3.5 animate-spin" /> : <PenSquare className="size-3.5" />}
+                    Mark as Ready
+                </Button>
+            ) : null}
+        </>
+    );
+}
+
+function NavbarApproveAction({
+    canApprove,
     currentUserReviewStatus,
     isApprovePending,
     isRequestChangesPending,
     isDeclinePending,
     isMarkDraftPending,
-    copiedSourceBranch,
-    commitScopeSlot,
-    onExpandTree,
-    onExpandRightSidebar,
-    onCopySourceBranch,
     onApprove,
+}: ReviewTopNavbarProps) {
+    const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
+    return (
+        <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+                "h-7 rounded-sm border border-status-added/50 px-2.5 bg-status-added/10 hover:bg-status-added/18 hover:border-status-added/75 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                currentUserReviewStatus === "approved" ? "bg-status-added/18 text-status-added" : "text-status-added",
+            )}
+            disabled={!canApprove || actionBusy}
+            onClick={onApprove}
+        >
+            {isApprovePending ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+            {currentUserReviewStatus === "approved" ? "Remove Approval" : "Approve"}
+        </Button>
+    );
+}
+
+function NavbarReviseAction({
+    canRequestChanges,
+    currentUserReviewStatus,
+    isApprovePending,
+    isRequestChangesPending,
+    isDeclinePending,
+    isMarkDraftPending,
     onRequestChanges,
-    onDecline,
-    onMarkDraft,
+}: ReviewTopNavbarProps) {
+    const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
+    return (
+        <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+                "h-7 rounded-sm border border-status-modified/50 px-2.5 bg-status-modified/10 text-status-modified hover:bg-status-modified/18 hover:border-status-modified/75 hover:text-status-modified focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                currentUserReviewStatus === "changesRequested" && "bg-status-modified/18",
+            )}
+            disabled={!canRequestChanges || actionBusy}
+            onClick={onRequestChanges}
+        >
+            {isRequestChangesPending ? <Loader2 className="size-3.5 animate-spin" /> : <TriangleAlert className="size-3.5" />}
+            Revise
+        </Button>
+    );
+}
+
+function NavbarMergeButton({
+    navbarState,
+    canMerge,
+    isApprovePending,
+    isRequestChangesPending,
+    isDeclinePending,
+    isMarkDraftPending,
     onOpenMerge,
-    onOpenOmnibar,
 }: ReviewTopNavbarProps) {
     const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
     const normalizedNavbarState = navbarState.toLowerCase();
@@ -96,201 +278,120 @@ export function ReviewTopNavbar({
     const isDeclined = normalizedNavbarState === "closed" || normalizedNavbarState === "declined";
     const isTerminal = isMerged || isDeclined;
     const terminalStatusLabel = normalizedNavbarState.toUpperCase();
-    const commentsBadgeValue = unresolvedCommentCount > 99 ? "99+" : unresolvedCommentCount.toString();
-    const unviewedBadgeValue = unviewedFileCount > 99 ? "99+" : unviewedFileCount.toString();
-
+    const mergeButtonState = getMergeButtonState(isMerged, isDeclined);
     return (
-        <div
-            className="h-11 bg-chrome border-b border-border px-1.5 flex items-center gap-3"
-            style={{ fontFamily: "var(--comment-font-family)" }}
-            data-component="navbar"
-        >
-            {loading ? (
-                <>
-                    {treeCollapsed ? (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
-                            onClick={onExpandTree}
-                            aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
-                        >
-                            <ReviewFileTreeToggleIcon direction="expand" badgeValue={unviewedFileCount > 0 ? unviewedBadgeValue : null} />
-                        </Button>
-                    ) : null}
-                    <span className="text-[11px] text-muted-foreground">Loading pull request...</span>
-                </>
-            ) : (
-                <div className="flex h-full w-full min-w-0 items-stretch">
-                    <div className="flex h-full min-w-0 shrink items-center gap-2 text-[11px] text-faint-foreground">
-                        {treeCollapsed ? (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
-                                onClick={onExpandTree}
-                                aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
-                            >
-                                <ReviewFileTreeToggleIcon direction="expand" badgeValue={unviewedFileCount > 0 ? unviewedBadgeValue : null} />
-                            </Button>
-                        ) : null}
-                        {commitScopeSlot ? <div className="ml-0.5 shrink-0">{commitScopeSlot}</div> : null}
-                        <div className="flex h-7 min-w-0 items-center gap-2 rounded-sm bg-[var(--diffs-bg,var(--background))] px-2 text-[11px]">
-                            <div className="group/source relative max-w-[180px] min-w-0">
-                                <span className="block truncate text-muted-foreground">{sourceBranch}</span>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className={cn(
-                                        "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 rounded-sm bg-[var(--diffs-bg,var(--background))] p-0 transition-opacity",
-                                        copiedSourceBranch
-                                            ? "opacity-100"
-                                            : "opacity-0 pointer-events-none group-hover/source:opacity-100 group-hover/source:pointer-events-auto group-focus-within/source:opacity-100 group-focus-within/source:pointer-events-auto",
-                                    )}
-                                    onClick={() => onCopySourceBranch(sourceBranch)}
-                                    aria-label="Copy source branch"
-                                >
-                                    {copiedSourceBranch ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                                </Button>
-                            </div>
-                            <span className="text-faint-foreground" aria-hidden="true">
-                                -&gt;
-                            </span>
-                            <span className="max-w-[180px] truncate text-muted-foreground">{destinationBranch}</span>
-                        </div>
-                        <Timestamp
-                            value={navbarStatusTimestamp}
-                            tooltipLabel="updated at"
-                            className="max-w-[120px] truncate align-middle text-[10px] text-faint-foreground"
-                        />
-                        {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
-                    </div>
-
-                    <OmnibarMenubarInput onOpen={onOpenOmnibar} />
-
-                    <div className="-mr-1.5 flex h-full shrink-0 items-center gap-2" data-component="navbar-actions">
-                        <ReviewerStatusAvatars reviewers={reviewers} />
-                        {!isTerminal && isDraft ? (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 rounded-sm border border-status-renamed/50 px-2.5 bg-status-renamed/10 text-status-renamed hover:bg-status-renamed/18 hover:border-status-renamed/75 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
-                                disabled={!canMarkDraft || actionBusy}
-                                onClick={onMarkDraft}
-                            >
-                                {isMarkDraftPending ? <Loader2 className="size-3.5 animate-spin" /> : <PenSquare className="size-3.5" />}
-                                Mark as Ready
-                            </Button>
-                        ) : null}
-                        {!isTerminal ? (
-                            <>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className={cn(
-                                        "h-7 rounded-sm border border-status-added/50 px-2.5 bg-status-added/10 hover:bg-status-added/18 hover:border-status-added/75 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
-                                        currentUserReviewStatus === "approved" ? "bg-status-added/18 text-status-added" : "text-status-added",
-                                    )}
-                                    disabled={!canApprove || actionBusy}
-                                    onClick={onApprove}
-                                >
-                                    {isApprovePending ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-                                    {currentUserReviewStatus === "approved" ? "Remove Approval" : "Approve"}
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className={cn(
-                                        "h-7 rounded-sm border border-status-modified/50 px-2.5 bg-status-modified/10 text-status-modified hover:bg-status-modified/18 hover:border-status-modified/75 hover:text-status-modified focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
-                                        currentUserReviewStatus === "changesRequested" && "bg-status-modified/18",
-                                    )}
-                                    disabled={!canRequestChanges || actionBusy}
-                                    onClick={onRequestChanges}
-                                >
-                                    {isRequestChangesPending ? <Loader2 className="size-3.5 animate-spin" /> : <TriangleAlert className="size-3.5" />}
-                                    Revise
-                                </Button>
-                            </>
-                        ) : null}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className={cn(
-                                "h-7 rounded-sm border px-2.5 font-medium focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
-                                isMerged
-                                    ? "cursor-default border-status-merged/40 bg-status-merged/12 text-status-merged hover:bg-status-merged/12 hover:text-status-merged"
-                                    : isDeclined
-                                      ? "cursor-default border-status-removed/40 bg-status-removed/12 text-status-removed hover:bg-status-removed/12 hover:text-status-removed"
-                                      : "border-status-merged/50 bg-status-merged/10 text-status-merged hover:bg-status-merged/18 hover:border-status-merged/75 hover:text-status-merged",
-                            )}
-                            disabled={isTerminal ? undefined : !canMerge || actionBusy}
-                            onClick={isTerminal ? undefined : onOpenMerge}
-                            aria-disabled={isTerminal || undefined}
-                            aria-label={isMerged ? "Pull request merged" : isDeclined ? "Pull request closed" : "Merge pull request"}
-                        >
-                            {isDeclined ? <XCircle className="size-4" /> : <GitMerge className="size-4" />}
-                            {isTerminal ? terminalStatusLabel : "Merge"}
-                        </Button>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground data-[state=open]:bg-surface-hover data-[state=open]:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
-                                    aria-label="Pull request actions"
-                                >
-                                    <Menu className="size-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" side="bottom" sideOffset={0}>
-                                {pullRequestUrl ? (
-                                    <DropdownMenuItem asChild className="cursor-pointer py-2 text-[13px] focus:bg-surface-hover">
-                                        <a href={pullRequestUrl} target="_blank" rel="noreferrer">
-                                            {host === "github" ? <GitHostIcon host="github" className="size-4" /> : <GlassWater className="size-4" />}
-                                            {host === "github" ? "Open in GitHub" : "Open in Bitbucket"}
-                                        </a>
-                                    </DropdownMenuItem>
-                                ) : null}
-                                {!isTerminal ? (
-                                    <DropdownMenuItem
-                                        className="cursor-pointer py-2 text-[13px] text-status-removed focus:bg-status-removed/20 focus:text-status-removed"
-                                        disabled={!canDecline || actionBusy}
-                                        onSelect={onDecline}
-                                    >
-                                        <XCircle className="size-4" />
-                                        Decline PR
-                                    </DropdownMenuItem>
-                                ) : null}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        {rightSidebarCollapsed ? (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-full w-12 rounded-none pl-0 pr-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
-                                onClick={onExpandRightSidebar}
-                                aria-label={`Expand comments sidebar (${unresolvedCommentCount} unresolved comments)`}
-                            >
-                                <span className="flex items-center justify-center gap-0.5">
-                                    <span className="relative flex size-6 items-center justify-center">
-                                        <MessageSquare className="size-[14px] -scale-x-100" />
-                                        {unresolvedCommentCount > 0 ? (
-                                            <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">
-                                                {commentsBadgeValue}
-                                            </span>
-                                        ) : null}
-                                    </span>
-                                    <span className="flex size-3 items-center justify-center" aria-hidden="true">
-                                        <ChevronRight className="size-3" />
-                                    </span>
-                                </span>
-                            </Button>
-                        ) : null}
-                    </div>
-                </div>
+        <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+                "h-7 rounded-sm border px-2.5 font-medium focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                mergeButtonState.className,
             )}
-        </div>
+            disabled={isTerminal ? undefined : !canMerge || actionBusy}
+            onClick={isTerminal ? undefined : onOpenMerge}
+            aria-disabled={isTerminal || undefined}
+            aria-label={mergeButtonState.ariaLabel}
+        >
+            {isDeclined ? <XCircle className="size-4" /> : <GitMerge className="size-4" />}
+            {isTerminal ? terminalStatusLabel : "Merge"}
+        </Button>
+    );
+}
+
+function getMergeButtonState(isMerged: boolean, isDeclined: boolean) {
+    if (isMerged)
+        return {
+            className: "cursor-default border-status-merged/40 bg-status-merged/12 text-status-merged hover:bg-status-merged/12 hover:text-status-merged",
+            ariaLabel: "Pull request merged",
+        };
+    if (isDeclined)
+        return {
+            className: "cursor-default border-status-removed/40 bg-status-removed/12 text-status-removed hover:bg-status-removed/12 hover:text-status-removed",
+            ariaLabel: "Pull request closed",
+        };
+    return {
+        className:
+            "border-status-merged/50 bg-status-merged/10 text-status-merged hover:bg-status-merged/18 hover:border-status-merged/75 hover:text-status-merged",
+        ariaLabel: "Merge pull request",
+    };
+}
+
+function NavbarOverflowMenu({
+    pullRequestUrl,
+    host,
+    navbarState,
+    canDecline,
+    isApprovePending,
+    isRequestChangesPending,
+    isDeclinePending,
+    isMarkDraftPending,
+    onDecline,
+}: ReviewTopNavbarProps) {
+    const actionBusy = isApprovePending || isRequestChangesPending || isDeclinePending || isMarkDraftPending;
+    const normalizedNavbarState = navbarState.toLowerCase();
+    const isTerminal = normalizedNavbarState === "merged" || normalizedNavbarState === "closed" || normalizedNavbarState === "declined";
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground data-[state=open]:bg-surface-hover data-[state=open]:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                    aria-label="Pull request actions"
+                >
+                    <Menu className="size-4" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="bottom" sideOffset={0}>
+                {pullRequestUrl ? (
+                    <DropdownMenuItem asChild className="cursor-pointer py-2 text-[13px] focus:bg-surface-hover">
+                        <a href={pullRequestUrl} target="_blank" rel="noreferrer">
+                            {host === "github" ? <GitHostIcon host="github" className="size-4" /> : <GlassWater className="size-4" />}
+                            {host === "github" ? "Open in GitHub" : "Open in Bitbucket"}
+                        </a>
+                    </DropdownMenuItem>
+                ) : null}
+                {!isTerminal ? (
+                    <DropdownMenuItem
+                        className="cursor-pointer py-2 text-[13px] text-status-removed focus:bg-status-removed/20 focus:text-status-removed"
+                        disabled={!canDecline || actionBusy}
+                        onSelect={onDecline}
+                    >
+                        <XCircle className="size-4" />
+                        Decline PR
+                    </DropdownMenuItem>
+                ) : null}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+function NavbarCommentsToggle({ rightSidebarCollapsed, unresolvedCommentCount, onExpandRightSidebar }: ReviewTopNavbarProps) {
+    const commentsBadgeValue = unresolvedCommentCount > 99 ? "99+" : unresolvedCommentCount.toString();
+    return (
+        <>
+            {rightSidebarCollapsed ? (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-full w-12 rounded-none pl-0 pr-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                    onClick={onExpandRightSidebar}
+                    aria-label={`Expand comments sidebar (${unresolvedCommentCount} unresolved comments)`}
+                >
+                    <span className="flex items-center justify-center gap-0.5">
+                        <span className="relative flex size-6 items-center justify-center">
+                            <MessageSquare className="size-[14px] -scale-x-100" />
+                            {unresolvedCommentCount > 0 ? (
+                                <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">{commentsBadgeValue}</span>
+                            ) : null}
+                        </span>
+                        <span className="flex size-3 items-center justify-center" aria-hidden="true">
+                            <ChevronRight className="size-3" />
+                        </span>
+                    </span>
+                </Button>
+            ) : null}
+        </>
     );
 }
 

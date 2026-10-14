@@ -31,6 +31,17 @@ type PersistedFileHistoryByPath = Record<
     }
 >;
 
+type HistoryTrackingState = {
+    revision: string;
+    requestedPaths: Set<string>;
+    loadingByPath: Record<string, boolean>;
+    errorByPath: Record<string, string | null>;
+};
+
+function emptyHistoryTracking(revision: string): HistoryTrackingState {
+    return { revision, requestedPaths: new Set(), loadingByPath: {}, errorByPath: {} };
+}
+
 type UseReviewFileVersionsParams = {
     fileDiffFingerprints: Map<string, string>;
     historyRevision: string;
@@ -53,12 +64,14 @@ export function useReviewFileVersions({
     viewedStorageKey,
 }: UseReviewFileVersionsParams) {
     const [selectedVersionIdByPath, setSelectedVersionIdByPath] = useState<Record<string, string>>({});
-    const [historyRequestedPaths, setHistoryRequestedPaths] = useState<Set<string>>(new Set());
-    const [historyLoadingByPath, setHistoryLoadingByPath] = useState<Record<string, boolean>>({});
-    const [historyErrorByPath, setHistoryErrorByPath] = useState<Record<string, string | null>>({});
+    const [historyTracking, setHistoryTracking] = useState<HistoryTrackingState>(() => emptyHistoryTracking(historyRevision));
+    const emptyHistoryForRevision = useMemo(() => emptyHistoryTracking(historyRevision), [historyRevision]);
+    const activeHistory = historyTracking.revision === historyRevision ? historyTracking : emptyHistoryForRevision;
+    const historyRequestedPaths = activeHistory.requestedPaths;
+    const historyLoadingByPath = activeHistory.loadingByPath;
+    const historyErrorByPath = activeHistory.errorByPath;
     const loadedViewedStateRevisionRef = useRef("");
     const skipViewedStatePersistRevisionRef = useRef("");
-    const loadedHistoryRevisionRef = useRef("");
 
     const latestVersionIdByPath = useMemo(() => {
         const map = new Map<string, string>();
@@ -73,10 +86,14 @@ export function useReviewFileVersions({
         return `${viewedStorageKey}:${sortedVersionIds.length}:${hashString(sortedVersionIds.join("|"))}`;
     }, [latestVersionIdByPath, viewedStorageKey]);
     const resetHistoryTracking = useCallback(() => {
-        setHistoryRequestedPaths(new Set());
-        setHistoryLoadingByPath({});
-        setHistoryErrorByPath({});
-    }, []);
+        setHistoryTracking(emptyHistoryTracking(historyRevision));
+    }, [historyRevision]);
+    const updateHistoryTracking = useCallback(
+        (update: (current: HistoryTrackingState) => HistoryTrackingState) => {
+            setHistoryTracking((previous) => update(previous.revision === historyRevision ? previous : emptyHistoryTracking(historyRevision)));
+        },
+        [historyRevision],
+    );
 
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
@@ -95,15 +112,10 @@ export function useReviewFileVersions({
                 nextViewedFiles.add(path);
             }
         }
+        // eslint-disable-next-line react-doctor/no-pass-data-to-parent, react-doctor/no-pass-live-state-to-parent -- Hydrate the shared viewed-file state from the scoped persisted version IDs.
         setViewedFiles(nextViewedFiles);
         resetHistoryTracking();
     }, [fileDiffFingerprints, latestVersionIdByPath, prData?.diffstat.length, resetHistoryTracking, setViewedFiles, viewedStateLoadRevision, viewedStorageKey]);
-
-    useEffect(() => {
-        if (loadedHistoryRevisionRef.current === historyRevision) return;
-        loadedHistoryRevisionRef.current = historyRevision;
-        resetHistoryTracking();
-    }, [historyRevision, resetHistoryTracking]);
 
     useEffect(() => {
         if (!viewedStorageKey || typeof window === "undefined") return;
@@ -142,14 +154,12 @@ export function useReviewFileVersions({
             if (!prData) return;
             const normalizedPath = path.trim();
             if (!normalizedPath) return;
-            setHistoryRequestedPaths((prev) => {
-                if (prev.has(normalizedPath)) return prev;
-                const next = new Set(prev);
-                next.add(normalizedPath);
-                return next;
-            });
-            setHistoryLoadingByPath((prev) => ({ ...prev, [normalizedPath]: true }));
-            setHistoryErrorByPath((prev) => ({ ...prev, [normalizedPath]: null }));
+            updateHistoryTracking((prev) => ({
+                ...prev,
+                requestedPaths: new Set(prev.requestedPaths).add(normalizedPath),
+                loadingByPath: { ...prev.loadingByPath, [normalizedPath]: true },
+                errorByPath: { ...prev.errorByPath, [normalizedPath]: null },
+            }));
             try {
                 const scopedHistory = getPullRequestFileHistoryCollection({
                     prRef,
@@ -159,15 +169,15 @@ export function useReviewFileVersions({
                 });
                 await scopedHistory.utils.refetch({ throwOnError: false });
                 const maybeError = scopedHistory.utils.lastError;
-                setHistoryErrorByPath((prev) => ({
+                updateHistoryTracking((prev) => ({
                     ...prev,
-                    [normalizedPath]: maybeError instanceof Error ? maybeError.message : null,
+                    errorByPath: { ...prev.errorByPath, [normalizedPath]: maybeError instanceof Error ? maybeError.message : null },
                 }));
             } finally {
-                setHistoryLoadingByPath((prev) => ({ ...prev, [normalizedPath]: false }));
+                updateHistoryTracking((prev) => ({ ...prev, loadingByPath: { ...prev.loadingByPath, [normalizedPath]: false } }));
             }
         },
-        [prData, prRef],
+        [prData, prRef, updateHistoryTracking],
     );
 
     const getSelectedVersionIdForPath = useCallback(

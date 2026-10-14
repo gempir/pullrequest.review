@@ -1,5 +1,5 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { DiffContextState } from "@/components/pull-request-review/diff-context-button";
 import { type FullFileContextEntry, splitFileIntoLines } from "@/features/review/model/review-page-controller-helpers";
 import { savePullRequestFileContextRecord } from "@/lib/git-host/query-collections";
@@ -31,35 +31,25 @@ export function useReviewFileContexts({
     resolvedScopeMode,
 }: UseReviewFileContextsParams) {
     const [fileContexts, setFileContexts] = useState<Record<string, FullFileContextEntry>>({});
-    const readyFileContextsRef = useRef<Record<string, { oldLines: string[]; newLines: string[] }>>({});
+    const [readyFileContexts, setReadyFileContexts] = useState<Record<string, { oldLines: string[]; newLines: string[] }>>({});
 
-    const readyFileContexts = useMemo(() => {
-        const prevEntries = readyFileContextsRef.current;
-        const nextEntries: Record<string, { oldLines: string[]; newLines: string[] }> = {};
-        let changed = false;
-
-        for (const [path, entry] of Object.entries(fileContexts)) {
-            if (entry.status !== "ready") continue;
-            const prev = prevEntries[path];
-            if (prev && prev.oldLines === entry.oldLines && prev.newLines === entry.newLines) {
-                nextEntries[path] = prev;
-                continue;
-            }
-            nextEntries[path] = { oldLines: entry.oldLines, newLines: entry.newLines };
-            changed = true;
+    const nextReadyFileContexts: Record<string, { oldLines: string[]; newLines: string[] }> = {};
+    for (const [path, entry] of Object.entries(fileContexts)) {
+        if (entry.status !== "ready") continue;
+        const prev = readyFileContexts[path];
+        if (prev && prev.oldLines === entry.oldLines && prev.newLines === entry.newLines) {
+            nextReadyFileContexts[path] = prev;
+            continue;
         }
-
-        const prevKeys = Object.keys(prevEntries);
-        const nextKeys = Object.keys(nextEntries);
-        const hasKeyChange = prevKeys.length !== nextKeys.length || prevKeys.some((key) => nextEntries[key] !== prevEntries[key]);
-
-        if (!changed && !hasKeyChange) {
-            return prevEntries;
-        }
-
-        readyFileContextsRef.current = nextEntries;
-        return nextEntries;
-    }, [fileContexts]);
+        nextReadyFileContexts[path] = { oldLines: entry.oldLines, newLines: entry.newLines };
+    }
+    const readyKeysChanged =
+        Object.keys(readyFileContexts).length !== Object.keys(nextReadyFileContexts).length ||
+        Object.keys(nextReadyFileContexts).some((key) => nextReadyFileContexts[key] !== readyFileContexts[key]);
+    if (readyKeysChanged) {
+        setReadyFileContexts(nextReadyFileContexts);
+    }
+    const currentReadyFileContexts = readyKeysChanged ? nextReadyFileContexts : readyFileContexts;
 
     const fileContextStatus = useMemo(() => {
         const entries: Record<string, DiffContextState> = {};
@@ -75,7 +65,9 @@ export function useReviewFileContexts({
         return entries;
     }, [fileContexts]);
 
-    useEffect(() => {
+    const [syncedPersistedFileContexts, setSyncedPersistedFileContexts] = useState(persistedFileContexts);
+    if (syncedPersistedFileContexts !== persistedFileContexts) {
+        setSyncedPersistedFileContexts(persistedFileContexts);
         setFileContexts((prev) => {
             let changed = false;
             const next: Record<string, FullFileContextEntry> = { ...prev };
@@ -103,12 +95,13 @@ export function useReviewFileContexts({
 
             return changed ? next : prev;
         });
-    }, [persistedFileContexts]);
+    }
 
-    useEffect(() => {
-        void historyRevision;
+    const [syncedHistoryRevision, setSyncedHistoryRevision] = useState(historyRevision);
+    if (syncedHistoryRevision !== historyRevision) {
+        setSyncedHistoryRevision(historyRevision);
         setFileContexts({});
-    }, [historyRevision]);
+    }
 
     const handleLoadFullFileContext = useCallback(
         async (filePath: string, fileDiff: FileDiffMetadata) => {
@@ -165,6 +158,6 @@ export function useReviewFileContexts({
     return {
         fileContextStatus,
         handleLoadFullFileContext,
-        readyFileContexts,
+        readyFileContexts: currentReadyFileContexts,
     };
 }

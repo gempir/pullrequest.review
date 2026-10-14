@@ -511,18 +511,18 @@ export function useReviewPageDerived({
             button.style.transform = "translateY(-50%)";
             button.style.cursor = "pointer";
             button.style.zIndex = "2";
-            button.addEventListener("pointerdown", (event) => {
+            button.onpointerdown = (event) => {
                 event.preventDefault();
                 event.stopPropagation();
-            });
-            button.addEventListener("click", (event) => {
+            };
+            button.onclick = (event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 onOpenInlineDraft({
                     lineNumber: props.lineNumber,
                     annotationSide: props.annotationSide,
                 });
-            });
+            };
             numberElement.style.position = "relative";
             numberElement.style.cursor = "pointer";
             numberElement.appendChild(button);

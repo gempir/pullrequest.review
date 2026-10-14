@@ -28,6 +28,18 @@ function createSuggestionEditor<EType extends EditorType>(
     return new Editor(editorType, options, editStateKey);
 }
 
+function resolveSingleDiffOptions(options: FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>, hasFullContext: boolean) {
+    if (!hasFullContext || typeof options.hunkSeparators === "function" || options.hunkSeparators === "line-info") return options;
+    return { ...options, hunkSeparators: "line-info" as const };
+}
+
+function getSingleDiffRenderKey(path: string | undefined, versionId: string | undefined, historical: boolean, hasFullContext: boolean) {
+    const version = versionId ?? "latest";
+    const context = hasFullContext ? "full-context" : "patch-context";
+    const source = historical ? "historical" : "current";
+    return `${path}:${version}:${source}:${context}`;
+}
+
 type ReviewSingleModeViewProps = {
     linkedCommentId?: number;
     viewMode: "single" | "all";
@@ -95,260 +107,303 @@ type ReviewSingleModeViewProps = {
     summaryFooter?: ReactNode;
 };
 
-export function ReviewSingleModeView({
-    linkedCommentId,
-    viewMode,
-    allowNestedReplies,
-    onWorkspaceModeChange,
-    prData,
-    pullRequestTitle,
-    currentUserDisplayName,
-    lineStats,
-    isSummarySelected,
+function SuggestionEditControls({
+    canSuggestChanges,
+    isSuggestionEditing,
+    isPreparingSuggestionEdit,
+    suggestionCount,
+    suggestionSubmitPending,
+    onCancelSuggestionEdit,
+    onSubmitSuggestions,
+    onStartSuggestionEdit,
+}: Pick<
+    ReviewSingleModeViewProps,
+    | "canSuggestChanges"
+    | "isPreparingSuggestionEdit"
+    | "suggestionCount"
+    | "suggestionSubmitPending"
+    | "onCancelSuggestionEdit"
+    | "onSubmitSuggestions"
+    | "onStartSuggestionEdit"
+> & { isSuggestionEditing: boolean }) {
+    if (!canSuggestChanges && !isSuggestionEditing && !isPreparingSuggestionEdit) return null;
+    if (isSuggestionEditing) {
+        return (
+            <>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={onCancelSuggestionEdit}
+                    disabled={suggestionSubmitPending}
+                    title="Discard this local edit session"
+                >
+                    <X className="size-3.5" />
+                    Cancel
+                </Button>
+                <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => {
+                        void onSubmitSuggestions();
+                    }}
+                    disabled={suggestionSubmitPending || suggestionCount === 0}
+                    title={
+                        suggestionCount > 0
+                            ? `Create ${suggestionCount} suggestion${suggestionCount === 1 ? "" : "s"}`
+                            : "Replace, insert, or delete source lines to create a suggestion"
+                    }
+                >
+                    {suggestionSubmitPending ? <LoaderCircle className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                    {suggestionCount > 0 ? `Suggest ${suggestionCount}` : "Suggest changes"}
+                </Button>
+            </>
+        );
+    }
+    return (
+        <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2"
+            onClick={onStartSuggestionEdit}
+            disabled={isPreparingSuggestionEdit}
+            title="Edit this source file and turn changes into suggestions"
+        >
+            {isPreparingSuggestionEdit ? <LoaderCircle className="size-3.5 animate-spin" /> : <PencilLine className="size-3.5" />}
+            Suggest edits
+        </Button>
+    );
+}
+
+function ReviewSingleSummary(props: ReviewSingleModeViewProps) {
+    const {
+        prData,
+        pullRequestTitle,
+        currentUserDisplayName,
+        lineStats,
+        viewMode,
+        onWorkspaceModeChange,
+        onOpenDiffSettings,
+        onToggleAllFilesViewed,
+        areAllFilesViewed,
+        createCommentPending,
+        canCommentInline,
+        canResolveThread,
+        resolveCommentPending,
+        deleteCommentPending,
+        updateCommentPending,
+        updateDescriptionPending,
+        canEditDescription,
+        onDeleteComment,
+        onResolveThread,
+        onReplyToThread,
+        onEditComment,
+        onEditDescription,
+        onHistoryCommentNavigate,
+        summaryFooter,
+    } = props;
+    return (
+        <div
+            id={fileAnchorId(PR_SUMMARY_PATH)}
+            data-component="summary-page"
+            className="diff-content-scroll h-full w-full min-w-0 max-w-full overflow-y-auto overflow-x-hidden"
+        >
+            <PullRequestSummaryPanel
+                bundle={prData}
+                headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
+                diffStats={lineStats}
+                currentUserDisplayName={currentUserDisplayName}
+                onSelectComment={onHistoryCommentNavigate}
+                createCommentPending={createCommentPending}
+                canCommentInline={canCommentInline}
+                canResolveThread={canResolveThread}
+                resolveCommentPending={resolveCommentPending}
+                deleteCommentPending={deleteCommentPending}
+                updateCommentPending={updateCommentPending}
+                updateDescriptionPending={updateDescriptionPending}
+                canEditDescription={canEditDescription}
+                onDeleteComment={onDeleteComment}
+                onResolveThread={onResolveThread}
+                onReplyToThread={onReplyToThread}
+                onEditComment={onEditComment}
+                onEditDescription={onEditDescription}
+                footerRight={summaryFooter}
+                headerRight={
+                    <div className="flex items-center gap-1">
+                        <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={onToggleAllFilesViewed}
+                            aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                            title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                        >
+                            <span
+                                className={
+                                    areAllFilesViewed
+                                        ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                        : "size-4 bg-surface-1 border border-border text-muted-foreground flex items-center justify-center"
+                                }
+                            >
+                                <CheckCheck className="size-3" />
+                            </span>
+                        </Button>
+                    </div>
+                }
+            />
+        </div>
+    );
+}
+
+function ReviewSingleFileHeader({
     selectedFilePath,
     selectedFileDiff,
-    selectedFileReadOnlyHistorical,
+    copiedPath,
+    onCopyPath,
     selectedFileVersionId,
     selectedFileVersionOptions,
-    copiedPath,
+    onSelectFileVersion,
+    onFileVersionMenuOpen,
+    fileContextState,
+    onLoadFullFileContext,
+    selectedFileReadOnlyHistorical,
     fileLineStats,
+    canSuggestChanges,
+    isPreparingSuggestionEdit,
+    suggestionCount,
+    suggestionSubmitPending,
+    onCancelSuggestionEdit,
+    onSubmitSuggestions,
+    onStartSuggestionEdit,
+    viewMode,
+    onWorkspaceModeChange,
+    onOpenDiffSettings,
+    onToggleViewed,
+    isSuggestionEditing,
+    isSelectedVersionViewed,
+}: ReviewSingleModeViewProps & {
+    selectedFilePath: string;
+    selectedFileDiff: FileDiffMetadata;
+    isSuggestionEditing: boolean;
+    isSelectedVersionViewed: boolean;
+}) {
+    return (
+        <div className="h-10 min-w-0 bg-chrome px-3 flex items-center gap-2 overflow-hidden">
+            <span className="size-4 flex items-center justify-center shrink-0">
+                <RepositoryFileIcon fileName={selectedFilePath.split("/").pop() || selectedFilePath} className="size-3.5" />
+            </span>
+            <div className="min-w-0 flex-1 flex items-center gap-2">
+                <span className="min-w-0 truncate font-mono text-[12px]">{selectedFilePath}</span>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 shrink-0"
+                    onClick={() => onCopyPath(selectedFilePath)}
+                    aria-label="Copy file path"
+                >
+                    {copiedPath === selectedFilePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                </Button>
+                <FileVersionSelect
+                    value={selectedFileVersionId ?? ""}
+                    options={selectedFileVersionOptions}
+                    onValueChange={onSelectFileVersion}
+                    onOpenChange={(open) => {
+                        if (!open) return;
+                        onFileVersionMenuOpen();
+                    }}
+                    disabled={isSuggestionEditing || isPreparingSuggestionEdit}
+                />
+                <DiffContextButton
+                    state={fileContextState[selectedFilePath]}
+                    onClick={() => onLoadFullFileContext(selectedFilePath, selectedFileDiff)}
+                    disabled={selectedFileReadOnlyHistorical || isSuggestionEditing}
+                />
+            </div>
+            <div className="ml-auto flex items-center gap-2 text-[12px]">
+                <span className="select-none text-status-added">+{fileLineStats.get(selectedFilePath)?.added ?? 0}</span>
+                <span className="select-none text-status-removed">-{fileLineStats.get(selectedFilePath)?.removed ?? 0}</span>
+                <SuggestionEditControls
+                    canSuggestChanges={canSuggestChanges}
+                    isSuggestionEditing={isSuggestionEditing}
+                    isPreparingSuggestionEdit={isPreparingSuggestionEdit}
+                    suggestionCount={suggestionCount}
+                    suggestionSubmitPending={suggestionSubmitPending}
+                    onCancelSuggestionEdit={onCancelSuggestionEdit}
+                    onSubmitSuggestions={onSubmitSuggestions}
+                    onStartSuggestionEdit={onStartSuggestionEdit}
+                />
+                <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
+                <button
+                    type="button"
+                    className="flex items-center text-muted-foreground"
+                    onClick={() => onToggleViewed(selectedFilePath)}
+                    aria-label={isSelectedVersionViewed ? `Mark ${selectedFilePath} as not viewed` : `Mark ${selectedFilePath} as viewed`}
+                    title={isSelectedVersionViewed ? "Mark as not viewed" : "Mark as viewed"}
+                >
+                    <span
+                        className={
+                            isSelectedVersionViewed
+                                ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                : "size-4 bg-surface-1 border border-border text-transparent flex items-center justify-center"
+                        }
+                    >
+                        <Check className="size-3" />
+                    </span>
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function ReviewSingleFileBody({
     diffHighlighterReady,
+    selectedFileDiff,
+    toRenderableFileDiff,
+    editableFileDiff,
     diffTypographyStyle,
-    singleFileDiffOptions,
+    selectedFileReadOnlyHistorical,
     singleFileAnnotations,
-    selectedFileLevelThreads,
+    linkedCommentId,
+    allowNestedReplies,
     workspace,
     repo,
     pullRequestId,
     createCommentPending,
     canCommentInline,
-    canSuggestChanges,
-    isSuggestionEditActive,
-    isPreparingSuggestionEdit,
-    suggestionCount,
-    suggestionSubmitPending,
-    editableFileDiff,
     canResolveThread,
     resolveCommentPending,
     deleteCommentPending,
     updateCommentPending,
-    updateDescriptionPending,
-    canEditDescription,
-    toRenderableFileDiff,
-    onCopyPath,
-    areAllFilesViewed,
-    onToggleAllFilesViewed,
-    onToggleViewed,
-    onSelectFileVersion,
-    onFileVersionMenuOpen,
     getInlineDraftContent,
     setInlineDraftContent,
     onSubmitInlineComment,
-    onStartSuggestionEdit,
-    onCancelSuggestionEdit,
-    onSuggestionEditChange,
-    onSubmitSuggestions,
     onInlineDraftReady,
     onCancelInlineDraft,
+    currentUserDisplayName,
     onDeleteComment,
     onResolveThread,
     onReplyToThread,
     onEditComment,
-    onEditDescription,
-    onOpenDiffSettings,
-    onLoadFullFileContext,
-    fileContextState,
-    onHistoryCommentNavigate,
-    summaryFooter,
-}: ReviewSingleModeViewProps) {
-    const hasFullContext = selectedFilePath ? fileContextState[selectedFilePath]?.status === "ready" : false;
-    const isSelectedVersionViewed = selectedFileVersionId
-        ? selectedFileVersionOptions.some((option) => option.id === selectedFileVersionId && !option.unread)
-        : false;
-    const resolvedFileDiffOptions =
-        hasFullContext && typeof singleFileDiffOptions.hunkSeparators !== "function"
-            ? singleFileDiffOptions.hunkSeparators === "line-info"
-                ? singleFileDiffOptions
-                : { ...singleFileDiffOptions, hunkSeparators: "line-info" as const }
-            : singleFileDiffOptions;
-    const isSuggestionEditing = isSuggestionEditActive && editableFileDiff !== undefined;
-    const canOpenInlineDraft = canCommentInline && !selectedFileReadOnlyHistorical && !isSuggestionEditing;
-    const interactiveSingleFileDiffOptions = canOpenInlineDraft
-        ? resolvedFileDiffOptions
-        : {
-              ...resolvedFileDiffOptions,
-              onLineEnter: undefined,
-              onLineLeave: undefined,
-          };
-    const singleDiffRenderKey = `${selectedFilePath}:${selectedFileVersionId ?? "latest"}:${selectedFileReadOnlyHistorical ? "historical" : "current"}:${hasFullContext ? "full-context" : "patch-context"}`;
-    const suggestionEditorOptions = useMemo<EditorOptions<"file-diff", SingleFileAnnotationMetadata | undefined, undefined>>(
-        () => ({
-            onChange: (event) => {
-                onSuggestionEditChange(event.file.contents);
-            },
-        }),
-        [onSuggestionEditChange],
-    );
-    if (isSummarySelected) {
-        return (
-            <div
-                id={fileAnchorId(PR_SUMMARY_PATH)}
-                data-component="summary-page"
-                className="diff-content-scroll h-full w-full min-w-0 max-w-full overflow-y-auto overflow-x-hidden"
-            >
-                <PullRequestSummaryPanel
-                    bundle={prData}
-                    headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
-                    diffStats={lineStats}
-                    currentUserDisplayName={currentUserDisplayName}
-                    onSelectComment={onHistoryCommentNavigate}
-                    createCommentPending={createCommentPending}
-                    canCommentInline={canCommentInline}
-                    canResolveThread={canResolveThread}
-                    resolveCommentPending={resolveCommentPending}
-                    deleteCommentPending={deleteCommentPending}
-                    updateCommentPending={updateCommentPending}
-                    updateDescriptionPending={updateDescriptionPending}
-                    canEditDescription={canEditDescription}
-                    onDeleteComment={onDeleteComment}
-                    onResolveThread={onResolveThread}
-                    onReplyToThread={onReplyToThread}
-                    onEditComment={onEditComment}
-                    onEditDescription={onEditDescription}
-                    footerRight={summaryFooter}
-                    headerRight={
-                        <div className="flex items-center gap-1">
-                            <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0"
-                                onClick={onToggleAllFilesViewed}
-                                aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
-                                title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
-                            >
-                                <span
-                                    className={
-                                        areAllFilesViewed
-                                            ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                            : "size-4 bg-surface-1 border border-border text-muted-foreground flex items-center justify-center"
-                                    }
-                                >
-                                    <CheckCheck className="size-3" />
-                                </span>
-                            </Button>
-                        </div>
-                    }
-                />
-            </div>
-        );
-    }
-
-    if (!selectedFileDiff || !selectedFilePath) {
-        return <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">No file selected for the current filter.</div>;
-    }
-
+    selectedFileLevelThreads,
+    isSuggestionEditing,
+    singleDiffRenderKey,
+    interactiveSingleFileDiffOptions,
+    suggestionEditorOptions,
+}: ReviewSingleModeViewProps & {
+    selectedFileDiff: FileDiffMetadata;
+    isSuggestionEditing: boolean;
+    singleDiffRenderKey: string;
+    interactiveSingleFileDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>;
+    suggestionEditorOptions: EditorOptions<"file-diff", SingleFileAnnotationMetadata | undefined, undefined>;
+}) {
     return (
-        <div id={fileAnchorId(selectedFilePath)} data-component="diff-file-view" className="h-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
-            <div className="h-10 min-w-0 bg-chrome px-3 flex items-center gap-2 overflow-hidden">
-                <span className="size-4 flex items-center justify-center shrink-0">
-                    <RepositoryFileIcon fileName={selectedFilePath.split("/").pop() || selectedFilePath} className="size-3.5" />
-                </span>
-                <div className="min-w-0 flex-1 flex items-center gap-2">
-                    <span className="min-w-0 truncate font-mono text-[12px]">{selectedFilePath}</span>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 shrink-0"
-                        onClick={() => onCopyPath(selectedFilePath)}
-                        aria-label="Copy file path"
-                    >
-                        {copiedPath === selectedFilePath ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                    </Button>
-                    <FileVersionSelect
-                        value={selectedFileVersionId ?? ""}
-                        options={selectedFileVersionOptions}
-                        onValueChange={onSelectFileVersion}
-                        onOpenChange={(open) => {
-                            if (!open) return;
-                            onFileVersionMenuOpen();
-                        }}
-                        disabled={isSuggestionEditing || isPreparingSuggestionEdit}
-                    />
-                    <DiffContextButton
-                        state={fileContextState[selectedFilePath]}
-                        onClick={() => onLoadFullFileContext(selectedFilePath, selectedFileDiff)}
-                        disabled={selectedFileReadOnlyHistorical || isSuggestionEditing}
-                    />
-                </div>
-                <div className="ml-auto flex items-center gap-2 text-[12px]">
-                    <span className="select-none text-status-added">+{fileLineStats.get(selectedFilePath)?.added ?? 0}</span>
-                    <span className="select-none text-status-removed">-{fileLineStats.get(selectedFilePath)?.removed ?? 0}</span>
-                    {canSuggestChanges || isSuggestionEditing || isPreparingSuggestionEdit ? (
-                        isSuggestionEditing ? (
-                            <>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 px-2"
-                                    onClick={onCancelSuggestionEdit}
-                                    disabled={suggestionSubmitPending}
-                                    title="Discard this local edit session"
-                                >
-                                    <X className="size-3.5" />
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    className="h-7 px-2"
-                                    onClick={() => {
-                                        void onSubmitSuggestions();
-                                    }}
-                                    disabled={suggestionSubmitPending || suggestionCount === 0}
-                                    title={
-                                        suggestionCount > 0
-                                            ? `Create ${suggestionCount} suggestion${suggestionCount === 1 ? "" : "s"}`
-                                            : "Replace, insert, or delete source lines to create a suggestion"
-                                    }
-                                >
-                                    {suggestionSubmitPending ? <LoaderCircle className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-                                    {suggestionCount > 0 ? `Suggest ${suggestionCount}` : "Suggest changes"}
-                                </Button>
-                            </>
-                        ) : (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-7 px-2"
-                                onClick={onStartSuggestionEdit}
-                                disabled={isPreparingSuggestionEdit}
-                                title="Edit this source file and turn changes into suggestions"
-                            >
-                                {isPreparingSuggestionEdit ? <LoaderCircle className="size-3.5 animate-spin" /> : <PencilLine className="size-3.5" />}
-                                Suggest edits
-                            </Button>
-                        )
-                    ) : null}
-                    <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
-                    <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(selectedFilePath)}>
-                        <span
-                            className={
-                                isSelectedVersionViewed
-                                    ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                    : "size-4 bg-surface-1 border border-border text-transparent flex items-center justify-center"
-                            }
-                        >
-                            <Check className="size-3" />
-                        </span>
-                    </button>
-                </div>
-            </div>
-
+        <>
             <div className="diff-content-scroll min-h-0 min-w-0 w-full max-w-full flex-1 overflow-x-auto">
                 {diffHighlighterReady ? (
                     <EditProvider createEditor={createSuggestionEditor}>
@@ -416,6 +471,72 @@ export function ReviewSingleModeView({
                     ))}
                 </div>
             ) : null}
+        </>
+    );
+}
+
+export function ReviewSingleModeView(props: ReviewSingleModeViewProps) {
+    const {
+        isSummarySelected,
+        selectedFilePath,
+        selectedFileDiff,
+        selectedFileReadOnlyHistorical,
+        selectedFileVersionId,
+        selectedFileVersionOptions,
+        singleFileDiffOptions,
+        canCommentInline,
+        isSuggestionEditActive,
+        editableFileDiff,
+        onSuggestionEditChange,
+        fileContextState,
+    } = props;
+    const hasFullContext = selectedFilePath ? fileContextState[selectedFilePath]?.status === "ready" : false;
+    const isSelectedVersionViewed = selectedFileVersionId
+        ? selectedFileVersionOptions.some((option) => option.id === selectedFileVersionId && !option.unread)
+        : false;
+    const resolvedFileDiffOptions = resolveSingleDiffOptions(singleFileDiffOptions, hasFullContext);
+    const isSuggestionEditing = isSuggestionEditActive && editableFileDiff !== undefined;
+    const canOpenInlineDraft = canCommentInline && !selectedFileReadOnlyHistorical && !isSuggestionEditing;
+    const interactiveSingleFileDiffOptions = canOpenInlineDraft
+        ? resolvedFileDiffOptions
+        : {
+              ...resolvedFileDiffOptions,
+              onLineEnter: undefined,
+              onLineLeave: undefined,
+          };
+    const singleDiffRenderKey = getSingleDiffRenderKey(selectedFilePath, selectedFileVersionId, selectedFileReadOnlyHistorical, hasFullContext);
+    const suggestionEditorOptions = useMemo<EditorOptions<"file-diff", SingleFileAnnotationMetadata | undefined, undefined>>(
+        () => ({
+            onChange: (event) => {
+                onSuggestionEditChange(event.file.contents);
+            },
+        }),
+        [onSuggestionEditChange],
+    );
+    if (isSummarySelected) return <ReviewSingleSummary {...props} />;
+
+    if (!selectedFileDiff || !selectedFilePath) {
+        return <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">No file selected for the current filter.</div>;
+    }
+
+    return (
+        <div id={fileAnchorId(selectedFilePath)} data-component="diff-file-view" className="h-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
+            <ReviewSingleFileHeader
+                {...props}
+                selectedFilePath={selectedFilePath}
+                selectedFileDiff={selectedFileDiff}
+                isSuggestionEditing={isSuggestionEditing}
+                isSelectedVersionViewed={isSelectedVersionViewed}
+            />
+
+            <ReviewSingleFileBody
+                {...props}
+                selectedFileDiff={selectedFileDiff}
+                isSuggestionEditing={isSuggestionEditing}
+                singleDiffRenderKey={singleDiffRenderKey}
+                interactiveSingleFileDiffOptions={interactiveSingleFileDiffOptions}
+                suggestionEditorOptions={suggestionEditorOptions}
+            />
         </div>
     );
 }

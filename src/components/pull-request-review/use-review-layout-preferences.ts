@@ -25,41 +25,52 @@ type UseReviewLayoutPreferencesReturn = {
     startRightSidebarResize: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 };
 
+type InitialReviewLayout = {
+    treeWidth: number;
+    treeCollapsed: boolean;
+    rightSidebarWidth: number;
+    rightSidebarCollapsed: boolean;
+    viewMode: ReviewViewMode;
+    viewModeHydrated: boolean;
+};
+
+function readInitialReviewLayout(): InitialReviewLayout {
+    const fallback: InitialReviewLayout = {
+        treeWidth: DEFAULT_TREE_WIDTH,
+        treeCollapsed: false,
+        rightSidebarWidth: DEFAULT_RIGHT_SIDEBAR_WIDTH,
+        rightSidebarCollapsed: false,
+        viewMode: "single",
+        viewModeHydrated: false,
+    };
+    if (typeof window === "undefined") return fallback;
+    const stored = readReviewLayoutState();
+    if (!stored) return { ...fallback, viewModeHydrated: true };
+    const storedRightSidebarWidth = stored.rightSidebarWidth;
+    return {
+        treeWidth: Number.isFinite(stored.treeWidth) && stored.treeWidth >= MIN_TREE_WIDTH ? stored.treeWidth : fallback.treeWidth,
+        treeCollapsed: stored.treeCollapsed,
+        rightSidebarWidth:
+            typeof storedRightSidebarWidth === "number" &&
+            Number.isFinite(storedRightSidebarWidth) &&
+            storedRightSidebarWidth >= MIN_RIGHT_SIDEBAR_WIDTH &&
+            storedRightSidebarWidth <= MAX_RIGHT_SIDEBAR_WIDTH
+                ? storedRightSidebarWidth
+                : fallback.rightSidebarWidth,
+        rightSidebarCollapsed: typeof stored.rightSidebarCollapsed === "boolean" ? stored.rightSidebarCollapsed : fallback.rightSidebarCollapsed,
+        viewMode: stored.viewMode === "single" || stored.viewMode === "all" ? stored.viewMode : fallback.viewMode,
+        viewModeHydrated: true,
+    };
+}
+
 export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
-    const [treeWidth, setTreeWidth] = useState(DEFAULT_TREE_WIDTH);
-    const [treeCollapsed, setTreeCollapsed] = useState(false);
-    const [rightSidebarWidth, setRightSidebarWidth] = useState(DEFAULT_RIGHT_SIDEBAR_WIDTH);
-    const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
-    const [viewMode, setViewMode] = useState<ReviewViewMode>("single");
-    const [viewModeHydrated, setViewModeHydrated] = useState(false);
-
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const stored = readReviewLayoutState();
-        if (stored) {
-            if (Number.isFinite(stored.treeWidth) && stored.treeWidth >= MIN_TREE_WIDTH) {
-                setTreeWidth(stored.treeWidth);
-            }
-            setTreeCollapsed(stored.treeCollapsed);
-            const storedRightSidebarWidth = stored.rightSidebarWidth;
-            if (
-                typeof storedRightSidebarWidth === "number" &&
-                Number.isFinite(storedRightSidebarWidth) &&
-                storedRightSidebarWidth >= MIN_RIGHT_SIDEBAR_WIDTH &&
-                storedRightSidebarWidth <= MAX_RIGHT_SIDEBAR_WIDTH
-            ) {
-                setRightSidebarWidth(storedRightSidebarWidth);
-            }
-            if (typeof stored.rightSidebarCollapsed === "boolean") {
-                setRightSidebarCollapsed(stored.rightSidebarCollapsed);
-            }
-            if (stored.viewMode === "single" || stored.viewMode === "all") {
-                setViewMode(stored.viewMode);
-            }
-        }
-
-        setViewModeHydrated(true);
-    }, []);
+    const [initialLayout] = useState(readInitialReviewLayout);
+    const [treeWidth, setTreeWidth] = useState(initialLayout.treeWidth);
+    const [treeCollapsed, setTreeCollapsed] = useState(initialLayout.treeCollapsed);
+    const [rightSidebarWidth, setRightSidebarWidth] = useState(initialLayout.rightSidebarWidth);
+    const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(initialLayout.rightSidebarCollapsed);
+    const [viewMode, setViewMode] = useState<ReviewViewMode>(initialLayout.viewMode);
+    const viewModeHydrated = initialLayout.viewModeHydrated;
 
     useEffect(() => {
         if (!viewModeHydrated) return;

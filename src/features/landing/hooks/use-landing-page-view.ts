@@ -8,7 +8,8 @@ import { usePrContext } from "@/lib/pr-context";
 
 export function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }: { initialHost?: GitHost; initialDiffPanel?: DiffPanel } = {}) {
     const navigate = useNavigate();
-    const { authByHost, activeHost, setActiveHost, reposByHost, setReposForHost, clearReposForHost, logout } = usePrContext();
+    const { authByHost, activeHost: savedActiveHost, setActiveHost, reposByHost, setReposForHost, clearReposForHost, logout } = usePrContext();
+    const activeHost = initialHost ?? savedActiveHost;
     const {
         sortedRootPullRequests,
         selectedRepoCount,
@@ -19,15 +20,14 @@ export function useLandingPageView({ initialHost, initialDiffPanel = "pull-reque
     } = useSelectedRepoPullRequests({ autoRefetch: true });
 
     const [diffPanel, setDiffPanel] = useState<DiffPanel>(initialDiffPanel);
-    const showRepositoryPanel = diffPanel === "repositories";
-    const showPullRequestPanel = diffPanel === "pull-requests";
+    const showRepositoryPanel = Boolean(initialHost) || diffPanel === "repositories";
+    const showPullRequestPanel = !showRepositoryPanel;
     const fetchActivity = useSyncExternalStore(subscribeGitHostFetchActivity, getGitHostFetchActivitySnapshot, getGitHostFetchActivitySnapshot);
     const activeHostRepositoryCollection = useMemo(() => getRepositoryCollection(activeHost), [activeHost]);
 
     useEffect(() => {
         if (!initialHost) return;
         setActiveHost(initialHost);
-        setDiffPanel("repositories");
     }, [initialHost, setActiveHost]);
 
     const refreshCurrentView = useCallback(async () => {

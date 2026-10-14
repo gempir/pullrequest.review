@@ -100,6 +100,7 @@ export function useReviewCommentActions({
             setActionError(error instanceof Error ? error.message : "Failed to create comment");
         },
     });
+    // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- refreshComments refetches the TanStack DB comment collection consumed by useLiveQuery.
     const createSuggestionCommentsMutation = useMutation({
         mutationFn: async ({ suggestions }: CreateSuggestionCommentsPayload) => {
             if (!actionPolicy.canCommentInline) {
@@ -144,6 +145,7 @@ export function useReviewCommentActions({
             setActionError(error instanceof Error ? error.message : "Failed to create suggestion comments");
         },
     });
+    // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- refreshComments refetches the TanStack DB comment collection consumed by useLiveQuery.
     const resolveCommentMutation = useMutation({
         mutationFn: (payload: { commentId: number; resolve: boolean }) => {
             const prRef = ensurePrRef();
@@ -160,6 +162,7 @@ export function useReviewCommentActions({
             setActionError(error instanceof Error ? error.message : "Failed to update comment resolution");
         },
     });
+    // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- refreshComments refetches the TanStack DB comment collection consumed by useLiveQuery.
     const updateCommentMutation = useMutation({
         mutationFn: (payload: { commentId: number; content: string; hasInlineContext: boolean }) => {
             if (!authCanWrite) {
@@ -175,6 +178,7 @@ export function useReviewCommentActions({
             setActionError(error instanceof Error ? error.message : "Failed to edit comment");
         },
     });
+    // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- refreshComments refetches the TanStack DB comment collection consumed by useLiveQuery.
     const deleteCommentMutation = useMutation({
         mutationFn: (payload: { commentId: number; hasInlineContext: boolean }) => {
             if (!authCanWrite) {

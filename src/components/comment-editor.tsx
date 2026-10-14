@@ -3,7 +3,7 @@ import { Bold, Code2, Italic, Link as LinkIcon, List, Quote } from "lucide-react
 import type { Value } from "platejs";
 import { Plate, PlateContent, usePlateEditor } from "platejs/react";
 import type { CSSProperties } from "react";
-import { useEffect, useEffectEvent, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -67,9 +67,13 @@ export function CommentEditor({
         plugins: [BoldPlugin, ItalicPlugin, CodePlugin],
         value: initialValue,
     });
-    const notifyReady = useEffectEvent((focus: () => void) => {
-        onReady?.(focus);
-    });
+    const notifyReady = useCallback(
+        (node: HTMLDivElement | null) => {
+            if (!node) return;
+            onReady?.(() => editor.tf.focus({ edge: "endEditor" }));
+        },
+        [editor, onReady],
+    );
 
     useEffect(() => {
         const current = valueToText(editor.children as Value);
@@ -77,16 +81,10 @@ export function CommentEditor({
         editor.tf.setValue(textToValue(value));
     }, [editor, value]);
 
-    useEffect(() => {
-        notifyReady(() => {
-            editor.tf.focus({ edge: "endEditor" });
-        });
-    }, [editor]);
-
     const toolbarButtonClassName = chrome === "full" ? "h-7 rounded-[2px] px-2" : "h-6 rounded-[2px] px-0.5 [&_svg]:-translate-x-0.5";
 
     return (
-        <div className={cn("group/editor flex flex-col", chrome === "full" && "rounded-md bg-comment")}>
+        <div ref={notifyReady} className={cn("group/editor flex flex-col", chrome === "full" && "rounded-md bg-comment")}>
             <Plate editor={editor} onChange={({ value: nextValue }) => onChange(valueToText(nextValue))}>
                 <div
                     className={cn(

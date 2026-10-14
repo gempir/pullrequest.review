@@ -26,6 +26,8 @@ type ReviewScopedDataParams = {
     requestAuth: (reason: "write" | "rate_limit") => void;
 };
 
+const EMPTY_SCOPE_SEARCH: ReviewDiffScopeSearch = {};
+
 export function useReviewScopedData({
     host,
     workspace,
@@ -42,7 +44,7 @@ export function useReviewScopedData({
         getHostDataCollectionsVersionSnapshot,
     );
     const [scopeNotice, setScopeNotice] = useState<string | null>(null);
-    const diffScopeSearch = reviewDiffScopeSearch ?? {};
+    const diffScopeSearch = reviewDiffScopeSearch ?? EMPTY_SCOPE_SEARCH;
     const {
         hostCapabilities,
         isCriticalLoading,
@@ -175,6 +177,7 @@ export function useReviewScopedData({
     useEffect(() => {
         if (!onReviewDiffScopeSearchChange) return;
         if (sameScopeSearch(diffScopeSearch, resolvedScope.normalizedSearch)) return;
+        // eslint-disable-next-line react-doctor/no-pass-data-to-parent, react-doctor/no-pass-live-state-to-parent -- Normalize the route search only after PR commits load; the equality guard prevents a navigation loop.
         onReviewDiffScopeSearchChange(resolvedScope.normalizedSearch);
     }, [diffScopeSearch, onReviewDiffScopeSearchChange, resolvedScope.normalizedSearch]);
 
@@ -207,11 +210,7 @@ export function useReviewScopedData({
         };
     }, [commitRangeScopedCollection, onReviewDiffScopeSearchChange]);
 
-    useEffect(() => {
-        if (resolvedScope.mode === "full") return;
-        if (resolvedScope.selectedCommitHashes.length > 0) return;
-        setScopeNotice("No changes in selected range.");
-    }, [resolvedScope.mode, resolvedScope.selectedCommitHashes.length]);
+    const visibleScopeNotice = resolvedScope.mode !== "full" && resolvedScope.selectedCommitHashes.length === 0 ? "No changes in selected range." : scopeNotice;
 
     return {
         commitRangeScopedCollection,
@@ -227,7 +226,7 @@ export function useReviewScopedData({
         prQuery,
         prRef,
         resolvedScope,
-        scopeNotice,
+        scopeNotice: visibleScopeNotice,
         setScopeNotice,
         viewedStorageKey,
     };

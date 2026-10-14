@@ -97,7 +97,7 @@ describe("thread card", () => {
         );
 
         expect(html).toContain('aria-label="Expand resolved thread"');
-        expect(html).toContain('aria-label="Unresolve thread"');
+        expect(html).not.toContain('aria-label="Unresolve thread"');
     });
 
     test("renders host emoji images at text size", () => {

@@ -65,9 +65,11 @@ export function ReviewCommentsSidebar({
     const [searchQuery, setSearchQuery] = useState("");
     const normalizedSearch = searchQuery.trim().toLowerCase();
     const visibleThreads = useMemo(() => {
-        const filtered = (includeResolved ? threads : threads.filter((item) => !item.isResolved)).filter((item) =>
-            !normalizedSearch ? true : searchableThreadText(item).includes(normalizedSearch),
-        );
+        const filtered = (includeResolved ? threads : threads.filter((item) => !item.isResolved)).filter((item) => {
+            if (!normalizedSearch) return true;
+            // eslint-disable-next-line react-doctor/js-set-map-lookups -- This is a substring search on a string, not an array lookup in a loop.
+            return searchableThreadText(item).includes(normalizedSearch);
+        });
         return filtered.toSorted((left, right) => timestampValue(right) - timestampValue(left));
     }, [includeResolved, normalizedSearch, threads]);
 

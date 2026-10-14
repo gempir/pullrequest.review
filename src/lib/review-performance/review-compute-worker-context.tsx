@@ -54,24 +54,33 @@ type ReviewComputeWorkerContextValue = {
 const ReviewComputeWorkerContext = createContext<ReviewComputeWorkerContextValue | null>(null);
 
 export function ReviewComputeWorkerProvider({ children }: { children: ReactNode }) {
-    const [workerReady, setWorkerReady] = useState(false);
+    const [workerInstance, setWorkerInstance] = useState<Worker | null>(null);
+    const workerReady = workerInstance !== null;
     const workerRef = useRef<Worker | null>(null);
     const nextRequestIdRef = useRef(1);
-    const pendingRequestsRef = useRef(new Map<number, PendingRequest>());
-    const cacheRef = useRef(new LruCache<string, ComputeReviewDerivedResult>(40));
+    const pendingRequestsRef = useRef<Map<number, PendingRequest> | null>(null);
+    if (pendingRequestsRef.current === null) {
+        pendingRequestsRef.current = new Map<number, PendingRequest>();
+    }
+    const pendingRequests = pendingRequestsRef.current;
+    const cacheRef = useRef<LruCache<string, ComputeReviewDerivedResult> | null>(null);
+    if (cacheRef.current === null) {
+        cacheRef.current = new LruCache<string, ComputeReviewDerivedResult>(40);
+    }
+    const cache = cacheRef.current;
 
     useEffect(() => {
         if (typeof window === "undefined") return;
 
         const worker = new ReviewComputeWorker();
         workerRef.current = worker;
-        setWorkerReady(true);
+        setWorkerInstance(worker);
 
         worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
             const message = event.data;
-            const pending = pendingRequestsRef.current.get(message.requestId);
+            const pending = pendingRequests.get(message.requestId);
             if (!pending) return;
-            pendingRequestsRef.current.delete(message.requestId);
+            pendingRequests.delete(message.requestId);
 
             if (message.type === "compute-review-derived:error") {
                 pending.reject(new Error(message.error));
@@ -83,58 +92,61 @@ export function ReviewComputeWorkerProvider({ children }: { children: ReactNode 
                 fileDiffFingerprints: new Map(message.fileDiffFingerprints),
                 threads: message.threads,
             };
-            cacheRef.current.set(pending.cacheKey, result);
+            cache.set(pending.cacheKey, result);
             pending.resolve(result);
         };
 
         worker.onerror = (event) => {
             const reason = event?.message || "Review compute worker failed.";
-            for (const pending of pendingRequestsRef.current.values()) {
+            for (const pending of pendingRequests.values()) {
                 pending.reject(new Error(reason));
             }
-            pendingRequestsRef.current.clear();
+            pendingRequests.clear();
         };
 
         return () => {
-            for (const pending of pendingRequestsRef.current.values()) {
+            for (const pending of pendingRequests.values()) {
                 pending.reject(new Error("Review compute worker terminated."));
             }
-            pendingRequestsRef.current.clear();
+            pendingRequests.clear();
             worker.terminate();
             workerRef.current = null;
         };
-    }, []);
+    }, [cache, pendingRequests]);
 
-    const computeReviewDerived = useCallback((payload: ComputeReviewDerivedPayload) => {
-        const cached = cacheRef.current.get(payload.cacheKey);
-        if (cached) {
-            return Promise.resolve(cached);
-        }
+    const computeReviewDerived = useCallback(
+        (payload: ComputeReviewDerivedPayload) => {
+            const cached = cache.get(payload.cacheKey);
+            if (cached) {
+                return Promise.resolve(cached);
+            }
 
-        const worker = workerRef.current;
-        if (!worker) {
-            return Promise.reject(new Error("Review compute worker is unavailable."));
-        }
+            const worker = workerRef.current;
+            if (!worker) {
+                return Promise.reject(new Error("Review compute worker is unavailable."));
+            }
 
-        const requestId = nextRequestIdRef.current;
-        nextRequestIdRef.current += 1;
+            const requestId = nextRequestIdRef.current;
+            nextRequestIdRef.current += 1;
 
-        return new Promise<ComputeReviewDerivedResult>((resolve, reject) => {
-            pendingRequestsRef.current.set(requestId, {
-                cacheKey: payload.cacheKey,
-                resolve,
-                reject,
+            return new Promise<ComputeReviewDerivedResult>((resolve, reject) => {
+                pendingRequests.set(requestId, {
+                    cacheKey: payload.cacheKey,
+                    resolve,
+                    reject,
+                });
+
+                const request: WorkerRequest = {
+                    type: "compute-review-derived",
+                    requestId,
+                    diffText: payload.diffText,
+                    comments: payload.comments,
+                };
+                worker.postMessage(request);
             });
-
-            const request: WorkerRequest = {
-                type: "compute-review-derived",
-                requestId,
-                diffText: payload.diffText,
-                comments: payload.comments,
-            };
-            worker.postMessage(request);
-        });
-    }, []);
+        },
+        [cache, pendingRequests],
+    );
 
     const value = useMemo(
         () => ({

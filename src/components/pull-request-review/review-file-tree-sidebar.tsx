@@ -70,6 +70,86 @@ function createDiffStatIcons(fileLineStats?: ReadonlyMap<string, { added: number
     };
 }
 
+function getReviewTreeRowDecoration({
+    appPath,
+    kind,
+    showSettingsPanel,
+    fileLineStats,
+}: {
+    appPath: string;
+    kind: string;
+    showSettingsPanel: boolean;
+    fileLineStats?: ReadonlyMap<string, { added: number; removed: number }>;
+}) {
+    if (showSettingsPanel || kind !== "file" || appPath === PR_SUMMARY_PATH) return null;
+    const stats = fileLineStats?.get(appPath);
+    if (!stats || (stats.added <= 0 && stats.removed <= 0)) return null;
+    return {
+        icon: {
+            name: getDiffStatIconName(stats),
+            width: getDiffStatIconWidth(stats),
+            height: 16,
+            viewBox: `0 0 ${getDiffStatIconWidth(stats)} 16`,
+        },
+        title: `Added ${stats.added} lines, removed ${stats.removed} lines`,
+    };
+}
+
+function FileTreeRightControls({
+    searchQuery,
+    showUnviewedOnly,
+    unviewedFileCount,
+    onSearchQueryChange,
+    onToggleUnviewedOnly,
+    onCollapseTree,
+}: Pick<
+    ReviewFileTreeSidebarProps,
+    "searchQuery" | "showUnviewedOnly" | "unviewedFileCount" | "onSearchQueryChange" | "onToggleUnviewedOnly" | "onCollapseTree"
+>) {
+    const badgeValue = unviewedFileCount > 999 ? "999+" : unviewedFileCount.toString();
+    return (
+        <>
+            <Input
+                className="h-7 min-w-0 flex-1 rounded-sm border-0 bg-[var(--diffs-bg,var(--background))] px-2 text-[12px] hover:bg-[var(--diffs-bg,var(--background))] focus-visible:ring-0"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(event) => onSearchQueryChange(event.target.value)}
+                aria-label="Search files"
+            />
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                            "size-7 shrink-0 p-0 relative text-muted-foreground hover:text-foreground",
+                            showUnviewedOnly ? "bg-selection text-foreground" : "",
+                        )}
+                        onClick={onToggleUnviewedOnly}
+                        aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
+                    >
+                        {showUnviewedOnly ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                        {unviewedFileCount > 0 ? (
+                            <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">{badgeValue}</span>
+                        ) : null}
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>
+            </Tooltip>
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                className="h-7 w-11 shrink-0 px-0 text-muted-foreground hover:text-foreground"
+                onClick={onCollapseTree}
+                aria-label="Collapse file tree"
+            >
+                <ReviewFileTreeToggleIcon direction="collapse" />
+            </Button>
+        </>
+    );
+}
+
 export function ReviewFileTreeSidebar({
     treeWidth,
     treeCollapsed,
@@ -92,7 +172,6 @@ export function ReviewFileTreeSidebar({
     onStartTreeResize,
 }: ReviewFileTreeSidebarProps) {
     const navigate = useNavigate();
-    const badgeValue = unviewedFileCount > 999 ? "999+" : unviewedFileCount.toString();
     const diffStatIcons = useMemo(() => createDiffStatIcons(fileLineStats), [fileLineStats]);
     const treePathToAppPath = useMemo(() => new Map(treeEntries.map((entry) => [entry.treePath.replace(/\/+$/, ""), entry.appPath] as const)), [treeEntries]);
     const unviewedGitStatus = useMemo<GitStatusEntry[]>(() => {
@@ -111,24 +190,7 @@ export function ReviewFileTreeSidebar({
         icons: diffStatIcons,
         onSelectPath: onFileClick,
         onSearchQueryChange,
-        renderRowDecoration: ({ appPath, kind }) => {
-            if (showSettingsPanel || kind !== "file") return null;
-            if (appPath === PR_SUMMARY_PATH) return null;
-            const stats = fileLineStats?.get(appPath);
-            const hasStats = Boolean(stats) && ((stats?.added ?? 0) > 0 || (stats?.removed ?? 0) > 0);
-            if (hasStats && stats) {
-                return {
-                    icon: {
-                        name: getDiffStatIconName(stats),
-                        width: getDiffStatIconWidth(stats),
-                        height: 16,
-                        viewBox: `0 0 ${getDiffStatIconWidth(stats)} 16`,
-                    },
-                    title: `Added ${stats?.added ?? 0} lines, removed ${stats?.removed ?? 0} lines`,
-                };
-            }
-            return null;
-        },
+        renderRowDecoration: ({ appPath, kind }) => getReviewTreeRowDecoration({ appPath, kind, showSettingsPanel, fileLineStats }),
     });
 
     return (
@@ -148,47 +210,14 @@ export function ReviewFileTreeSidebar({
                         settingsActive={showSettingsPanel}
                         settingsAriaLabel={showSettingsPanel ? "Close settings" : "Open settings"}
                         rightContent={
-                            <>
-                                <Input
-                                    className="h-7 min-w-0 flex-1 rounded-sm border-0 bg-[var(--diffs-bg,var(--background))] px-2 text-[12px] hover:bg-[var(--diffs-bg,var(--background))] focus-visible:ring-0"
-                                    placeholder="Search..."
-                                    value={searchQuery}
-                                    onChange={(event) => onSearchQueryChange(event.target.value)}
-                                    aria-label="Search files"
-                                />
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className={cn(
-                                                "size-7 shrink-0 p-0 relative text-muted-foreground hover:text-foreground",
-                                                showUnviewedOnly ? "bg-selection text-foreground" : "",
-                                            )}
-                                            onClick={onToggleUnviewedOnly}
-                                            aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
-                                        >
-                                            {showUnviewedOnly ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                                            {unviewedFileCount > 0 ? (
-                                                <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">
-                                                    {badgeValue}
-                                                </span>
-                                            ) : null}
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom">{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>
-                                </Tooltip>
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    className="h-7 w-11 shrink-0 px-0 text-muted-foreground hover:text-foreground"
-                                    onClick={onCollapseTree}
-                                    aria-label="Collapse file tree"
-                                >
-                                    <ReviewFileTreeToggleIcon direction="collapse" />
-                                </Button>
-                            </>
+                            <FileTreeRightControls
+                                searchQuery={searchQuery}
+                                showUnviewedOnly={showUnviewedOnly}
+                                unviewedFileCount={unviewedFileCount}
+                                onSearchQueryChange={onSearchQueryChange}
+                                onToggleUnviewedOnly={onToggleUnviewedOnly}
+                                onCollapseTree={onCollapseTree}
+                            />
                         }
                     />
                     {loading ? (

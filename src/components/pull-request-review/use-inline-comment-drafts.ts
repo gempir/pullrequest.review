@@ -104,6 +104,7 @@ export function useInlineCommentDrafts({
         };
 
         const activeDraft = readInlineCommentActiveDraft(scopeId);
+        // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- Restoring a persisted draft must select its file and single-file view after storage is ready.
         if (activeDraft && restoreDraft(activeDraft)) {
             return;
         }
@@ -115,6 +116,7 @@ export function useInlineCommentDrafts({
                 line: draft.line,
                 side: draft.side,
             };
+            // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- A fallback persisted draft needs the same file and view restoration.
             if (restoreDraft(parsed)) {
                 writeInlineCommentActiveDraft(scopeId, parsed);
                 return;

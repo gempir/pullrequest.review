@@ -117,7 +117,7 @@ export function useReviewPageDerived({
     settingsTreeItems: Array<{ name: string; path: string }>;
     inlineComment: InlineCommentDraft | null;
     theme: Parameters<typeof useDiffHighlighterState>[0]["theme"];
-    compactDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined>;
+    compactDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>;
     onOpenInlineCommentDraft: (path: string, target: InlineCommentLineTarget) => void;
     fullFileContexts: Record<string, { oldLines: string[]; newLines: string[] }>;
 }) {
@@ -511,18 +511,18 @@ export function useReviewPageDerived({
             button.style.transform = "translateY(-50%)";
             button.style.cursor = "pointer";
             button.style.zIndex = "2";
-            button.addEventListener("pointerdown", (event) => {
+            button.onpointerdown = (event) => {
                 event.preventDefault();
                 event.stopPropagation();
-            });
-            button.addEventListener("click", (event) => {
+            };
+            button.onclick = (event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 onOpenInlineDraft({
                     lineNumber: props.lineNumber,
                     annotationSide: props.annotationSide,
                 });
-            });
+            };
             numberElement.style.position = "relative";
             numberElement.style.cursor = "pointer";
             numberElement.appendChild(button);
@@ -583,7 +583,7 @@ export function useReviewPageDerived({
         return buildFileAnnotations(selectedFilePath);
     }, [buildFileAnnotations, selectedFilePath]);
 
-    const singleFileDiffOptions = useMemo<FileDiffOptions<SingleFileAnnotationMetadata | undefined>>(
+    const singleFileDiffOptions = useMemo<FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>>(
         () => ({
             ...compactDiffOptions,
             onLineClick: undefined,

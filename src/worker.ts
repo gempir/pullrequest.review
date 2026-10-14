@@ -135,8 +135,11 @@ async function requestBitbucketToken(config: { clientId: string; clientSecret: s
         },
         body,
     });
+    if (!response.ok) {
+        throw new Error(`Bitbucket rejected the OAuth token request (${response.status})`);
+    }
     const payload = (await response.json().catch(() => ({}))) as BitbucketTokenResponse;
-    if (!response.ok || typeof payload.access_token !== "string" || !payload.access_token.trim()) {
+    if (typeof payload.access_token !== "string" || !payload.access_token.trim()) {
         throw new Error(`Bitbucket rejected the OAuth token request (${response.status})`);
     }
 

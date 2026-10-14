@@ -10,6 +10,21 @@ import { usePrContext } from "@/lib/pr-context";
 
 type HostAuthFormMode = "onboarding" | "panel" | "inline";
 
+const HOST_AUTH_COPY: Record<GitHost, { description: string; guidance: string; tokenUrl: string; tokenLabel: string }> = {
+    bitbucket: {
+        description: "Continue with Bitbucket OAuth, or use an email and API token.",
+        guidance: "OAuth uses your existing Bitbucket access across workspaces.",
+        tokenUrl: "https://id.atlassian.com/manage-profile/security/api-tokens",
+        tokenLabel: "Create Atlassian Bitbucket Scoped API Token",
+    },
+    github: {
+        description: "Use a GitHub fine-grained personal access token to continue.",
+        guidance: "Create a token, paste it below, and continue.",
+        tokenUrl: "https://github.com/settings/personal-access-tokens/new",
+        tokenLabel: "Create GitHub Fine-Grained Token",
+    },
+};
+
 function useHostAuthFormState({ host, onSuccess }: { host: GitHost; onSuccess?: () => void }) {
     const { login } = usePrContext();
     const [email, setEmail] = useState("");
@@ -34,17 +49,20 @@ function useHostAuthFormState({ host, onSuccess }: { host: GitHost; onSuccess?: 
 
         const promise = isBitbucket ? login({ host: "bitbucket", email, apiToken }) : login({ host: "github", token: githubToken });
 
-        await promise
-            .then(() => {
-                setEmail("");
-                setApiToken("");
-                setGithubToken("");
-                onSuccess?.();
-            })
-            .catch((err) => {
-                setError(err instanceof Error ? err.message : "Failed to authenticate");
-            });
-        setIsSubmitting(false);
+        try {
+            await promise
+                .then(() => {
+                    setEmail("");
+                    setApiToken("");
+                    setGithubToken("");
+                    onSuccess?.();
+                })
+                .catch((err) => {
+                    setError(err instanceof Error ? err.message : "Failed to authenticate");
+                });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const authenticateWithOAuth = () => {
@@ -77,24 +95,119 @@ function useHostAuthFormState({ host, onSuccess }: { host: GitHost; onSuccess?: 
     };
 }
 
+type AuthFormState = ReturnType<typeof useHostAuthFormState>;
+
+function BitbucketOAuthChoice({ isOnboarding, isSubmitting, isOAuthStarting, authenticateWithOAuth }: AuthFormState & { isOnboarding: boolean }) {
+    return (
+        <>
+            <Button
+                type="button"
+                className={isOnboarding ? "h-10 w-full rounded-md text-[13px]" : "w-full rounded-md"}
+                disabled={isSubmitting || isOAuthStarting}
+                onClick={authenticateWithOAuth}
+            >
+                {isOAuthStarting ? "Opening Bitbucket..." : "Continue with Bitbucket OAuth"}
+            </Button>
+            <div className="flex items-center gap-3" aria-hidden="true">
+                <div className="h-px flex-1 bg-border-muted" />
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">or use an API token</span>
+                <div className="h-px flex-1 bg-border-muted" />
+            </div>
+        </>
+    );
+}
+
+function BitbucketScopes({ bitbucketScopeText, copiedScopes, setCopiedScopes, isOnboarding }: AuthFormState & { isOnboarding: boolean }) {
+    return (
+        <div className="rounded-md border border-border-muted bg-surface-1 p-3 text-[12px]">
+            <div className="flex items-center justify-between gap-3">
+                <div className="text-muted-foreground">Required scopes</div>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-md"
+                    onClick={() => {
+                        void navigator.clipboard.writeText(bitbucketScopeText);
+                        setCopiedScopes(true);
+                        window.setTimeout(() => setCopiedScopes(false), 1200);
+                    }}
+                >
+                    {copiedScopes ? "Copied" : "Copy scopes"}
+                </Button>
+            </div>
+            <div className="mt-2 break-words font-mono text-[11px] leading-relaxed text-foreground">{bitbucketScopeText}</div>
+            {isOnboarding ? (
+                <div className="mt-3 rounded-md border border-status-modified/20 bg-status-modified/10 px-3 py-2 text-[11px] text-status-modified">
+                    Paste these scopes into "Search by scope name" while creating the token.
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function HostTokenFields({
+    isBitbucket,
+    email,
+    apiToken,
+    githubToken,
+    setEmail,
+    setApiToken,
+    setGithubToken,
+    isSubmitting,
+    isOAuthStarting,
+    fieldClassName,
+}: AuthFormState & { fieldClassName: string }) {
+    if (!isBitbucket) {
+        return (
+            <div className="space-y-1.5">
+                <Label className="text-[12px] text-muted-foreground">GitHub Token</Label>
+                <Input
+                    type="password"
+                    value={githubToken}
+                    onChange={(event) => setGithubToken(event.target.value)}
+                    placeholder="Paste your GitHub fine-grained token"
+                    autoComplete="current-password"
+                    className={fieldClassName}
+                    disabled={isSubmitting}
+                />
+            </div>
+        );
+    }
+    return (
+        <div className="grid gap-3">
+            <div className="space-y-1.5">
+                <Label className="text-[12px] text-muted-foreground">Bitbucket Email</Label>
+                <Input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="name@example.com"
+                    autoComplete="email"
+                    className={fieldClassName}
+                    disabled={isSubmitting || isOAuthStarting}
+                />
+            </div>
+            <div className="space-y-1.5">
+                <Label className="text-[12px] text-muted-foreground">Scoped API Token</Label>
+                <Input
+                    type="password"
+                    value={apiToken}
+                    onChange={(event) => setApiToken(event.target.value)}
+                    placeholder="Paste your Bitbucket API token"
+                    autoComplete="current-password"
+                    className={fieldClassName}
+                    disabled={isSubmitting || isOAuthStarting}
+                />
+            </div>
+        </div>
+    );
+}
+
 export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHost; mode?: HostAuthFormMode; onSuccess?: () => void }) {
-    const {
-        isBitbucket,
-        email,
-        apiToken,
-        githubToken,
-        copiedScopes,
-        isSubmitting,
-        isOAuthStarting,
-        error,
-        bitbucketScopeText,
-        setEmail,
-        setApiToken,
-        setGithubToken,
-        setCopiedScopes,
-        authenticate,
-        authenticateWithOAuth,
-    } = useHostAuthFormState({ host, onSuccess });
+    const authState = useHostAuthFormState({ host, onSuccess });
+    const { isBitbucket, email, apiToken, githubToken, isSubmitting, isOAuthStarting, error, authenticate } = authState;
+    const hostCopy = HOST_AUTH_COPY[host];
     const ctaLabel = mode === "inline" ? "Authenticate" : `Connect ${getHostLabel(host)}`;
     const isOnboarding = mode === "onboarding";
     const fieldClassName = isOnboarding ? "h-10 rounded-md bg-surface-1 text-[13px]" : "rounded-md";
@@ -103,122 +216,27 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
         <form className="space-y-4" action={authenticate}>
             <div className="rounded-md border border-border-muted bg-surface-1 p-4">
                 <div className="space-y-1">
-                    <p className="text-[13px] text-muted-foreground">
-                        {isBitbucket
-                            ? "Continue with Bitbucket OAuth, or use an email and API token."
-                            : "Use a GitHub fine-grained personal access token to continue."}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                        {isBitbucket ? "OAuth uses your existing Bitbucket access across workspaces." : "Create a token, paste it below, and continue."}
-                    </p>
+                    <p className="text-[13px] text-muted-foreground">{hostCopy.description}</p>
+                    <p className="text-[11px] text-muted-foreground">{hostCopy.guidance}</p>
                 </div>
 
                 <div className="mt-4 space-y-3">
-                    {isBitbucket ? (
-                        <>
-                            <Button
-                                type="button"
-                                className={isOnboarding ? "h-10 w-full rounded-md text-[13px]" : "w-full rounded-md"}
-                                disabled={isSubmitting || isOAuthStarting}
-                                onClick={authenticateWithOAuth}
-                            >
-                                {isOAuthStarting ? "Opening Bitbucket..." : "Continue with Bitbucket OAuth"}
-                            </Button>
-                            <div className="flex items-center gap-3" aria-hidden="true">
-                                <div className="h-px flex-1 bg-border-muted" />
-                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">or use an API token</span>
-                                <div className="h-px flex-1 bg-border-muted" />
-                            </div>
-                        </>
-                    ) : null}
+                    {isBitbucket ? <BitbucketOAuthChoice {...authState} isOnboarding={isOnboarding} /> : null}
 
                     <Button
                         type="button"
                         variant={isBitbucket || !isOnboarding ? "outline" : "default"}
                         className="h-9 w-full rounded-md justify-center"
                         disabled={isOAuthStarting}
-                        onClick={() =>
-                            window.open(
-                                isBitbucket
-                                    ? "https://id.atlassian.com/manage-profile/security/api-tokens"
-                                    : "https://github.com/settings/personal-access-tokens/new",
-                                "_blank",
-                                "noopener,noreferrer",
-                            )
-                        }
+                        onClick={() => window.open(hostCopy.tokenUrl, "_blank", "noopener,noreferrer")}
                     >
                         <ExternalLink className="size-3.5" />
-                        {isBitbucket ? "Create Atlassian Bitbucket Scoped API Token" : "Create GitHub Fine-Grained Token"}
+                        {hostCopy.tokenLabel}
                     </Button>
 
-                    {isBitbucket ? (
-                        <div className="rounded-md border border-border-muted bg-surface-1 p-3 text-[12px]">
-                            <div className="flex items-center justify-between gap-3">
-                                <div className="text-muted-foreground">Required scopes</div>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="rounded-md"
-                                    onClick={() => {
-                                        void navigator.clipboard.writeText(bitbucketScopeText);
-                                        setCopiedScopes(true);
-                                        window.setTimeout(() => setCopiedScopes(false), 1200);
-                                    }}
-                                >
-                                    {copiedScopes ? "Copied" : "Copy scopes"}
-                                </Button>
-                            </div>
-                            <div className="mt-2 break-words font-mono text-[11px] leading-relaxed text-foreground">{bitbucketScopeText}</div>
-                            {isOnboarding ? (
-                                <div className="mt-3 rounded-md border border-status-modified/20 bg-status-modified/10 px-3 py-2 text-[11px] text-status-modified">
-                                    Paste these scopes into "Search by scope name" while creating the token.
-                                </div>
-                            ) : null}
-                        </div>
-                    ) : null}
+                    {isBitbucket ? <BitbucketScopes {...authState} isOnboarding={isOnboarding} /> : null}
 
-                    {isBitbucket ? (
-                        <div className="grid gap-3">
-                            <div className="space-y-1.5">
-                                <Label className="text-[12px] text-muted-foreground">Bitbucket Email</Label>
-                                <Input
-                                    type="email"
-                                    value={email}
-                                    onChange={(event) => setEmail(event.target.value)}
-                                    placeholder="name@example.com"
-                                    autoComplete="email"
-                                    className={fieldClassName}
-                                    disabled={isSubmitting || isOAuthStarting}
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label className="text-[12px] text-muted-foreground">Scoped API Token</Label>
-                                <Input
-                                    type="password"
-                                    value={apiToken}
-                                    onChange={(event) => setApiToken(event.target.value)}
-                                    placeholder="Paste your Bitbucket API token"
-                                    autoComplete="current-password"
-                                    className={fieldClassName}
-                                    disabled={isSubmitting || isOAuthStarting}
-                                />
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="space-y-1.5">
-                            <Label className="text-[12px] text-muted-foreground">GitHub Token</Label>
-                            <Input
-                                type="password"
-                                value={githubToken}
-                                onChange={(event) => setGithubToken(event.target.value)}
-                                placeholder="Paste your GitHub fine-grained token"
-                                autoComplete="current-password"
-                                className={fieldClassName}
-                                disabled={isSubmitting}
-                            />
-                        </div>
-                    )}
+                    <HostTokenFields {...authState} fieldClassName={fieldClassName} />
                 </div>
             </div>
 

@@ -1,7 +1,8 @@
 import { Command } from "cmdk";
 import { Check, ChevronRight, FileCode2, GitMerge, PanelTop, PenSquare, Search, TriangleAlert, XCircle } from "lucide-react";
 import { useState } from "react";
-import { OMNIBAR_GROUP_CLASS_NAME, OMNIBAR_ITEM_CLASS_NAME, PullRequestOmnibarGroup } from "@/components/omnibar/pull-request-omnibar";
+import { getOmnibarDirectory, getOmnibarFileName, OMNIBAR_GROUP_CLASS_NAME, OMNIBAR_ITEM_CLASS_NAME } from "@/components/omnibar/omnibar-helpers";
+import { PullRequestOmnibarGroup } from "@/components/omnibar/pull-request-omnibar";
 import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
 import type { RepoRef } from "@/lib/git-host/types";
 import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
@@ -29,21 +30,110 @@ type ReviewOmnibarProps = {
     onMarkDraft: () => void;
 };
 
-export function getOmnibarFileName(path: string) {
-    const separatorIndex = path.lastIndexOf("/");
-    return separatorIndex === -1 ? path : path.slice(separatorIndex + 1);
-}
+const EMPTY_PULL_REQUESTS: readonly SortedRootPullRequest[] = [];
 
-function getOmnibarDirectory(path: string) {
-    const separatorIndex = path.lastIndexOf("/");
-    return separatorIndex === -1 ? "" : path.slice(0, separatorIndex);
+function ReviewOmnibarActions({
+    currentUserReviewStatus,
+    isDraft,
+    canApprove,
+    canRequestChanges,
+    canMerge,
+    canDecline,
+    canMarkDraft,
+    actionBusy,
+    onApprove,
+    onRequestChanges,
+    onOpenMerge,
+    onDecline,
+    onMarkDraft,
+    closeAndRun,
+}: Pick<
+    ReviewOmnibarProps,
+    | "currentUserReviewStatus"
+    | "isDraft"
+    | "canApprove"
+    | "canRequestChanges"
+    | "canMerge"
+    | "canDecline"
+    | "canMarkDraft"
+    | "actionBusy"
+    | "onApprove"
+    | "onRequestChanges"
+    | "onOpenMerge"
+    | "onDecline"
+    | "onMarkDraft"
+> & { closeAndRun: (action: () => void) => void }) {
+    return (
+        <Command.Group heading="Actions" className={OMNIBAR_GROUP_CLASS_NAME}>
+            {canApprove ? (
+                <Command.Item
+                    value={currentUserReviewStatus === "approved" ? "action remove approval" : "action approve pull request"}
+                    keywords={["approve", "review"]}
+                    disabled={actionBusy}
+                    onSelect={() => closeAndRun(onApprove)}
+                    className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-added")}
+                >
+                    <Check className="size-3.5 shrink-0 text-status-added" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">{currentUserReviewStatus === "approved" ? "Remove approval" : "Approve"}</span>
+                </Command.Item>
+            ) : null}
+            {canRequestChanges ? (
+                <Command.Item
+                    value="action request changes revise"
+                    keywords={["request changes", "revise"]}
+                    disabled={actionBusy}
+                    onSelect={() => closeAndRun(onRequestChanges)}
+                    className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-modified")}
+                >
+                    <TriangleAlert className="size-3.5 shrink-0 text-status-modified" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">Request changes</span>
+                </Command.Item>
+            ) : null}
+            {canMerge ? (
+                <Command.Item
+                    value="action merge pull request"
+                    keywords={["merge"]}
+                    disabled={actionBusy}
+                    onSelect={() => closeAndRun(onOpenMerge)}
+                    className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-merged")}
+                >
+                    <GitMerge className="size-3.5 shrink-0 text-status-merged" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">Merge pull request</span>
+                </Command.Item>
+            ) : null}
+            {isDraft && canMarkDraft ? (
+                <Command.Item
+                    value="action mark pull request ready"
+                    keywords={["ready", "draft"]}
+                    disabled={actionBusy}
+                    onSelect={() => closeAndRun(onMarkDraft)}
+                    className={OMNIBAR_ITEM_CLASS_NAME}
+                >
+                    <PenSquare className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">Mark as ready</span>
+                </Command.Item>
+            ) : null}
+            {canDecline ? (
+                <Command.Item
+                    value="action decline pull request"
+                    keywords={["decline", "close"]}
+                    disabled={actionBusy}
+                    onSelect={() => closeAndRun(onDecline)}
+                    className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-removed")}
+                >
+                    <XCircle className="size-3.5 shrink-0 text-status-removed" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">Decline pull request</span>
+                </Command.Item>
+            ) : null}
+        </Command.Group>
+    );
 }
 
 export function ReviewOmnibar({
     open,
     onOpenChange,
     filePaths,
-    pullRequests = [],
+    pullRequests = EMPTY_PULL_REQUESTS,
     currentUserReviewStatus,
     isDraft,
     canApprove,
@@ -146,68 +236,22 @@ export function ReviewOmnibar({
 
                 {hasActions ? <Command.Separator className="my-1 h-px bg-border-muted" /> : null}
                 {hasActions ? (
-                    <Command.Group heading="Actions" className={OMNIBAR_GROUP_CLASS_NAME}>
-                        {canApprove ? (
-                            <Command.Item
-                                value={currentUserReviewStatus === "approved" ? "action remove approval" : "action approve pull request"}
-                                keywords={["approve", "review"]}
-                                disabled={actionBusy}
-                                onSelect={() => closeAndRun(onApprove)}
-                                className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-added")}
-                            >
-                                <Check className="size-3.5 shrink-0 text-status-added" aria-hidden="true" />
-                                <span className="min-w-0 flex-1 truncate">{currentUserReviewStatus === "approved" ? "Remove approval" : "Approve"}</span>
-                            </Command.Item>
-                        ) : null}
-                        {canRequestChanges ? (
-                            <Command.Item
-                                value="action request changes revise"
-                                keywords={["request changes", "revise"]}
-                                disabled={actionBusy}
-                                onSelect={() => closeAndRun(onRequestChanges)}
-                                className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-modified")}
-                            >
-                                <TriangleAlert className="size-3.5 shrink-0 text-status-modified" aria-hidden="true" />
-                                <span className="min-w-0 flex-1 truncate">Request changes</span>
-                            </Command.Item>
-                        ) : null}
-                        {canMerge ? (
-                            <Command.Item
-                                value="action merge pull request"
-                                keywords={["merge"]}
-                                disabled={actionBusy}
-                                onSelect={() => closeAndRun(onOpenMerge)}
-                                className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-merged")}
-                            >
-                                <GitMerge className="size-3.5 shrink-0 text-status-merged" aria-hidden="true" />
-                                <span className="min-w-0 flex-1 truncate">Merge pull request</span>
-                            </Command.Item>
-                        ) : null}
-                        {isDraft && canMarkDraft ? (
-                            <Command.Item
-                                value="action mark pull request ready"
-                                keywords={["ready", "draft"]}
-                                disabled={actionBusy}
-                                onSelect={() => closeAndRun(onMarkDraft)}
-                                className={OMNIBAR_ITEM_CLASS_NAME}
-                            >
-                                <PenSquare className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                                <span className="min-w-0 flex-1 truncate">Mark as ready</span>
-                            </Command.Item>
-                        ) : null}
-                        {canDecline ? (
-                            <Command.Item
-                                value="action decline pull request"
-                                keywords={["decline", "close"]}
-                                disabled={actionBusy}
-                                onSelect={() => closeAndRun(onDecline)}
-                                className={cn(OMNIBAR_ITEM_CLASS_NAME, "data-[selected=true]:text-status-removed")}
-                            >
-                                <XCircle className="size-3.5 shrink-0 text-status-removed" aria-hidden="true" />
-                                <span className="min-w-0 flex-1 truncate">Decline pull request</span>
-                            </Command.Item>
-                        ) : null}
-                    </Command.Group>
+                    <ReviewOmnibarActions
+                        currentUserReviewStatus={currentUserReviewStatus}
+                        isDraft={isDraft}
+                        canApprove={canApprove}
+                        canRequestChanges={canRequestChanges}
+                        canMerge={canMerge}
+                        canDecline={canDecline}
+                        canMarkDraft={canMarkDraft}
+                        actionBusy={actionBusy}
+                        onApprove={onApprove}
+                        onRequestChanges={onRequestChanges}
+                        onOpenMerge={onOpenMerge}
+                        onDecline={onDecline}
+                        onMarkDraft={onMarkDraft}
+                        closeAndRun={closeAndRun}
+                    />
                 ) : null}
             </Command.List>
 

@@ -64,7 +64,7 @@ type ReviewAllModeViewProps = {
         latestFileDiff: FileDiffMetadata | undefined,
     ) => { fileDiff: FileDiffMetadata | undefined; readOnlyHistorical: boolean; selectedVersionId: string | undefined };
     isVersionViewed: (versionId: string) => boolean;
-    compactDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined>;
+    compactDiffOptions: FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>;
     getInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => string;
     setInlineDraftContent: (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => void;
     onSubmitInlineComment: () => Promise<unknown> | undefined;
@@ -89,72 +89,153 @@ type ReviewAllModeViewProps = {
     summaryFooter?: ReactNode;
 };
 
-export function ReviewAllModeView({
-    linkedCommentId,
-    viewMode,
-    allowNestedReplies,
-    onWorkspaceModeChange,
-    pullRequestTitle,
-    prData,
-    lineStats,
-    currentUserDisplayName,
-    isSummaryCollapsedInAllMode,
-    onToggleSummaryCollapsed,
-    allModeDiffEntries,
-    threadsByPath,
-    fileLineStats,
-    collapsedAllModeFiles,
-    collapseViewedFilesByDefault,
-    viewedFiles,
-    copiedPath,
-    areAllFilesViewed,
-    onToggleCollapsedFile,
-    onToggleAllFilesViewed,
-    onCopyPath,
-    onToggleViewed,
-    workspace,
-    repo,
-    pullRequestId,
-    diffHighlighterReady,
-    createCommentPending,
-    canCommentInline,
-    canResolveThread,
-    resolveCommentPending,
-    deleteCommentPending,
-    updateCommentPending,
-    updateDescriptionPending,
-    canEditDescription,
-    toRenderableFileDiff,
-    getSelectedVersionIdForPath,
-    getVersionOptionsForPath,
-    onSelectVersionForPath,
-    onOpenVersionMenuForPath,
-    resolveDisplayedDiffForPath,
-    isVersionViewed,
-    compactDiffOptions,
-    getInlineDraftContent,
-    setInlineDraftContent,
-    onSubmitInlineComment,
-    onInlineDraftReady,
-    onCancelInlineDraft,
-    onOpenInlineDraftForPath,
-    onDeleteComment,
-    onResolveThread,
-    onHistoryCommentNavigate,
-    onReplyToThread,
-    onEditComment,
-    onEditDescription,
-    onDiffLineEnter,
-    onDiffLineLeave,
-    diffTypographyStyle,
-    buildFileAnnotations,
-    onOpenDiffSettings,
-    onLoadFullFileContext,
-    fileContextState,
-    scrollElementRef,
-    pendingScrollPath,
-    summaryFooter,
-}: ReviewAllModeViewProps) {
+function ReviewAllModeSummary(props: ReviewAllModeViewProps) {
+    const {
+        prData,
+        isSummaryCollapsedInAllMode,
+        pullRequestTitle,
+        onToggleSummaryCollapsed,
+        lineStats,
+        viewMode,
+        onWorkspaceModeChange,
+        onOpenDiffSettings,
+        onToggleAllFilesViewed,
+        areAllFilesViewed,
+        currentUserDisplayName,
+        onHistoryCommentNavigate,
+        createCommentPending,
+        canCommentInline,
+        canResolveThread,
+        resolveCommentPending,
+        deleteCommentPending,
+        updateCommentPending,
+        updateDescriptionPending,
+        canEditDescription,
+        onDeleteComment,
+        onResolveThread,
+        onReplyToThread,
+        onEditComment,
+        onEditDescription,
+        summaryFooter,
+    } = props;
+    if (!prData) return null;
+    return (
+        <div id={fileAnchorId(PR_SUMMARY_PATH)} className={cn("w-full max-w-full", isSummaryCollapsedInAllMode && "border-b-0")}>
+            <div className={cn("group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
+                <button type="button" className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden text-left" onClick={onToggleSummaryCollapsed}>
+                    <span className="size-4 flex items-center justify-center shrink-0">
+                        <ScrollText className="size-3.5" />
+                    </span>
+                    <span className="min-w-0 max-w-full truncate font-mono">{pullRequestTitle || PR_SUMMARY_NAME}</span>
+                </button>
+                <div className="shrink-0 font-mono text-[11px]">
+                    <span className="text-status-added">+{lineStats.added}</span>
+                    <span className="ml-2 text-status-removed">-{lineStats.removed}</span>
+                </div>
+                <div className="shrink-0 flex items-center gap-1">
+                    <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 shrink-0"
+                        onClick={onToggleAllFilesViewed}
+                        aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                        title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
+                    >
+                        <span
+                            className={
+                                areAllFilesViewed
+                                    ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
+                                    : "size-4 bg-surface-1 border border-border text-muted-foreground flex items-center justify-center"
+                            }
+                        >
+                            <CheckCheck className="size-3" />
+                        </span>
+                    </Button>
+                </div>
+            </div>
+            {!isSummaryCollapsedInAllMode && (
+                <PullRequestSummaryPanel
+                    bundle={prData}
+                    diffStats={lineStats}
+                    currentUserDisplayName={currentUserDisplayName}
+                    onSelectComment={onHistoryCommentNavigate}
+                    createCommentPending={createCommentPending}
+                    canCommentInline={canCommentInline}
+                    canResolveThread={canResolveThread}
+                    resolveCommentPending={resolveCommentPending}
+                    deleteCommentPending={deleteCommentPending}
+                    updateCommentPending={updateCommentPending}
+                    updateDescriptionPending={updateDescriptionPending}
+                    canEditDescription={canEditDescription}
+                    onDeleteComment={onDeleteComment}
+                    onResolveThread={onResolveThread}
+                    onReplyToThread={onReplyToThread}
+                    onEditComment={onEditComment}
+                    onEditDescription={onEditDescription}
+                    footerRight={summaryFooter}
+                />
+            )}
+        </div>
+    );
+}
+
+export function ReviewAllModeView(props: ReviewAllModeViewProps) {
+    const {
+        linkedCommentId,
+        viewMode,
+        allowNestedReplies,
+        onWorkspaceModeChange,
+        currentUserDisplayName,
+        allModeDiffEntries,
+        threadsByPath,
+        fileLineStats,
+        collapsedAllModeFiles,
+        collapseViewedFilesByDefault,
+        viewedFiles,
+        copiedPath,
+        onToggleCollapsedFile,
+        onCopyPath,
+        onToggleViewed,
+        workspace,
+        repo,
+        pullRequestId,
+        diffHighlighterReady,
+        createCommentPending,
+        canCommentInline,
+        canResolveThread,
+        resolveCommentPending,
+        deleteCommentPending,
+        updateCommentPending,
+        toRenderableFileDiff,
+        getSelectedVersionIdForPath,
+        getVersionOptionsForPath,
+        onSelectVersionForPath,
+        onOpenVersionMenuForPath,
+        resolveDisplayedDiffForPath,
+        isVersionViewed,
+        compactDiffOptions,
+        getInlineDraftContent,
+        setInlineDraftContent,
+        onSubmitInlineComment,
+        onInlineDraftReady,
+        onCancelInlineDraft,
+        onOpenInlineDraftForPath,
+        onDeleteComment,
+        onResolveThread,
+        onReplyToThread,
+        onEditComment,
+        onDiffLineEnter,
+        onDiffLineLeave,
+        diffTypographyStyle,
+        buildFileAnnotations,
+        onOpenDiffSettings,
+        onLoadFullFileContext,
+        fileContextState,
+        scrollElementRef,
+        pendingScrollPath,
+    } = props;
     const diffListBottomPadding = "max(420px, 90vh)";
     const filePathsInOrder = useMemo(() => allModeDiffEntries.map((entry) => entry.filePath), [allModeDiffEntries]);
     const rowVirtualizer = useVirtualizer({
@@ -176,66 +257,7 @@ export function ReviewAllModeView({
     }, [filePathsInOrder, pendingScrollPath, rowVirtualizer]);
     return (
         <div className="w-full max-w-full" data-component="diff-list-view" style={{ paddingBottom: diffListBottomPadding }}>
-            {prData ? (
-                <div id={fileAnchorId(PR_SUMMARY_PATH)} className={cn("w-full max-w-full", isSummaryCollapsedInAllMode && "border-b-0")}>
-                    <div className={cn("group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]")}>
-                        <button type="button" className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden text-left" onClick={onToggleSummaryCollapsed}>
-                            <span className="size-4 flex items-center justify-center shrink-0">
-                                <ScrollText className="size-3.5" />
-                            </span>
-                            <span className="min-w-0 max-w-full truncate font-mono">{pullRequestTitle || PR_SUMMARY_NAME}</span>
-                        </button>
-                        <div className="shrink-0 font-mono text-[11px]">
-                            <span className="text-status-added">+{lineStats.added}</span>
-                            <span className="ml-2 text-status-removed">-{lineStats.removed}</span>
-                        </div>
-                        <div className="shrink-0 flex items-center gap-1">
-                            <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={onWorkspaceModeChange} onOpenDiffSettings={onOpenDiffSettings} />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0 shrink-0"
-                                onClick={onToggleAllFilesViewed}
-                                aria-label={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
-                                title={areAllFilesViewed ? "Unmark all files as viewed" : "Mark all files as viewed"}
-                            >
-                                <span
-                                    className={
-                                        areAllFilesViewed
-                                            ? "size-4 bg-surface-1 border border-status-renamed/60 text-status-renamed flex items-center justify-center"
-                                            : "size-4 bg-surface-1 border border-border text-muted-foreground flex items-center justify-center"
-                                    }
-                                >
-                                    <CheckCheck className="size-3" />
-                                </span>
-                            </Button>
-                        </div>
-                    </div>
-                    {!isSummaryCollapsedInAllMode && (
-                        <PullRequestSummaryPanel
-                            bundle={prData}
-                            diffStats={lineStats}
-                            currentUserDisplayName={currentUserDisplayName}
-                            onSelectComment={onHistoryCommentNavigate}
-                            createCommentPending={createCommentPending}
-                            canCommentInline={canCommentInline}
-                            canResolveThread={canResolveThread}
-                            resolveCommentPending={resolveCommentPending}
-                            deleteCommentPending={deleteCommentPending}
-                            updateCommentPending={updateCommentPending}
-                            updateDescriptionPending={updateDescriptionPending}
-                            canEditDescription={canEditDescription}
-                            onDeleteComment={onDeleteComment}
-                            onResolveThread={onResolveThread}
-                            onReplyToThread={onReplyToThread}
-                            onEditComment={onEditComment}
-                            onEditDescription={onEditDescription}
-                            footerRight={summaryFooter}
-                        />
-                    )}
-                </div>
-            ) : null}
+            <ReviewAllModeSummary {...props} />
 
             {paddingTop > 0 ? <div style={{ height: paddingTop }} /> : null}
             {virtualRows.map((virtualRow) => {
@@ -312,7 +334,13 @@ export function ReviewAllModeView({
                                         onViewModeChange={onWorkspaceModeChange}
                                         onOpenDiffSettings={onOpenDiffSettings}
                                     />
-                                    <button type="button" className="flex items-center text-muted-foreground" onClick={() => onToggleViewed(filePath)}>
+                                    <button
+                                        type="button"
+                                        className="flex items-center text-muted-foreground"
+                                        onClick={() => onToggleViewed(filePath)}
+                                        aria-label={isSelectedVersionViewed ? `Mark ${filePath} as not viewed` : `Mark ${filePath} as viewed`}
+                                        title={isSelectedVersionViewed ? "Mark as not viewed" : "Mark as viewed"}
+                                    >
                                         <span
                                             className={
                                                 selectedVersionUnread

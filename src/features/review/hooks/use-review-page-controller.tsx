@@ -42,7 +42,8 @@ import { ALL_MODE_SCROLL_RETRY_DELAYS, ALL_MODE_STICKY_OFFSET } from "@/features
 import { useReviewFileVersions } from "@/features/review/state/use-review-file-versions";
 import { useReviewOptimisticComments } from "@/features/review/state/use-review-optimistic-comments";
 import { useAppearance } from "@/lib/appearance-context";
-import { toLibraryOptions, useDiffOptions } from "@/lib/diff-options-context";
+import { toLibraryOptions } from "@/lib/diff-options";
+import { useDiffOptions } from "@/lib/diff-options-context";
 import { commentAnchorId, fileAnchorId } from "@/lib/file-anchors";
 import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
@@ -73,6 +74,197 @@ type SuggestionEditSession = {
     editedContents: string;
     fileDiff: FileDiffMetadata;
 };
+
+function useReviewCommitScopeControl({
+    resolvedScope,
+    commitScopeLoading,
+    scopeNotice,
+    setScopeNotice,
+    onReviewDiffScopeSearchChange,
+}: {
+    resolvedScope: ReturnType<typeof useReviewScopedData>["resolvedScope"];
+    commitScopeLoading: boolean;
+    scopeNotice: string | null;
+    setScopeNotice: (value: string | null) => void;
+    onReviewDiffScopeSearchChange?: (next: ReviewDiffScopeSearch) => void;
+}) {
+    const commitScopeOptions = useMemo(
+        () =>
+            [...resolvedScope.visibleCommits].reverse().map((commit) => ({
+                hash: commit.hash,
+                label: commit.hash.slice(0, 8),
+                timestamp: commit.date,
+                message: commit.summary?.raw?.trim() || commit.message?.trim() || "(no message)",
+            })),
+        [resolvedScope.visibleCommits],
+    );
+    const visibleCommitIndexByHash = useMemo(
+        () => new Map(resolvedScope.visibleCommits.map((commit, index) => [commit.hash, index] as const)),
+        [resolvedScope.visibleCommits],
+    );
+    const selectedRangeCommitHashes = useMemo(
+        () => (resolvedScope.mode === "range" ? resolvedScope.selectedCommitHashes : []),
+        [resolvedScope.mode, resolvedScope.selectedCommitHashes],
+    );
+    const handleSetFullScope = useCallback(() => {
+        if (!onReviewDiffScopeSearchChange) return;
+        setScopeNotice(null);
+        onReviewDiffScopeSearchChange({});
+    }, [onReviewDiffScopeSearchChange, setScopeNotice]);
+    const applyRangeFromSelectedHashes = useCallback(
+        (selectedHashes: Set<string>) => {
+            if (!onReviewDiffScopeSearchChange) return;
+            if (selectedHashes.size === 0) {
+                setScopeNotice(null);
+                onReviewDiffScopeSearchChange({});
+                return;
+            }
+            const indexes = Array.from(selectedHashes)
+                .map((hash) => visibleCommitIndexByHash.get(hash))
+                .filter((index): index is number => index !== undefined)
+                .sort((a, b) => a - b);
+            if (indexes.length === 0) {
+                setScopeNotice("Selected commits are unavailable. Switched to full diff.");
+                onReviewDiffScopeSearchChange({});
+                return;
+            }
+            const startIndex = indexes[0];
+            const endIndex = indexes[indexes.length - 1];
+            const from = resolvedScope.visibleCommits[startIndex]?.hash;
+            const to = resolvedScope.visibleCommits[endIndex]?.hash;
+            if (!from) {
+                onReviewDiffScopeSearchChange({});
+                return;
+            }
+            if (!to) {
+                onReviewDiffScopeSearchChange({ from });
+                return;
+            }
+            const contiguousSize = endIndex - startIndex + 1;
+            if (contiguousSize !== indexes.length) {
+                setScopeNotice("Expanded to a contiguous commit range.");
+            } else {
+                setScopeNotice(null);
+            }
+            onReviewDiffScopeSearchChange(startIndex === endIndex ? { from } : { from, to });
+        },
+        [onReviewDiffScopeSearchChange, resolvedScope.visibleCommits, setScopeNotice, visibleCommitIndexByHash],
+    );
+    const handleToggleCommitSelection = useCallback(
+        (hash: string) => {
+            const nextSelected = new Set(selectedRangeCommitHashes);
+            if (nextSelected.has(hash)) {
+                nextSelected.delete(hash);
+            } else {
+                nextSelected.add(hash);
+            }
+            applyRangeFromSelectedHashes(nextSelected);
+        },
+        [applyRangeFromSelectedHashes, selectedRangeCommitHashes],
+    );
+    const commitScopeSlot = useMemo(
+        () => (
+            <ReviewCommitScopeControl
+                mode={resolvedScope.mode}
+                commitOptions={commitScopeOptions}
+                selectedCommitHashes={selectedRangeCommitHashes}
+                isFetching={commitScopeLoading}
+                notice={scopeNotice}
+                onSetFullScope={handleSetFullScope}
+                onToggleCommitSelection={handleToggleCommitSelection}
+            />
+        ),
+        [commitScopeLoading, commitScopeOptions, handleSetFullScope, handleToggleCommitSelection, resolvedScope.mode, selectedRangeCommitHashes, scopeNotice],
+    );
+
+    return commitScopeSlot;
+}
+
+function getReviewPageFallback({
+    isCriticalLoading,
+    queryError,
+    hasPrData,
+    hasPullRequest,
+    isRateLimitedError,
+    canWrite,
+    canRead,
+    publicReadSupported,
+    host,
+    authPromptSlot,
+    workspaceRef,
+    sidebarProps,
+    navbarProps,
+}: {
+    isCriticalLoading: boolean;
+    queryError: unknown;
+    hasPrData: boolean;
+    hasPullRequest: boolean;
+    isRateLimitedError: boolean;
+    canWrite: boolean;
+    canRead: boolean;
+    publicReadSupported: boolean;
+    host: GitHost;
+    authPromptSlot?: ReactNode;
+    workspaceRef: React.ComponentProps<typeof ReviewPageLoadingView>["workspaceRef"];
+    sidebarProps: React.ComponentProps<typeof ReviewPageLoadingView>["sidebarProps"];
+    navbarProps: React.ComponentProps<typeof ReviewPageLoadingView>["navbarProps"];
+}) {
+    if (isCriticalLoading) return <ReviewPageLoadingView workspaceRef={workspaceRef} sidebarProps={sidebarProps} navbarProps={navbarProps} />;
+    if (queryError && !hasPrData) {
+        const errorMessage = queryError instanceof Error ? queryError.message : "Failed to load pull request";
+        return (
+            <ReviewPageErrorState
+                message={errorMessage}
+                showRateLimitHelp={isRateLimitedError && host === "github"}
+                authPromptSlot={isRateLimitedError && !canWrite ? authPromptSlot : undefined}
+            />
+        );
+    }
+    if (hasPrData && !hasPullRequest)
+        return <ReviewPageErrorState message="Pull request payload is incomplete. Retry loading this pull request." showRateLimitHelp={false} />;
+    if (!hasPrData) {
+        if (!canRead && !publicReadSupported)
+            return <ReviewPageAuthRequiredState hostLabel={host === "github" ? "GitHub" : "Bitbucket"} authPromptSlot={authPromptSlot} />;
+        return <ReviewPageLoadingView workspaceRef={workspaceRef} sidebarProps={sidebarProps} navbarProps={navbarProps} />;
+    }
+    return null;
+}
+
+function getReviewRevision(
+    resolvedScope: ReturnType<typeof useReviewScopedData>["resolvedScope"],
+    prData: ReturnType<typeof useReviewOptimisticComments>["prData"],
+) {
+    const effectiveBaseCommitHash = resolvedScope.mode === "full" ? prData?.pr.destination?.commit?.hash : resolvedScope.baseCommitHash;
+    const effectiveHeadCommitHash = resolvedScope.mode === "full" ? prData?.pr.source?.commit?.hash : resolvedScope.headCommitHash;
+    const historyRevision = `${effectiveBaseCommitHash ?? ""}:${effectiveHeadCommitHash ?? ""}`;
+    return { effectiveBaseCommitHash, effectiveHeadCommitHash, historyRevision };
+}
+
+function isFileSelectionReady(selectableDiffPathSet: Set<string>, prData: ReturnType<typeof useReviewOptimisticComments>["prData"]) {
+    return selectableDiffPathSet.size > 0 || Boolean(prData && (prData.diffstat?.length ?? 0) === 0);
+}
+
+function getCanSuggestChanges({
+    scopeMode,
+    viewMode,
+    selectedFileDisplayState,
+    suggestionEditSession,
+    isSuggestionEditingSelectedFile,
+}: {
+    scopeMode: ReturnType<typeof useReviewScopedData>["resolvedScope"]["mode"];
+    viewMode: ReturnType<typeof useReviewLayoutPreferences>["viewMode"];
+    selectedFileDisplayState: { fileDiff: FileDiffMetadata | undefined; readOnlyHistorical: boolean };
+    suggestionEditSession: SuggestionEditSession | null;
+    isSuggestionEditingSelectedFile: boolean;
+}) {
+    return (
+        scopeMode === "full" &&
+        viewMode === "single" &&
+        !selectedFileDisplayState.readOnlyHistorical &&
+        selectedFileDisplayState.fileDiff?.type !== "deleted" &&
+        (!suggestionEditSession || isSuggestionEditingSelectedFile)
+    );
+}
 
 export function useReviewPageController({
     host,
@@ -130,7 +322,10 @@ export function useReviewPageController({
     const workspaceRef = useRef<HTMLDivElement | null>(null);
     const diffScrollRef = useRef<HTMLDivElement | null>(null);
     const inlineDraftFocusRef = useRef<(() => void) | null>(null);
-    const uiStoreRef = useRef(createReviewPageUiStore());
+    const uiStoreRef = useRef<ReturnType<typeof createReviewPageUiStore> | null>(null);
+    if (uiStoreRef.current === null) {
+        uiStoreRef.current = createReviewPageUiStore();
+    }
     const uiStore = uiStoreRef.current;
     const searchQuery = useReviewPageUiValue(uiStore, (state) => state.searchQuery);
     const showUnviewedOnly = useReviewPageUiValue(uiStore, (state) => state.showUnviewedOnly);
@@ -326,8 +521,11 @@ export function useReviewPageController({
 
     useEffect(() => {
         if (host === "bitbucket" && resolvedScope.mode === "full") return;
+        // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- Suggestion editing applies only to a full Bitbucket diff.
         setSuggestionEditSession(null);
+        // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- Discard pending preparation when its host or diff scope changes.
         setPendingSuggestionEditPath(null);
+        // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- Submitted keys belong to the previous suggestion scope.
         setSubmittedSuggestionKeys(new Set());
     }, [host, resolvedScope.mode]);
 
@@ -337,7 +535,7 @@ export function useReviewPageController({
     });
     const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
     const libOptions = toLibraryOptions(options);
-    const compactDiffOptions = useMemo<FileDiffOptions<SingleFileAnnotationMetadata | undefined>>(
+    const compactDiffOptions = useMemo<FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>>(
         () => ({
             ...libOptions,
             hunkSeparators: options.hunkSeparators,
@@ -358,9 +556,7 @@ export function useReviewPageController({
         },
         [openInlineCommentDraft, resolvedScope.mode],
     );
-    const effectiveBaseCommitHash = resolvedScope.mode === "full" ? prData?.pr.destination?.commit?.hash : resolvedScope.baseCommitHash;
-    const effectiveHeadCommitHash = resolvedScope.mode === "full" ? prData?.pr.source?.commit?.hash : resolvedScope.headCommitHash;
-    const historyRevision = `${effectiveBaseCommitHash ?? ""}:${effectiveHeadCommitHash ?? ""}`;
+    const { effectiveBaseCommitHash, effectiveHeadCommitHash, historyRevision } = getReviewRevision(resolvedScope, prData);
     const { fileContextStatus, handleLoadFullFileContext, readyFileContexts } = useReviewFileContexts({
         effectiveBaseCommitHash,
         effectiveHeadCommitHash,
@@ -528,7 +724,9 @@ export function useReviewPageController({
                 editedContents: originalContents,
                 fileDiff: cloneFileDiffMetadata(fileDiff),
             });
+            // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- A loaded file starts a fresh suggestion-edit session.
             setSubmittedSuggestionKeys(new Set());
+            // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- Preparation is complete once the full file context arrives.
             setPendingSuggestionEditPath(null);
             return;
         }
@@ -536,6 +734,7 @@ export function useReviewPageController({
         const fileContext = fileContextStatus[pendingSuggestionEditPath];
         if (fileContext?.status === "error") {
             setActionError(fileContext.error);
+            // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- Stop preparing the suggestion editor when context loading fails.
             setPendingSuggestionEditPath(null);
         }
     }, [fileContextStatus, pendingSuggestionEditPath, selectedFileDisplayState.fileDiff, selectedFilePath]);
@@ -607,7 +806,7 @@ export function useReviewPageController({
         () => (allModeSectionPaths.length > 0 ? allModeSectionPaths[allModeSectionPaths.length - 1] : null),
         [allModeSectionPaths],
     );
-    const isFileHashSelectionReady = selectableDiffPathSet.size > 0 || Boolean(prData && (prData.diffstat?.length ?? 0) === 0);
+    const isFileHashSelectionReady = isFileSelectionReady(selectableDiffPathSet, prData);
 
     useReviewActiveFileSync({
         showSettingsPanel,
@@ -710,12 +909,13 @@ export function useReviewPageController({
         onOptimisticCommentCreate: createOptimisticComment,
         onOptimisticCommentRemove: removeOptimisticComment,
     });
-    const canSuggestChanges =
-        resolvedScope.mode === "full" &&
-        viewMode === "single" &&
-        !selectedFileDisplayState.readOnlyHistorical &&
-        selectedFileDisplayState.fileDiff?.type !== "deleted" &&
-        (!suggestionEditSession || isSuggestionEditingSelectedFile);
+    const canSuggestChanges = getCanSuggestChanges({
+        scopeMode: resolvedScope.mode,
+        viewMode,
+        selectedFileDisplayState,
+        suggestionEditSession,
+        isSuggestionEditingSelectedFile,
+    });
     const startSuggestionEdit = useCallback(() => {
         if (!canSuggestChanges || !selectedFilePath || !selectedFileDisplayState.fileDiff) return;
         if (!actionPolicy.canCommentInline) {
@@ -1036,94 +1236,7 @@ export function useReviewPageController({
     });
     const rawHashTarget = typeof window === "undefined" ? null : parsePrFileHashTarget(window.location.hash);
 
-    const commitScopeOptions = useMemo(
-        () =>
-            [...resolvedScope.visibleCommits].reverse().map((commit) => ({
-                hash: commit.hash,
-                label: commit.hash.slice(0, 8),
-                timestamp: commit.date,
-                message: commit.summary?.raw?.trim() || commit.message?.trim() || "(no message)",
-            })),
-        [resolvedScope.visibleCommits],
-    );
-    const visibleCommitIndexByHash = useMemo(
-        () => new Map(resolvedScope.visibleCommits.map((commit, index) => [commit.hash, index] as const)),
-        [resolvedScope.visibleCommits],
-    );
-    const selectedRangeCommitHashes = useMemo(
-        () => (resolvedScope.mode === "range" ? resolvedScope.selectedCommitHashes : []),
-        [resolvedScope.mode, resolvedScope.selectedCommitHashes],
-    );
-    const handleSetFullScope = useCallback(() => {
-        if (!onReviewDiffScopeSearchChange) return;
-        setScopeNotice(null);
-        onReviewDiffScopeSearchChange({});
-    }, [onReviewDiffScopeSearchChange, setScopeNotice]);
-    const applyRangeFromSelectedHashes = useCallback(
-        (selectedHashes: Set<string>) => {
-            if (!onReviewDiffScopeSearchChange) return;
-            if (selectedHashes.size === 0) {
-                setScopeNotice(null);
-                onReviewDiffScopeSearchChange({});
-                return;
-            }
-            const indexes = Array.from(selectedHashes)
-                .map((hash) => visibleCommitIndexByHash.get(hash))
-                .filter((index): index is number => index !== undefined)
-                .sort((a, b) => a - b);
-            if (indexes.length === 0) {
-                setScopeNotice("Selected commits are unavailable. Switched to full diff.");
-                onReviewDiffScopeSearchChange({});
-                return;
-            }
-            const startIndex = indexes[0];
-            const endIndex = indexes[indexes.length - 1];
-            const from = resolvedScope.visibleCommits[startIndex]?.hash;
-            const to = resolvedScope.visibleCommits[endIndex]?.hash;
-            if (!from) {
-                onReviewDiffScopeSearchChange({});
-                return;
-            }
-            if (!to) {
-                onReviewDiffScopeSearchChange({ from });
-                return;
-            }
-            const contiguousSize = endIndex - startIndex + 1;
-            if (contiguousSize !== indexes.length) {
-                setScopeNotice("Expanded to a contiguous commit range.");
-            } else {
-                setScopeNotice(null);
-            }
-            onReviewDiffScopeSearchChange(startIndex === endIndex ? { from } : { from, to });
-        },
-        [onReviewDiffScopeSearchChange, resolvedScope.visibleCommits, setScopeNotice, visibleCommitIndexByHash],
-    );
-    const handleToggleCommitSelection = useCallback(
-        (hash: string) => {
-            const nextSelected = new Set(selectedRangeCommitHashes);
-            if (nextSelected.has(hash)) {
-                nextSelected.delete(hash);
-            } else {
-                nextSelected.add(hash);
-            }
-            applyRangeFromSelectedHashes(nextSelected);
-        },
-        [applyRangeFromSelectedHashes, selectedRangeCommitHashes],
-    );
-    const commitScopeSlot = useMemo(
-        () => (
-            <ReviewCommitScopeControl
-                mode={resolvedScope.mode}
-                commitOptions={commitScopeOptions}
-                selectedCommitHashes={selectedRangeCommitHashes}
-                isFetching={commitScopeLoading}
-                notice={scopeNotice}
-                onSetFullScope={handleSetFullScope}
-                onToggleCommitSelection={handleToggleCommitSelection}
-            />
-        ),
-        [commitScopeLoading, commitScopeOptions, handleSetFullScope, handleToggleCommitSelection, resolvedScope.mode, selectedRangeCommitHashes, scopeNotice],
-    );
+    const commitScopeSlot = useReviewCommitScopeControl({ resolvedScope, commitScopeLoading, scopeNotice, setScopeNotice, onReviewDiffScopeSearchChange });
 
     const { sortedRootPullRequests, openPullRequest } = useSelectedRepoPullRequests({ autoRefetch: true });
 
@@ -1233,33 +1346,22 @@ export function useReviewPageController({
         inlineDraftFocusRef,
     });
 
-    if (isCriticalLoading) {
-        return <ReviewPageLoadingView workspaceRef={workspaceRef} sidebarProps={sidebarProps} navbarProps={navbarProps} />;
-    }
-
-    if (prQuery.error && !prData) {
-        const errorMessage = prQuery.error instanceof Error ? prQuery.error.message : "Failed to load pull request";
-        const showAuthPrompt = isRateLimitedError && !auth.canWrite;
-
-        return (
-            <ReviewPageErrorState
-                message={errorMessage}
-                showRateLimitHelp={isRateLimitedError && host === "github"}
-                authPromptSlot={showAuthPrompt ? authPromptSlot : undefined}
-            />
-        );
-    }
-
-    if (prData && !pullRequest) {
-        return <ReviewPageErrorState message="Pull request payload is incomplete. Retry loading this pull request." showRateLimitHelp={false} />;
-    }
-
-    if (!prData) {
-        if (!auth.canRead && !hostCapabilities.publicReadSupported) {
-            return <ReviewPageAuthRequiredState hostLabel={host === "github" ? "GitHub" : "Bitbucket"} authPromptSlot={authPromptSlot} />;
-        }
-        return <ReviewPageLoadingView workspaceRef={workspaceRef} sidebarProps={sidebarProps} navbarProps={navbarProps} />;
-    }
+    const fallback = getReviewPageFallback({
+        isCriticalLoading,
+        queryError: prQuery.error,
+        hasPrData: Boolean(prData),
+        hasPullRequest: Boolean(pullRequest),
+        isRateLimitedError,
+        canWrite: auth.canWrite,
+        canRead: auth.canRead,
+        publicReadSupported: hostCapabilities.publicReadSupported,
+        host,
+        authPromptSlot,
+        workspaceRef,
+        sidebarProps,
+        navbarProps,
+    });
+    if (fallback || !prData) return fallback;
 
     return (
         <ReviewPageMainView

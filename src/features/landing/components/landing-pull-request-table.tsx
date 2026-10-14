@@ -508,8 +508,15 @@ export function LandingPullRequestTable({
                         table.getRowModel().rows.map((row) => (
                             <tr
                                 key={row.id}
-                                className="cursor-pointer border-b border-border-muted/70 transition-colors hover:bg-surface-hover"
+                                tabIndex={0}
+                                className="cursor-pointer border-b border-border-muted/70 transition-colors hover:bg-surface-hover focus:bg-surface-hover focus:outline-none"
                                 onClick={() => onOpenPullRequest(row.original.repo, String(row.original.pullRequest.id))}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                        event.preventDefault();
+                                        onOpenPullRequest(row.original.repo, String(row.original.pullRequest.id));
+                                    }
+                                }}
                             >
                                 {row.getVisibleCells().map((cell) => (
                                     <td key={cell.id} className={cn("overflow-hidden px-3 py-2 align-middle", columnWidthClass(cell.column.id))}>

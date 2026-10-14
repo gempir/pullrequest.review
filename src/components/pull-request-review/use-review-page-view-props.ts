@@ -230,7 +230,6 @@ export function useReviewPageViewProps({
             currentUserReviewStatus,
             declinePending,
             isRefreshing,
-            pullRequest?.draft,
             markDraftPending,
             host,
             rightSidebarCollapsed,

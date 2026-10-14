@@ -1,11 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-    buildGroupedPullRequests,
-    buildPullRequestsByRepo,
-    buildPullRequestTree,
-    buildSortedRootPullRequests,
-    hostFromLandingTreePath,
-} from "../src/features/landing/model/landing-model.ts";
+import { buildGroupedPullRequests, buildSortedRootPullRequests } from "../src/features/landing/model/landing-model.ts";
 
 describe("landing model", () => {
     test("groups and sorts pull requests by selected repositories", () => {
@@ -54,7 +48,7 @@ describe("landing model", () => {
         expect(sorted.map((row) => row.pullRequest.id)).toEqual([5, 2]);
     });
 
-    test("builds tree metadata and filters by query", () => {
+    test("excludes pull requests from repositories that are not selected", () => {
         const reposByHost = {
             bitbucket: [],
             github: [
@@ -67,41 +61,23 @@ describe("landing model", () => {
                 },
             ],
         };
-        const pullRequestsByRepo = buildPullRequestsByRepo([
-            {
-                host: "github",
-                repo: reposByHost.github[0],
-                pullRequests: [
-                    {
-                        id: 12,
-                        title: "Improve review UX",
-                        author: { displayName: "Ada" },
-                    },
-                ],
-            },
-        ]);
-
-        const tree = buildPullRequestTree(reposByHost, pullRequestsByRepo, "review");
-        expect(tree.entries).toHaveLength(5);
-        expect(tree.entries).toEqual([
-            { appPath: "host:bitbucket", treePath: "bitbucket.org/" },
-            { appPath: "host:github", treePath: "github.com/" },
-            { appPath: "workspace:github:openai", treePath: "github.com/openai/" },
-            { appPath: "repo:github:openai:codex", treePath: "github.com/openai/codex/" },
-            { appPath: "pr:github:openai:codex:12", treePath: "github.com/openai/codex/#12 Improve review UX" },
-        ]);
-        expect(tree.pullRequestMeta.get("pr:github:openai:codex:12")).toEqual({
-            host: "github",
-            workspace: "openai",
-            repo: "codex",
-            pullRequestId: "12",
-        });
-    });
-
-    test("detects host path prefixes", () => {
-        expect(hostFromLandingTreePath("host:github")).toBe("github");
-        expect(hostFromLandingTreePath("workspace:bitbucket:acme")).toBe("bitbucket");
-        expect(hostFromLandingTreePath("repo:github:acme:ui")).toBe("github");
-        expect(hostFromLandingTreePath("pr:github:acme:ui:12")).toBeNull();
+        const grouped = buildGroupedPullRequests(
+            [
+                {
+                    host: "github",
+                    repo: reposByHost.github[0],
+                    pullRequest: { id: 12, title: "Improve review UX", author: { displayName: "Ada" } },
+                },
+                {
+                    host: "github",
+                    repo: { host: "github", workspace: "elsewhere", repo: "other", fullName: "elsewhere/other", displayName: "other" },
+                    pullRequest: { id: 13, title: "Unselected" },
+                },
+            ],
+            reposByHost,
+        );
+        expect(grouped).toHaveLength(1);
+        expect(grouped[0].pullRequests.map((pullRequest) => pullRequest.id)).toEqual([12]);
+        expect(buildGroupedPullRequests([], reposByHost)).toEqual([]);
     });
 });

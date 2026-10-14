@@ -41,6 +41,7 @@ export function useCopyTimeoutCleanup({
     copyResetTimeoutRef: MutableRefObject<number | null>;
     copySourceBranchResetTimeoutRef: MutableRefObject<number | null>;
 }) {
+    // eslint-disable-next-line react-doctor/exhaustive-deps -- Cleanup must clear the latest timer IDs stored in these stable refs at unmount.
     useEffect(() => {
         return () => {
             if (copyResetTimeoutRef.current !== null) {
@@ -117,6 +118,7 @@ export function useReviewActiveFileSync({
             const firstSettingsPath = settingsTreeItems[0]?.path;
             if (!firstSettingsPath) return;
             if (!activeFile || !settingsPathSet.has(activeFile)) {
+                // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- Entering settings selects a valid settings tree item in the shared review store.
                 setActiveFile(firstSettingsPath);
             }
             return;
@@ -124,12 +126,14 @@ export function useReviewActiveFileSync({
         if (treeOrderedVisiblePaths.length === 0) return;
 
         if (!activeFile) {
+            // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- Initialize the shared file selection once visible review paths load.
             setActiveFile(PR_SUMMARY_PATH);
             return;
         }
 
         if (!visiblePathSet.has(activeFile)) {
             const firstUnviewed = treeOrderedVisiblePaths.find((path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path)) ?? treeOrderedVisiblePaths[0];
+            // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- Keep the shared selection valid when filters hide the selected file.
             setActiveFile(firstUnviewed);
         }
     }, [activeFile, settingsPathSet, settingsTreeItems, setActiveFile, showSettingsPanel, treeOrderedVisiblePaths, viewedFiles, visiblePathSet]);
@@ -424,6 +428,7 @@ export function useEnsureSummarySelection({
         if (isSummarySelected) return;
         if (selectedFileDiff) return;
         if ((prData.diffstat?.length ?? 0) > 0) return;
+        // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- An empty PR has no file selection, so select its summary in the shared store.
         setActiveFile(PR_SUMMARY_PATH);
     }, [isSummarySelected, prData, selectedFileDiff, setActiveFile, showSettingsPanel, viewMode]);
 }
@@ -443,6 +448,7 @@ export function useSyncMergeStrategy({
         if (!prData) return;
         if (!mergeStrategies?.length) return;
         if (!mergeStrategies.includes(mergeStrategy)) {
+            // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- Host capabilities can change after load; keep the shared merge selection valid.
             setMergeStrategy(mergeStrategies[0] ?? "merge");
         }
     }, [mergeStrategies, mergeStrategy, prData, setMergeStrategy]);

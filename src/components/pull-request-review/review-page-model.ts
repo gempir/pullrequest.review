@@ -1,3 +1,4 @@
+import type { DiffLineAnnotation } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { InlineCommentDraft } from "@/components/pull-request-review/use-inline-comment-drafts";
 import { orderFileTreePaths } from "@/lib/file-tree-order";
@@ -23,11 +24,7 @@ type DraftThreadAnnotation = {
 
 export type SingleFileAnnotationMetadata = ExistingThreadAnnotation | DraftThreadAnnotation;
 
-export type SingleFileAnnotation = {
-    side: CommentLineSide;
-    lineNumber: number;
-    metadata: SingleFileAnnotationMetadata;
-};
+export type SingleFileAnnotation = DiffLineAnnotation<ExistingThreadAnnotation> | DiffLineAnnotation<DraftThreadAnnotation>;
 
 export function getCommentPath(comment: PullRequestComment) {
     return comment.inline?.path ?? "";

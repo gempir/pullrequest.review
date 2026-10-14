@@ -1,7 +1,7 @@
 import { AlertCircle, GitPullRequest, House, Loader2, RefreshCw, Settings2 } from "lucide-react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { GitHostIcon } from "@/components/git-host-icon";
-import { requestOpenAppPullRequestOmnibar } from "@/components/omnibar/app-pull-request-omnibar";
+import { requestOpenAppPullRequestOmnibar } from "@/components/omnibar/app-omnibar-events";
 import { OmnibarMenubarInput } from "@/components/omnibar/omnibar-menubar-input";
 import { RepositorySelector } from "@/components/repository-selector";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,109 @@ function HostAuthPanel({ host }: { host: GitHost }) {
     }
 
     return <HostAuthForm host={host} mode="panel" />;
+}
+
+function LandingRepositoryPanel({
+    activeHost,
+    authenticated,
+    selectedRepos,
+    onSaveSelectedRepos,
+    onClearRepos,
+    onDisconnectHost,
+}: {
+    activeHost: GitHost;
+    authenticated: boolean;
+    selectedRepos: RepoRef[];
+    onSaveSelectedRepos: (host: GitHost, repos: RepoRef[]) => void;
+    onClearRepos: (host: GitHost) => void;
+    onDisconnectHost: (host: GitHost) => void;
+}) {
+    if (!authenticated) return <HostAuthPanel host={activeHost} />;
+    return (
+        <>
+            <RepositorySelector
+                host={activeHost}
+                initialSelected={selectedRepos}
+                saveLabel="Save Selection"
+                onSave={(nextRepos) => onSaveSelectedRepos(activeHost, nextRepos)}
+            />
+            <div className="flex justify-end">
+                <Button variant="outline" className="rounded-md" onClick={() => onClearRepos(activeHost)}>
+                    Clear {getHostLabel(activeHost)} repositories
+                </Button>
+            </div>
+            <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-4">
+                <div className="text-[12px] text-muted-foreground">Danger zone</div>
+                <Button
+                    variant="outline"
+                    className="rounded-md border-destructive/30 text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                        if (!window.confirm(`Disconnect ${getHostLabel(activeHost)} and clear its repositories?`)) return;
+                        onDisconnectHost(activeHost);
+                    }}
+                >
+                    Disconnect {getHostLabel(activeHost)}
+                </Button>
+            </div>
+        </>
+    );
+}
+
+function LandingPullRequestsPanel({
+    selectedRepoCount,
+    isRepoPullRequestLoading,
+    repoPullRequestError,
+    sortedRootPullRequests,
+    onOpenPullRequest,
+}: {
+    selectedRepoCount: number;
+    isRepoPullRequestLoading: boolean;
+    repoPullRequestError: unknown;
+    sortedRootPullRequests: SortedRootPullRequest[];
+    onOpenPullRequest: (repo: RepoRef, pullRequestId: string) => void;
+}) {
+    if (selectedRepoCount === 0) {
+        return (
+            <div className="max-w-2xl space-y-2 rounded-md border border-border-muted bg-surface-1 p-8 text-center">
+                <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                    <GitPullRequest className="size-4" />
+                    <span className="text-[13px]">No repositories selected.</span>
+                </div>
+                <p className="text-[12px] text-muted-foreground">Use Bitbucket or GitHub in the top right to choose repositories.</p>
+            </div>
+        );
+    }
+    if (isRepoPullRequestLoading) {
+        return (
+            <div className="flex h-full items-center justify-center gap-2 text-[13px] text-muted-foreground" role="status">
+                <Loader2 className="size-4 animate-spin" />
+                <span>Loading pull requests...</span>
+            </div>
+        );
+    }
+    if (repoPullRequestError) {
+        return (
+            <div className="max-w-2xl rounded-md border border-destructive/40 bg-destructive/10 p-4 text-[13px] text-destructive">
+                <div className="flex items-center gap-2">
+                    <AlertCircle className="size-4" />
+                    <span>[ERROR] {repoPullRequestError instanceof Error ? repoPullRequestError.message : "Failed to load pull requests"}</span>
+                </div>
+            </div>
+        );
+    }
+    if (sortedRootPullRequests.length === 0) {
+        return (
+            <div className="max-w-2xl space-y-2 rounded-md border border-border-muted bg-surface-1 p-8 text-center">
+                <p className="text-[13px] text-muted-foreground">No pull requests in selected repositories.</p>
+                <p className="text-[12px] text-muted-foreground">Use Bitbucket or GitHub in the top right to manage repositories.</p>
+            </div>
+        );
+    }
+    return (
+        <div className="flex h-full min-h-0 flex-col">
+            <LandingPullRequestTable data={sortedRootPullRequests} onOpenPullRequest={onOpenPullRequest} />
+        </div>
+    );
 }
 
 export function LandingMainContent({
@@ -142,66 +245,23 @@ export function LandingMainContent({
             <main data-component="diff-view" className={cn("min-h-0 flex-1", showRepositoryPanel ? "overflow-y-auto p-4" : "overflow-hidden p-4")}>
                 {showRepositoryPanel ? (
                     <div className="max-w-3xl space-y-4">
-                        {authByHost[activeHost] ? (
-                            <>
-                                <RepositorySelector
-                                    host={activeHost}
-                                    initialSelected={reposByHost[activeHost]}
-                                    saveLabel="Save Selection"
-                                    onSave={(nextRepos) => onSaveSelectedRepos(activeHost, nextRepos)}
-                                />
-                                <div className="flex justify-end">
-                                    <Button variant="outline" className="rounded-md" onClick={() => onClearRepos(activeHost)}>
-                                        Clear {getHostLabel(activeHost)} repositories
-                                    </Button>
-                                </div>
-                                <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-4">
-                                    <div className="text-[12px] text-muted-foreground">Danger zone</div>
-                                    <Button
-                                        variant="outline"
-                                        className="rounded-md border-destructive/30 text-destructive hover:bg-destructive/10"
-                                        onClick={() => {
-                                            if (!window.confirm(`Disconnect ${getHostLabel(activeHost)} and clear its repositories?`)) return;
-                                            onDisconnectHost(activeHost);
-                                        }}
-                                    >
-                                        Disconnect {getHostLabel(activeHost)}
-                                    </Button>
-                                </div>
-                            </>
-                        ) : (
-                            <HostAuthPanel host={activeHost} />
-                        )}
-                    </div>
-                ) : selectedRepoCount === 0 ? (
-                    <div className="max-w-2xl space-y-2 rounded-md border border-border-muted bg-surface-1 p-8 text-center">
-                        <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                            <GitPullRequest className="size-4" />
-                            <span className="text-[13px]">No repositories selected.</span>
-                        </div>
-                        <p className="text-[12px] text-muted-foreground">Use Bitbucket or GitHub in the top right to choose repositories.</p>
-                    </div>
-                ) : isRepoPullRequestLoading ? (
-                    <div className="flex h-full items-center justify-center gap-2 text-[13px] text-muted-foreground" role="status">
-                        <Loader2 className="size-4 animate-spin" />
-                        <span>Loading pull requests...</span>
-                    </div>
-                ) : repoPullRequestError ? (
-                    <div className="max-w-2xl rounded-md border border-destructive/40 bg-destructive/10 p-4 text-[13px] text-destructive">
-                        <div className="flex items-center gap-2">
-                            <AlertCircle className="size-4" />
-                            <span>[ERROR] {repoPullRequestError instanceof Error ? repoPullRequestError.message : "Failed to load pull requests"}</span>
-                        </div>
-                    </div>
-                ) : sortedRootPullRequests.length === 0 ? (
-                    <div className="max-w-2xl space-y-2 rounded-md border border-border-muted bg-surface-1 p-8 text-center">
-                        <p className="text-[13px] text-muted-foreground">No pull requests in selected repositories.</p>
-                        <p className="text-[12px] text-muted-foreground">Use Bitbucket or GitHub in the top right to manage repositories.</p>
+                        <LandingRepositoryPanel
+                            activeHost={activeHost}
+                            authenticated={authByHost[activeHost]}
+                            selectedRepos={reposByHost[activeHost]}
+                            onSaveSelectedRepos={onSaveSelectedRepos}
+                            onClearRepos={onClearRepos}
+                            onDisconnectHost={onDisconnectHost}
+                        />
                     </div>
                 ) : (
-                    <div className="flex h-full min-h-0 flex-col">
-                        <LandingPullRequestTable data={sortedRootPullRequests} onOpenPullRequest={onOpenPullRequest} />
-                    </div>
+                    <LandingPullRequestsPanel
+                        selectedRepoCount={selectedRepoCount}
+                        isRepoPullRequestLoading={isRepoPullRequestLoading}
+                        repoPullRequestError={repoPullRequestError}
+                        sortedRootPullRequests={sortedRootPullRequests}
+                        onOpenPullRequest={onOpenPullRequest}
+                    />
                 )}
             </main>
         </section>

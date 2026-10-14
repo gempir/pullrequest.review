@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getPullRequestOmnibarKeywords } from "../src/components/omnibar/pull-request-omnibar";
-import { getOmnibarFileName } from "../src/components/pull-request-review/review-omnibar";
+import { getOmnibarFileName, getPullRequestOmnibarKeywords } from "../src/components/omnibar/omnibar-helpers";
 import { createOmnibarFilePaths } from "../src/components/pull-request-review/review-page-model";
 
 describe("review omnibar helpers", () => {

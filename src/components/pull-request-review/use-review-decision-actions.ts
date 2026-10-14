@@ -41,6 +41,7 @@ export function useReviewDecisionActions({
     setActionError,
     setMergeOpen,
 }: UseReviewDecisionActionsParams) {
+    // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- refreshPullRequest refetches the TanStack DB collection consumed by useLiveQuery.
     const approveMutation = useMutation({
         mutationFn: () => approvePullRequest({ prRef: ensurePrRef() }),
         onSuccess: async () => {
@@ -51,6 +52,7 @@ export function useReviewDecisionActions({
             setActionError(error instanceof Error ? error.message : "Failed to approve pull request");
         },
     });
+    // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- refreshPullRequest refetches the TanStack DB collection consumed by useLiveQuery.
     const removeApprovalMutation = useMutation({
         mutationFn: () => removePullRequestApproval({ prRef: ensurePrRef() }),
         onSuccess: async () => {
@@ -61,6 +63,7 @@ export function useReviewDecisionActions({
             setActionError(error instanceof Error ? error.message : "Failed to remove approval");
         },
     });
+    // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- refreshPullRequest refetches the TanStack DB collection consumed by useLiveQuery.
     const requestChangesMutation = useMutation({
         mutationFn: () => requestChangesOnPullRequest({ prRef: ensurePrRef() }),
         onSuccess: async () => {
@@ -71,6 +74,7 @@ export function useReviewDecisionActions({
             setActionError(error instanceof Error ? error.message : "Failed to request changes");
         },
     });
+    // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- refreshPullRequest refetches the TanStack DB collection consumed by useLiveQuery.
     const mergeMutation = useMutation({
         mutationFn: () =>
             mergePullRequest({
@@ -88,6 +92,7 @@ export function useReviewDecisionActions({
             setActionError(error instanceof Error ? error.message : "Failed to merge pull request");
         },
     });
+    // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- refreshPullRequest refetches the TanStack DB collection consumed by useLiveQuery.
     const declineMutation = useMutation({
         mutationFn: () => declinePullRequest({ prRef: ensurePrRef() }),
         onSuccess: async () => {
@@ -98,6 +103,7 @@ export function useReviewDecisionActions({
             setActionError(error instanceof Error ? error.message : "Failed to decline pull request");
         },
     });
+    // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- refreshPullRequest refetches the TanStack DB collection consumed by useLiveQuery.
     const markDraftMutation = useMutation({
         mutationFn: () => (isDraft ? markPullRequestReady({ prRef: ensurePrRef() }) : markPullRequestAsDraft({ prRef: ensurePrRef() })),
         onSuccess: async () => {

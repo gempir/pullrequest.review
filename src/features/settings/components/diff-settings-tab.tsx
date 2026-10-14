@@ -58,7 +58,7 @@ export function DiffSettingsTab({
         options.diffLineHeight,
         options.diffUseCustomTypography,
     ]);
-    const previewDiffOptions = useMemo<FileDiffOptions<undefined>>(
+    const previewDiffOptions = useMemo<FileDiffOptions<undefined, undefined>>(
         () => ({
             theme: options.theme,
             diffStyle: options.diffStyle,

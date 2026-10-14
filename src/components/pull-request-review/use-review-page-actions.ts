@@ -120,6 +120,7 @@ export function useReviewPageActions({
         setActionError,
         setInlineComment,
     });
+    // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- refreshPullRequest refetches the TanStack DB collection consumed by useLiveQuery.
     const updateDescriptionMutation = useMutation({
         mutationFn: (description: string) => {
             if (!authCanWrite) {

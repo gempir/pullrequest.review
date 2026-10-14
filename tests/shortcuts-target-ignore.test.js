@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isEditableShortcutEvent, isEditableShortcutTarget } from "../src/lib/shortcuts-context";
+import { isEditableShortcutEvent, isEditableShortcutTarget } from "../src/lib/shortcuts-target";
 
 describe("shortcut editable target checks", () => {
     test("ignores input-like controls", () => {

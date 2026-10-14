@@ -9,38 +9,58 @@ type UseReviewOptimisticCommentsParams = {
     prContextKey: string;
 };
 
+const EMPTY_OPTIMISTIC_COMMENTS: PullRequestComment[] = [];
+
 export function useReviewOptimisticComments({
     currentUserAvatarUrl,
     currentUserDisplayName,
     effectivePrData,
     prContextKey,
 }: UseReviewOptimisticCommentsParams) {
-    const [optimisticComments, setOptimisticComments] = useState<PullRequestComment[]>([]);
+    const [optimisticState, setOptimisticState] = useState<{ scopeKey: string; comments: PullRequestComment[] }>(() => ({
+        scopeKey: prContextKey,
+        comments: [],
+    }));
+    const optimisticComments = optimisticState.scopeKey === prContextKey ? optimisticState.comments : EMPTY_OPTIMISTIC_COMMENTS;
+    const setOptimisticComments = useCallback(
+        (update: (comments: PullRequestComment[]) => PullRequestComment[]) => {
+            setOptimisticState((prev) => {
+                const current = prev.scopeKey === prContextKey ? prev.comments : [];
+                const next = update(current);
+                if (prev.scopeKey === prContextKey && next === current) return prev;
+                return { scopeKey: prContextKey, comments: next };
+            });
+        },
+        [prContextKey],
+    );
     const optimisticCommentIdRef = useRef(-1);
 
-    const removeMatchedOptimisticComments = useCallback((serverComments: PullRequestComment[]) => {
-        const serverKeyCounts = new Map<string, number>();
-        for (const comment of serverComments) {
-            const key = commentMatchKey(comment);
-            serverKeyCounts.set(key, (serverKeyCounts.get(key) ?? 0) + 1);
-        }
-        setOptimisticComments((prev) => {
-            let changed = false;
-            const next: PullRequestComment[] = [];
-            const remainingCounts = new Map(serverKeyCounts);
-            for (const optimisticComment of prev) {
-                const key = commentMatchKey(optimisticComment);
-                const matchedCount = remainingCounts.get(key) ?? 0;
-                if (matchedCount > 0) {
-                    changed = true;
-                    remainingCounts.set(key, matchedCount - 1);
-                    continue;
-                }
-                next.push(optimisticComment);
+    const removeMatchedOptimisticComments = useCallback(
+        (serverComments: PullRequestComment[]) => {
+            const serverKeyCounts = new Map<string, number>();
+            for (const comment of serverComments) {
+                const key = commentMatchKey(comment);
+                serverKeyCounts.set(key, (serverKeyCounts.get(key) ?? 0) + 1);
             }
-            return changed ? next : prev;
-        });
-    }, []);
+            setOptimisticComments((prev) => {
+                let changed = false;
+                const next: PullRequestComment[] = [];
+                const remainingCounts = new Map(serverKeyCounts);
+                for (const optimisticComment of prev) {
+                    const key = commentMatchKey(optimisticComment);
+                    const matchedCount = remainingCounts.get(key) ?? 0;
+                    if (matchedCount > 0) {
+                        changed = true;
+                        remainingCounts.set(key, matchedCount - 1);
+                        continue;
+                    }
+                    next.push(optimisticComment);
+                }
+                return changed ? next : prev;
+            });
+        },
+        [setOptimisticComments],
+    );
 
     const createOptimisticComment = useCallback(
         (payload: CreateCommentPayload) => {
@@ -71,23 +91,21 @@ export function useReviewOptimisticComments({
             setOptimisticComments((prev) => [...prev, nextComment]);
             return optimisticCommentId;
         },
-        [currentUserAvatarUrl, currentUserDisplayName, effectivePrData],
+        [currentUserAvatarUrl, currentUserDisplayName, effectivePrData, setOptimisticComments],
     );
 
-    const removeOptimisticComment = useCallback((commentId: number) => {
-        setOptimisticComments((prev) => prev.filter((comment) => comment.id !== commentId));
-    }, []);
+    const removeOptimisticComment = useCallback(
+        (commentId: number) => {
+            setOptimisticComments((prev) => prev.filter((comment) => comment.id !== commentId));
+        },
+        [setOptimisticComments],
+    );
 
     useEffect(() => {
         if (!effectivePrData?.comments?.length) return;
         if (optimisticComments.length === 0) return;
         removeMatchedOptimisticComments(effectivePrData.comments);
     }, [effectivePrData?.comments, optimisticComments.length, removeMatchedOptimisticComments]);
-
-    useEffect(() => {
-        if (!prContextKey) return;
-        setOptimisticComments([]);
-    }, [prContextKey]);
 
     const prData = useMemo(() => {
         if (!effectivePrData) return undefined;

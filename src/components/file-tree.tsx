@@ -1,7 +1,17 @@
 import type { FileTreeIcons, FileTreeRowDecoration, FileTreeRowDecorationContext, FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree as PierreFileTree, prepareFileTreeInput } from "@pierre/trees";
 import { FileTree as PierreReactFileTree } from "@pierre/trees/react";
-import { type CSSProperties, type MouseEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+    type CSSProperties,
+    type MouseEvent,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { type TreeDensityValue, useFileTree } from "@/lib/file-tree-context";
 import { compareFileTreeSortEntries } from "@/lib/file-tree-order";
 
@@ -344,15 +354,13 @@ function createVisibleTreePathIndex(treePaths: readonly string[]) {
 }
 
 function useStableTreePaths(entries: readonly FileTreeEntry[]) {
-    const treePathsRef = useRef<readonly string[]>([]);
-    return useMemo(() => {
-        const nextTreePaths = entries.map((entry) => entry.treePath);
-        if (areTreePathsEqual(treePathsRef.current, nextTreePaths)) {
-            return treePathsRef.current;
-        }
-        treePathsRef.current = nextTreePaths;
+    const [stableTreePaths, setStableTreePaths] = useState<readonly string[]>(() => entries.map((entry) => entry.treePath));
+    const nextTreePaths = entries.map((entry) => entry.treePath);
+    if (!areTreePathsEqual(stableTreePaths, nextTreePaths)) {
+        setStableTreePaths(nextTreePaths);
         return nextTreePaths;
-    }, [entries]);
+    }
+    return stableTreePaths;
 }
 
 export function useAppFileTreeModel({
@@ -377,10 +385,12 @@ export function useAppFileTreeModel({
     const onSearchQueryChangeRef = useRef(onSearchQueryChange);
     const renderRowDecorationRef = useRef(renderRowDecoration);
 
-    selectedAppPathRef.current = selectedAppPath;
-    onSelectPathRef.current = onSelectPath;
-    onSearchQueryChangeRef.current = onSearchQueryChange;
-    renderRowDecorationRef.current = renderRowDecoration;
+    useEffect(() => {
+        selectedAppPathRef.current = selectedAppPath;
+        onSelectPathRef.current = onSelectPath;
+        onSearchQueryChangeRef.current = onSearchQueryChange;
+        renderRowDecorationRef.current = renderRowDecoration;
+    }, [onSearchQueryChange, onSelectPath, renderRowDecoration, selectedAppPath]);
 
     const treePaths = useStableTreePaths(entries);
     const treeSort = useMemo(() => createTreeSort(pinnedFirstTreePath), [pinnedFirstTreePath]);

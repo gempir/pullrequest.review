@@ -1358,7 +1358,7 @@ export function useReviewPageController({
         host,
         authPromptSlot,
         workspaceRef,
-        sidebarProps,
+        sidebarProps: { ...sidebarProps, fetchScopeId: `pr-bundle:${host}:${workspace}/${repo}/${pullRequestId}` },
         navbarProps,
     });
     if (fallback || !prData) return fallback;
@@ -1367,7 +1367,7 @@ export function useReviewPageController({
         <ReviewPageMainView
             workspaceRef={workspaceRef}
             diffScrollRef={diffScrollRef}
-            sidebarProps={{ ...sidebarProps, showLoadingActivity: isDeferredLoading }}
+            sidebarProps={{ ...sidebarProps, fetchScopeId: `pr-bundle:${host}:${workspace}/${repo}/${pullRequestId}`, showLoadingActivity: isDeferredLoading }}
             navbarProps={navbarProps}
             actionError={actionError}
             rightSidebar={rightSidebar}

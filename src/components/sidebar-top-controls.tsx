@@ -55,12 +55,11 @@ export function SidebarTopControls({
 }: SidebarTopControlsProps) {
     const [manualRefreshInFlight, setManualRefreshInFlight] = useState(false);
     const [isRefreshHovered, setIsRefreshHovered] = useState(false);
-    const [isRefreshFocused, setIsRefreshFocused] = useState(false);
     const [now, setNow] = useState(() => Date.now());
     const fetchActivity = useSyncExternalStore(subscribeGitHostFetchActivity, getGitHostFetchActivitySnapshot, getGitHostFetchActivitySnapshot);
     const isFetching = fetchActivity.activeFetchCount > 0;
     const shouldSpin = isFetching || manualRefreshInFlight;
-    const isRefreshTooltipOpen = showLoadingActivity || isRefreshHovered || isRefreshFocused;
+    const isRefreshTooltipOpen = isRefreshHovered;
     const activeFetchRows = useMemo(
         () =>
             fetchActivity.activeFetches.map((fetch) => ({
@@ -121,8 +120,6 @@ export function SidebarTopControls({
                         className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                         onMouseEnter={() => setIsRefreshHovered(true)}
                         onMouseLeave={() => setIsRefreshHovered(false)}
-                        onFocus={() => setIsRefreshFocused(true)}
-                        onBlur={() => setIsRefreshFocused(false)}
                         onClick={() => {
                             if (manualRefreshInFlight) return;
                             setManualRefreshInFlight(true);

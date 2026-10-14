@@ -7,6 +7,7 @@ import { useDiffHighlighterState } from "@/components/pull-request-review/use-re
 import { orderFileTreePaths } from "@/lib/file-tree-order";
 import type { PullRequestBundle, PullRequestDetails } from "@/lib/git-host/types";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
+import { buildFileDiffFingerprint } from "@/lib/review-file-fingerprint";
 import { useReviewComputeWorker } from "@/lib/review-performance/review-compute-worker-context";
 import { timestampValue } from "@/lib/timestamp";
 import {
@@ -46,33 +47,10 @@ export type ReviewSidebarThreadItem = {
 };
 
 const EMPTY_COMMENTS: PullRequestBundle["comments"] = [];
+const EMPTY_FINGERPRINTS = new Map<string, string>();
 const INLINE_COMMENT_TRIGGER_ATTR = "data-inline-comment-trigger";
 const INLINE_COMMENT_TRIGGER_ID_ATTR = "data-inline-comment-trigger-id";
 const INLINE_COMMENT_TRIGGER_LABEL = "Add line comment";
-
-function buildFileDiffFingerprint(fileDiff: FileDiffMetadata) {
-    const normalized = {
-        type: fileDiff.type,
-        name: fileDiff.name,
-        prevName: fileDiff.prevName ?? "",
-        hunks: (fileDiff.hunks ?? []).map((hunk) => ({
-            additionCount: hunk.additionCount,
-            additionLines: hunk.additionLines,
-            additionStart: hunk.additionStart,
-            deletionCount: hunk.deletionCount,
-            deletionLines: hunk.deletionLines,
-            deletionStart: hunk.deletionStart,
-            unifiedLineCount: hunk.unifiedLineCount,
-            unifiedLineStart: hunk.unifiedLineStart,
-            splitLineCount: hunk.splitLineCount,
-            splitLineStart: hunk.splitLineStart,
-            hunkContext: hunk.hunkContext,
-            hunkSpecs: hunk.hunkSpecs,
-            hunkContent: hunk.hunkContent,
-        })),
-    };
-    return hashString(JSON.stringify(normalized));
-}
 
 function normalizeDiffSelectionPath(path: string) {
     const trimmed = path.trim();
@@ -157,6 +135,7 @@ export function useReviewPageDerived({
             }),
         [comments, diffText, scopeCacheKey],
     );
+    const fingerprintCachePrefix = useMemo(() => `${scopeCacheKey}:${hashString(diffText)}:`, [diffText, scopeCacheKey]);
 
     useEffect(() => {
         let cancelled = false;
@@ -308,7 +287,10 @@ export function useReviewPageDerived({
         }
         return map;
     }, [diffByPath]);
-    const fileDiffFingerprints = workerDerived.fileDiffFingerprints;
+    // Comments can recompute threads without changing the file versions. A
+    // previous PR or diff must not supply fingerprints to the new storage scope.
+    const fingerprintsReady = workerDerived.cacheKey.startsWith(fingerprintCachePrefix);
+    const fileDiffFingerprints = fingerprintsReady ? workerDerived.fileDiffFingerprints : EMPTY_FINGERPRINTS;
     const selectableDiffPathSet = useMemo(() => {
         const paths = new Set<string>();
         for (const path of diffByPath.keys()) {
@@ -622,6 +604,7 @@ export function useReviewPageDerived({
         singleFileAnnotations,
         singleFileDiffOptions,
         fileDiffFingerprints,
+        fingerprintsReady,
     };
 }
 

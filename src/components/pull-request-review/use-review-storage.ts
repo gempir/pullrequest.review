@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { readReviewViewedVersionIds, writeReviewViewedVersionIds } from "@/lib/data/query-collections";
 import type { GitHost } from "@/lib/git-host/types";
 
-const VIEWED_STORAGE_PREFIX = "review_viewed_state:v1";
+const VIEWED_STORAGE_PREFIX = "review_viewed_state:v2";
 
 export function useViewedStorageKey(data?: { host: GitHost; workspace: string; repo: string; pullRequestId: string }, diffScopeSegment = "full") {
     const host = data?.host;
@@ -21,7 +21,6 @@ export function readViewedVersionIds(
     {
         knownVersionIds,
     }: {
-        fileDiffFingerprints?: ReadonlyMap<string, string>;
         knownVersionIds?: ReadonlySet<string>;
     } = {},
 ) {

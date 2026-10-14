@@ -44,6 +44,8 @@ function emptyHistoryTracking(revision: string): HistoryTrackingState {
 
 type UseReviewFileVersionsParams = {
     fileDiffFingerprints: Map<string, string>;
+    fingerprintsReady: boolean;
+    scopeLoading: boolean;
     historyRevision: string;
     persistedFileHistoryByPath: PersistedFileHistoryByPath;
     prData: Pick<PullRequestBundle, "diffstat" | "commits"> | undefined;
@@ -55,6 +57,8 @@ type UseReviewFileVersionsParams = {
 
 export function useReviewFileVersions({
     fileDiffFingerprints,
+    fingerprintsReady,
+    scopeLoading,
     historyRevision,
     persistedFileHistoryByPath,
     prData,
@@ -96,14 +100,13 @@ export function useReviewFileVersions({
     );
 
     useEffect(() => {
-        if (!viewedStorageKey || typeof window === "undefined") return;
+        if (!fingerprintsReady || scopeLoading || !viewedStorageKey || typeof window === "undefined") return;
         if (prData?.diffstat.length && latestVersionIdByPath.size === 0) return;
         if (loadedViewedStateRevisionRef.current === viewedStateLoadRevision) return;
         loadedViewedStateRevisionRef.current = viewedStateLoadRevision;
         skipViewedStatePersistRevisionRef.current = viewedStateLoadRevision;
         const knownVersionIds = new Set(latestVersionIdByPath.values());
         const viewedIds = readViewedVersionIds(viewedStorageKey, {
-            fileDiffFingerprints,
             knownVersionIds,
         });
         const nextViewedFiles = new Set<string>();
@@ -115,10 +118,19 @@ export function useReviewFileVersions({
         // eslint-disable-next-line react-doctor/no-pass-data-to-parent, react-doctor/no-pass-live-state-to-parent -- Hydrate the shared viewed-file state from the scoped persisted version IDs.
         setViewedFiles(nextViewedFiles);
         resetHistoryTracking();
-    }, [fileDiffFingerprints, latestVersionIdByPath, prData?.diffstat.length, resetHistoryTracking, setViewedFiles, viewedStateLoadRevision, viewedStorageKey]);
+    }, [
+        fingerprintsReady,
+        latestVersionIdByPath,
+        prData?.diffstat.length,
+        resetHistoryTracking,
+        scopeLoading,
+        setViewedFiles,
+        viewedStateLoadRevision,
+        viewedStorageKey,
+    ]);
 
     useEffect(() => {
-        if (!viewedStorageKey || typeof window === "undefined") return;
+        if (!fingerprintsReady || scopeLoading || !viewedStorageKey || typeof window === "undefined") return;
         if (prData?.diffstat.length && latestVersionIdByPath.size === 0) return;
         if (loadedViewedStateRevisionRef.current !== viewedStateLoadRevision) return;
         if (skipViewedStatePersistRevisionRef.current === viewedStateLoadRevision) {
@@ -132,7 +144,7 @@ export function useReviewFileVersions({
             viewedVersionIds.add(latestVersionId);
         }
         writeViewedVersionIds(viewedStorageKey, viewedVersionIds);
-    }, [latestVersionIdByPath, prData?.diffstat.length, viewedFiles, viewedStateLoadRevision, viewedStorageKey]);
+    }, [fingerprintsReady, latestVersionIdByPath, prData?.diffstat.length, scopeLoading, viewedFiles, viewedStateLoadRevision, viewedStorageKey]);
 
     useEffect(() => {
         setSelectedVersionIdByPath((prev) => {

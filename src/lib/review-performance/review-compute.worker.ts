@@ -1,6 +1,7 @@
 import { parsePatchFiles } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { Comment as PullRequestComment } from "@/lib/git-host/types";
+import { buildFileDiffFingerprint } from "@/lib/review-file-fingerprint";
 import { buildCommentThreads, type CommentThread } from "../../components/pull-request-review/review-threads";
 
 type ComputeReviewDerivedRequest = {
@@ -27,43 +28,8 @@ type ComputeReviewDerivedError = {
 type WorkerRequest = ComputeReviewDerivedRequest;
 type WorkerResponse = ComputeReviewDerivedSuccess | ComputeReviewDerivedError;
 
-function hashString(value: string) {
-    let hash1 = 0x811c9dc5;
-    let hash2 = 0x01000193;
-    for (let i = 0; i < value.length; i += 1) {
-        const char = value.charCodeAt(i);
-        hash1 = Math.imul(hash1 ^ char, 0x01000193);
-        hash2 = Math.imul(hash2 ^ (char + i), 0x01000193);
-    }
-    return `${(hash1 >>> 0).toString(16)}${(hash2 >>> 0).toString(16)}`;
-}
-
 function getFilePath(fileDiff: FileDiffMetadata, index: number) {
     return fileDiff.name ?? fileDiff.prevName ?? String(index);
-}
-
-function buildFileDiffFingerprint(fileDiff: FileDiffMetadata) {
-    const normalized = {
-        type: fileDiff.type,
-        name: fileDiff.name,
-        prevName: fileDiff.prevName ?? "",
-        hunks: (fileDiff.hunks ?? []).map((hunk) => ({
-            additionCount: hunk.additionCount,
-            additionLines: hunk.additionLines,
-            additionStart: hunk.additionStart,
-            deletionCount: hunk.deletionCount,
-            deletionLines: hunk.deletionLines,
-            deletionStart: hunk.deletionStart,
-            unifiedLineCount: hunk.unifiedLineCount,
-            unifiedLineStart: hunk.unifiedLineStart,
-            splitLineCount: hunk.splitLineCount,
-            splitLineStart: hunk.splitLineStart,
-            hunkContext: hunk.hunkContext,
-            hunkSpecs: hunk.hunkSpecs,
-            hunkContent: hunk.hunkContent,
-        })),
-    };
-    return hashString(JSON.stringify(normalized));
 }
 
 function computeReviewDerived(diffText: string, comments: PullRequestComment[]) {

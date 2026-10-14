@@ -592,6 +592,7 @@ export function useReviewPageController({
         singleFileAnnotations,
         singleFileDiffOptions,
         fileDiffFingerprints,
+        fingerprintsReady,
     } = useReviewPageDerived({
         prData,
         pullRequest,
@@ -620,6 +621,8 @@ export function useReviewPageController({
         toggleViewedForPath,
     } = useReviewFileVersions({
         fileDiffFingerprints,
+        fingerprintsReady,
+        scopeLoading: commitScopeLoading,
         historyRevision,
         persistedFileHistoryByPath,
         prData,

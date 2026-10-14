@@ -107,6 +107,8 @@ type FetchActivity = {
     scopeId: string;
     label: string;
     startedAt: number;
+    completedRequests?: number;
+    totalRequests?: number;
 };
 
 type RefetchRegistryEntry = {
@@ -117,6 +119,7 @@ type RefetchRegistryEntry = {
 type GitHostFetchActivitySnapshot = {
     activeFetches: FetchActivity[];
     activeFetchCount: number;
+    recentlyCompletedScopeIds: string[];
     trackedScopeCount: number;
 };
 
@@ -143,12 +146,14 @@ const pullRequestCommitRangeDiffScopedCollections = new LruCache<string, ScopedC
 const pullRequestCommentRefreshes = new Map<string, Promise<void>>();
 const fetchActivityListeners = new Set<() => void>();
 const activeFetchesByScope = new Map<string, FetchActivity>();
+const recentlyCompletedFetchTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const refetchRegistry = new LruCache<string, RefetchRegistryEntry>(SCOPED_COLLECTION_CACHE_SIZE);
 let fetchActivityVersion = 0;
 let cachedFetchActivitySnapshotVersion = -1;
 let cachedFetchActivitySnapshot: GitHostFetchActivitySnapshot = {
     activeFetches: [],
     activeFetchCount: 0,
+    recentlyCompletedScopeIds: [],
     trackedScopeCount: 0,
 };
 
@@ -161,15 +166,39 @@ function notifyFetchActivityListeners() {
 
 function setFetchActivity(scopeId: string, label: string, fetching: boolean) {
     if (fetching) {
+        const completionTimer = recentlyCompletedFetchTimers.get(scopeId);
+        if (completionTimer) {
+            clearTimeout(completionTimer);
+            recentlyCompletedFetchTimers.delete(scopeId);
+        }
         const existing = activeFetchesByScope.get(scopeId);
         activeFetchesByScope.set(scopeId, {
             scopeId,
             label,
             startedAt: existing?.startedAt ?? Date.now(),
+            completedRequests: existing?.completedRequests,
+            totalRequests: existing?.totalRequests,
         });
     } else {
+        const completed = activeFetchesByScope.get(scopeId);
         activeFetchesByScope.delete(scopeId);
+        if (completed?.totalRequests !== undefined && completed.completedRequests === completed.totalRequests) {
+            recentlyCompletedFetchTimers.set(
+                scopeId,
+                setTimeout(() => {
+                    recentlyCompletedFetchTimers.delete(scopeId);
+                    notifyFetchActivityListeners();
+                }, 1000),
+            );
+        }
     }
+    notifyFetchActivityListeners();
+}
+
+function setFetchProgress(scopeId: string, completedRequests: number, totalRequests: number) {
+    const activity = activeFetchesByScope.get(scopeId);
+    if (!activity) return;
+    activeFetchesByScope.set(scopeId, { ...activity, completedRequests, totalRequests });
     notifyFetchActivityListeners();
 }
 
@@ -184,15 +213,21 @@ function registerRefetchScope(scopeId: string, label: string, refetch: (opts?: {
     });
     if (evicted) {
         activeFetchesByScope.delete(evicted.key);
+        const completionTimer = recentlyCompletedFetchTimers.get(evicted.key);
+        if (completionTimer) clearTimeout(completionTimer);
+        recentlyCompletedFetchTimers.delete(evicted.key);
         notifyFetchActivityListeners();
     }
 }
 
 function unregisterScope(scopeId: string) {
     const hadFetch = activeFetchesByScope.has(scopeId);
+    const completionTimer = recentlyCompletedFetchTimers.get(scopeId);
+    if (completionTimer) clearTimeout(completionTimer);
+    recentlyCompletedFetchTimers.delete(scopeId);
     refetchRegistry.delete(scopeId);
     activeFetchesByScope.delete(scopeId);
-    if (hadFetch) {
+    if (hadFetch || completionTimer) {
         notifyFetchActivityListeners();
     }
 }
@@ -210,6 +245,7 @@ export function getGitHostFetchActivitySnapshot(): GitHostFetchActivitySnapshot 
         cachedFetchActivitySnapshot = {
             activeFetches,
             activeFetchCount: activeFetches.length,
+            recentlyCompletedScopeIds: Array.from(recentlyCompletedFetchTimers.keys()),
             trackedScopeCount: refetchRegistry.size,
         };
         cachedFetchActivitySnapshotVersion = fetchActivityVersion;
@@ -608,6 +644,7 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: 
         const requestId = ++requestSerial;
         utils.isFetching = true;
         setFetchActivity(scopeId, scopeLabel, true);
+        setFetchProgress(scopeId, 0, staged ? 2 : 1);
         try {
             if (!staged) {
                 const bundle = await fetchPullRequestBundleByRef({ prRef });
@@ -622,6 +659,7 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: 
                     deferredStatus: "ready" as const,
                 };
                 await upsertRecord("pullRequestBundles", legacyRecord);
+                setFetchProgress(scopeId, 1, 1);
                 utils.lastError = undefined;
                 utils.dataUpdatedAt = Date.now();
             } else {
@@ -631,6 +669,7 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: 
                 if (requestId !== requestSerial) return;
                 const stagedCriticalRecord = serializePullRequestCriticalBundle(critical, existingRecord);
                 await upsertRecord("pullRequestBundles", stagedCriticalRecord);
+                setFetchProgress(scopeId, 1, 2);
                 utils.lastError = undefined;
                 utils.dataUpdatedAt = Date.now();
 
@@ -643,6 +682,7 @@ export function getPullRequestBundleCollection(prRef: PullRequestRef, options?: 
                     const currentRecord = collection.get(bundleId) ?? stagedCriticalRecord;
                     const mergedRecord = mergePullRequestDeferredBundle(currentRecord, deferred);
                     await upsertRecord("pullRequestBundles", mergedRecord);
+                    setFetchProgress(scopeId, 2, 2);
                     utils.dataUpdatedAt = Date.now();
                 } catch (deferredError) {
                     if (requestId !== requestSerial) return;

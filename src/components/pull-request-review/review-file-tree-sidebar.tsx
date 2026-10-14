@@ -1,13 +1,14 @@
 import type { FileTreeIcons, GitStatusEntry } from "@pierre/trees";
 import { useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
-import { type MouseEventHandler, useMemo } from "react";
+import { type MouseEventHandler, useMemo, useSyncExternalStore } from "react";
 import { AppFileTreeView, type FileTreeEntry, useAppFileTreeModel } from "@/components/file-tree";
 import { ReviewFileTreeToggleIcon } from "@/components/pull-request-review/review-file-tree-toggle-icon";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { getGitHostFetchActivitySnapshot, subscribeGitHostFetchActivity } from "@/lib/git-host/query-collections";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ type ReviewFileTreeSidebarProps = {
     treeCollapsed: boolean;
     loading: boolean;
     showLoadingActivity?: boolean;
+    fetchScopeId?: string;
     showSettingsPanel: boolean;
     activeFile?: string;
     treeEntries: FileTreeEntry[];
@@ -95,8 +97,54 @@ function getReviewTreeRowDecoration({
     };
 }
 
+function FileTreeSearchInput({
+    searchQuery,
+    fetchScopeId,
+    onSearchQueryChange,
+}: Pick<ReviewFileTreeSidebarProps, "searchQuery" | "fetchScopeId" | "onSearchQueryChange">) {
+    const fetchActivity = useSyncExternalStore(subscribeGitHostFetchActivity, getGitHostFetchActivitySnapshot, getGitHostFetchActivitySnapshot);
+    const scopeId = `${fetchScopeId}:v2`;
+    const currentFetch = fetchActivity.activeFetches.find((fetch) => fetch.scopeId === scopeId);
+    const justCompleted = fetchActivity.recentlyCompletedScopeIds.includes(scopeId);
+    const showProgress = Boolean(currentFetch) || justCompleted;
+    const progress = currentFetch ? Math.round(((currentFetch.completedRequests ?? 0) / (currentFetch.totalRequests ?? 2)) * 100) : 100;
+
+    return (
+        <div className="relative min-w-0 flex-1 overflow-hidden rounded-sm bg-[var(--diffs-bg,var(--background))]">
+            <output className="sr-only" aria-live="polite">
+                {justCompleted ? "Pull request loaded" : currentFetch ? "Loading pull request" : ""}
+            </output>
+            <div
+                className={cn(
+                    "pointer-events-none absolute inset-y-0 left-0 bg-selection duration-700 ease-out motion-reduce:transition-none",
+                    currentFetch?.completedRequests === 0 ? "transition-opacity" : "transition-[width,opacity]",
+                    showProgress ? "opacity-100" : "opacity-0",
+                )}
+                style={{ width: `${progress}%` }}
+                aria-hidden="true"
+            />
+            <span
+                className={cn(
+                    "pointer-events-none absolute inset-0 flex items-center px-2 text-[12px] text-faint-foreground transition-opacity duration-500 ease-in-out motion-reduce:transition-none",
+                    showProgress || searchQuery ? "opacity-0" : "opacity-100",
+                )}
+                aria-hidden="true"
+            >
+                Search...
+            </span>
+            <Input
+                className="relative h-7 min-w-0 rounded-sm border-0 bg-transparent px-2 text-[12px] hover:bg-transparent focus-visible:ring-0"
+                value={searchQuery}
+                onChange={(event) => onSearchQueryChange(event.target.value)}
+                aria-label="Search files"
+            />
+        </div>
+    );
+}
+
 function FileTreeRightControls({
     searchQuery,
+    fetchScopeId,
     showUnviewedOnly,
     unviewedFileCount,
     onSearchQueryChange,
@@ -104,18 +152,12 @@ function FileTreeRightControls({
     onCollapseTree,
 }: Pick<
     ReviewFileTreeSidebarProps,
-    "searchQuery" | "showUnviewedOnly" | "unviewedFileCount" | "onSearchQueryChange" | "onToggleUnviewedOnly" | "onCollapseTree"
+    "searchQuery" | "fetchScopeId" | "showUnviewedOnly" | "unviewedFileCount" | "onSearchQueryChange" | "onToggleUnviewedOnly" | "onCollapseTree"
 >) {
     const badgeValue = unviewedFileCount > 999 ? "999+" : unviewedFileCount.toString();
     return (
         <>
-            <Input
-                className="h-7 min-w-0 flex-1 rounded-sm border-0 bg-[var(--diffs-bg,var(--background))] px-2 text-[12px] hover:bg-[var(--diffs-bg,var(--background))] focus-visible:ring-0"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(event) => onSearchQueryChange(event.target.value)}
-                aria-label="Search files"
-            />
+            <FileTreeSearchInput searchQuery={searchQuery} fetchScopeId={fetchScopeId} onSearchQueryChange={onSearchQueryChange} />
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Button
@@ -155,6 +197,7 @@ export function ReviewFileTreeSidebar({
     treeCollapsed,
     loading,
     showLoadingActivity,
+    fetchScopeId,
     showSettingsPanel,
     activeFile,
     treeEntries,
@@ -212,6 +255,7 @@ export function ReviewFileTreeSidebar({
                         rightContent={
                             <FileTreeRightControls
                                 searchQuery={searchQuery}
+                                fetchScopeId={fetchScopeId}
                                 showUnviewedOnly={showUnviewedOnly}
                                 unviewedFileCount={unviewedFileCount}
                                 onSearchQueryChange={onSearchQueryChange}

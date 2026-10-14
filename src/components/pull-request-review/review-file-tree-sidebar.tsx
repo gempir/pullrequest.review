@@ -122,7 +122,9 @@ function FileTreeSearchInput({
                 )}
                 style={{ width: `${progress}%` }}
                 aria-hidden="true"
-            />
+            >
+                {currentFetch ? <span className="file-tree-search-progress-stripes absolute inset-0" /> : null}
+            </div>
             <span
                 className={cn(
                     "pointer-events-none absolute inset-0 flex items-center px-2 text-[12px] text-faint-foreground transition-opacity duration-500 ease-in-out motion-reduce:transition-none",

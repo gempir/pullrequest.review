@@ -4,6 +4,27 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@keyframes file-tree-search-progress-stripes {
+    from {
+        background-position: 0 0;
+    }
+    to {
+        background-position: 36px 0;
+    }
+}
+
+.file-tree-search-progress-stripes {
+    background-image: repeating-linear-gradient(120deg, transparent 0 12px, rgb(255 255 255 / 0.045) 12px 18px, transparent 18px 30px);
+    background-size: 36px 100%;
+    animation: file-tree-search-progress-stripes 1.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .file-tree-search-progress-stripes {
+        animation: none;
+    }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @font-face {

@@ -57,3 +57,20 @@ To start a development server:
 ```bash
 bun dev
 ```
+
+## Checks with Dagger
+
+Install the [Dagger CLI](https://docs.dagger.io/getting-started/install/) and start a local container runtime. This workspace uses Dagger v1.0.0-beta.20 and Bun 1.4.3 in its check container.
+
+```bash
+dagger check                 # Run all checks in parallel
+dagger check -l --all        # List individual checks
+dagger check --pullrequest-ci --check=test
+dagger check --progress=plain  # Repeat to see CACHED steps
+```
+
+The checks run `bun run tsc`, `check`, `knip`, `test`, `react-doctor`, and `build`. All checks share a dependency layer built from `package.json` and `bun.lock`, so ordinary source changes reuse the install. Dagger caches each check result by its inputs, so unchanged checks return without running Bun again.
+
+The SDK generated-file check is disabled. If you change the Dagger module API, run `dagger generate` from a clean clone and commit the resulting metadata.
+
+Cloud Checks are currently disabled. When you are ready, sign in with `dagger cloud signup`, connect the repository with `dagger cloud integration create github --open`, and enable push and pull request checks with `dagger cloud checks on`. The existing GitHub Actions workflow remains active until that cutover.

@@ -1,0 +1,82 @@
+"""
+Checks for the pullrequest.review Bun application.
+"""
+type PullrequestCi {
+  """
+  Project files used by the checks, without local dependencies or generated output.
+  """
+  source: Directory!
+
+  new(ws: Workspace!) {
+    self.source = ws.directory("/", exclude: [
+      ".git",
+      ".dagger",
+      ".github",
+      ".agents",
+      "node_modules",
+      "dist",
+      ".tanstack",
+      ".wrangler",
+      ".cache",
+      "coverage",
+      "artifacts",
+      "README.md",
+      "AGENTS.md",
+      "LICENSE.md",
+      ".env*",
+      ".dev.vars*",
+      "*.tsbuildinfo",
+    ])
+    self
+  }
+
+  # Install only when the manifest or lockfile changes. All checks share this layer.
+  let dependencies: Container! {
+    container
+      .from("oven/bun:1.4.3")
+      .withWorkdir("/app")
+      .withFile("/app/package.json", source.file("package.json"))
+      .withFile("/app/bun.lock", source.file("bun.lock"))
+      .withExec(["bun", "install", "--frozen-lockfile"])
+  }
+
+  let project: Container! {
+    dependencies.withDirectory("/app", source)
+  }
+
+  """Check TypeScript types."""
+  pub typecheck: Void @check {
+    project.withExec(["bun", "run", "tsc"]).sync
+    null
+  }
+
+  """Check formatting and lint rules with Biome."""
+  pub biome: Void @check {
+    project.withExec(["bun", "run", "check"]).sync
+    null
+  }
+
+  """Find unused files and exports."""
+  pub knip: Void @check {
+    project.withExec(["bun", "run", "knip"]).sync
+    null
+  }
+
+  """Run the Bun test suite."""
+  pub test: Void @check {
+    project.withExec(["bun", "run", "test"]).sync
+    null
+  }
+
+  """Check React component health."""
+  pub reactDoctor: Void @check {
+    project.withExec(["bun", "run", "react-doctor"]).sync
+    null
+  }
+
+  """Build the production bundle."""
+  pub build: Void @check {
+    project.withExec(["bun", "run", "build"]).sync
+    null
+  }
+}

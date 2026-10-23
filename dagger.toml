@@ -1,0 +1,22 @@
+# Dagger workspace configuration
+# Install modules with: dagger module install <module>
+# Example:
+#   dagger module install dagger.io/linux/wolfi
+
+ignore = [".git"]
+check-generated = false
+
+[modules]
+
+[modules.dang-sdk]
+source = "dagger.io/sdk/dang"
+
+[sdks.dang]
+module = "dang-sdk"
+
+[modules.pullrequest-ci]
+source = ".dagger/modules/pullrequest-ci"
+
+[sdks.dang.scopes.".dagger/modules/pullrequest-ci"]
+is-module = true
+name = "pullrequest-ci"

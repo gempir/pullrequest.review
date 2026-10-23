@@ -41,10 +41,7 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 - Use memoization for provider/context values when needed to avoid avoidable re-renders.
 
 ## Validation
-- Always run `bun run tsc` and `bun run check` after code changes.
-- Always run `bun run knip` and fix all findings after code changes.
-- Run `bun run test` when touching data mappings, storage behavior, or keyboard/input handling logic.
-- Run `bun run react-doctor` when you are done with a feature, fix warnings and errors until there are none.
+- Run dagger check after making changes
 
 ## UI Conventions
 - Monospaced-first typography.

@@ -15,7 +15,9 @@ import { Route as HostIndexRouteImport } from './routes/$host/index'
 import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 import { Route as WorkspaceRepoPullRequestsPullRequestIdRouteImport } from './routes/$workspace/$repo/pull-requests/$pullRequestId'
 import { Route as WorkspaceRepoPullPullRequestIdRouteImport } from './routes/$workspace/$repo/pull/$pullRequestId'
+import { Route as WorkspaceRepoPullRequestsPullRequestIdCommitsRouteImport } from './routes/$workspace/$repo/pull-requests/$pullRequestId/commits'
 import { Route as WorkspaceRepoPullRequestsPullRequestIdDiffRouteImport } from './routes/$workspace/$repo/pull-requests/$pullRequestId/diff'
+import { Route as WorkspaceRepoPullRequestsPullRequestIdOverviewRouteImport } from './routes/$workspace/$repo/pull-requests/$pullRequestId/overview'
 import { Route as WorkspaceRepoPullPullRequestIdChangesRouteImport } from './routes/$workspace/$repo/pull/$pullRequestId/changes'
 
 const IndexRoute = IndexRouteImport.update({
@@ -50,10 +52,22 @@ const WorkspaceRepoPullPullRequestIdRoute =
     path: '/$workspace/$repo/pull/$pullRequestId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const WorkspaceRepoPullRequestsPullRequestIdCommitsRoute =
+  WorkspaceRepoPullRequestsPullRequestIdCommitsRouteImport.update({
+    id: '/commits',
+    path: '/commits',
+    getParentRoute: () => WorkspaceRepoPullRequestsPullRequestIdRoute,
+  } as any)
 const WorkspaceRepoPullRequestsPullRequestIdDiffRoute =
   WorkspaceRepoPullRequestsPullRequestIdDiffRouteImport.update({
     id: '/diff',
     path: '/diff',
+    getParentRoute: () => WorkspaceRepoPullRequestsPullRequestIdRoute,
+  } as any)
+const WorkspaceRepoPullRequestsPullRequestIdOverviewRoute =
+  WorkspaceRepoPullRequestsPullRequestIdOverviewRouteImport.update({
+    id: '/overview',
+    path: '/overview',
     getParentRoute: () => WorkspaceRepoPullRequestsPullRequestIdRoute,
   } as any)
 const WorkspaceRepoPullPullRequestIdChangesRoute =
@@ -70,7 +84,9 @@ export interface FileRoutesByFullPath {
   '/$host/': typeof HostIndexRoute
   '/$workspace/$repo/pull-requests/$pullRequestId': typeof WorkspaceRepoPullRequestsPullRequestIdRouteWithChildren
   '/$workspace/$repo/pull/$pullRequestId': typeof WorkspaceRepoPullPullRequestIdRouteWithChildren
+  '/$workspace/$repo/pull-requests/$pullRequestId/commits': typeof WorkspaceRepoPullRequestsPullRequestIdCommitsRoute
   '/$workspace/$repo/pull-requests/$pullRequestId/diff': typeof WorkspaceRepoPullRequestsPullRequestIdDiffRoute
+  '/$workspace/$repo/pull-requests/$pullRequestId/overview': typeof WorkspaceRepoPullRequestsPullRequestIdOverviewRoute
   '/$workspace/$repo/pull/$pullRequestId/changes': typeof WorkspaceRepoPullPullRequestIdChangesRoute
 }
 export interface FileRoutesByTo {
@@ -80,7 +96,9 @@ export interface FileRoutesByTo {
   '/$host': typeof HostIndexRoute
   '/$workspace/$repo/pull-requests/$pullRequestId': typeof WorkspaceRepoPullRequestsPullRequestIdRouteWithChildren
   '/$workspace/$repo/pull/$pullRequestId': typeof WorkspaceRepoPullPullRequestIdRouteWithChildren
+  '/$workspace/$repo/pull-requests/$pullRequestId/commits': typeof WorkspaceRepoPullRequestsPullRequestIdCommitsRoute
   '/$workspace/$repo/pull-requests/$pullRequestId/diff': typeof WorkspaceRepoPullRequestsPullRequestIdDiffRoute
+  '/$workspace/$repo/pull-requests/$pullRequestId/overview': typeof WorkspaceRepoPullRequestsPullRequestIdOverviewRoute
   '/$workspace/$repo/pull/$pullRequestId/changes': typeof WorkspaceRepoPullPullRequestIdChangesRoute
 }
 export interface FileRoutesById {
@@ -91,7 +109,9 @@ export interface FileRoutesById {
   '/$host/': typeof HostIndexRoute
   '/$workspace/$repo/pull-requests/$pullRequestId': typeof WorkspaceRepoPullRequestsPullRequestIdRouteWithChildren
   '/$workspace/$repo/pull/$pullRequestId': typeof WorkspaceRepoPullPullRequestIdRouteWithChildren
+  '/$workspace/$repo/pull-requests/$pullRequestId/commits': typeof WorkspaceRepoPullRequestsPullRequestIdCommitsRoute
   '/$workspace/$repo/pull-requests/$pullRequestId/diff': typeof WorkspaceRepoPullRequestsPullRequestIdDiffRoute
+  '/$workspace/$repo/pull-requests/$pullRequestId/overview': typeof WorkspaceRepoPullRequestsPullRequestIdOverviewRoute
   '/$workspace/$repo/pull/$pullRequestId/changes': typeof WorkspaceRepoPullPullRequestIdChangesRoute
 }
 export interface FileRouteTypes {
@@ -103,7 +123,9 @@ export interface FileRouteTypes {
     | '/$host/'
     | '/$workspace/$repo/pull-requests/$pullRequestId'
     | '/$workspace/$repo/pull/$pullRequestId'
+    | '/$workspace/$repo/pull-requests/$pullRequestId/commits'
     | '/$workspace/$repo/pull-requests/$pullRequestId/diff'
+    | '/$workspace/$repo/pull-requests/$pullRequestId/overview'
     | '/$workspace/$repo/pull/$pullRequestId/changes'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -113,7 +135,9 @@ export interface FileRouteTypes {
     | '/$host'
     | '/$workspace/$repo/pull-requests/$pullRequestId'
     | '/$workspace/$repo/pull/$pullRequestId'
+    | '/$workspace/$repo/pull-requests/$pullRequestId/commits'
     | '/$workspace/$repo/pull-requests/$pullRequestId/diff'
+    | '/$workspace/$repo/pull-requests/$pullRequestId/overview'
     | '/$workspace/$repo/pull/$pullRequestId/changes'
   id:
     | '__root__'
@@ -123,7 +147,9 @@ export interface FileRouteTypes {
     | '/$host/'
     | '/$workspace/$repo/pull-requests/$pullRequestId'
     | '/$workspace/$repo/pull/$pullRequestId'
+    | '/$workspace/$repo/pull-requests/$pullRequestId/commits'
     | '/$workspace/$repo/pull-requests/$pullRequestId/diff'
+    | '/$workspace/$repo/pull-requests/$pullRequestId/overview'
     | '/$workspace/$repo/pull/$pullRequestId/changes'
   fileRoutesById: FileRoutesById
 }
@@ -180,11 +206,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspaceRepoPullPullRequestIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$workspace/$repo/pull-requests/$pullRequestId/commits': {
+      id: '/$workspace/$repo/pull-requests/$pullRequestId/commits'
+      path: '/commits'
+      fullPath: '/$workspace/$repo/pull-requests/$pullRequestId/commits'
+      preLoaderRoute: typeof WorkspaceRepoPullRequestsPullRequestIdCommitsRouteImport
+      parentRoute: typeof WorkspaceRepoPullRequestsPullRequestIdRoute
+    }
     '/$workspace/$repo/pull-requests/$pullRequestId/diff': {
       id: '/$workspace/$repo/pull-requests/$pullRequestId/diff'
       path: '/diff'
       fullPath: '/$workspace/$repo/pull-requests/$pullRequestId/diff'
       preLoaderRoute: typeof WorkspaceRepoPullRequestsPullRequestIdDiffRouteImport
+      parentRoute: typeof WorkspaceRepoPullRequestsPullRequestIdRoute
+    }
+    '/$workspace/$repo/pull-requests/$pullRequestId/overview': {
+      id: '/$workspace/$repo/pull-requests/$pullRequestId/overview'
+      path: '/overview'
+      fullPath: '/$workspace/$repo/pull-requests/$pullRequestId/overview'
+      preLoaderRoute: typeof WorkspaceRepoPullRequestsPullRequestIdOverviewRouteImport
       parentRoute: typeof WorkspaceRepoPullRequestsPullRequestIdRoute
     }
     '/$workspace/$repo/pull/$pullRequestId/changes': {
@@ -198,13 +238,19 @@ declare module '@tanstack/react-router' {
 }
 
 interface WorkspaceRepoPullRequestsPullRequestIdRouteChildren {
+  WorkspaceRepoPullRequestsPullRequestIdCommitsRoute: typeof WorkspaceRepoPullRequestsPullRequestIdCommitsRoute
   WorkspaceRepoPullRequestsPullRequestIdDiffRoute: typeof WorkspaceRepoPullRequestsPullRequestIdDiffRoute
+  WorkspaceRepoPullRequestsPullRequestIdOverviewRoute: typeof WorkspaceRepoPullRequestsPullRequestIdOverviewRoute
 }
 
 const WorkspaceRepoPullRequestsPullRequestIdRouteChildren: WorkspaceRepoPullRequestsPullRequestIdRouteChildren =
   {
+    WorkspaceRepoPullRequestsPullRequestIdCommitsRoute:
+      WorkspaceRepoPullRequestsPullRequestIdCommitsRoute,
     WorkspaceRepoPullRequestsPullRequestIdDiffRoute:
       WorkspaceRepoPullRequestsPullRequestIdDiffRoute,
+    WorkspaceRepoPullRequestsPullRequestIdOverviewRoute:
+      WorkspaceRepoPullRequestsPullRequestIdOverviewRoute,
   }
 
 const WorkspaceRepoPullRequestsPullRequestIdRouteWithChildren =

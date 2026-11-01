@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { ensureDataCollectionsReady, readTreeSettingsRecord, writeTreeSettingsRecord } from "@/lib/data/query-collections";
+import { ensureStorageReady, readSetting, writeSetting } from "@/lib/storage";
 
 export type TreeDensityValue = "compact" | "default" | "relaxed";
 
@@ -29,9 +29,9 @@ function useFileTreeProviderValue(): FileTreeContextType {
     useEffect(() => {
         let cancelled = false;
         void (async () => {
-            await ensureDataCollectionsReady();
+            await ensureStorageReady();
             if (cancelled) return;
-            const stored = readTreeSettingsRecord();
+            const stored = readSetting("tree-settings");
             if (stored) {
                 setTreeDensityState(parseStoredTreeDensity(stored.treeDensity));
             }
@@ -44,7 +44,7 @@ function useFileTreeProviderValue(): FileTreeContextType {
 
     useEffect(() => {
         if (!hydrated) return;
-        writeTreeSettingsRecord({ treeDensity });
+        writeSetting("tree-settings", { treeDensity });
     }, [hydrated, treeDensity]);
 
     const setActiveFile = useCallback((path: string | undefined) => {

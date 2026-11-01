@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { inlineDraftStorageKey } from "../src/components/pull-request-review/use-inline-drafts";
+import { inlineDraftStorageKey } from "@/features/review/model/use-inline-drafts";
 
 describe("inline draft storage keys", () => {
     test("builds stable keys with escaped file paths", () => {

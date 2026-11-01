@@ -193,23 +193,6 @@ export interface PullRequestCommitRangeDiff {
     diffstat: DiffStatEntry[];
 }
 
-export interface PullRequestFileHistoryEntry {
-    versionId: string;
-    commitHash: string;
-    commitDate?: string;
-    commitMessage?: string;
-    authorDisplayName?: string;
-    filePathAtCommit: string;
-    status: DiffStatEntry["status"];
-    patch: string;
-}
-
-export interface PullRequestFileHistory {
-    path: string;
-    entries: PullRequestFileHistoryEntry[];
-    fetchedAt: number;
-}
-
 export interface MergeOptions {
     closeSourceBranch?: boolean;
     message?: string;
@@ -288,7 +271,6 @@ export interface GitHostClient {
     listPullRequestsForRepos(data: { repos: RepoRef[] }): Promise<Array<{ repo: RepoRef; pullRequests: PullRequestSummary[] }>>;
     fetchPullRequestCriticalByRef(data: { prRef: PullRequestRef }): Promise<PullRequestCriticalBundle>;
     fetchPullRequestDeferredByRef(data: { prRef: PullRequestRef }): Promise<PullRequestDeferredBundle>;
-    fetchPullRequestBundleByRef(data: { prRef: PullRequestRef }): Promise<PullRequestBundle>;
     fetchPullRequestCommentsByRef(data: { prRef: PullRequestRef }): Promise<Comment[]>;
     approvePullRequest(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
     removePullRequestApproval(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
@@ -317,5 +299,4 @@ export interface GitHostClient {
         selectedCommitHashes: string[];
     }): Promise<PullRequestCommitRangeDiff>;
     fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }): Promise<string>;
-    fetchPullRequestFileHistory(data: { prRef: PullRequestRef; path: string; commits: Commit[]; limit?: number }): Promise<PullRequestFileHistory>;
 }

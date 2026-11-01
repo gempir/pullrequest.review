@@ -6,7 +6,7 @@ import {
     normalizeCommentThreads,
     sortThreadsByCreatedAt,
     threadCommentCount,
-} from "../src/components/pull-request-review/review-threads";
+} from "@/features/review/model/review-threads";
 
 describe("review thread ordering", () => {
     test("sorts thread lists immutably", () => {

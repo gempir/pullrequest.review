@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ThreadCard } from "../src/components/pull-request-review/review-thread-card";
-import type { CommentThread } from "../src/components/pull-request-review/review-threads";
+import { ThreadCard } from "@/features/review/components/review-thread-card";
+import type { CommentThread } from "@/features/review/model/review-threads";
 
 function buildThread(overrides?: Partial<CommentThread>): CommentThread {
     return {

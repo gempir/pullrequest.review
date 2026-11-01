@@ -1,4 +1,4 @@
-export type SettingsTab = "appearance" | "diff" | "tree" | "shortcuts" | "storage";
+export type SettingsTab = "appearance" | "diff" | "tree" | "shortcuts";
 
 const SETTINGS_PATH_PREFIX = "__settings__/";
 
@@ -10,7 +10,6 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
     { tab: "diff", name: "Diff" },
     { tab: "tree", name: "Tree" },
     { tab: "shortcuts", name: "Shortcuts" },
-    { tab: "storage", name: "Storage" },
 ];
 
 export function settingsPathForTab(tab: SettingsTab) {
@@ -28,7 +27,7 @@ export function getSettingsTreeItems() {
 export function settingsTabFromPath(path?: string): SettingsTab | null {
     if (!path?.startsWith(SETTINGS_PATH_PREFIX)) return null;
     const tab = path.slice(SETTINGS_PATH_PREFIX.length);
-    if (tab === "appearance" || tab === "diff" || tab === "tree" || tab === "shortcuts" || tab === "storage") {
+    if (tab === "appearance" || tab === "diff" || tab === "tree" || tab === "shortcuts") {
         return tab;
     }
     return null;

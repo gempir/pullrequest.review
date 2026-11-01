@@ -1,310 +1,50 @@
-import { refreshBitbucketOAuthToken } from "@/lib/bitbucket-oauth";
-import {
-    type BitbucketAuthCredential,
-    clearBitbucketAuthCredential,
-    readBitbucketAuthCredential,
-    writeBitbucketAuthCredential,
-    writeBitbucketOAuthCredential,
-} from "@/lib/data/query-collections";
+import { mapWithConcurrency } from "@/lib/git-host/shared/concurrency";
 import { parseFailureBody } from "@/lib/git-host/shared/http";
 import { REPO_PULL_REQUEST_LIST_LIMIT } from "@/lib/git-host/shared/pagination";
+import { withBitbucketSuggestionTrailer } from "@/lib/git-host/suggestions";
 import {
     type AuthState,
     type Comment,
-    type CommentPayload,
     type Commit,
     type DiffStatEntry,
     type GitHostClient,
     HostApiError,
     type LoginCredentials,
-    type PullRequestBuildStatus,
-    type PullRequestBundle,
     type PullRequestCommitRangeDiff,
     type PullRequestCriticalBundle,
     type PullRequestDeferredBundle,
-    type PullRequestDetails,
-    type PullRequestFileHistory,
-    type PullRequestFileHistoryEntry,
-    type PullRequestHistoryEvent,
-    type PullRequestReviewer,
     type PullRequestSummary,
     type RepoRef,
 } from "@/lib/git-host/types";
-
-type BitbucketOAuthCredential = Extract<BitbucketAuthCredential, { method: "oauth" }>;
-
-interface BitbucketPullRequestPage {
-    values: BitbucketPullRequestSummaryRaw[];
-    next?: string;
-}
-
-interface BitbucketPullRequestSummaryRaw {
-    id: number;
-    title: string;
-    state: string;
-    created_on?: string;
-    updated_on?: string;
-    source?: PullRequestSummary["source"];
-    destination?: PullRequestSummary["destination"];
-    links?: PullRequestSummary["links"];
-    author?: BitbucketUser;
-}
-
-interface BitbucketUser {
-    account_id?: string;
-    uuid?: string;
-    nickname?: string;
-    username?: string;
-    display_name?: string;
-    links?: { avatar?: { href?: string } };
-}
-
-interface BitbucketPullRequestRaw {
-    id: number;
-    title: string;
-    description?: string;
-    state: string;
-    draft?: boolean;
-    comment_count?: number;
-    task_count?: number;
-    created_on?: string;
-    updated_on?: string;
-    closed_on?: string;
-    author?: BitbucketUser;
-    source?: PullRequestDetails["source"];
-    destination?: PullRequestDetails["destination"];
-    participants?: Array<{
-        approved?: boolean;
-        state?: string;
-        user?: BitbucketUser;
-    }>;
-    reviewers?: BitbucketUser[];
-    links?: PullRequestDetails["links"];
-}
-
-interface BitbucketDiffStatPage {
-    values: BitbucketDiffStatEntryRaw[];
-    next?: string;
-}
-
-interface BitbucketDiffStatEntryRaw {
-    status: DiffStatEntry["status"];
-    new?: { path?: string };
-    old?: { path?: string };
-    lines_added?: number;
-    lines_removed?: number;
-}
-
-interface BitbucketCommitRaw {
-    hash: string;
-    date?: string;
-    message?: string;
-    summary?: { raw?: string };
-    author?: { user?: BitbucketUser; raw?: string };
-}
-
-interface BitbucketCommitPage {
-    values: BitbucketCommitRaw[];
-    next?: string;
-}
-
-interface BitbucketCommentRaw {
-    id: number;
-    created_on?: string;
-    updated_on?: string;
-    deleted?: boolean;
-    pending?: boolean;
-    content?: { raw?: string; html?: string };
-    user?: BitbucketUser;
-    inline?: { path?: string; to?: number; from?: number; start_to?: number; start_from?: number; outdated?: boolean };
-    parent?: { id?: number };
-    resolution?: { user?: BitbucketUser } | null;
-    hostThreadId?: string;
-}
-
-interface BitbucketCommentPage {
-    values: BitbucketCommentRaw[];
-    next?: string;
-}
-
-interface BitbucketRepoEntry {
-    name: string;
-    full_name: string;
-    slug: string;
-    workspace?: { slug?: string };
-}
-
-interface BitbucketRepoPage {
-    values: BitbucketRepoEntry[];
-    next?: string;
-}
-
-interface BitbucketWorkspaceEntry {
-    workspace?: { slug?: string };
-}
-
-interface BitbucketWorkspacePage {
-    values: BitbucketWorkspaceEntry[];
-    next?: string;
-}
-
-interface BitbucketActivityEntry {
-    approval?: {
-        date?: string;
-        user?: BitbucketUser;
-    };
-    update?: {
-        date?: string;
-        author?: BitbucketUser;
-        state?: string;
-    };
-}
-
-interface BitbucketActivityPage {
-    values: BitbucketActivityEntry[];
-    next?: string;
-}
-
-interface BitbucketBuildStatus {
-    key?: string;
-    uuid?: string;
-    name?: string;
-    state?: string;
-    url?: string;
-    created_on?: string;
-    updated_on?: string;
-}
-
-interface BitbucketBuildStatusPage {
-    values: BitbucketBuildStatus[];
-    next?: string;
-}
-
-function readCredentials(): BitbucketAuthCredential | null {
-    const stored = readBitbucketAuthCredential();
-    if (!stored) return null;
-    if (stored.method === "oauth") {
-        const accessToken = stored.accessToken.trim();
-        if (!accessToken) return null;
-        return {
-            ...stored,
-            accessToken,
-            refreshToken: stored.refreshToken?.trim() || undefined,
-        };
-    }
-
-    const email = stored.email.trim();
-    const apiToken = stored.apiToken.trim();
-    if (!email || !apiToken) return null;
-    return { ...stored, email, apiToken };
-}
-
-async function writeApiTokenCredentials(credentials: { email: string; apiToken: string }) {
-    await writeBitbucketAuthCredential(credentials);
-}
-
-function clearCredentials() {
-    clearBitbucketAuthCredential();
-}
-
-function encodeBasicAuth(email: string, apiToken: string) {
-    const raw = `${email}:${apiToken}`;
-    const bytes = new TextEncoder().encode(raw);
-    let binary = "";
-    for (const byte of bytes) {
-        binary += String.fromCharCode(byte);
-    }
-    return btoa(binary);
-}
-
-const OAUTH_REFRESH_SKEW_MS = 30_000;
-let oauthRefreshPromise: Promise<BitbucketOAuthCredential> | null = null;
-
-async function refreshOAuthCredentials(credentials: BitbucketOAuthCredential) {
-    if (!credentials.refreshToken) {
-        throw new Error("Bitbucket OAuth session expired. Sign in again to continue.");
-    }
-    if (oauthRefreshPromise) return oauthRefreshPromise;
-
-    const refreshPromise = refreshBitbucketOAuthToken(credentials.refreshToken)
-        .then(async (tokens) => {
-            const nextCredentials = {
-                host: "bitbucket",
-                method: "oauth",
-                accessToken: tokens.accessToken,
-                refreshToken: tokens.refreshToken ?? credentials.refreshToken,
-                ...(typeof tokens.expiresAt === "number" ? { expiresAt: tokens.expiresAt } : {}),
-            } satisfies BitbucketOAuthCredential;
-            await writeBitbucketOAuthCredential(nextCredentials);
-            return nextCredentials;
-        })
-        .finally(() => {
-            oauthRefreshPromise = null;
-        });
-    oauthRefreshPromise = refreshPromise;
-    return refreshPromise;
-}
-
-async function authHeaderOrThrow(forceOAuthRefresh = false) {
-    const credentials = readCredentials();
-    if (!credentials) throw new Error("Not authenticated");
-    if (credentials.method === "apiToken") {
-        return `Basic ${encodeBasicAuth(credentials.email, credentials.apiToken)}`;
-    }
-
-    const shouldRefresh = forceOAuthRefresh || (typeof credentials.expiresAt === "number" && credentials.expiresAt <= Date.now() + OAUTH_REFRESH_SKEW_MS);
-    const activeCredentials = shouldRefresh ? await refreshOAuthCredentials(credentials) : credentials;
-    return `Bearer ${activeCredentials.accessToken}`;
-}
-
-async function parseFailure(response: Response) {
-    return parseFailureBody(response);
-}
-
-async function request(url: string, init: RequestInit = {}) {
-    const requestWithAuth = async (forceOAuthRefresh = false) => {
-        const headers: Record<string, string> = {
-            Authorization: await authHeaderOrThrow(forceOAuthRefresh),
-            ...(init.headers as Record<string, string>),
-        };
-        return fetch(url, { ...init, cache: "no-store", headers });
-    };
-
-    let response = await requestWithAuth();
-    const credentials = readCredentials();
-    if (response.status === 401 && credentials?.method === "oauth" && credentials.refreshToken) {
-        response = await requestWithAuth(true);
-    }
-    if (!response.ok) {
-        const body = await parseFailure(response);
-        throw new HostApiError(`Bitbucket API request failed (${response.status} ${response.statusText})`, {
-            status: response.status,
-            statusText: response.statusText,
-            body,
-        });
-    }
-    return response;
-}
-
-async function mapWithConcurrency<TInput, TOutput>(values: TInput[], concurrency: number, mapper: (value: TInput, index: number) => Promise<TOutput>) {
-    if (values.length === 0) return [] as TOutput[];
-    const safeConcurrency = Math.max(1, Math.min(concurrency, values.length));
-    const results = new Array<TOutput>(values.length);
-    let index = 0;
-
-    const runNext = async (): Promise<void> => {
-        const current = index;
-        index += 1;
-        if (current >= values.length) return;
-        results[current] = await mapper(values[current], current);
-        return runNext();
-    };
-
-    const workers = Array.from({ length: safeConcurrency }, () => runNext());
-
-    await Promise.all(workers);
-    return results;
-}
+import { writeBitbucketOAuthCredential } from "@/lib/storage";
+import { clearCredentials, encodeBasicAuth, readCredentials, request, writeApiTokenCredentials } from "./api";
+import {
+    mapBitbucketInlineComment,
+    mapBuildStatuses,
+    mapComment,
+    mapCommit,
+    mapHistory,
+    mapPullRequest,
+    mapPullRequestSummary,
+    mapReviewers,
+    normalizeRepo,
+} from "./mappers";
+import type {
+    BitbucketActivityEntry,
+    BitbucketActivityPage,
+    BitbucketBuildStatus,
+    BitbucketBuildStatusPage,
+    BitbucketCommentPage,
+    BitbucketCommitPage,
+    BitbucketDiffStatPage,
+    BitbucketPullRequestPage,
+    BitbucketPullRequestRaw,
+    BitbucketRepoEntry,
+    BitbucketRepoPage,
+    BitbucketUser,
+    BitbucketWorkspaceEntry,
+    BitbucketWorkspacePage,
+} from "./raw-types";
 
 async function fetchAllDiffStat(startUrl: string): Promise<DiffStatEntry[]> {
     const values: DiffStatEntry[] = [];
@@ -362,169 +102,6 @@ async function fetchAllComments(startUrl: string): Promise<Comment[]> {
     return values;
 }
 
-function getAvatarUrl(user?: BitbucketUser): string | undefined {
-    return user?.links?.avatar?.href;
-}
-
-function mapPullRequestSummary(pullRequest: BitbucketPullRequestSummaryRaw): PullRequestSummary {
-    return {
-        id: pullRequest.id,
-        title: pullRequest.title,
-        state: pullRequest.state,
-        createdAt: pullRequest.created_on,
-        updatedAt: pullRequest.updated_on,
-        source: pullRequest.source,
-        destination: pullRequest.destination,
-        links: pullRequest.links,
-        author: {
-            displayName: pullRequest.author?.display_name,
-            avatarUrl: getAvatarUrl(pullRequest.author),
-        },
-    };
-}
-
-function mapCommit(commit: BitbucketCommitRaw): Commit {
-    return {
-        hash: commit.hash,
-        date: commit.date,
-        message: commit.message,
-        summary: commit.summary,
-        author: {
-            user: {
-                displayName: commit.author?.user?.display_name,
-                avatarUrl: getAvatarUrl(commit.author?.user),
-            },
-            raw: commit.author?.raw,
-        },
-    };
-}
-
-function mapComment(comment: BitbucketCommentRaw): Comment {
-    return {
-        id: comment.id,
-        createdAt: comment.created_on,
-        updatedAt: comment.updated_on,
-        deleted: comment.deleted,
-        pending: comment.pending,
-        content: comment.content,
-        user: {
-            displayName: comment.user?.display_name,
-            avatarUrl: getAvatarUrl(comment.user),
-        },
-        inline: comment.inline
-            ? {
-                  path: comment.inline.path,
-                  to: comment.inline.to,
-                  from: comment.inline.from,
-                  startTo: comment.inline.start_to,
-                  startFrom: comment.inline.start_from,
-                  outdated: comment.inline.outdated,
-              }
-            : undefined,
-        parent: comment.parent,
-        resolution: comment.resolution
-            ? {
-                  user: {
-                      displayName: comment.resolution.user?.display_name,
-                      avatarUrl: getAvatarUrl(comment.resolution.user),
-                  },
-              }
-            : comment.resolution,
-        hostThreadId: comment.hostThreadId,
-    };
-}
-
-function mapBitbucketInlineComment(inline: CommentPayload["inline"]) {
-    if (!inline) return undefined;
-    return {
-        path: inline.path,
-        to: inline.to,
-        from: inline.from,
-        start_to: inline.startTo,
-        start_from: inline.startFrom,
-    };
-}
-
-function mapParticipantReviewStatus(participant: { approved?: boolean; state?: string }): NonNullable<PullRequestDetails["currentUserReviewStatus"]> {
-    if (participant.approved) return "approved";
-    const normalized = (participant.state ?? "").toUpperCase();
-    if (normalized.includes("CHANGES")) return "changesRequested";
-    return "none";
-}
-
-function isCurrentBitbucketUser(participantUser: BitbucketUser | undefined, currentUser: BitbucketUser | null): boolean {
-    if (!participantUser || !currentUser) return false;
-    if (participantUser.account_id && currentUser.account_id) return participantUser.account_id === currentUser.account_id;
-    if (participantUser.uuid && currentUser.uuid) return participantUser.uuid === currentUser.uuid;
-    if (participantUser.nickname && currentUser.nickname) return participantUser.nickname === currentUser.nickname;
-    if (participantUser.username && currentUser.username) return participantUser.username === currentUser.username;
-    if (participantUser.display_name && currentUser.display_name) return participantUser.display_name === currentUser.display_name;
-    return false;
-}
-
-function bitbucketUserKey(user: BitbucketUser | undefined) {
-    return user?.account_id ?? user?.uuid ?? user?.nickname ?? user?.username ?? user?.display_name;
-}
-
-function upsertBitbucketDecisionActor(
-    byUser: Map<string, PullRequestReviewer>,
-    user: BitbucketUser | undefined,
-    status: Exclude<PullRequestReviewer["status"], "commented" | "pending">,
-    fallbackIndex: number,
-) {
-    const key = bitbucketUserKey(user);
-    if (!key) return;
-    const existing = byUser.get(key);
-    byUser.set(key, {
-        id: existing?.id ?? `bitbucket-reviewer-${key ?? fallbackIndex}`,
-        displayName: existing?.displayName ?? user?.display_name,
-        avatarUrl: existing?.avatarUrl ?? getAvatarUrl(user),
-        status,
-        approved: status === "approved",
-        requested: existing?.requested ?? false,
-        updatedAt: existing?.updatedAt,
-    });
-}
-
-function mapPullRequest(pr: BitbucketPullRequestRaw, currentUser: BitbucketUser | null): PullRequestDetails {
-    const currentUserParticipant = (pr.participants ?? []).find((participant) => isCurrentBitbucketUser(participant.user, currentUser));
-    return {
-        id: pr.id,
-        title: pr.title,
-        description: pr.description,
-        state: pr.state,
-        draft: Boolean(pr.draft),
-        commentCount: pr.comment_count,
-        taskCount: pr.task_count,
-        createdAt: pr.created_on,
-        updatedAt: pr.updated_on,
-        closedAt: pr.closed_on,
-        author: {
-            displayName: pr.author?.display_name,
-            avatarUrl: getAvatarUrl(pr.author),
-        },
-        source: pr.source,
-        destination: pr.destination,
-        participants:
-            pr.participants?.map((participant) => ({
-                approved: participant.approved,
-                state: participant.state,
-                user: {
-                    displayName: participant.user?.display_name,
-                    avatarUrl: getAvatarUrl(participant.user),
-                },
-            })) ?? [],
-        currentUserReviewStatus: currentUserParticipant ? mapParticipantReviewStatus(currentUserParticipant) : "none",
-        currentUser: currentUser
-            ? {
-                  displayName: currentUser.display_name,
-                  avatarUrl: getAvatarUrl(currentUser),
-              }
-            : undefined,
-        links: pr.links,
-    };
-}
-
 async function fetchAllActivity(startUrl: string): Promise<BitbucketActivityEntry[]> {
     const values: BitbucketActivityEntry[] = [];
     let nextUrl: string | undefined = startUrl;
@@ -555,19 +132,6 @@ async function fetchAllBuildStatuses(startUrl: string): Promise<BitbucketBuildSt
     }
 
     return values;
-}
-
-function normalizeRepo(repo: BitbucketRepoEntry): RepoRef | null {
-    const fullName = repo.full_name ?? `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
-    const workspace = repo.workspace?.slug ?? fullName.split("/")[0];
-    if (!workspace || !repo.slug) return null;
-    return {
-        host: "bitbucket",
-        workspace,
-        repo: repo.slug,
-        fullName,
-        displayName: repo.name,
-    };
 }
 
 async function fetchAllBitbucketWorkspaces() {
@@ -601,155 +165,6 @@ async function fetchAllBitbucketRepositoriesForWorkspace(workspace: string) {
 
     return values;
 }
-
-function mapBuildState(state: string | undefined): PullRequestBuildStatus["state"] {
-    const normalized = (state ?? "").toUpperCase();
-    if (normalized === "SUCCESSFUL") return "success";
-    if (normalized === "FAILED") return "failed";
-    if (normalized === "INPROGRESS") return "pending";
-    if (normalized === "STOPPED") return "skipped";
-    return "unknown";
-}
-
-function mapBuildStatuses(statuses: BitbucketBuildStatus[]): PullRequestBuildStatus[] {
-    return statuses.map((status, index) => ({
-        id: status.uuid ?? status.key ?? `bitbucket-status-${index}`,
-        name: status.name ?? status.key ?? "status",
-        state: mapBuildState(status.state),
-        url: status.url,
-        provider: "Bitbucket Pipelines",
-        startedAt: status.created_on,
-        completedAt: status.updated_on,
-    }));
-}
-
-function mapReviewers(pr: BitbucketPullRequestRaw, activity: BitbucketActivityEntry[] = []): PullRequestReviewer[] {
-    const participantsByUser = new Map<string, NonNullable<BitbucketPullRequestRaw["participants"]>[number]>();
-    for (const participant of pr.participants ?? []) {
-        const key = bitbucketUserKey(participant.user);
-        if (key) participantsByUser.set(key, participant);
-    }
-
-    const byUser = new Map<string, PullRequestReviewer>();
-    for (const [index, reviewer] of (pr.reviewers ?? []).entries()) {
-        const key = bitbucketUserKey(reviewer) ?? `${index}`;
-        const participant = participantsByUser.get(key);
-        const status = participant ? mapParticipantReviewStatus(participant) : "none";
-        byUser.set(key, {
-            id: `bitbucket-reviewer-${key}`,
-            displayName: reviewer.display_name,
-            avatarUrl: getAvatarUrl(reviewer),
-            status: status === "none" ? "pending" : status,
-            approved: Boolean(participant?.approved),
-            requested: true,
-        });
-    }
-
-    for (const [index, participant] of (pr.participants ?? []).entries()) {
-        const status = mapParticipantReviewStatus(participant);
-        if (status === "none") continue;
-        upsertBitbucketDecisionActor(byUser, participant.user, status, index);
-    }
-
-    for (const [index, entry] of activity.entries()) {
-        const state = (entry.update?.state ?? "").toUpperCase();
-        if (state === "DECLINED" || state === "SUPERSEDED") {
-            upsertBitbucketDecisionActor(byUser, entry.update?.author, "declined", index);
-        }
-    }
-
-    return Array.from(byUser.values()).sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""));
-}
-
-function mapCommentToHistory(comment: Comment): PullRequestHistoryEvent | null {
-    const line = comment.inline?.to ?? comment.inline?.from;
-    const side = comment.inline?.from ? "deletions" : "additions";
-    return {
-        id: `bitbucket-comment-${comment.id}`,
-        type: "comment",
-        createdAt: comment.createdAt,
-        actor: {
-            displayName: comment.user?.displayName,
-            avatarUrl: comment.user?.avatarUrl,
-        },
-        content: comment.content?.raw,
-        comment: {
-            id: comment.id,
-            path: comment.inline?.path,
-            line,
-            side,
-            isInline: Boolean(comment.inline?.path),
-        },
-    };
-}
-
-function mapActivityToHistory(activity: BitbucketActivityEntry, index: number): PullRequestHistoryEvent | null {
-    if (activity.approval) {
-        return {
-            id: `bitbucket-activity-approval-${index}`,
-            type: "approved",
-            createdAt: activity.approval.date,
-            actor: {
-                displayName: activity.approval.user?.display_name,
-                avatarUrl: getAvatarUrl(activity.approval.user),
-            },
-        };
-    }
-    if (activity.update) {
-        const state = (activity.update.state ?? "").toUpperCase();
-        let type: PullRequestHistoryEvent["type"] = "updated";
-        if (state === "MERGED") type = "merged";
-        if (state === "DECLINED" || state === "SUPERSEDED") type = "closed";
-        if (state === "OPEN") type = "reopened";
-        return {
-            id: `bitbucket-activity-update-${index}`,
-            type,
-            createdAt: activity.update.date,
-            actor: {
-                displayName: activity.update.author?.display_name,
-                avatarUrl: getAvatarUrl(activity.update.author),
-            },
-        };
-    }
-    return null;
-}
-
-function mapHistory(pr: PullRequestDetails, comments: Comment[], activity: BitbucketActivityEntry[]): PullRequestHistoryEvent[] {
-    const events: PullRequestHistoryEvent[] = [];
-    if (pr.createdAt) {
-        events.push({
-            id: `bitbucket-pr-opened-${pr.id}`,
-            type: "opened",
-            createdAt: pr.createdAt,
-            actor: {
-                displayName: pr.author?.displayName,
-                avatarUrl: pr.author?.avatarUrl,
-            },
-        });
-    }
-
-    for (const comment of comments) {
-        const mapped = mapCommentToHistory(comment);
-        if (mapped) events.push(mapped);
-    }
-    activity.forEach((entry, index) => {
-        const mapped = mapActivityToHistory(entry, index);
-        if (mapped) events.push(mapped);
-    });
-
-    events.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
-    return events;
-}
-
-// Export pure normalizers for focused mapping tests without network requests.
-export const bitbucketNormalization = {
-    mapPullRequestSummary,
-    mapPullRequest,
-    mapReviewers,
-    mapComment,
-    mapActivityToHistory,
-    mapBitbucketInlineComment,
-};
 
 async function fetchBitbucketPullRequestCritical(prRef: { workspace: string; repo: string; pullRequestId: string }): Promise<PullRequestCriticalBundle> {
     const baseApi = `https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/pullrequests/${prRef.pullRequestId}`;
@@ -852,7 +267,7 @@ export const bitbucketClient: GitHostClient = {
                 },
             });
             if (!res.ok) {
-                const details = await parseFailure(res);
+                const details = await parseFailureBody(res);
                 const status = `${res.status} ${res.statusText}`;
                 throw new Error(
                     details ? `Bitbucket OAuth authentication failed (${status}): ${details}` : `Bitbucket OAuth authentication failed (${status})`,
@@ -880,7 +295,7 @@ export const bitbucketClient: GitHostClient = {
         });
 
         if (!res.ok) {
-            const details = await parseFailure(res);
+            const details = await parseFailureBody(res);
             const status = `${res.status} ${res.statusText}`;
             throw new Error(details ? `Bitbucket authentication failed (${status}): ${details}` : `Bitbucket authentication failed (${status})`);
         }
@@ -947,32 +362,6 @@ export const bitbucketClient: GitHostClient = {
             repo: data.prRef.repo,
             pullRequestId: data.prRef.pullRequestId,
         });
-    },
-    async fetchPullRequestBundleByRef(data): Promise<PullRequestBundle> {
-        const [critical, deferred] = await Promise.all([
-            fetchBitbucketPullRequestCritical({
-                workspace: data.prRef.workspace,
-                repo: data.prRef.repo,
-                pullRequestId: data.prRef.pullRequestId,
-            }),
-            fetchBitbucketPullRequestDeferred({
-                workspace: data.prRef.workspace,
-                repo: data.prRef.repo,
-                pullRequestId: data.prRef.pullRequestId,
-            }),
-        ]);
-        const mergedPullRequest: PullRequestDetails = {
-            ...critical.pr,
-            ...(deferred.prPatch ?? {}),
-        };
-        return {
-            ...critical,
-            pr: mergedPullRequest,
-            comments: deferred.comments,
-            history: deferred.history,
-            reviewers: deferred.reviewers,
-            buildStatuses: deferred.buildStatuses,
-        };
     },
     async approvePullRequest(data) {
         const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/approve`;
@@ -1073,7 +462,7 @@ export const bitbucketClient: GitHostClient = {
     async createPullRequestComment(data) {
         const url = `https://api.bitbucket.org/2.0/repositories/${data.prRef.workspace}/${data.prRef.repo}/pullrequests/${data.prRef.pullRequestId}/comments`;
         const payload: Record<string, unknown> = {
-            content: { raw: data.content },
+            content: { raw: withBitbucketSuggestionTrailer(data.content) },
         };
         if (data.inline) payload.inline = mapBitbucketInlineComment(data.inline);
         if (data.parentId) payload.parent = { id: data.parentId };
@@ -1163,42 +552,6 @@ export const bitbucketClient: GitHostClient = {
             diffstat,
         };
     },
-    async fetchPullRequestFileHistory({ prRef, path, commits, limit = 20 }): Promise<PullRequestFileHistory> {
-        const normalizedPath = path.trim();
-        if (!normalizedPath || commits.length === 0) {
-            return { path: normalizedPath, entries: [], fetchedAt: Date.now() };
-        }
-
-        const commitCandidates = commits.filter((commit) => Boolean(commit.hash?.trim()));
-        const resolved = await mapWithConcurrency<Commit, PullRequestFileHistoryEntry | null>(commitCandidates, 4, async (commit) => {
-            const commitHash = commit.hash?.trim();
-            if (!commitHash) return null;
-
-            const diffRes = await request(`https://api.bitbucket.org/2.0/repositories/${prRef.workspace}/${prRef.repo}/diff/${commitHash}`, {
-                headers: { Accept: "text/plain" },
-            });
-            const diffText = await diffRes.text();
-            const match = extractSingleFilePatchFromUnifiedDiff(diffText, normalizedPath);
-            if (!match) return null;
-            return {
-                versionId: `${normalizedPath}:${commitHash}`,
-                commitHash,
-                commitDate: commit.date,
-                commitMessage: commit.message,
-                authorDisplayName: commit.author?.user?.displayName ?? commit.author?.raw,
-                filePathAtCommit: match.filePathAtCommit,
-                status: match.status,
-                patch: match.patch,
-            };
-        });
-        const entries = resolved.filter((entry): entry is PullRequestFileHistoryEntry => entry !== null).slice(0, limit);
-
-        return {
-            path: normalizedPath,
-            entries,
-            fetchedAt: Date.now(),
-        };
-    },
 };
 
 function encodeBitbucketPath(path: string) {
@@ -1208,104 +561,4 @@ function encodeBitbucketPath(path: string) {
         .split("/")
         .map((segment) => encodeURIComponent(segment))
         .join("/");
-}
-
-function splitUnifiedDiffByFile(diffText: string) {
-    const normalizedText = diffText.replace(/^\ufeff/, "");
-    const patches: string[] = [];
-    const lines = normalizedText.split("\n");
-    let current: string[] = [];
-    for (const rawLine of lines) {
-        const line = rawLine.replace(/\r$/, "");
-        if (line.startsWith("diff --git ") || line.startsWith("diff --cc ")) {
-            if (current.length > 0) {
-                patches.push(current.join("\n"));
-            }
-            current = [line];
-            continue;
-        }
-        if (current.length === 0) continue;
-        current.push(line);
-    }
-    if (current.length > 0) {
-        patches.push(current.join("\n"));
-    }
-    return patches;
-}
-
-function extractPathPairFromPatch(patch: string): { oldPath: string; newPath: string } | null {
-    const firstLine = patch.split("\n", 1)[0] ?? "";
-    const pathTokens = parseDiffHeaderPaths(firstLine);
-    if (pathTokens.length === 0) return null;
-    if (pathTokens.length === 1) {
-        const normalized = normalizeDiffHeaderPath(pathTokens[0]);
-        return normalized ? { oldPath: normalized, newPath: normalized } : null;
-    }
-    const oldPath = normalizeDiffHeaderPath(pathTokens[0]);
-    const newPath = normalizeDiffHeaderPath(pathTokens[1]);
-    if (!oldPath && !newPath) return null;
-    const resolvedOld = oldPath ?? newPath;
-    if (!resolvedOld) return null;
-    const resolvedNew = newPath ?? oldPath;
-    if (!resolvedNew) return null;
-    return {
-        oldPath: resolvedOld,
-        newPath: resolvedNew,
-    };
-}
-
-function parseDiffHeaderPaths(firstLine: string) {
-    if (!firstLine.startsWith("diff --git ") && !firstLine.startsWith("diff --cc ")) {
-        return [];
-    }
-    const rest = firstLine.replace(/^diff --(?:git|cc) /, "");
-    const tokens: string[] = [];
-    let current = "";
-    let inQuotes = false;
-    for (const char of rest) {
-        if (char === '"') {
-            inQuotes = !inQuotes;
-            continue;
-        }
-        if (char === " " && !inQuotes) {
-            if (current) {
-                tokens.push(current);
-                current = "";
-            }
-            continue;
-        }
-        current += char;
-    }
-    if (current) tokens.push(current);
-    return tokens;
-}
-
-function normalizeDiffHeaderPath(token: string) {
-    if (!token) return undefined;
-    if (token.startsWith("a/") || token.startsWith("b/") || token.startsWith("c/")) {
-        return token.slice(2);
-    }
-    return token;
-}
-
-function inferBitbucketPatchStatus(patch: string): DiffStatEntry["status"] {
-    if (patch.includes("\nnew file mode ")) return "added";
-    if (patch.includes("\ndeleted file mode ")) return "removed";
-    if (patch.includes("\nrename from ")) return "renamed";
-    return "modified";
-}
-
-function extractSingleFilePatchFromUnifiedDiff(diffText: string, targetPath: string) {
-    for (const patch of splitUnifiedDiffByFile(diffText)) {
-        const pair = extractPathPairFromPatch(patch);
-        if (!pair) continue;
-        if (pair.oldPath === targetPath || pair.newPath === targetPath) {
-            return {
-                patch: patch.endsWith("\n") ? patch : `${patch}\n`,
-                filePathAtCommit: pair.newPath || pair.oldPath,
-                status: inferBitbucketPatchStatus(patch),
-            };
-        }
-    }
-    return null;
 }

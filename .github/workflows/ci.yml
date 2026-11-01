@@ -23,6 +23,12 @@ jobs:
       - name: Run Biome check
         run: bun run check
 
+      - name: Run TypeScript
+        run: bun run tsc
+
+      - name: Run tests
+        run: bun run test
+
       - name: Run Knip
         run: bun run knip
 

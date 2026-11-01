@@ -1,5 +1,5 @@
-const DETECTED_FONT_VALUE_PREFIX = "detected:" as const;
-type DetectedFontFamilyValue = `${typeof DETECTED_FONT_VALUE_PREFIX}${string}`;
+const CUSTOM_FONT_VALUE_PREFIX = "custom:" as const;
+type CustomFontFamilyValue = `${typeof CUSTOM_FONT_VALUE_PREFIX}${string}`;
 
 export type FontFamilyValue =
     | "geist-sans"
@@ -18,7 +18,7 @@ export type FontFamilyValue =
     | "geist-mono"
     | "ui-monospace"
     | "system-sans"
-    | DetectedFontFamilyValue;
+    | CustomFontFamilyValue;
 
 export type FontOption = {
     value: FontFamilyValue;
@@ -26,7 +26,7 @@ export type FontOption = {
     cssFamily: string;
 };
 
-export const FONT_FAMILY_OPTIONS: ReadonlyArray<FontOption> = [
+const FONT_FAMILY_OPTIONS: ReadonlyArray<FontOption> = [
     {
         value: "geist-sans",
         label: "Geist Sans",
@@ -140,29 +140,18 @@ export const MONO_FONT_FAMILY_OPTIONS: ReadonlyArray<{
 
 export const DEFAULT_FONT_FAMILY: FontFamilyValue = "menlo";
 
-export function makeDetectedFontFamilyValue(name: string): FontFamilyValue {
-    return `${DETECTED_FONT_VALUE_PREFIX}${name}` as FontFamilyValue;
+export function makeCustomFontFamilyValue(name: string): FontFamilyValue {
+    return `${CUSTOM_FONT_VALUE_PREFIX}${name}` as FontFamilyValue;
 }
 
-export function isDetectedFontFamilyValue(value: FontFamilyValue): value is DetectedFontFamilyValue {
-    return value.startsWith(DETECTED_FONT_VALUE_PREFIX);
-}
-
-export function getDetectedFontName(value: FontFamilyValue): string | null {
-    if (!isDetectedFontFamilyValue(value)) return null;
-    return value.slice(DETECTED_FONT_VALUE_PREFIX.length);
-}
-
-function quoteFontName(name: string) {
-    return `"${name.replace(/"/g, '\\"')}"`;
+export function getCustomFontName(value: FontFamilyValue): string | null {
+    return value.startsWith(CUSTOM_FONT_VALUE_PREFIX) ? value.slice(CUSTOM_FONT_VALUE_PREFIX.length) : null;
 }
 
 export function fontFamilyToCss(value: FontFamilyValue): string {
     const option = FONT_FAMILY_OPTIONS.find((item) => item.value === value);
     if (option) return option.cssFamily;
-    const detectedName = getDetectedFontName(value);
-    if (detectedName) {
-        return `${quoteFontName(detectedName)}, monospace`;
-    }
+    const customName = getCustomFontName(value);
+    if (customName) return `"${customName.replace(/"/g, '\\"')}", monospace`;
     return FONT_FAMILY_OPTIONS[0].cssFamily;
 }

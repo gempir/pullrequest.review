@@ -7,7 +7,7 @@ import { RepositorySelector } from "@/components/repository-selector";
 import { Button } from "@/components/ui/button";
 import { LandingPullRequestTable } from "@/features/landing/components/landing-pull-request-table";
 import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
-import { getHostLabel } from "@/lib/git-host/service";
+import { getHostLabel } from "@/lib/git-host/registry";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
 import { cn } from "@/lib/utils";

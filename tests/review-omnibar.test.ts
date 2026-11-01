@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { createOmnibarFilePaths } from "@/features/review/model/review-page-model";
 import { getOmnibarFileName, getPullRequestOmnibarKeywords } from "../src/components/omnibar/omnibar-helpers";
-import { createOmnibarFilePaths } from "../src/components/pull-request-review/review-page-model";
 
 describe("review omnibar helpers", () => {
     test("uses the complete diff catalog instead of the sidebar-filtered fallback", () => {

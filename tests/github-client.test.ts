@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { githubNormalization } from "../src/lib/git-host/providers/github/client";
+import { githubNormalization } from "../src/lib/git-host/providers/github";
 
 describe("github comment normalization", () => {
     test("marks resolved GitHub review threads as resolved on the root comment", () => {

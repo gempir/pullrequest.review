@@ -14,3 +14,7 @@ export function getHostClient(host: GitHost): GitHostClient {
 export function getHostCapabilities(host: GitHost): HostCapabilities {
     return clients[host].capabilities;
 }
+
+export function getHostLabel(host: GitHost) {
+    return host === "bitbucket" ? "Bitbucket" : "GitHub";
+}

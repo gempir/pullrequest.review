@@ -1,1 +1,2 @@
-export { githubClient, githubNormalization } from "./client";
+export { githubClient } from "./client";
+export { githubNormalization } from "./mappers";

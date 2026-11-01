@@ -1,126 +1,59 @@
-import { useLiveQuery } from "@tanstack/react-db";
+import { useQueries } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-    buildGroupedPullRequests,
-    buildSortedRootPullRequests,
-    DEFAULT_REVIEW_SCOPE_SEARCH,
-    HOSTS,
-    shouldShowRepoPullRequestLoading,
-} from "@/features/landing/model/landing-model";
-import { getRepoPullRequestCollection } from "@/lib/git-host/query-collections";
+import { useCallback, useMemo } from "react";
+import { buildGroupedPullRequests, buildSortedRootPullRequests, DEFAULT_REVIEW_SCOPE_SEARCH, HOSTS } from "@/features/landing/model/landing-model";
+import { repoPullRequestsQuery } from "@/lib/git-host/queries";
+import { normalizeRepoRef } from "@/lib/git-host/shared/repo-ref";
 import type { RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
 
-export function useSelectedRepoPullRequests({ autoRefetch = true }: { autoRefetch?: boolean } = {}) {
+function combineResults<T>(results: T) {
+    return results;
+}
+
+export function useSelectedRepoPullRequests({ enabled = true }: { enabled?: boolean } = {}) {
     const navigate = useNavigate();
     const { reposByHost } = usePrContext();
-    const [autoRefetchRepoPrScopeKey, setAutoRefetchRepoPrScopeKey] = useState<string | null>(null);
-    const [pendingRepoPrScopeKey, setPendingRepoPrScopeKey] = useState<string | null>(null);
-    const latestRefetchIdRef = useRef(0);
-
     const hostsWithSelectedRepos = useMemo(() => HOSTS.filter((host) => reposByHost[host].length > 0), [reposByHost]);
-    const repoPullRequestScopeKey = useMemo(
-        () =>
-            HOSTS.map(
-                (host) =>
-                    `${host}:${reposByHost[host]
-                        .map((repo) => repo.fullName)
-                        .sort()
-                        .join(",")}`,
-            )
-                .join("|")
-                .trim(),
-        [reposByHost],
-    );
+    const queries = useQueries({
+        queries: hostsWithSelectedRepos.map((host) => ({ ...repoPullRequestsQuery(host, reposByHost[host]), enabled })),
+        combine: combineResults,
+    });
 
-    const repoPullRequestCollection = useMemo(
-        () =>
-            getRepoPullRequestCollection({
-                hosts: hostsWithSelectedRepos,
-                reposByHost,
+    const sortedRootPullRequests = useMemo(() => {
+        const records = queries.flatMap((query) =>
+            (query.data ?? []).flatMap(({ repo, pullRequests }) => {
+                const normalizedRepo = normalizeRepoRef(repo);
+                return pullRequests.map((pullRequest) => ({
+                    host: normalizedRepo.host,
+                    repo: normalizedRepo,
+                    repoKey: `${normalizedRepo.host}:${normalizedRepo.fullName}`,
+                    pullRequest,
+                }));
             }),
-        [hostsWithSelectedRepos, reposByHost],
-    );
-    const repoPullRequestsQuery = useLiveQuery(
-        (q) => q.from({ repoPullRequest: repoPullRequestCollection.collection }).select(({ repoPullRequest }) => ({ ...repoPullRequest })),
-        [repoPullRequestCollection],
-    );
-
-    const refetch = useCallback(async () => {
-        const refetchId = ++latestRefetchIdRef.current;
-        setPendingRepoPrScopeKey(repoPullRequestScopeKey);
-        try {
-            await repoPullRequestCollection.utils.refetch({ throwOnError: false });
-        } finally {
-            if (latestRefetchIdRef.current === refetchId) {
-                setPendingRepoPrScopeKey(null);
-            }
-        }
-    }, [repoPullRequestCollection, repoPullRequestScopeKey]);
-
-    useEffect(() => {
-        if (!autoRefetch) return;
-        if (hostsWithSelectedRepos.length === 0 || repoPullRequestCollection.utils.isFetching || repoPullRequestCollection.utils.lastError) return;
-        if (autoRefetchRepoPrScopeKey === repoPullRequestScopeKey) return;
-        setAutoRefetchRepoPrScopeKey(repoPullRequestScopeKey);
-        void refetch();
-    }, [autoRefetch, autoRefetchRepoPrScopeKey, hostsWithSelectedRepos.length, refetch, repoPullRequestCollection, repoPullRequestScopeKey]);
-
-    const groupedPullRequests = useMemo(
-        () => buildGroupedPullRequests(repoPullRequestsQuery.data ?? [], reposByHost),
-        [repoPullRequestsQuery.data, reposByHost],
-    );
-    const sortedRootPullRequests = useMemo(() => buildSortedRootPullRequests(groupedPullRequests), [groupedPullRequests]);
+        );
+        return buildSortedRootPullRequests(buildGroupedPullRequests(records, reposByHost));
+    }, [queries, reposByHost]);
 
     const openPullRequest = useCallback(
         (repo: RepoRef, pullRequestId: string) => {
-            if (repo.host === "github") {
-                navigate({
-                    to: "/$workspace/$repo/pull/$pullRequestId",
-                    params: {
-                        workspace: repo.workspace,
-                        repo: repo.repo,
-                        pullRequestId,
-                    },
-                    search: DEFAULT_REVIEW_SCOPE_SEARCH,
-                    hash: "",
-                });
-                return;
-            }
-            navigate({
-                to: "/$workspace/$repo/pull-requests/$pullRequestId",
-                params: {
-                    workspace: repo.workspace,
-                    repo: repo.repo,
-                    pullRequestId,
-                },
-                search: DEFAULT_REVIEW_SCOPE_SEARCH,
-                hash: "",
-            });
+            const params = { workspace: repo.workspace, repo: repo.repo, pullRequestId };
+            const to = repo.host === "github" ? "/$workspace/$repo/pull/$pullRequestId" : "/$workspace/$repo/pull-requests/$pullRequestId";
+            navigate({ to, params, search: DEFAULT_REVIEW_SCOPE_SEARCH, hash: "" });
         },
         [navigate],
     );
 
-    const repoPullRequestError = repoPullRequestCollection.utils.lastError;
-    const repoPullRequestRecordCount = repoPullRequestsQuery.data?.length ?? 0;
-    const isRepoPullRequestFetching = pendingRepoPrScopeKey === repoPullRequestScopeKey || repoPullRequestCollection.utils.isFetching;
-
+    const hasData = queries.some((query) => query.data);
     return {
-        hostsWithSelectedRepos,
         sortedRootPullRequests,
         selectedRepoCount: reposByHost.bitbucket.length + reposByHost.github.length,
-        repoPullRequestError,
-        isRepoPullRequestLoading: shouldShowRepoPullRequestLoading({
-            hasSelectedRepositories: hostsWithSelectedRepos.length > 0,
-            recordCount: repoPullRequestRecordCount,
-            isLiveQueryLoading: repoPullRequestsQuery.isLoading,
-            isFetching: isRepoPullRequestFetching,
-            dataUpdatedAt: repoPullRequestCollection.utils.dataUpdatedAt,
-            error: repoPullRequestError,
-        }),
-        isRepoPullRequestFetching,
+        // A failed host is only surfaced when no other host could answer.
+        repoPullRequestError: hasData ? undefined : queries.find((query) => query.error)?.error,
+        isRepoPullRequestLoading: !hasData && queries.some((query) => query.isLoading),
         openPullRequest,
-        refetch,
+        refetch: async () => {
+            await Promise.all(queries.map((query) => query.refetch()));
+        },
     };
 }

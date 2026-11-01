@@ -1,6 +1,6 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { ensureDataCollectionsReady, readAppearanceSettingsRecord, writeAppearanceSettingsRecord } from "@/lib/data/query-collections";
 import { DEFAULT_FONT_FAMILY, type FontFamilyValue, fontFamilyToCss } from "@/lib/font-options";
+import { ensureStorageReady, readSetting, writeSetting } from "@/lib/storage";
 
 type AppThemeMode = "auto" | "light" | "dark";
 
@@ -12,10 +12,6 @@ type AppearanceSettings = {
     sansLineHeight: number;
     monospaceFontSize: number;
     monospaceLineHeight: number;
-    treeUseCustomTypography: boolean;
-    treeFontFamily: FontFamilyValue;
-    treeFontSize: number;
-    treeLineHeight: number;
 };
 
 type AppearanceContextValue = AppearanceSettings & {
@@ -26,10 +22,6 @@ type AppearanceContextValue = AppearanceSettings & {
     setSansLineHeight: (lineHeight: number) => void;
     setMonospaceFontSize: (size: number) => void;
     setMonospaceLineHeight: (lineHeight: number) => void;
-    setTreeUseCustomTypography: (enabled: boolean) => void;
-    setTreeFontFamily: (font: FontFamilyValue) => void;
-    setTreeFontSize: (size: number) => void;
-    setTreeLineHeight: (lineHeight: number) => void;
     resetAppearance: () => void;
 };
 
@@ -41,10 +33,6 @@ const defaultAppearance: AppearanceSettings = {
     sansLineHeight: 1.25,
     monospaceFontSize: 13,
     monospaceLineHeight: 1.25,
-    treeUseCustomTypography: false,
-    treeFontFamily: "geist-sans",
-    treeFontSize: 12,
-    treeLineHeight: 1.45,
 };
 
 const AppearanceContext = createContext<AppearanceContextValue | null>(null);
@@ -60,22 +48,6 @@ function normalizeLineHeight(value: number, min: number, max: number) {
     return Number(clamped.toFixed(2));
 }
 
-function deriveTreeFontSize(treeUseCustomTypography: boolean, treeFontSize: number, sansFontSize: number) {
-    if (treeUseCustomTypography) {
-        return treeFontSize;
-    }
-    const reduced = sansFontSize - 2;
-    return normalizeFontSize(reduced, 10, 18);
-}
-
-function deriveTreeLineHeight(treeUseCustomTypography: boolean, treeLineHeight: number, sansLineHeight: number) {
-    if (treeUseCustomTypography) {
-        return treeLineHeight;
-    }
-    const reduced = sansLineHeight - 0.1;
-    return normalizeLineHeight(reduced, 1, 2.2);
-}
-
 function parseStoredSettings(raw: Record<string, unknown> | null): AppearanceSettings | null {
     if (!raw) return null;
     const appThemeMode =
@@ -89,10 +61,6 @@ function parseStoredSettings(raw: Record<string, unknown> | null): AppearanceSet
         sansLineHeight: normalizeLineHeight(Number(raw.sansLineHeight ?? defaultAppearance.sansLineHeight), 1, 2.2),
         monospaceFontSize: normalizeFontSize(Number(raw.monospaceFontSize ?? defaultAppearance.monospaceFontSize), 11, 20),
         monospaceLineHeight: normalizeLineHeight(Number(raw.monospaceLineHeight ?? defaultAppearance.monospaceLineHeight), 1, 2.2),
-        treeUseCustomTypography: typeof raw.treeUseCustomTypography === "boolean" ? raw.treeUseCustomTypography : defaultAppearance.treeUseCustomTypography,
-        treeFontFamily: (raw.treeFontFamily as FontFamilyValue) ?? defaultAppearance.treeFontFamily,
-        treeFontSize: normalizeFontSize(Number(raw.treeFontSize ?? defaultAppearance.treeFontSize), 10, 18),
-        treeLineHeight: normalizeLineHeight(Number(raw.treeLineHeight ?? defaultAppearance.treeLineHeight), 1, 2.2),
     };
 }
 
@@ -103,9 +71,9 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let cancelled = false;
         void (async () => {
-            await ensureDataCollectionsReady();
+            await ensureStorageReady();
             if (cancelled) return;
-            const parsed = parseStoredSettings(readAppearanceSettingsRecord());
+            const parsed = parseStoredSettings(readSetting("appearance"));
             if (parsed) {
                 setSettings(parsed);
             }
@@ -118,7 +86,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!hydrated) return;
-        writeAppearanceSettingsRecord(settings);
+        writeSetting("appearance", settings);
     }, [settings, hydrated]);
 
     useEffect(() => {
@@ -130,16 +98,12 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
         root.style.setProperty("--sans-line-height", String(settings.sansLineHeight));
         root.style.setProperty("--mono-font-size", `${settings.monospaceFontSize}px`);
         root.style.setProperty("--mono-line-height", String(settings.monospaceLineHeight));
-        // Legacy aliases retained to avoid stale references.
         root.style.setProperty("--app-font-size", `${settings.sansFontSize}px`);
         root.style.setProperty("--app-line-height", String(settings.sansLineHeight));
-        const resolvedTreeFontFamily = fontFamilyToCss(settings.treeUseCustomTypography ? settings.treeFontFamily : settings.sansFontFamily);
-        const resolvedTreeFontSize = deriveTreeFontSize(settings.treeUseCustomTypography, settings.treeFontSize, settings.sansFontSize);
-        const resolvedTreeLineHeight = deriveTreeLineHeight(settings.treeUseCustomTypography, settings.treeLineHeight, settings.sansLineHeight);
-        root.style.setProperty("--tree-font-family", resolvedTreeFontFamily);
+        root.style.setProperty("--tree-font-family", fontFamilyToCss(settings.sansFontFamily));
         root.style.setProperty("--comment-font-family", fontFamilyToCss(settings.sansFontFamily));
-        root.style.setProperty("--tree-font-size", `${resolvedTreeFontSize}px`);
-        root.style.setProperty("--tree-line-height", String(resolvedTreeLineHeight));
+        root.style.setProperty("--tree-font-size", `${normalizeFontSize(settings.sansFontSize - 2, 10, 18)}px`);
+        root.style.setProperty("--tree-line-height", String(normalizeLineHeight(settings.sansLineHeight - 0.1, 1, 2.2)));
     }, [
         settings.sansFontFamily,
         settings.monospaceFontFamily,
@@ -147,10 +111,6 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
         settings.sansLineHeight,
         settings.monospaceFontSize,
         settings.monospaceLineHeight,
-        settings.treeUseCustomTypography,
-        settings.treeFontFamily,
-        settings.treeFontSize,
-        settings.treeLineHeight,
     ]);
 
     useEffect(() => {
@@ -213,24 +173,6 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
             monospaceLineHeight: normalizeLineHeight(lineHeight, 1, 2.2),
         }));
     }, []);
-    const setTreeUseCustomTypography = useCallback((enabled: boolean) => {
-        setSettings((prev) => ({ ...prev, treeUseCustomTypography: enabled }));
-    }, []);
-    const setTreeFontFamily = useCallback((font: FontFamilyValue) => {
-        setSettings((prev) => ({ ...prev, treeFontFamily: font }));
-    }, []);
-    const setTreeFontSize = useCallback((size: number) => {
-        setSettings((prev) => ({
-            ...prev,
-            treeFontSize: normalizeFontSize(size, 10, 18),
-        }));
-    }, []);
-    const setTreeLineHeight = useCallback((lineHeight: number) => {
-        setSettings((prev) => ({
-            ...prev,
-            treeLineHeight: normalizeLineHeight(lineHeight, 1, 2.2),
-        }));
-    }, []);
     const resetAppearance = useCallback(() => {
         setSettings(() => ({ ...defaultAppearance }));
     }, []);
@@ -245,10 +187,6 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
             setSansLineHeight,
             setMonospaceFontSize,
             setMonospaceLineHeight,
-            setTreeUseCustomTypography,
-            setTreeFontFamily,
-            setTreeFontSize,
-            setTreeLineHeight,
             resetAppearance,
         }),
         [
@@ -260,10 +198,6 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
             setSansLineHeight,
             setMonospaceFontSize,
             setMonospaceLineHeight,
-            setTreeUseCustomTypography,
-            setTreeFontFamily,
-            setTreeFontSize,
-            setTreeLineHeight,
             resetAppearance,
         ],
     );

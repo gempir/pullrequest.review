@@ -1,8 +1,9 @@
+import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSelectedRepoPullRequests } from "@/features/landing/hooks/use-selected-repo-pull-requests";
 import type { DiffPanel } from "@/features/landing/model/landing-model";
-import { getGitHostFetchActivitySnapshot, getRepositoryCollection, subscribeGitHostFetchActivity } from "@/lib/git-host/query-collections";
+import { repositoriesQuery } from "@/lib/git-host/queries";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
 
@@ -17,27 +18,22 @@ export function useLandingPageView({ initialHost, initialDiffPanel = "pull-reque
         isRepoPullRequestLoading,
         openPullRequest,
         refetch: refetchPullRequests,
-    } = useSelectedRepoPullRequests({ autoRefetch: true });
+    } = useSelectedRepoPullRequests();
 
     const [diffPanel, setDiffPanel] = useState<DiffPanel>(initialDiffPanel);
     const showRepositoryPanel = Boolean(initialHost) || diffPanel === "repositories";
-    const showPullRequestPanel = !showRepositoryPanel;
-    const fetchActivity = useSyncExternalStore(subscribeGitHostFetchActivity, getGitHostFetchActivitySnapshot, getGitHostFetchActivitySnapshot);
-    const activeHostRepositoryCollection = useMemo(() => getRepositoryCollection(activeHost), [activeHost]);
+    const queryClient = useQueryClient();
+    const isFetching = useIsFetching() > 0;
 
     useEffect(() => {
         if (!initialHost) return;
         setActiveHost(initialHost);
     }, [initialHost, setActiveHost]);
 
-    const refreshCurrentView = useCallback(async () => {
-        if (showRepositoryPanel) {
-            await activeHostRepositoryCollection.utils.refetch({ throwOnError: false });
-            return;
-        }
-        if (!showPullRequestPanel) return;
-        await refetchPullRequests();
-    }, [activeHostRepositoryCollection, refetchPullRequests, showPullRequestPanel, showRepositoryPanel]);
+    const refreshCurrentView = async () => {
+        if (showRepositoryPanel) await queryClient.refetchQueries({ queryKey: repositoriesQuery(activeHost).queryKey });
+        else await refetchPullRequests();
+    };
 
     const openRepositorySelection = useCallback(
         (host: GitHost) => {
@@ -57,7 +53,7 @@ export function useLandingPageView({ initialHost, initialDiffPanel = "pull-reque
         selectedRepoCount,
         showRepositoryPanel,
         sortedRootPullRequests,
-        isRefreshing: fetchActivity.activeFetchCount > 0,
+        isRefreshing: isFetching,
         isRepoPullRequestLoading,
         clearReposForHost,
         openPullRequest,

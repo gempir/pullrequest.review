@@ -2,7 +2,10 @@ import { RotateCcw, Settings2 } from "lucide-react";
 import { useCallback } from "react";
 import type { SettingsTab } from "@/components/settings-navigation";
 import { Button } from "@/components/ui/button";
-import { AppearanceTab, DiffSettingsTab, ShortcutsTab, StorageTab, TreeTab, type WorkspaceMode } from "@/features/settings/components/settings-tabs";
+import { AppearanceTab } from "@/features/settings/components/appearance-tab";
+import { DiffSettingsTab, type WorkspaceMode } from "@/features/settings/components/diff-settings-tab";
+import { ShortcutsTab } from "@/features/settings/components/shortcuts-tab";
+import { TreeTab } from "@/features/settings/components/tree-tab";
 import { useAppearance } from "@/lib/appearance-context";
 import { useDiffOptions } from "@/lib/diff-options-context";
 import { useFileTree } from "@/lib/file-tree-context";
@@ -28,10 +31,6 @@ function useResetAllSettingsAction() {
         resetTreePreferences();
         resetShortcuts();
     }, [resetAppearance, resetOptions, resetShortcuts, resetTreePreferences]);
-}
-
-function useResolvedSettingsTab({ activeTab: controlledActiveTab }: Pick<SettingsPanelSharedProps, "activeTab">) {
-    return { resolvedActiveTab: controlledActiveTab ?? "appearance" };
 }
 
 function SettingsPanelHeader({ onClose, onResetAllSettings }: { onClose?: () => void; onResetAllSettings?: () => void }) {
@@ -70,19 +69,17 @@ function SettingsPanelContent({
     if (activeTab === "diff") return <DiffSettingsTab workspaceMode={workspaceMode} onWorkspaceModeChange={onWorkspaceModeChange} />;
     if (activeTab === "tree") return <TreeTab />;
     if (activeTab === "shortcuts") return <ShortcutsTab />;
-    if (activeTab === "storage") return <StorageTab />;
     return <AppearanceTab />;
 }
 
 export function SettingsPanelContentOnly({ workspaceMode, onWorkspaceModeChange, onClose, activeTab }: SettingsPanelSharedProps = {}) {
-    const { resolvedActiveTab } = useResolvedSettingsTab({ activeTab });
     const resetAllSettings = useResetAllSettingsAction();
 
     return (
         <div className="flex h-full min-h-0 flex-col">
             <SettingsPanelHeader onClose={onClose} onResetAllSettings={resetAllSettings} />
             <div className="flex-1 overflow-auto px-3 py-2.5">
-                <SettingsPanelContent workspaceMode={workspaceMode} onWorkspaceModeChange={onWorkspaceModeChange} activeTab={resolvedActiveTab} />
+                <SettingsPanelContent workspaceMode={workspaceMode} onWorkspaceModeChange={onWorkspaceModeChange} activeTab={activeTab ?? "appearance"} />
             </div>
         </div>
     );

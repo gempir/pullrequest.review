@@ -112,6 +112,7 @@ export interface PullRequestHistoryEvent {
     id: string;
     type: PullRequestHistoryEventType;
     createdAt?: string;
+    updatedAt?: string;
     actor?: { displayName?: string; avatarUrl?: string };
     content?: string;
     contentHtml?: string;

@@ -11,8 +11,6 @@ export type EditCommentHandler = (commentId: number, content: string, hasInlineC
 
 export type ReplyCommentHandler = (commentId: number, content: string) => Promise<unknown> | undefined;
 
-export const COMMENT_RELATIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000;
-
 export type CommentDiffSnippetRow = {
     type: "context" | "addition" | "deletion";
     oldLine?: number;
@@ -360,6 +358,7 @@ export function buildSummaryTimeline(bundle: PullRequestBundle) {
                 id: `fallback-comment-${comment.id}`,
                 type: "comment",
                 createdAt: comment.createdAt,
+                updatedAt: comment.updatedAt,
                 actor: {
                     displayName: comment.user?.displayName,
                     avatarUrl: comment.user?.avatarUrl,

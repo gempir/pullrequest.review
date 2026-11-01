@@ -198,6 +198,7 @@ function mapIssueCommentToHistory(comment: GithubIssueComment): PullRequestHisto
         id: `github-issue-comment-${comment.id}`,
         type: "comment",
         createdAt: comment.created_at,
+        updatedAt: comment.updated_at,
         actor: {
             displayName: comment.user?.login,
             avatarUrl: comment.user?.avatar_url,

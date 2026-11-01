@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { describeTimestamp, type TimestampValue } from "@/lib/timestamp";
+import { describeCommentTimestamp, describeTimestamp, type TimestampValue } from "@/lib/timestamp";
 import { cn } from "@/lib/utils";
 
 const TIMESTAMP_STYLE = { fontFamily: "var(--mono-font-family)" } as const;
@@ -12,12 +12,12 @@ type TimestampProps = {
     tooltipSide?: ComponentProps<typeof TooltipContent>["side"];
     tooltipLabel?: string;
     unknownLabel?: string;
-    relativeThresholdMs?: number;
+    variant?: "default" | "comment";
     withTooltip?: boolean;
 };
 
-export function Timestamp({ value, className, tooltipSide = "top", tooltipLabel, unknownLabel, relativeThresholdMs, withTooltip = true }: TimestampProps) {
-    const display = describeTimestamp(value, { unknownLabel, relativeThresholdMs });
+export function Timestamp({ value, className, tooltipSide = "top", tooltipLabel, unknownLabel, variant = "default", withTooltip = true }: TimestampProps) {
+    const display = variant === "comment" ? describeCommentTimestamp(value, { unknownLabel }) : describeTimestamp(value, { unknownLabel });
     const content = (
         <span className={cn(TIMESTAMP_CLASS, className)} style={TIMESTAMP_STYLE}>
             {display.label}

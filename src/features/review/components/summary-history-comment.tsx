@@ -5,7 +5,6 @@ import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
 import { Avatar, COMMENT_PRIMARY_BUTTON_CLASS, CommentDiffSnippetBlock, MarkdownBlock } from "@/features/review/components/summary-shared";
 import {
-    COMMENT_RELATIVE_THRESHOLD_MS,
     type CommentDiffSnippet,
     type EditCommentHandler,
     normalizeName,
@@ -292,11 +291,7 @@ function HistoryCommentMessage(props: HistoryCommentBodyProps) {
                     <div className="flex items-start gap-2">
                         <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                             <span className="truncate text-[13px] font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
-                            <Timestamp
-                                value={event.createdAt}
-                                className="pt-0 text-[11px] text-muted-foreground"
-                                relativeThresholdMs={COMMENT_RELATIVE_THRESHOLD_MS}
-                            />
+                            <Timestamp value={event.updatedAt ?? event.createdAt} className="pt-0 text-[11px] text-muted-foreground" variant="comment" />
                         </div>
                     </div>
                     <div className="mt-1.5 min-w-0">

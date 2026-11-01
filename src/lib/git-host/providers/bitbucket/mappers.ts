@@ -262,6 +262,7 @@ function mapCommentToHistory(comment: Comment): PullRequestHistoryEvent | null {
         id: `bitbucket-comment-${comment.id}`,
         type: "comment",
         createdAt: comment.createdAt,
+        updatedAt: comment.updatedAt,
         actor: {
             displayName: comment.user?.displayName,
             avatarUrl: comment.user?.avatarUrl,

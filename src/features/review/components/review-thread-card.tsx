@@ -10,11 +10,10 @@ import type { CommentThread, CommentThreadNode } from "@/features/review/model/r
 import { commentAnchorId } from "@/lib/file-anchors";
 import { getSuggestionOriginalContents, parseSuggestionMarkdown } from "@/lib/git-host/suggestions";
 import type { Comment as PullRequestComment } from "@/lib/git-host/types";
-import { formatTimestampLabel } from "@/lib/timestamp";
+import { commentTimestampSource, describeCommentTimestamp } from "@/lib/timestamp";
 
 type EditCommentHandler = (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
 type ReplyCommentHandler = (commentId: number, content: string) => Promise<unknown> | undefined;
-const COMMENT_RELATIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000;
 const COMMENT_PRIMARY_BUTTON_CLASS =
     "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none";
 
@@ -74,27 +73,8 @@ function findCommentById(node: CommentThreadNode, commentId: number): CommentThr
     return null;
 }
 
-function formatCommentDate(value?: string) {
-    if (!value) return "";
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return "";
-    if (Math.abs(Date.now() - parsed.getTime()) < COMMENT_RELATIVE_THRESHOLD_MS) {
-        return formatTimestampLabel(parsed, { relativeThresholdMs: COMMENT_RELATIVE_THRESHOLD_MS });
-    }
-    return parsed.toISOString().slice(0, 10);
-}
-
-function formatCommentDateTime(value?: string) {
-    if (!value) return "";
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return "";
-    return parsed.toLocaleString(undefined, {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
+function describeThreadCommentDate(comment: PullRequestComment) {
+    return describeCommentTimestamp(commentTimestampSource(comment), { unknownLabel: "" });
 }
 
 function CommentPendingIndicator() {
@@ -465,8 +445,7 @@ function ThreadReplyNode(props: ThreadReplyNodeProps) {
     const replyHasInlineContext = Boolean(reply.inline?.path);
     const isSavingEdit = pendingCommentId === reply.id;
     const isCommentPending = Boolean(reply.pending) || (isSavingEdit && !isEditingOnNode);
-    const dateLabel = formatCommentDate(reply.createdAt);
-    const dateTimeLabel = formatCommentDateTime(reply.createdAt);
+    const replyDate = describeThreadCommentDate(reply);
 
     return (
         <div className="relative" data-thread-depth={depth} style={{ marginLeft: allowNestedReplies ? 38 : 0 }}>
@@ -475,9 +454,9 @@ function ThreadReplyNode(props: ThreadReplyNodeProps) {
                 <div className="relative z-10 min-w-0 flex-1">
                     <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
                         <span className="font-semibold text-foreground text-[14px]">{reply.user?.displayName ?? "Unknown"}</span>
-                        {dateLabel ? (
-                            <span className="font-semibold tabular-nums" title={dateTimeLabel}>
-                                {dateLabel}
+                        {replyDate.label ? (
+                            <span className="font-semibold tabular-nums" title={replyDate.absoluteLabel ?? undefined}>
+                                {replyDate.label}
                             </span>
                         ) : null}
                         {showCommentShareLinks && threadPath ? <CommentShareButton path={threadPath} commentId={reply.id} /> : null}
@@ -673,8 +652,7 @@ function ThreadRootExpandedContent({
 
 function ThreadRootCommentCard(props: ThreadRootCommentCardProps) {
     const { rootComment, collapsed, isResolved, pendingCommentId, pendingReplyTargetId, editorState, onToggleResolvedCollapsed, showCommentShareLinks } = props;
-    const dateLabel = formatCommentDate(rootComment.createdAt);
-    const dateTimeLabel = formatCommentDateTime(rootComment.createdAt);
+    const rootDate = describeThreadCommentDate(rootComment);
     const isSavingRootEdit = pendingCommentId === rootComment.id;
     const isSavingRootReply = pendingReplyTargetId === rootComment.id;
     const isCommentPending = Boolean(rootComment.pending) || (isSavingRootEdit && editorState.editTargetCommentId !== rootComment.id);
@@ -688,9 +666,9 @@ function ThreadRootCommentCard(props: ThreadRootCommentCardProps) {
             <div className="min-w-0 flex-1">
                 <div className="relative flex items-center gap-3 text-[13px] text-muted-foreground">
                     <span className="font-semibold text-foreground text-[16px]">{rootComment.user?.displayName ?? "Unknown"}</span>
-                    {dateLabel ? (
-                        <span className="font-semibold tabular-nums" title={dateTimeLabel}>
-                            {dateLabel}
+                    {rootDate.label ? (
+                        <span className="font-semibold tabular-nums" title={rootDate.absoluteLabel ?? undefined}>
+                            {rootDate.label}
                         </span>
                     ) : null}
                     {showCommentShareLinks && rootComment.inline?.path ? (

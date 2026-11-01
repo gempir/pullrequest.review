@@ -272,7 +272,11 @@ export function HistoryTimelineItem({
                                 <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
                                 {eventTitle ? <span className="text-muted-foreground">{eventTitle}</span> : null}
                             </div>
-                            <Timestamp value={event.createdAt} className={TIMELINE_TIMESTAMP_CLASS} />
+                            <Timestamp
+                                value={event.updatedAt ?? event.createdAt}
+                                variant={event.type === "comment" ? "comment" : "default"}
+                                className={TIMELINE_TIMESTAMP_CLASS}
+                            />
                         </div>
                     ) : null}
                     {hasAttachedContent ? (

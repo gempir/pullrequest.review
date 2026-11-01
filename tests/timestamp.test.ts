@@ -23,20 +23,29 @@ describe("describeCommentTimestamp", () => {
         expect(result.isRelative).toBe(true);
     });
 
-    test("over twelve hours renders the full local date and time", () => {
+    test("over twelve hours renders the full local date and time, with an exact tooltip", () => {
         const value = ago(13 * HOUR);
         const result = describeCommentTimestamp(value, { now: NOW });
-        const full = new Date(value).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-        expect(result.label).toBe(full);
-        expect(result.absoluteLabel).toBe(full);
+        const date = new Date(value);
+        expect(result.label).toBe(date.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }));
+        expect(result.absoluteLabel).toBe(
+            date.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" }),
+        );
         expect(result.isRelative).toBe(false);
     });
 
-    test("tooltip label is the full date and time for abbreviated values", () => {
+    test("exact tooltip label includes seconds for abbreviated values", () => {
         const value = ago(5 * MINUTE);
         const result = describeCommentTimestamp(value, { now: NOW });
         expect(result.absoluteLabel).toBe(
-            new Date(value).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
+            new Date(value).toLocaleString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                second: "2-digit",
+            }),
         );
     });
 

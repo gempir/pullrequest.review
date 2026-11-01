@@ -24,7 +24,9 @@ export function Timestamp({ value, className, tooltipSide = "top", tooltipLabel,
         </span>
     );
 
-    if (!withTooltip || !display.isRelative || !display.absoluteLabel) {
+    // Comment timestamps always get the exact date and time tooltip, since their full label has no seconds.
+    const showTooltip = withTooltip && Boolean(display.absoluteLabel) && (variant === "comment" || display.isRelative);
+    if (!showTooltip) {
         return content;
     }
 

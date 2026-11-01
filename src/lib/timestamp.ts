@@ -9,6 +9,7 @@ const COMMENT_MINUTES_THRESHOLD_MS = HOUR_MS;
 const COMMENT_TIME_ONLY_THRESHOLD_MS = 12 * HOUR_MS;
 const COMMENT_TIME_OPTIONS: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
 const COMMENT_DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" };
+const COMMENT_EXACT_DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = { ...COMMENT_DATE_TIME_OPTIONS, second: "2-digit" };
 
 const ABSOLUTE_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("en-US", {
     year: "numeric",
@@ -88,7 +89,8 @@ function formatMinutesAgo(ageMs: number) {
 }
 
 // Comment rules: under 1h "N minutes ago", under 12h the local time, otherwise the full local date and time.
-// `isRelative` is true when the label is abbreviated and the full date/time belongs in a tooltip.
+// `absoluteLabel` is the exact local date and time including seconds, for tooltips and titles.
+// `isRelative` is true when the label is abbreviated (minutes or time only).
 export function describeCommentTimestamp(value: TimestampValue, { unknownLabel = "Unknown", now = Date.now() }: { unknownLabel?: string; now?: number } = {}) {
     const parsed = parseTimestamp(value);
     if (!parsed) {
@@ -99,7 +101,7 @@ export function describeCommentTimestamp(value: TimestampValue, { unknownLabel =
         };
     }
 
-    const absoluteLabel = parsed.toLocaleString(undefined, COMMENT_DATE_TIME_OPTIONS);
+    const absoluteLabel = parsed.toLocaleString(undefined, COMMENT_EXACT_DATE_TIME_OPTIONS);
     const ageMs = Math.max(0, now - parsed.getTime());
     if (ageMs < COMMENT_MINUTES_THRESHOLD_MS) {
         return { label: formatMinutesAgo(ageMs), absoluteLabel, isRelative: true };
@@ -107,7 +109,7 @@ export function describeCommentTimestamp(value: TimestampValue, { unknownLabel =
     if (ageMs < COMMENT_TIME_ONLY_THRESHOLD_MS) {
         return { label: parsed.toLocaleTimeString(undefined, COMMENT_TIME_OPTIONS), absoluteLabel, isRelative: true };
     }
-    return { label: absoluteLabel, absoluteLabel, isRelative: false };
+    return { label: parsed.toLocaleString(undefined, COMMENT_DATE_TIME_OPTIONS), absoluteLabel, isRelative: false };
 }
 
 // A comment shows when it was last edited, falling back to when it was created.

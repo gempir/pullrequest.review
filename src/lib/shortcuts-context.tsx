@@ -1,6 +1,6 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ensureDataCollectionsReady, readShortcutsRecord, writeShortcutsRecord } from "@/lib/data/query-collections";
 import { isEditableShortcutEvent } from "@/lib/shortcuts-target";
+import { ensureStorageReady, readSetting, writeSetting } from "@/lib/storage";
 
 export interface ShortcutConfig {
     key: string;
@@ -119,9 +119,9 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let cancelled = false;
         void (async () => {
-            await ensureDataCollectionsReady();
+            await ensureStorageReady();
             if (cancelled) return;
-            const stored = readShortcutsRecord();
+            const stored = readSetting("shortcuts");
             if (stored) {
                 setShortcuts({ ...DEFAULT_SHORTCUTS, ...stored });
             }
@@ -134,7 +134,7 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!hydrated) return;
-        writeShortcutsRecord(shortcuts);
+        writeSetting("shortcuts", shortcuts);
     }, [shortcuts, hydrated]);
 
     const updateShortcut = useCallback((action: keyof Shortcuts, config: Partial<ShortcutConfig>) => {

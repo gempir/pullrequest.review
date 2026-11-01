@@ -1,25 +1,15 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { ensureDataCollectionsReady, readDiffOptionsRecord, writeDiffOptionsRecord } from "@/lib/data/query-collections";
 import { registerExtendedDiffThemes } from "@/lib/diff-theme-registration";
 import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
-import { DEFAULT_FONT_FAMILY, type FontFamilyValue } from "@/lib/font-options";
+import { ensureStorageReady, readSetting, writeSetting } from "@/lib/storage";
 
 export interface DiffOptions {
     followSystemTheme: boolean;
     theme: DiffTheme;
-    diffUseCustomTypography: boolean;
-    diffFontFamily: FontFamilyValue;
-    diffFontSize: number;
-    diffLineHeight: number;
     diffStyle: "unified" | "split";
-    diffIndicators: "classic" | "bars" | "none";
-    disableBackground: boolean;
-    hunkSeparators: "simple" | "metadata" | "line-info";
     expandUnchanged: boolean;
     expansionLineCount: number;
     collapsedContextThreshold: number;
-    lineDiffType: "word-alt" | "word" | "char" | "none";
-    disableLineNumbers: boolean;
     overflow: "scroll" | "wrap";
     collapseViewedFilesByDefault: boolean;
     autoMarkViewedFiles: boolean;
@@ -28,19 +18,10 @@ export interface DiffOptions {
 const defaultOptions: DiffOptions = {
     followSystemTheme: true,
     theme: DEFAULT_DIFF_THEME,
-    diffUseCustomTypography: false,
-    diffFontFamily: DEFAULT_FONT_FAMILY,
-    diffFontSize: 13,
-    diffLineHeight: 1.45,
     diffStyle: "unified",
-    diffIndicators: "none",
-    disableBackground: false,
-    hunkSeparators: "simple",
     expandUnchanged: false,
     expansionLineCount: 100,
     collapsedContextThreshold: 5,
-    lineDiffType: "word",
-    disableLineNumbers: false,
     overflow: "scroll",
     collapseViewedFilesByDefault: false,
     autoMarkViewedFiles: true,
@@ -59,17 +40,6 @@ function getBrowserPreferredTheme(): DiffTheme {
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "pierre-dark" : "pierre-light";
 }
 
-function normalizeDiffFontSize(value: number) {
-    if (!Number.isFinite(value)) return 13;
-    return Math.min(20, Math.max(10, Math.round(value)));
-}
-
-function normalizeDiffLineHeight(value: number) {
-    if (!Number.isFinite(value)) return 1.45;
-    const clamped = Math.min(2.2, Math.max(1, value));
-    return Number(clamped.toFixed(2));
-}
-
 function parseStoredOptions(raw: Record<string, unknown> | null): DiffOptions | null {
     if (!raw) return null;
     const parsed = raw as Partial<DiffOptions>;
@@ -79,9 +49,6 @@ function parseStoredOptions(raw: Record<string, unknown> | null): DiffOptions | 
         ...parsed,
         theme: parsedTheme,
         followSystemTheme: typeof parsed.followSystemTheme === "boolean" ? parsed.followSystemTheme : defaultOptions.followSystemTheme,
-        diffFontFamily: (parsed.diffFontFamily as FontFamilyValue) ?? defaultOptions.diffFontFamily,
-        diffFontSize: normalizeDiffFontSize(Number(parsed.diffFontSize ?? defaultOptions.diffFontSize)),
-        diffLineHeight: normalizeDiffLineHeight(Number(parsed.diffLineHeight ?? defaultOptions.diffLineHeight)),
     };
 }
 
@@ -101,9 +68,9 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let cancelled = false;
         void (async () => {
-            await ensureDataCollectionsReady();
+            await ensureStorageReady();
             if (cancelled) return;
-            const parsed = parseStoredOptions(readDiffOptionsRecord());
+            const parsed = parseStoredOptions(readSetting("diff-options"));
             if (parsed) {
                 setOptions(parsed);
             }
@@ -116,7 +83,7 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!hydrated) return;
-        writeDiffOptionsRecord(options);
+        writeSetting("diff-options", options);
     }, [hydrated, options]);
 
     useEffect(() => {
@@ -139,21 +106,7 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
     }, [options.followSystemTheme]);
 
     const setOption = useCallback(<K extends keyof DiffOptions>(key: K, value: DiffOptions[K]) => {
-        setOptions((prev) => {
-            if (key === "diffFontSize") {
-                return {
-                    ...prev,
-                    diffFontSize: normalizeDiffFontSize(Number(value)),
-                };
-            }
-            if (key === "diffLineHeight") {
-                return {
-                    ...prev,
-                    diffLineHeight: normalizeDiffLineHeight(Number(value)),
-                };
-            }
-            return { ...prev, [key]: value };
-        });
+        setOptions((prev) => ({ ...prev, [key]: value }));
     }, []);
 
     const resetOptions = useCallback(() => {

@@ -1,6 +1,6 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 
-function hashString(value: string) {
+export function hashString(value: string) {
     let hash1 = 0x811c9dc5;
     let hash2 = 0x01000193;
     for (let i = 0; i < value.length; i += 1) {

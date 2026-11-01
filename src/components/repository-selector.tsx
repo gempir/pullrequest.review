@@ -1,9 +1,10 @@
-import { useLiveQuery } from "@tanstack/react-db";
+import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, FolderGit, Loader2, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getRepositoryCollection } from "@/lib/git-host/query-collections";
+import { repositoriesQuery } from "@/lib/git-host/queries";
+import { normalizeRepoRef } from "@/lib/git-host/shared/repo-ref";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 
 export function RepositorySelector({
@@ -21,7 +22,6 @@ export function RepositorySelector({
 }) {
     const [query, setQuery] = useState("");
     const [selected, setSelected] = useState<Set<string>>(new Set());
-    const autoRefetchHostRef = useRef<GitHost | null>(null);
 
     const initialSelection = useMemo(() => initialSelected.map((repo) => repo.fullName).toSorted(), [initialSelected]);
     const initialSelectionKey = initialSelection.join("|");
@@ -31,23 +31,10 @@ export function RepositorySelector({
         setSelected(new Set(initialSelectionKey ? initialSelectionKey.split("|") : []));
     }, [initialSelectionKey]);
 
-    const repositoryCollection = useMemo(() => getRepositoryCollection(host), [host]);
-    const repositoriesQuery = useLiveQuery(
-        (q) => q.from({ repository: repositoryCollection.collection }).select(({ repository }) => ({ ...repository })),
-        [repositoryCollection],
-    );
-
-    useEffect(() => {
-        if (repositoryCollection.utils.isFetching) return;
-        if (repositoryCollection.utils.lastError) return;
-        if (autoRefetchHostRef.current === host) return;
-        autoRefetchHostRef.current = host;
-        void repositoryCollection.utils.refetch({ throwOnError: false });
-    }, [host, repositoryCollection]);
-
-    const entries = useMemo(() => (repositoriesQuery.data ?? []).filter((repo) => repo.host === host), [host, repositoriesQuery.data]);
-    const repositoryError = repositoryCollection.utils.lastError;
-    const isRepositoryLoading = repositoriesQuery.isLoading || (repositoryCollection.utils.isFetching && entries.length === 0);
+    const repositories = useQuery(repositoriesQuery(host));
+    const entries = useMemo(() => (repositories.data ?? []).map(normalizeRepoRef), [repositories.data]);
+    const repositoryError = repositories.error;
+    const isRepositoryLoading = repositories.isLoading;
     const filtered = useMemo(() => {
         const term = query.trim().toLowerCase();
         if (!term) return entries;

@@ -3,19 +3,17 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createRootRoute, HeadContent, Link, Outlet, Scripts, useHydrated, useRouterState } from "@tanstack/react-router";
 import { GitPullRequest } from "lucide-react";
-import { type ReactNode, useEffect } from "react";
+import type { ReactNode } from "react";
 import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { AppPullRequestOmnibar } from "@/components/omnibar/app-pull-request-omnibar";
 import { AppearanceProvider } from "@/lib/appearance-context";
-import { ensureDataCollectionsReady } from "@/lib/data/query-collections";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
-import { getHostLabel } from "@/lib/git-host/service";
+import { getHostLabel } from "@/lib/git-host/registry";
 import type { GitHost } from "@/lib/git-host/types";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
 import { appQueryClient } from "@/lib/query-client";
-import { ensureLongTaskObserver } from "@/lib/review-performance/metrics";
 import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
@@ -55,11 +53,6 @@ function NotFoundComponent() {
 }
 
 function RootComponent() {
-    useEffect(() => {
-        void ensureDataCollectionsReady();
-        ensureLongTaskObserver();
-    }, []);
-
     return (
         <QueryClientProvider client={appQueryClient}>
             <AppearanceProvider>

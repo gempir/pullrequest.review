@@ -15,7 +15,7 @@ export function AppPullRequestOmnibar() {
     });
     const onReviewPage = isReviewPath(pathname);
     const [open, setOpen] = useState(false);
-    const { sortedRootPullRequests, openPullRequest } = useSelectedRepoPullRequests({ autoRefetch: !onReviewPage });
+    const { sortedRootPullRequests, openPullRequest } = useSelectedRepoPullRequests({ enabled: !onReviewPage });
 
     const handleOpenOmnibar = useCallback(() => {
         if (onReviewPage) return;

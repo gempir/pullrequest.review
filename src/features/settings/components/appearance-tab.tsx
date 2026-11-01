@@ -1,20 +1,21 @@
-import { useMemo } from "react";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberStepperInput } from "@/components/ui/number-stepper-input";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppearance } from "@/lib/appearance-context";
-import { getDetectedFontOptionFromValue, useDetectedMonospaceFontOptions } from "@/lib/detected-monospace-fonts";
-import { type FontFamilyValue, fontFamilyToCss, isDetectedFontFamilyValue, MONO_FONT_FAMILY_OPTIONS, SANS_FONT_FAMILY_OPTIONS } from "@/lib/font-options";
+import {
+    DEFAULT_FONT_FAMILY,
+    type FontFamilyValue,
+    fontFamilyToCss,
+    getCustomFontName,
+    MONO_FONT_FAMILY_OPTIONS,
+    makeCustomFontFamilyValue,
+    SANS_FONT_FAMILY_OPTIONS,
+} from "@/lib/font-options";
 
 export function AppearanceTab() {
     const appearance = useAppearance();
-    const detectedMonospaceFonts = useDetectedMonospaceFontOptions();
-    const resolvedDetectedMonospaceFonts = useMemo(() => {
-        if (!isDetectedFontFamilyValue(appearance.monospaceFontFamily)) return detectedMonospaceFonts;
-        if (detectedMonospaceFonts.some((font) => font.value === appearance.monospaceFontFamily)) return detectedMonospaceFonts;
-        const fallback = getDetectedFontOptionFromValue(appearance.monospaceFontFamily);
-        return fallback ? [...detectedMonospaceFonts, fallback] : detectedMonospaceFonts;
-    }, [appearance.monospaceFontFamily, detectedMonospaceFonts]);
+    const customMonospaceFont = getCustomFontName(appearance.monospaceFontFamily);
 
     return (
         <div className="max-w-3xl space-y-3">
@@ -85,26 +86,33 @@ export function AppearanceTab() {
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="max-h-60">
-                                <SelectGroup>
-                                    <SelectLabel className="text-[11px] text-muted-foreground">Curated fonts</SelectLabel>
-                                    {MONO_FONT_FAMILY_OPTIONS.map((font) => (
-                                        <SelectItem key={font.value} value={font.value} className="text-[12px]">
-                                            {font.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                                {resolvedDetectedMonospaceFonts.length ? (
-                                    <SelectGroup>
-                                        <SelectLabel className="text-[11px] text-muted-foreground">Detected fonts</SelectLabel>
-                                        {resolvedDetectedMonospaceFonts.map((font) => (
-                                            <SelectItem key={font.value} value={font.value} className="text-[12px]">
-                                                {font.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
+                                {customMonospaceFont ? (
+                                    <SelectItem value={appearance.monospaceFontFamily} className="text-[12px]">
+                                        {customMonospaceFont}
+                                    </SelectItem>
                                 ) : null}
+                                {MONO_FONT_FAMILY_OPTIONS.map((font) => (
+                                    <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                                        {font.label}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="custom-monospace-font" className="text-[12px] text-muted-foreground">
+                            Custom Monospaced Font
+                        </Label>
+                        <Input
+                            id="custom-monospace-font"
+                            className="h-9 text-[12px]"
+                            placeholder="Any installed font, e.g. Berkeley Mono"
+                            value={customMonospaceFont ?? ""}
+                            onChange={(event) => {
+                                const name = event.target.value;
+                                appearance.setMonospaceFontFamily(name ? makeCustomFontFamilyValue(name) : DEFAULT_FONT_FAMILY);
+                            }}
+                        />
                     </div>
                     <div className="space-y-1">
                         <Label className="text-[12px] text-muted-foreground">Monospaced Font Size</Label>

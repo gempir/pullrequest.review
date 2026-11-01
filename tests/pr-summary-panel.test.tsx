@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PullRequestSummaryPanel } from "../src/components/pr-summary-panel";
+import { PullRequestSummaryPanel } from "../src/features/review/components/pr-summary-panel";
 import type { PullRequestBundle } from "../src/lib/git-host/types";
 
 const bundle: PullRequestBundle = {

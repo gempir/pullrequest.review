@@ -12,21 +12,26 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 - Keep the app client-first and avoid unnecessary server complexity.
 - Prefer existing context/state patterns before introducing new globals.
 - Keep git host integration host-agnostic where possible.
-- Prefer TanStack DB collections + live queries for externally loaded app data.
+- Use TanStack Query for externally loaded app data.
 
-## TanStack DB Architecture
-- External host data is collection-driven.
-- Components read host data via `useLiveQuery` against the scoped `.collection` instead of ad-hoc `useQuery` calls in UI components.
-- App bootstrap must initialize both settings storage and host-data storage (`ensureStorageReady()` + `ensureGitHostDataReady()`) before rendering data-dependent providers.
-- To extend host data features, add/extend a collection in `src/lib/git-host/query-collections.ts` first, then consume it from UI with `useLiveQuery` and scoped collection utils.
+## Host Data
+- Host data is server state owned by TanStack Query. Add query definitions to `src/lib/git-host/queries.ts` and read them with `useQuery`/`useQueries`.
+- Mutations go through `getHostClient(host)` and refetch the affected query on success.
+- The query client does not retry and does not refetch on focus, because host APIs are rate limited.
+- Pull request loading has two stages: a critical query (pull request, diff, commits) and a deferred query (comments, history, reviewers, builds).
 
-## Persistence (RxDB-backed)
-- App persistence uses a TanStack DB + RxDB-backed key/value layer in `src/lib/storage/client-storage-db.ts`.
-- `src/lib/storage/versioned-local-storage.ts` is the storage API surface used by contexts/components/providers.
-- Do not introduce direct `window.localStorage` usage in `src/`; route reads/writes through storage helpers.
-- Settings/auth/view state keys use `makeVersionedStorageKey(...)`.
-- Old storage keys/data are not read; storage is current-schema-only.
-- To add persisted settings or UI state, add a new versioned key and keep all read/write logic inside the storage helpers or the owning context/provider.
+## Persistence
+- `src/lib/storage.ts` is the only persistence API. It is a small key/value store over IndexedDB (`idb-keyval`), cached in memory so reads stay synchronous, and synced between tabs with `BroadcastChannel`.
+- Do not use `window.localStorage` in `src/`.
+- `ensureStorageReady()` must resolve before reading persisted values.
+- Storage is current-schema-only: old data is not migrated. Review state expires after 30 days; settings and credentials do not.
+- To persist something new, add a typed read/write pair to `src/lib/storage.ts`.
+
+## Review Page Structure
+- `src/features/review/hooks/use-review-controller.ts` composes the focused hooks and is exposed to views through `useReview()` in `components/review-context.ts`. Add new logic to a focused hook, not to the controller.
+- View components read `useReview()` instead of receiving long prop lists. `ThreadCard`, `PullRequestSummaryPanel`, and `ReviewTopNavbar` stay prop-driven so they can be rendered in tests.
+- Pure logic belongs in `src/features/review/model/`.
+- Provider code is split into `api.ts` (auth, requests), `raw-types.ts`, `mappers.ts` (snake_case to app models), and `client.ts`.
 
 ## Host and Routing Conventions
 - Bitbucket PR route: `/$workspace/$repo/pull-requests/$pullRequestId`.
@@ -41,7 +46,7 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 - Use memoization for provider/context values when needed to avoid avoidable re-renders.
 
 ## Validation
-- Run dagger check after making changes
+- Run `bun run tsc`, `bun run check`, `bun run knip`, `bun test`, `bun run react-doctor`, and `bun run build` after making changes. CI runs the same checks.
 
 ## UI Conventions
 - Monospaced-first typography.

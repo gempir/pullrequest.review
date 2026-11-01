@@ -1,43 +1,18 @@
-import { BoldPlugin, CodePlugin, ItalicPlugin } from "@platejs/basic-nodes/react";
-import { Bold, Code2, Italic, Link as LinkIcon, List, Quote } from "lucide-react";
-import type { Value } from "platejs";
-import { Plate, PlateContent, usePlateEditor } from "platejs/react";
-import type { CSSProperties } from "react";
-import { useCallback, useEffect, useMemo } from "react";
+import { Bold, Code2, Italic, Lightbulb, Link as LinkIcon, List, Quote } from "lucide-react";
+import { type CSSProperties, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { COMMENT_MARKDOWN_ACTIONS } from "@/lib/comment-markdown-actions";
 import { cn } from "@/lib/utils";
 
-function normalizeDraftText(text: string): string {
-    const normalized = text.replaceAll("\r\n", "\n");
-    const lines = normalized.split("\n");
-    if (lines.length < 8) return normalized;
-    const shortLines = lines.filter((line) => line.length <= 1).length;
-    if (shortLines / lines.length < 0.8) return normalized;
-    return lines.join("");
-}
-
-function textToValue(text: string): Value {
-    const normalized = normalizeDraftText(text);
-    const lines = normalized.split("\n");
-    if (lines.length === 0) {
-        return [{ type: "p", children: [{ text: "" }] }];
-    }
-    return lines.map((line) => ({
-        type: "p",
-        children: [{ text: line }],
-    }));
-}
-
-function nodeText(node: unknown): string {
-    if (!node || typeof node !== "object") return "";
-    if ("text" in node && typeof node.text === "string") return node.text;
-    if (!("children" in node) || !Array.isArray(node.children)) return "";
-    return node.children.map((child) => nodeText(child)).join("");
-}
-
-function valueToText(value: Value): string {
-    return value.map((node) => nodeText(node)).join("\n");
-}
+const TOOLBAR_ACTIONS = [
+    { action: "bold", label: "Bold", Icon: Bold },
+    { action: "italic", label: "Italic", Icon: Italic },
+    { action: "link", label: "Link", Icon: LinkIcon },
+    { action: "code", label: "Code", Icon: Code2 },
+    { action: "quote", label: "Quote", Icon: Quote },
+    { action: "list", label: "List", Icon: List },
+    { action: "suggestion", label: "Suggest change", Icon: Lightbulb },
+] as const;
 
 export function CommentEditor({
     value,
@@ -62,149 +37,82 @@ export function CommentEditor({
     contentStyle?: CSSProperties;
     chrome?: "full" | "toolbar";
 }) {
-    const initialValue = useMemo(() => textToValue(value), [value]);
-    const editor = usePlateEditor({
-        plugins: [BoldPlugin, ItalicPlugin, CodePlugin],
-        value: initialValue,
-    });
-    const notifyReady = useCallback(
-        (node: HTMLDivElement | null) => {
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const attachTextarea = useCallback(
+        (node: HTMLTextAreaElement | null) => {
+            textareaRef.current = node;
             if (!node) return;
-            onReady?.(() => editor.tf.focus({ edge: "endEditor" }));
+            onReady?.(() => {
+                node.focus();
+                node.setSelectionRange(node.value.length, node.value.length);
+            });
         },
-        [editor, onReady],
+        [onReady],
     );
 
-    useEffect(() => {
-        const current = valueToText(editor.children as Value);
-        if (current === value) return;
-        editor.tf.setValue(textToValue(value));
-    }, [editor, value]);
-
-    const toolbarButtonClassName = chrome === "full" ? "h-7 rounded-[2px] px-2" : "h-6 rounded-[2px] px-0.5 [&_svg]:-translate-x-0.5";
+    const applyAction = (action: keyof typeof COMMENT_MARKDOWN_ACTIONS) => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+        const edit = COMMENT_MARKDOWN_ACTIONS[action]({ value, start: textarea.selectionStart, end: textarea.selectionEnd });
+        onChange(edit.text);
+        requestAnimationFrame(() => {
+            textarea.focus();
+            textarea.setSelectionRange(edit.cursorStart, edit.cursorEnd);
+        });
+    };
 
     return (
-        <div ref={notifyReady} className={cn("group/editor flex flex-col", chrome === "full" && "rounded-md bg-comment")}>
-            <Plate editor={editor} onChange={({ value: nextValue }) => onChange(valueToText(nextValue))}>
-                <div
-                    className={cn(
-                        "flex items-center border-comment-border bg-comment-muted",
-                        chrome === "full"
-                            ? "gap-1 rounded-t-md border-x border-t px-1.5 py-1"
-                            : "gap-0.5 border-b border-surface-hover bg-transparent px-0 py-0.5",
-                        toolbarClassName,
-                    )}
-                >
+        <div className={cn("group/editor flex flex-col", chrome === "full" && "rounded-md bg-comment")}>
+            <div
+                className={cn(
+                    "flex items-center",
+                    chrome === "full"
+                        ? "gap-1 rounded-t-md border-x border-t border-comment-border bg-comment-muted px-1.5 py-1"
+                        : "gap-0.5 border-b border-surface-hover bg-transparent px-0 py-0.5",
+                    toolbarClassName,
+                )}
+            >
+                {TOOLBAR_ACTIONS.map(({ action, label, Icon }) => (
                     <Button
+                        key={action}
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className={toolbarButtonClassName}
+                        className={chrome === "full" ? "h-7 rounded-[2px] px-2" : "h-6 rounded-[2px] px-0.5 [&_svg]:-translate-x-0.5"}
                         disabled={disabled}
                         onMouseDown={(event) => {
                             event.preventDefault();
-                            editor.tf.bold.toggle();
+                            applyAction(action);
                         }}
-                        aria-label="Bold"
+                        aria-label={label}
+                        title={label}
                     >
-                        <Bold className="size-3.5" />
+                        <Icon className="size-3.5" />
                     </Button>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={toolbarButtonClassName}
-                        disabled={disabled}
-                        onMouseDown={(event) => {
-                            event.preventDefault();
-                            editor.tf.italic.toggle();
-                        }}
-                        aria-label="Italic"
-                    >
-                        <Italic className="size-3.5" />
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={toolbarButtonClassName}
-                        disabled={disabled}
-                        onMouseDown={(event) => {
-                            event.preventDefault();
-                            editor.tf.insertText("[link text](https://)");
-                        }}
-                        aria-label="Link"
-                    >
-                        <LinkIcon className="size-3.5" />
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={toolbarButtonClassName}
-                        disabled={disabled}
-                        onMouseDown={(event) => {
-                            event.preventDefault();
-                            editor.tf.code.toggle();
-                        }}
-                        aria-label="Code"
-                    >
-                        <Code2 className="size-3.5" />
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={toolbarButtonClassName}
-                        disabled={disabled}
-                        onMouseDown={(event) => {
-                            event.preventDefault();
-                            editor.tf.insertText("> quote");
-                        }}
-                        aria-label="Quote"
-                    >
-                        <Quote className="size-3.5" />
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={toolbarButtonClassName}
-                        disabled={disabled}
-                        onMouseDown={(event) => {
-                            event.preventDefault();
-                            editor.tf.insertText("- item");
-                        }}
-                        aria-label="List"
-                    >
-                        <List className="size-3.5" />
-                    </Button>
-                </div>
-
-                <div
-                    className={cn(
-                        "transition-colors",
-                        chrome === "full" ? "rounded-b-md border border-comment-border bg-comment group-focus-within/editor:border-input" : "bg-transparent",
-                    )}
-                >
-                    <PlateContent
-                        readOnly={disabled}
-                        placeholder={placeholder}
-                        style={{ fontFamily: "var(--comment-font-family)", minHeight: "3.75rem", ...contentStyle }}
-                        onKeyDown={(event) => {
-                            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                                event.preventDefault();
-                                onSubmit();
-                            }
-                        }}
-                        className={cn(
-                            "block w-full overflow-y-auto text-[13px] leading-relaxed transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 whitespace-pre-wrap break-words [&_p]:m-0",
-                            chrome === "full" ? "px-3 py-2" : "p-0",
-                            contentClassName,
-                        )}
-                    />
-                </div>
-            </Plate>
+                ))}
+            </div>
+            <textarea
+                ref={attachTextarea}
+                value={value}
+                readOnly={disabled}
+                placeholder={placeholder}
+                aria-label={placeholder}
+                style={{ fontFamily: "var(--comment-font-family)", minHeight: "3.75rem", fieldSizing: "content", ...contentStyle } as CSSProperties}
+                onChange={(event) => onChange(event.target.value)}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                        event.preventDefault();
+                        onSubmit();
+                    }
+                }}
+                className={cn(
+                    "block w-full resize-none overflow-y-auto text-[13px] leading-relaxed transition-colors whitespace-pre-wrap break-words placeholder:text-muted-foreground focus-visible:outline-none",
+                    chrome === "full"
+                        ? "rounded-b-md border border-comment-border bg-comment px-3 py-2 group-focus-within/editor:border-input"
+                        : "bg-transparent p-0",
+                    contentClassName,
+                )}
+            />
         </div>
     );
 }

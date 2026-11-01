@@ -1,7 +1,9 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { ensureDataCollectionsReady, readHostPreferencesRecord, writeHostPreferencesRecord } from "@/lib/data/query-collections";
-import { getAuthStateForHost, loginToHost, logoutHost } from "@/lib/git-host/service";
+import { getHostClient } from "@/lib/git-host/registry";
+import { normalizeRepoRef } from "@/lib/git-host/shared/repo-ref";
 import type { BitbucketOAuthTokens, GitHost, RepoRef } from "@/lib/git-host/types";
+import { appQueryClient } from "@/lib/query-client";
+import { ensureStorageReady, readHostPreferences, writeHostPreferences } from "@/lib/storage";
 
 const HOSTS: GitHost[] = ["bitbucket", "github"];
 
@@ -45,37 +47,19 @@ function emptyAuthByHost(): AuthByHost {
 }
 
 function parseRepos(host: GitHost): RepoRef[] {
-    const stored = readHostPreferencesRecord();
-    const parsed = stored?.reposByHost?.[host];
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.flatMap((repo) => {
-        if (!repo || repo.host !== host || typeof repo.workspace !== "string" || typeof repo.repo !== "string") {
-            return [];
-        }
-
-        const workspace = repo.workspace.trim();
-        const repositorySlug = repo.repo.trim();
-        if (!workspace || !repositorySlug) return [];
-
-        const fullName = typeof repo.fullName === "string" && repo.fullName.trim().length > 0 ? repo.fullName.trim() : `${workspace}/${repositorySlug}`;
-        const displayName = typeof repo.displayName === "string" && repo.displayName.trim().length > 0 ? repo.displayName.trim() : repositorySlug;
-
-        return [
-            {
-                host,
-                workspace,
-                repo: repositorySlug,
-                fullName,
-                displayName,
-            } satisfies RepoRef,
-        ];
-    });
+    const stored = readHostPreferences()?.reposByHost?.[host];
+    if (!Array.isArray(stored)) return [];
+    return stored.filter((repo) => repo?.host === host && repo.workspace?.trim() && repo.repo?.trim()).map(normalizeRepoRef);
 }
 
-function parseActiveHost(): GitHost {
-    const value = readHostPreferencesRecord()?.activeHost;
-    return value === "github" ? "github" : "bitbucket";
+async function readAuthByHost() {
+    const authByHost = emptyAuthByHost();
+    await Promise.all(
+        HOSTS.map(async (host) => {
+            authByHost[host] = Boolean((await getHostClient(host).getAuthState()).authenticated);
+        }),
+    );
+    return authByHost;
 }
 
 export function PrProvider({ children }: { children: ReactNode }) {
@@ -92,25 +76,11 @@ export function PrProvider({ children }: { children: ReactNode }) {
     });
 
     const refreshAuth = useCallback(async () => {
-        await ensureDataCollectionsReady();
-        const authStates = await Promise.all(
-            HOSTS.map(async (host) => ({
-                host,
-                state: await getAuthStateForHost(host),
-            })),
-        );
-        const nextAuthByHost = emptyAuthByHost();
-        for (const item of authStates) {
-            nextAuthByHost[item.host] = Boolean(item.state.authenticated);
-        }
+        await ensureStorageReady();
+        const nextAuthByHost = await readAuthByHost();
         setState((prev) => {
-            if (prev.authByHost.bitbucket === nextAuthByHost.bitbucket && prev.authByHost.github === nextAuthByHost.github) {
-                return prev;
-            }
-            return {
-                ...prev,
-                authByHost: nextAuthByHost,
-            };
+            if (prev.authByHost.bitbucket === nextAuthByHost.bitbucket && prev.authByHost.github === nextAuthByHost.github) return prev;
+            return { ...prev, authByHost: nextAuthByHost };
         });
     }, []);
 
@@ -118,32 +88,17 @@ export function PrProvider({ children }: { children: ReactNode }) {
         let cancelled = false;
 
         void (async () => {
-            await ensureDataCollectionsReady();
+            await ensureStorageReady();
             if (cancelled) return;
 
-            const nextReposByHost = {
-                bitbucket: parseRepos("bitbucket"),
-                github: parseRepos("github"),
-            };
-            const nextActiveHost = parseActiveHost();
-            const authStates = await Promise.all(
-                HOSTS.map(async (host) => ({
-                    host,
-                    state: await getAuthStateForHost(host),
-                })),
-            );
+            const authByHost = await readAuthByHost();
             if (cancelled) return;
-
-            const nextAuthByHost = emptyAuthByHost();
-            for (const item of authStates) {
-                nextAuthByHost[item.host] = Boolean(item.state.authenticated);
-            }
 
             setState({
                 authHydrated: true,
-                authByHost: nextAuthByHost,
-                reposByHost: nextReposByHost,
-                activeHost: nextActiveHost,
+                authByHost,
+                reposByHost: { bitbucket: parseRepos("bitbucket"), github: parseRepos("github") },
+                activeHost: readHostPreferences()?.activeHost === "github" ? "github" : "bitbucket",
             });
         })();
 
@@ -154,7 +109,7 @@ export function PrProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!state.authHydrated) return;
-        writeHostPreferencesRecord({ activeHost: state.activeHost, reposByHost: state.reposByHost });
+        writeHostPreferences({ activeHost: state.activeHost, reposByHost: state.reposByHost });
     }, [state.activeHost, state.authHydrated, state.reposByHost]);
 
     const setActiveHost = useCallback((host: GitHost) => {
@@ -166,21 +121,7 @@ export function PrProvider({ children }: { children: ReactNode }) {
             ...prev,
             reposByHost: {
                 ...prev.reposByHost,
-                [host]: repos.flatMap((repo) => {
-                    if (repo.host !== host) return [];
-                    const workspace = repo.workspace.trim();
-                    const repositorySlug = repo.repo.trim();
-                    return [
-                        {
-                            host,
-                            workspace,
-                            repo: repositorySlug,
-                            fullName:
-                                typeof repo.fullName === "string" && repo.fullName.trim().length ? repo.fullName.trim() : `${workspace}/${repositorySlug}`,
-                            displayName: typeof repo.displayName === "string" && repo.displayName.trim().length ? repo.displayName.trim() : repositorySlug,
-                        } satisfies RepoRef,
-                    ];
-                }),
+                [host]: repos.filter((repo) => repo.host === host).map(normalizeRepoRef),
             },
         }));
     }, []);
@@ -195,16 +136,18 @@ export function PrProvider({ children }: { children: ReactNode }) {
 
     const login = useCallback<PrContextType["login"]>(
         async (data) => {
-            await loginToHost(data);
+            await getHostClient(data.host).login(data);
             setState((prev) => ({ ...prev, activeHost: data.host }));
             await refreshAuth();
+            void appQueryClient.invalidateQueries();
         },
         [refreshAuth],
     );
 
     const logout = useCallback<PrContextType["logout"]>(async (host) => {
         if (host) {
-            await logoutHost({ host });
+            await getHostClient(host).logout();
+            appQueryClient.clear();
             setState((prev) => ({
                 ...prev,
                 authByHost: { ...prev.authByHost, [host]: false },
@@ -213,7 +156,8 @@ export function PrProvider({ children }: { children: ReactNode }) {
             return;
         }
 
-        await Promise.all(HOSTS.map((entry) => logoutHost({ host: entry })));
+        await Promise.all(HOSTS.map((entry) => getHostClient(entry).logout()));
+        appQueryClient.clear();
         setState((prev) => ({
             ...prev,
             authByHost: emptyAuthByHost(),

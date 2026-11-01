@@ -1,26 +1,10 @@
-import {
-    BetweenHorizontalStart,
-    Expand,
-    FoldVertical,
-    Hash,
-    ImageOff,
-    Rows3,
-    Ruler,
-    SquareSplitVertical,
-    TextCursorInput,
-    Type,
-    UnfoldVertical,
-    WholeWord,
-    WrapText,
-} from "lucide-react";
-import { type ComponentType, useMemo } from "react";
+import { Expand, FoldVertical, SquareSplitVertical, UnfoldVertical, WrapText } from "lucide-react";
+import type { ComponentType } from "react";
 import { Label } from "@/components/ui/label";
 import { NumberStepperInput } from "@/components/ui/number-stepper-input";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { getDetectedFontOptionFromValue, useDetectedMonospaceFontOptions } from "@/lib/detected-monospace-fonts";
 import { type DiffOptions, useDiffOptions } from "@/lib/diff-options-context";
-import { FONT_FAMILY_OPTIONS, type FontFamilyValue, isDetectedFontFamilyValue } from "@/lib/font-options";
 
 type BooleanOptionKey = {
     [K in keyof DiffOptions]: DiffOptions[K] extends boolean ? K : never;
@@ -120,97 +104,16 @@ function OptionNumber({
 }
 
 export function DiffToolbar() {
-    const { options, setOption } = useDiffOptions();
-    const detectedMonospaceFonts = useDetectedMonospaceFontOptions();
-    const resolvedDetectedFonts = useMemo(() => {
-        if (!isDetectedFontFamilyValue(options.diffFontFamily)) return detectedMonospaceFonts;
-        if (detectedMonospaceFonts.some((font) => font.value === options.diffFontFamily)) return detectedMonospaceFonts;
-        const fallback = getDetectedFontOptionFromValue(options.diffFontFamily);
-        return fallback ? [...detectedMonospaceFonts, fallback] : detectedMonospaceFonts;
-    }, [detectedMonospaceFonts, options.diffFontFamily]);
-
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                    <SettingLabel label="Diff Font Family" icon={Type} />
-                    <div className="flex items-center justify-between px-0.5 py-1">
-                        <Label htmlFor="diff-custom-typography" className="text-[12px] text-muted-foreground">
-                            Override diff typography
-                        </Label>
-                        <Switch
-                            id="diff-custom-typography"
-                            checked={options.diffUseCustomTypography}
-                            onCheckedChange={(value) => setOption("diffUseCustomTypography", value)}
-                            size="sm"
-                        />
-                    </div>
-                    <Select
-                        value={options.diffFontFamily}
-                        onValueChange={(v) => setOption("diffFontFamily", v as FontFamilyValue)}
-                        disabled={!options.diffUseCustomTypography}
-                    >
-                        <SelectTrigger className="h-9 text-[12px] w-full" size="sm">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-60">
-                            <SelectGroup>
-                                <SelectLabel className="text-[11px] text-muted-foreground">pullrequest.review fonts</SelectLabel>
-                                {FONT_FAMILY_OPTIONS.map((font) => (
-                                    <SelectItem key={font.value} value={font.value} className="text-[12px]">
-                                        {font.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectGroup>
-                            {resolvedDetectedFonts.length ? (
-                                <>
-                                    <SelectSeparator />
-                                    <SelectGroup>
-                                        <SelectLabel className="text-[11px] text-muted-foreground">Detected monospace fonts</SelectLabel>
-                                        {resolvedDetectedFonts.map((font) => (
-                                            <SelectItem key={font.value} value={font.value} className="text-[12px]">
-                                                {font.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
-                                </>
-                            ) : null}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                <OptionNumber
-                    label="Diff Font Size"
-                    icon={TextCursorInput}
-                    optionKey="diffFontSize"
-                    min={10}
-                    max={20}
-                    disabled={!options.diffUseCustomTypography}
-                />
-                <OptionNumber
-                    label="Diff Line Height"
-                    icon={Ruler}
-                    optionKey="diffLineHeight"
-                    min={1}
-                    max={2.2}
-                    step={0.05}
-                    disabled={!options.diffUseCustomTypography}
-                />
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <OptionSelect label="Diff Layout" icon={SquareSplitVertical} optionKey="diffStyle" values={["unified", "split"]} />
-                <OptionSelect label="Change Indicators" icon={BetweenHorizontalStart} optionKey="diffIndicators" values={["classic", "bars", "none"]} />
-                <OptionSelect label="Hunk Separators" icon={Rows3} optionKey="hunkSeparators" values={["simple", "metadata", "line-info"]} />
-                <OptionSelect label="Inline Diff" icon={WholeWord} optionKey="lineDiffType" values={["word-alt", "word", "char", "none"]} />
                 <OptionSelect label="Line Overflow" icon={WrapText} optionKey="overflow" values={["scroll", "wrap"]} />
                 <OptionNumber label="Expansion Lines" icon={Expand} optionKey="expansionLineCount" min={1} max={200} />
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-                <OptionSwitch label="Disable Background" icon={ImageOff} optionKey="disableBackground" />
                 <OptionSwitch label="Expand Unchanged" icon={UnfoldVertical} optionKey="expandUnchanged" />
-                <OptionSwitch label="Hide Line Numbers" icon={Hash} optionKey="disableLineNumbers" />
                 <OptionSwitch label="Auto Mark Files as Viewed" icon={FoldVertical} optionKey="autoMarkViewedFiles" />
                 <OptionSwitch label="Fold Viewed Files By Default" icon={FoldVertical} optionKey="collapseViewedFilesByDefault" />
             </div>

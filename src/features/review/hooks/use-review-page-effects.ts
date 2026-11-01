@@ -1,0 +1,441 @@
+import type { FileDiffMetadata } from "@pierre/diffs";
+import { useWorkerPool } from "@pierre/diffs/react";
+import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { fileAnchorId } from "@/lib/file-anchors";
+import type { PullRequestBundle } from "@/lib/git-host/types";
+import { buildPrFileHash, clearableHashFromPath, type PrFileHashTarget, parsePrFileHashTarget } from "@/lib/pr-file-hash";
+import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
+
+function resolveCommentFilePath(comments: PullRequestBundle["comments"], commentId: number) {
+    const commentsById = new Map(comments.map((comment) => [comment.id, comment] as const));
+    const visited = new Set<number>();
+    let comment = commentsById.get(commentId);
+    while (comment && !visited.has(comment.id)) {
+        if (comment.inline?.path) return comment.inline.path;
+        visited.add(comment.id);
+        const parentId = comment.parent?.id;
+        comment = typeof parentId === "number" ? commentsById.get(parentId) : undefined;
+    }
+    return undefined;
+}
+
+export function useReviewDocumentTitle({ isLoading, pullRequestTitle }: { isLoading: boolean; pullRequestTitle?: string }) {
+    useEffect(() => {
+        if (typeof document === "undefined") return;
+        if (isLoading) {
+            document.title = "pullrequest.review";
+            return;
+        }
+        const nextTitle = pullRequestTitle?.trim();
+        document.title = nextTitle && nextTitle.length > 0 ? nextTitle : "pullrequest.review";
+        return () => {
+            document.title = "pullrequest.review";
+        };
+    }, [isLoading, pullRequestTitle]);
+}
+
+export function useDiffHighlighterState({ fileDiffs, theme, preloadLanguages }: { fileDiffs: FileDiffMetadata[]; theme: string; preloadLanguages: string[] }) {
+    const workerPool = useWorkerPool();
+    const [diffPlainTextFallback, setDiffPlainTextFallback] = useState(false);
+    const preloadLanguagesKey = useMemo(() => Array.from(new Set(preloadLanguages)).toSorted().join(","), [preloadLanguages]);
+    const languagesForPreload = useMemo(() => {
+        if (!preloadLanguagesKey) return [];
+        return preloadLanguagesKey.split(",");
+    }, [preloadLanguagesKey]);
+
+    useEffect(() => {
+        if (fileDiffs.length === 0) {
+            setDiffPlainTextFallback(false);
+            return;
+        }
+
+        setDiffPlainTextFallback(false);
+        if (!workerPool?.isWorkingPool()) {
+            setDiffPlainTextFallback(true);
+            return;
+        }
+
+        let cancelled = false;
+        void workerPool
+            .setRenderOptions({
+                theme,
+            })
+            .then(() => workerPool.initialize(languagesForPreload as Parameters<typeof workerPool.initialize>[0]))
+            .catch(() => {
+                if (cancelled) return;
+                setDiffPlainTextFallback(true);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [fileDiffs.length, languagesForPreload, theme, workerPool]);
+
+    return { diffPlainTextFallback };
+}
+
+export function useReviewActiveFileSync({
+    showSettingsPanel,
+    settingsTreeItems,
+    settingsPathSet,
+    activeFile,
+    treeOrderedVisiblePaths,
+    visiblePathSet,
+    viewedFiles,
+    setActiveFile,
+}: {
+    showSettingsPanel: boolean;
+    settingsTreeItems: Array<{ path: string }>;
+    settingsPathSet: Set<string>;
+    activeFile: string | undefined;
+    treeOrderedVisiblePaths: string[];
+    visiblePathSet: Set<string>;
+    viewedFiles: Set<string>;
+    setActiveFile: (next: string | undefined) => void;
+}) {
+    useEffect(() => {
+        if (showSettingsPanel) {
+            const firstSettingsPath = settingsTreeItems[0]?.path;
+            if (!firstSettingsPath) return;
+            if (!activeFile || !settingsPathSet.has(activeFile)) {
+                // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- Entering settings selects a valid settings tree item in the shared store.
+                setActiveFile(firstSettingsPath);
+            }
+            return;
+        }
+        if (treeOrderedVisiblePaths.length === 0) return;
+
+        if (!activeFile) {
+            // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- Initialize the shared file selection once visible review paths load.
+            setActiveFile(PR_SUMMARY_PATH);
+            return;
+        }
+
+        if (!visiblePathSet.has(activeFile)) {
+            const firstUnviewed = treeOrderedVisiblePaths.find((path) => path !== PR_SUMMARY_PATH && !viewedFiles.has(path)) ?? treeOrderedVisiblePaths[0];
+            // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- Keep the shared selection valid when filters hide the selected file.
+            setActiveFile(firstUnviewed);
+        }
+    }, [activeFile, settingsPathSet, settingsTreeItems, setActiveFile, showSettingsPanel, treeOrderedVisiblePaths, viewedFiles, visiblePathSet]);
+}
+
+export function useReviewFileHashSelection({
+    selectableFilePaths,
+    comments,
+    commentsLoading,
+    onHashPathResolved,
+}: {
+    selectableFilePaths: Set<string>;
+    comments: PullRequestBundle["comments"];
+    commentsLoading: boolean;
+    onHashPathResolved: (target: PrFileHashTarget & { path: string }) => void;
+}) {
+    useLayoutEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const applyHashSelection = () => {
+            const target = parsePrFileHashTarget(window.location.hash);
+            if (!target) return;
+            let path = target.path;
+            if (!path && target.commentId !== undefined) {
+                if (commentsLoading) return;
+                path = resolveCommentFilePath(comments, target.commentId);
+            }
+            if (!path || !selectableFilePaths.has(path)) return;
+            if (!target.path && target.commentId !== undefined) {
+                const nextUrl = `${window.location.pathname}${window.location.search}#${buildPrFileHash(path, target.commentId)}`;
+                window.history.replaceState(window.history.state, "", nextUrl);
+            }
+            onHashPathResolved({ ...target, path });
+        };
+
+        applyHashSelection();
+        window.addEventListener("hashchange", applyHashSelection);
+        return () => {
+            window.removeEventListener("hashchange", applyHashSelection);
+        };
+    }, [comments, commentsLoading, onHashPathResolved, selectableFilePaths]);
+}
+
+export function useReviewFileHashSync({
+    activeFile,
+    showSettingsPanel,
+    settingsPathSet,
+    selectableFilePaths,
+    isFileSelectionReady,
+    suppressHashSyncRef,
+}: {
+    activeFile: string | undefined;
+    showSettingsPanel: boolean;
+    settingsPathSet: Set<string>;
+    selectableFilePaths: Set<string>;
+    isFileSelectionReady: boolean;
+    suppressHashSyncRef?: MutableRefObject<boolean>;
+}) {
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (suppressHashSyncRef?.current) {
+            suppressHashSyncRef.current = false;
+            return;
+        }
+        if (!showSettingsPanel && !activeFile) return;
+        if (!showSettingsPanel && activeFile && activeFile !== PR_SUMMARY_PATH && !selectableFilePaths.has(activeFile)) {
+            return;
+        }
+
+        const hashTarget = parsePrFileHashTarget(window.location.hash);
+        if (hashTarget?.commentId && !hashTarget.path) return;
+        const hashPath = hashTarget?.path ?? null;
+        if (!showSettingsPanel && hashPath) {
+            // Keep hash-based deep links intact until selectable file paths are loaded.
+            if (!isFileSelectionReady && !selectableFilePaths.has(hashPath)) {
+                return;
+            }
+            // Allow the hash-selection effect to apply a valid file target first
+            // only while file selection has not been resolved yet.
+            if (selectableFilePaths.has(hashPath) && !activeFile) {
+                return;
+            }
+            // If we're still on summary while file selection is not ready, keep the hash
+            // so selection can happen once file entries are ready.
+            if (activeFile === PR_SUMMARY_PATH && activeFile !== hashPath && !isFileSelectionReady) {
+                return;
+            }
+        }
+
+        const nextHash = showSettingsPanel
+            ? undefined
+            : clearableHashFromPath(activeFile, {
+                  isSettingsPath: Boolean(activeFile && settingsPathSet.has(activeFile)),
+                  commentId: hashPath === activeFile ? hashTarget?.commentId : undefined,
+              });
+        const currentHash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+        if (!nextHash && !currentHash) return;
+        if (nextHash && currentHash === nextHash) return;
+
+        const nextUrl = `${window.location.pathname}${window.location.search}${nextHash ? `#${nextHash}` : ""}`;
+        window.history.replaceState(window.history.state, "", nextUrl);
+    }, [activeFile, isFileSelectionReady, selectableFilePaths, settingsPathSet, showSettingsPanel, suppressHashSyncRef]);
+}
+
+export function useAllModeScrollSelection({
+    enabled,
+    diffScrollRef,
+    sectionPaths,
+    stickyTopOffset,
+    programmaticTargetRef,
+    suppressObserverUntilRef,
+    onObservedActivePath,
+}: {
+    enabled: boolean;
+    diffScrollRef: MutableRefObject<HTMLDivElement | null>;
+    sectionPaths: string[];
+    stickyTopOffset: number;
+    programmaticTargetRef: MutableRefObject<string | null>;
+    suppressObserverUntilRef: MutableRefObject<number>;
+    onObservedActivePath: (path: string, metadata: { isSticky: boolean }) => void;
+}) {
+    const lastObservedPathRef = useRef<string | null>(null);
+    const lastObservedStickyRef = useRef<boolean | null>(null);
+    const onObservedActivePathRef = useRef(onObservedActivePath);
+
+    useEffect(() => {
+        onObservedActivePathRef.current = onObservedActivePath;
+    }, [onObservedActivePath]);
+
+    useEffect(() => {
+        if (!enabled) return;
+        if (typeof window === "undefined") return;
+        if (sectionPaths.length === 0) return;
+
+        const root = diffScrollRef.current;
+        if (!root) return;
+
+        const sectionAnchors = new Map<string, HTMLElement>();
+        for (const path of sectionPaths) {
+            const anchor = document.getElementById(fileAnchorId(path));
+            if (!anchor) continue;
+            sectionAnchors.set(path, anchor);
+        }
+        if (sectionAnchors.size === 0) return;
+
+        let animationFrameId = 0;
+
+        const resolveCandidate = () => {
+            const rootTop = root.getBoundingClientRect().top;
+            const stickyLine = rootTop + stickyTopOffset;
+            let stickyCandidatePath: string | null = null;
+            let stickyCandidateTop = Number.NEGATIVE_INFINITY;
+            let nonStickyCandidatePath: string | null = null;
+            let nonStickyCandidateTop = Number.POSITIVE_INFINITY;
+
+            for (const path of sectionPaths) {
+                const anchor = sectionAnchors.get(path);
+                if (!anchor) continue;
+                const rect = anchor.getBoundingClientRect();
+                if (rect.bottom <= stickyLine) continue;
+                if (rect.top <= stickyLine) {
+                    if (rect.top > stickyCandidateTop) {
+                        stickyCandidateTop = rect.top;
+                        stickyCandidatePath = path;
+                    }
+                    continue;
+                }
+                if (rect.top < nonStickyCandidateTop) {
+                    nonStickyCandidateTop = rect.top;
+                    nonStickyCandidatePath = path;
+                }
+            }
+
+            const bestPath = stickyCandidatePath ?? nonStickyCandidatePath;
+            if (!bestPath) return;
+
+            const now = Date.now();
+            const suppressed = now < suppressObserverUntilRef.current;
+            const programmaticTarget = programmaticTargetRef.current;
+            if (suppressed && programmaticTarget && bestPath !== programmaticTarget) return;
+
+            const isSticky = stickyCandidatePath === bestPath;
+            if (lastObservedPathRef.current === bestPath && lastObservedStickyRef.current === isSticky) return;
+            lastObservedPathRef.current = bestPath;
+            lastObservedStickyRef.current = isSticky;
+            onObservedActivePathRef.current(bestPath, { isSticky });
+        };
+
+        const queueResolveCandidate = () => {
+            if (animationFrameId !== 0) return;
+            animationFrameId = window.requestAnimationFrame(() => {
+                animationFrameId = 0;
+                resolveCandidate();
+            });
+        };
+
+        const observer = new IntersectionObserver(
+            () => {
+                queueResolveCandidate();
+            },
+            {
+                root,
+                threshold: [0, 0.01, 0.1, 0.25, 0.5, 0.75, 1],
+                rootMargin: `-${stickyTopOffset}px 0px -55% 0px`,
+            },
+        );
+
+        for (const path of sectionPaths) {
+            const anchor = sectionAnchors.get(path);
+            if (!anchor) continue;
+            observer.observe(anchor);
+        }
+
+        root.addEventListener("scroll", queueResolveCandidate, { passive: true });
+        window.addEventListener("resize", queueResolveCandidate);
+        queueResolveCandidate();
+
+        return () => {
+            root.removeEventListener("scroll", queueResolveCandidate);
+            window.removeEventListener("resize", queueResolveCandidate);
+            observer.disconnect();
+            if (animationFrameId !== 0) {
+                window.cancelAnimationFrame(animationFrameId);
+            }
+            lastObservedPathRef.current = null;
+            lastObservedStickyRef.current = null;
+        };
+    }, [diffScrollRef, enabled, programmaticTargetRef, sectionPaths, stickyTopOffset, suppressObserverUntilRef]);
+}
+
+export function useAutoMarkActiveFileViewed({
+    viewMode,
+    autoMarkViewedFiles,
+    showSettingsPanel,
+    activeFile,
+    visiblePathSet,
+    versionIdByPath,
+    markPathViewed,
+}: {
+    viewMode: "single" | "all";
+    autoMarkViewedFiles: boolean;
+    showSettingsPanel: boolean;
+    activeFile: string | undefined;
+    visiblePathSet: Set<string>;
+    versionIdByPath: Map<string, string>;
+    markPathViewed: (path: string) => void;
+}) {
+    const autoMarkedVersionIdsRef = useRef(new Set<string>());
+    useEffect(() => {
+        if (!autoMarkViewedFiles) return;
+        if (viewMode !== "single") return;
+        if (showSettingsPanel) return;
+        if (!activeFile || !visiblePathSet.has(activeFile)) return;
+        if (activeFile === PR_SUMMARY_PATH) return;
+        const selectedVersionId = versionIdByPath.get(activeFile);
+        if (!selectedVersionId) return;
+        if (autoMarkedVersionIdsRef.current.has(selectedVersionId)) return;
+
+        autoMarkedVersionIdsRef.current.add(selectedVersionId);
+        markPathViewed(activeFile);
+    }, [activeFile, autoMarkViewedFiles, markPathViewed, showSettingsPanel, versionIdByPath, viewMode, visiblePathSet]);
+}
+
+export function useEnsureSummarySelection({
+    showSettingsPanel,
+    viewMode,
+    prData,
+    isSummarySelected,
+    selectedFileDiff,
+    setActiveFile,
+}: {
+    showSettingsPanel: boolean;
+    viewMode: "single" | "all";
+    prData: PullRequestBundle | undefined;
+    isSummarySelected: boolean;
+    selectedFileDiff: FileDiffMetadata | undefined;
+    setActiveFile: (next: string | undefined) => void;
+}) {
+    useEffect(() => {
+        if (showSettingsPanel || viewMode !== "single") return;
+        if (!prData) return;
+        if (isSummarySelected) return;
+        if (selectedFileDiff) return;
+        if ((prData.diffstat?.length ?? 0) > 0) return;
+        // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- An empty PR has no file selection, so select its summary in the shared store.
+        setActiveFile(PR_SUMMARY_PATH);
+    }, [isSummarySelected, prData, selectedFileDiff, setActiveFile, showSettingsPanel, viewMode]);
+}
+
+export function useSyncMergeStrategy({
+    prData,
+    mergeStrategies,
+    mergeStrategy,
+    setMergeStrategy,
+}: {
+    prData: PullRequestBundle | undefined;
+    mergeStrategies: string[] | undefined;
+    mergeStrategy: string;
+    setMergeStrategy: Dispatch<SetStateAction<string>>;
+}) {
+    useEffect(() => {
+        if (!prData) return;
+        if (!mergeStrategies?.length) return;
+        if (!mergeStrategies.includes(mergeStrategy)) {
+            // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent -- Host capabilities can change after load; keep the merge selection valid.
+            setMergeStrategy(mergeStrategies[0] ?? "merge");
+        }
+    }, [mergeStrategies, mergeStrategy, prData, setMergeStrategy]);
+}
+
+export function useInlineDraftFocus({
+    inlineComment,
+    inlineDraftFocusRef,
+}: {
+    inlineComment: { path: string; line: number; side: "additions" | "deletions" } | null;
+    inlineDraftFocusRef: MutableRefObject<(() => void) | null>;
+}) {
+    useEffect(() => {
+        if (!inlineComment) return;
+        const timeoutId = window.setTimeout(() => {
+            inlineDraftFocusRef.current?.();
+        }, 0);
+        return () => window.clearTimeout(timeoutId);
+    }, [inlineComment?.line, inlineComment?.path, inlineComment?.side, inlineComment, inlineDraftFocusRef]);
+}

@@ -1,22 +1,4 @@
-import { type FileDiffMetadata, parseDiffFromFile } from "@pierre/diffs";
-import type { GitHost } from "@/lib/git-host/types";
-
-export type Suggestion = {
-    content: string;
-    inline: {
-        path: string;
-        to: number;
-        startTo?: number;
-    };
-};
-
-type BuildSuggestionsParams = {
-    host: GitHost;
-    path: string;
-    originalContents: string;
-    editedContents: string;
-    language?: string;
-};
+import type { FileDiffMetadata } from "@pierre/diffs";
 
 const BITBUCKET_SUGGESTION_TRAILER = "\u200c";
 
@@ -25,14 +7,6 @@ type SuggestionInline = {
     startTo?: number;
     outdated?: boolean;
 };
-
-export function formatSuggestion(replacement: string, host: GitHost) {
-    const code = replacement === "" || replacement.endsWith("\n") ? replacement : `${replacement}\n`;
-    const longestBacktickRun = Math.max(0, ...Array.from(code.matchAll(/`+/g), (match) => match[0].length));
-    const fence = "`".repeat(Math.max(3, longestBacktickRun + 1));
-    const suggestion = `${fence}suggestion\n${code}${fence}`;
-    return host === "bitbucket" ? `${suggestion}\n\n${BITBUCKET_SUGGESTION_TRAILER}` : suggestion;
-}
 
 /**
  * Parses standard GitHub and Bitbucket suggestion Markdown. Comments with
@@ -44,6 +18,12 @@ export function parseSuggestionMarkdown(raw?: string) {
     const match = /^(`{3,})suggestion[ \t]*\r?\n((?:[\s\S]*\r?\n)?)\1[ \t]*(?:\r?\n[\s\u200c]*)?$/.exec(raw);
     if (!match) return null;
     return match[2] ?? "";
+}
+
+/** Bitbucket only renders a suggestion comment as a suggestion when this trailer follows the fence. */
+export function withBitbucketSuggestionTrailer(content: string) {
+    if (parseSuggestionMarkdown(content) === null || content.includes(BITBUCKET_SUGGESTION_TRAILER)) return content;
+    return `${content.trimEnd()}\n\n${BITBUCKET_SUGGESTION_TRAILER}`;
 }
 
 /**
@@ -65,64 +45,4 @@ export function getSuggestionOriginalContents(inline: SuggestionInline | undefin
     const sourceLines = fileDiff.additionLines.slice(startIndex, startIndex + end - start + 1);
     if (sourceLines.length !== end - start + 1) return null;
     return sourceLines.join("");
-}
-
-export function getSuggestionKey(suggestion: Suggestion) {
-    return JSON.stringify([suggestion.inline.path, suggestion.inline.startTo ?? suggestion.inline.to, suggestion.inline.to, suggestion.content]);
-}
-
-/**
- * Turns a complete edited source file into suggestion comments anchored to
- * the pull request's current source lines.
- *
- * Replacements and deletions map directly to their source range. Insertions
- * borrow one neighboring source line and replace it with itself plus the
- * inserted text, giving the host a stable line on which to anchor the
- * suggestion.
- */
-export function buildSuggestions({ host, path, originalContents, editedContents, language }: BuildSuggestionsParams): Suggestion[] {
-    if (originalContents === editedContents) return [];
-
-    const fileDiff = parseDiffFromFile({ name: path, contents: originalContents, lang: language }, { name: path, contents: editedContents, lang: language });
-    const suggestions: Suggestion[] = [];
-
-    for (const hunk of fileDiff.hunks) {
-        for (const change of hunk.hunkContent) {
-            if (change.type !== "change") continue;
-
-            const addedContents = fileDiff.additionLines.slice(change.additionLineIndex, change.additionLineIndex + change.additions).join("");
-
-            if (change.deletions > 0) {
-                const startTo = change.deletionLineIndex + 1;
-                const to = change.deletionLineIndex + change.deletions;
-                suggestions.push({
-                    content: formatSuggestion(addedContents, host),
-                    inline: {
-                        path,
-                        to,
-                        ...(startTo < to ? { startTo } : {}),
-                    },
-                });
-                continue;
-            }
-
-            if (change.deletions === 0 && change.additions > 0 && fileDiff.deletionLines.length > 0) {
-                const insertionIndex = change.deletionLineIndex;
-                const anchorIndex = insertionIndex > 0 ? insertionIndex - 1 : 0;
-                const anchorContents = fileDiff.deletionLines[anchorIndex];
-                if (anchorContents === undefined) continue;
-
-                const replacement = insertionIndex > 0 ? `${anchorContents}${addedContents}` : `${addedContents}${anchorContents}`;
-                suggestions.push({
-                    content: formatSuggestion(replacement, host),
-                    inline: {
-                        path,
-                        to: anchorIndex + 1,
-                    },
-                });
-            }
-        }
-    }
-
-    return suggestions;
 }

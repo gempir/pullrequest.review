@@ -22,7 +22,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
-import { getHostLabel } from "@/lib/git-host/service";
+import { getHostLabel } from "@/lib/git-host/registry";
 import type { RepoRef } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
 

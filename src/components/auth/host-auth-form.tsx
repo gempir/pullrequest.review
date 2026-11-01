@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { startBitbucketOAuth } from "@/lib/bitbucket-oauth";
-import { getHostLabel } from "@/lib/git-host/service";
+import { getHostLabel } from "@/lib/git-host/registry";
 import type { GitHost } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
 

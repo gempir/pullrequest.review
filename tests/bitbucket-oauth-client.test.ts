@@ -1,18 +1,18 @@
 import { describe, expect, test } from "bun:test";
+import { bitbucketClient } from "../src/lib/git-host/providers/bitbucket";
 import {
     clearBitbucketAuthCredential,
-    ensureDataCollectionsReady,
+    ensureStorageReady,
     readBitbucketAuthCredential,
     writeBitbucketAuthCredential,
     writeBitbucketOAuthCredential,
-} from "../src/lib/data/query-collections";
-import { bitbucketClient } from "../src/lib/git-host/providers/bitbucket";
+} from "../src/lib/storage";
 
 const originalFetch = globalThis.fetch;
 
 describe("Bitbucket client authentication methods", () => {
     test("preserves API-token authentication", async () => {
-        await ensureDataCollectionsReady();
+        await ensureStorageReady();
         clearBitbucketAuthCredential();
         await writeBitbucketAuthCredential({ email: "user@example.com", apiToken: "api-token" });
 
@@ -27,7 +27,7 @@ describe("Bitbucket client authentication methods", () => {
     });
 
     test("uses an OAuth access token directly for Bitbucket API traffic", async () => {
-        await ensureDataCollectionsReady();
+        await ensureStorageReady();
         clearBitbucketAuthCredential();
         await writeBitbucketOAuthCredential({ accessToken: "oauth-access", refreshToken: "oauth-refresh", expiresAt: Date.now() + 60_000 });
         let authorization = "";
@@ -46,7 +46,7 @@ describe("Bitbucket client authentication methods", () => {
     });
 
     test("refreshes an expired OAuth token and stores the rotated refresh token", async () => {
-        await ensureDataCollectionsReady();
+        await ensureStorageReady();
         clearBitbucketAuthCredential();
         await writeBitbucketOAuthCredential({ accessToken: "expired-access", refreshToken: "old-refresh", expiresAt: Date.now() - 1 });
         const requestedUrls: string[] = [];

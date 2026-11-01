@@ -1,1 +1,2 @@
-export { bitbucketClient, bitbucketNormalization } from "./client";
+export { bitbucketClient } from "./client";
+export { bitbucketNormalization } from "./mappers";

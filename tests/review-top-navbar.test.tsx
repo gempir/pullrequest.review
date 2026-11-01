@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { normalizeNavbarState } from "../src/components/pull-request-review/review-formatters";
-import { ReviewTopNavbar } from "../src/components/pull-request-review/review-top-navbar";
+import { ReviewTopNavbar } from "@/features/review/components/review-top-navbar";
+import { normalizeNavbarState } from "@/features/review/model/review-formatters";
 import type { PullRequestReviewer } from "../src/lib/git-host/types";
 import { ShortcutsProvider } from "../src/lib/shortcuts-context";
 

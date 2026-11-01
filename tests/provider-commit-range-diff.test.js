@@ -1,12 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import {
-    clearBitbucketAuthCredential,
-    clearGithubAuthCredential,
-    writeBitbucketAuthCredential,
-    writeGithubAuthCredential,
-} from "../src/lib/data/query-collections";
 import { bitbucketClient } from "../src/lib/git-host/providers/bitbucket";
 import { githubClient } from "../src/lib/git-host/providers/github";
+import { clearBitbucketAuthCredential, clearGithubAuthCredential, writeBitbucketAuthCredential, writeGithubAuthCredential } from "../src/lib/storage";
 
 const originalFetch = globalThis.fetch;
 

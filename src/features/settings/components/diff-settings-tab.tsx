@@ -6,11 +6,13 @@ import { DiffToolbar } from "@/components/diff-toolbar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { WorkspaceMode } from "@/features/settings/components/settings-workspace-mode";
 import { useAppearance } from "@/lib/appearance-context";
+import { toLibraryOptions } from "@/lib/diff-options";
 import { useDiffOptions } from "@/lib/diff-options-context";
 import { DIFF_THEMES, type DiffTheme } from "@/lib/diff-themes";
 import { fontFamilyToCss } from "@/lib/font-options";
+
+export type WorkspaceMode = "single" | "all";
 
 const DIFF_PREVIEW_PATCH = `diff --git a/src/feature.ts b/src/feature.ts
 index 1111111..2222222 100644
@@ -38,9 +40,9 @@ export function DiffSettingsTab({
     const { monospaceFontFamily, monospaceFontSize, monospaceLineHeight } = useAppearance();
     const previewFileDiff = useMemo(() => parsePatchFiles(DIFF_PREVIEW_PATCH)[0]?.files[0], []);
     const previewStyle = useMemo(() => {
-        const fontFamily = fontFamilyToCss(options.diffUseCustomTypography ? options.diffFontFamily : monospaceFontFamily);
-        const fontSize = `${options.diffUseCustomTypography ? options.diffFontSize : monospaceFontSize}px`;
-        const lineHeight = String(options.diffUseCustomTypography ? options.diffLineHeight : monospaceLineHeight);
+        const fontFamily = fontFamilyToCss(monospaceFontFamily);
+        const fontSize = `${monospaceFontSize}px`;
+        const lineHeight = String(monospaceLineHeight);
         return {
             "--diff-font-family": fontFamily,
             "--diff-font-size": fontSize,
@@ -49,31 +51,8 @@ export function DiffSettingsTab({
             "--diffs-font-size": fontSize,
             "--diffs-line-height": lineHeight,
         } as CSSProperties;
-    }, [
-        monospaceFontFamily,
-        monospaceFontSize,
-        monospaceLineHeight,
-        options.diffFontFamily,
-        options.diffFontSize,
-        options.diffLineHeight,
-        options.diffUseCustomTypography,
-    ]);
-    const previewDiffOptions = useMemo<FileDiffOptions<undefined, undefined>>(
-        () => ({
-            theme: options.theme,
-            diffStyle: options.diffStyle,
-            diffIndicators: options.diffIndicators,
-            disableBackground: options.disableBackground,
-            hunkSeparators: options.hunkSeparators,
-            expandUnchanged: options.expandUnchanged,
-            expansionLineCount: options.expansionLineCount,
-            lineDiffType: options.lineDiffType,
-            disableLineNumbers: options.disableLineNumbers,
-            overflow: options.overflow,
-            disableFileHeader: true,
-        }),
-        [options],
-    );
+    }, [monospaceFontFamily, monospaceFontSize, monospaceLineHeight]);
+    const previewDiffOptions = useMemo<FileDiffOptions<undefined, undefined>>(() => ({ ...toLibraryOptions(options), disableFileHeader: true }), [options]);
 
     return (
         <div className="space-y-2.5">

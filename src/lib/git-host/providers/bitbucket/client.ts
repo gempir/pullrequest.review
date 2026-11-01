@@ -321,10 +321,13 @@ export const bitbucketClient: GitHostClient = {
     },
     async listPullRequestsForRepos(data) {
         if (!data.repos.length) return [];
+        const viewerUuid = await request("https://api.bitbucket.org/2.0/user", { headers: { Accept: "application/json" } })
+            .then(async (res) => ((await res.json()) as BitbucketUser).uuid)
+            .catch(() => undefined);
         return mapWithConcurrency(data.repos, 4, async (repo) => {
             const stateQuery = ["OPEN", "MERGED", "DECLINED", "SUPERSEDED"].map((state) => `state=${state}`).join("&");
             let nextUrl: string | undefined =
-                `https://api.bitbucket.org/2.0/repositories/${repo.workspace}/${repo.repo}/pullrequests?${stateQuery}&pagelen=50&sort=-updated_on`;
+                `https://api.bitbucket.org/2.0/repositories/${repo.workspace}/${repo.repo}/pullrequests?${stateQuery}&pagelen=50&sort=-updated_on&fields=%2Bvalues.participants`;
             const pullRequests: PullRequestSummary[] = [];
 
             while (nextUrl && pullRequests.length < REPO_PULL_REQUEST_LIST_LIMIT) {
@@ -333,7 +336,7 @@ export const bitbucketClient: GitHostClient = {
                 });
                 const page = (await res.json()) as BitbucketPullRequestPage;
                 for (const pullRequest of page.values ?? []) {
-                    pullRequests.push(mapPullRequestSummary(pullRequest));
+                    pullRequests.push(mapPullRequestSummary(pullRequest, viewerUuid));
                     if (pullRequests.length >= REPO_PULL_REQUEST_LIST_LIMIT) break;
                 }
                 nextUrl = page.next;

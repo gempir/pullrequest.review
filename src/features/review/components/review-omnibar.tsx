@@ -171,11 +171,10 @@ export function ReviewOmnibar({
             onOpenChange={handleOpenChange}
             label="Pull request omnibar"
             loop
-            overlayClassName="fixed inset-0 z-50 bg-overlay/70 backdrop-blur-[1px]"
-            contentClassName="fixed left-1/2 top-[16vh] z-50 w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden border border-border bg-popover shadow-2xl"
-            className="font-mono"
+            overlayClassName="fixed inset-0 z-50 bg-overlay animate-in fade-in-0 duration-150"
+            contentClassName="glass-strong animate-in fade-in-0 zoom-in-[0.98] duration-150 fixed left-1/2 top-[16vh] z-50 w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-2xl bg-popover"
         >
-            <div className="flex h-11 items-center gap-2 border-b border-border-muted bg-chrome px-3">
+            <div className="flex h-13 items-center gap-2.5 border-b border-border-muted px-4">
                 <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <Command.Input
                     autoFocus
@@ -183,12 +182,12 @@ export function ReviewOmnibar({
                     onValueChange={setSearch}
                     placeholder="Search files, actions, or pull requests..."
                     aria-label="Search pull request files, actions, and pull requests"
-                    className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
+                    className="h-full min-w-0 flex-1 bg-transparent text-[16px] text-foreground outline-none placeholder:text-faint-foreground"
                 />
-                <span className="border border-border-muted bg-surface-1 px-1.5 py-0.5 text-[10px] text-muted-foreground">ESC</span>
+                <kbd className="rounded-md bg-surface-hover px-1.5 py-0.5 font-sans text-[11px] text-muted-foreground">esc</kbd>
             </div>
 
-            <Command.List className="max-h-[min(28rem,calc(100vh-11rem))] overflow-y-auto p-1 [scroll-padding-block:0.25rem]">
+            <Command.List className="max-h-[min(28rem,calc(100vh-11rem))] overflow-y-auto p-1.5 [scroll-padding-block:0.375rem]">
                 <Command.Empty className="px-2 py-8 text-center text-[12px] text-muted-foreground">No matching files, actions, or pull requests.</Command.Empty>
 
                 <Command.Group heading="Navigate" className={OMNIBAR_GROUP_CLASS_NAME}>
@@ -255,9 +254,8 @@ export function ReviewOmnibar({
                 ) : null}
             </Command.List>
 
-            <div className="flex items-center justify-between border-t border-border-muted bg-chrome px-3 py-1.5 text-[10px] text-muted-foreground">
+            <div className="flex items-center justify-between border-t border-border-muted px-4 py-2 text-[11px] text-faint-foreground">
                 <span>Navigate with arrows, select with Enter</span>
-                <span className="hidden sm:inline">cmd + k</span>
             </div>
         </Command.Dialog>
     );

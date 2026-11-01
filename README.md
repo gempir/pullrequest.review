@@ -1,6 +1,6 @@
 # pullrequest.review
 
-A lightweight Bitbucket and GitHub pull request review app with a terminal-inspired UI, focused on fast diff reading, file-tree navigation, and keyboard-driven workflows.
+A lightweight Bitbucket and GitHub pull request review app. The diff fills the window, with translucent panels floating above it, focused on fast diff reading, file-tree navigation, and keyboard-driven workflows. Available in light and dark.
 
 ## Supported Hosts
 - Bitbucket Cloud

@@ -39,7 +39,7 @@ export function SidebarTopControls({
     if (activityLabels.length === 0 && showLoadingActivity) activityLabels.push("Comments");
 
     return (
-        <div data-component="top-sidebar" className="h-11 pl-2 pr-0 bg-sidebar-chrome border-b border-sidebar-border flex items-center gap-1">
+        <div data-component="top-sidebar" className="flex h-12 shrink-0 items-center gap-0.5 px-2.5">
             {onHome ? (
                 <Button
                     type="button"
@@ -58,7 +58,7 @@ export function SidebarTopControls({
                 size="sm"
                 className={cn(
                     "h-8 w-8 p-0 text-muted-foreground hover:text-foreground",
-                    settingsActive ? "bg-selection text-accent" : null,
+                    settingsActive ? "bg-selection text-accent hover:text-accent" : null,
                     settingsButtonClassName,
                 )}
                 onClick={onSettings}
@@ -102,7 +102,7 @@ export function SidebarTopControls({
                     )}
                 </TooltipContent>
             </Tooltip>
-            {rightContent ? <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-1">{rightContent}</div> : null}
+            {rightContent ? <div className="ml-auto flex min-w-0 items-center justify-end gap-1">{rightContent}</div> : null}
         </div>
     );
 }

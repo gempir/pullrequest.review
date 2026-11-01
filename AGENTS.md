@@ -1,9 +1,9 @@
 # AGENTS.md
 
-pullrequest.review is a Bitbucket and GitHub pull request review UI with a terminal-style interface focused on fast diff and file-tree navigation.
+pullrequest.review is a Bitbucket and GitHub pull request review UI built as a floating glass canvas: the diff fills the window and translucent panels float above it, focused on fast diff and file-tree navigation.
 
 ## Project Principles
-- Keep the UI practical, compact, and keyboard-friendly.
+- Keep the UI practical, calm, and keyboard-friendly. The diff is the content; chrome floats above it and stays out of the way.
 - Prefer simple, maintainable code over complex abstractions.
 - Mobile-specific UX is a non-goal; optimize for desktop keyboard-first workflows.
 
@@ -29,7 +29,7 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 
 ## Review Page Structure
 - `src/features/review/hooks/use-review-controller.ts` composes the focused hooks and is exposed to views through `useReview()` in `components/review-context.ts`. Add new logic to a focused hook, not to the controller.
-- View components read `useReview()` instead of receiving long prop lists. `ThreadCard`, `PullRequestSummaryPanel`, and `ReviewTopNavbar` stay prop-driven so they can be rendered in tests.
+- View components read `useReview()` instead of receiving long prop lists. `ThreadCard`, `PullRequestSummaryPanel`, `ReviewTopNavbar`, and `ReviewActionDock` stay prop-driven so they can be rendered in tests.
 - Pure logic belongs in `src/features/review/model/`.
 - Provider code is split into `api.ts` (auth, requests), `raw-types.ts`, `mappers.ts` (snake_case to app models), and `client.ts`.
 
@@ -49,8 +49,11 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 - Run `bun run tsc`, `bun run check`, `bun run knip`, `bun test`, `bun run react-doctor`, and `bun run build` after making changes. CI runs the same checks.
 
 ## UI Conventions
-- Monospaced-first typography.
-- Sharp corners and clean panel structure.
+- System font for UI. Monospace only for code and commit hashes, not for paths, branches, or metadata.
+- Soft continuous-looking corners. Use the radius tokens rather than one-off values.
+- Light and dark mode are both first-class. Use tokens from `styles.css`, never hard-coded colors, and check both.
+- Floating chrome uses `.glass` or `.glass-strong`. Content sits on `.canvas-card`. Do not stack glass on glass except menus and dialogs. `.canvas-page` clears the top capsule and bottom dock.
+- Motion: use `motion` springs (critically damped by default) for anything a user can interrupt, such as panels and the segmented control thumb. Press feedback comes from `.pressable`. Respect `prefers-reduced-motion`, `prefers-reduced-transparency`, and `prefers-contrast`.
 - Consistent controls for settings, themes, and keyboard shortcuts.
 
 ## Naming
@@ -62,13 +65,15 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 - Keep names canonical and kebab-case.
 - Prefer semantic HTML landmarks first (`nav`, `aside`, `header`, `main`), then use `data-component` for stable identification.
 
-- `navbar`
+- `navbar` (floating capsule at the top of the canvas)
+- `action-dock` (floating dock at the bottom of the review canvas)
 - `sidebar`
+- `right-sidebar`
 - `top-sidebar`
 - `search-sidebar`
 - `summary-page`
 - `summary-header` (PR title header in summary view)
-- `diff-view` (primary content viewport below navbar and right of sidebar; hosts summary/settings/single-diff/list-diff views)
+- `diff-view` (full-window scrolling canvas beneath the floating chrome; hosts summary/settings/single-diff/list-diff views)
 - `diff-list-view` (all file diffs container, multi-file stream)
 - `diff-file-view` (single file diff container)
 - `settings`

@@ -203,6 +203,7 @@ export function useReviewController({
     const allDiffFilePaths = useMemo(() => Array.from(selectableDiffPathSet), [selectableDiffPathSet]);
     const unviewedFileCount = allDiffFilePaths.filter((path) => !viewedFiles.has(path)).length;
     const areAllFilesViewed = allDiffFilePaths.length > 0 && unviewedFileCount === 0;
+    const activeDiffFileIndex = activeFile ? allDiffFilePaths.indexOf(activeFile) : -1;
     const toggleAllFilesViewed = () => {
         setViewedFiles((prev) => {
             const next = new Set(prev);
@@ -289,7 +290,7 @@ export function useReviewController({
     const handleOpenOmnibar = () => {
         if (!mergeOpen) setOmnibarOpen(true);
     };
-    const { toggleSettingsPanel, selectAndRevealFile } = useReviewNavigation({
+    const { toggleSettingsPanel, selectAndRevealFile, selectAdjacentFile } = useReviewNavigation({
         onOpenOmnibar: handleOpenOmnibar,
         activeFile,
         settingsPathSet,
@@ -510,13 +511,42 @@ export function useReviewController({
             onFileClick: selectAndRevealFile,
             onStartTreeResize: layout.startTreeResize,
         },
+        isResizingPanel: layout.isResizingPanel,
+        dockProps: {
+            navbarState: model.navbarState,
+            canApprove: actionPolicy.canApprove,
+            canRequestChanges: actionPolicy.canRequestChanges,
+            canMerge: actionPolicy.canMerge,
+            canMarkDraft: actionPolicy.canMarkDraft,
+            isDraft,
+            currentUserReviewStatus,
+            isApprovePending: actions.approveMutation.isPending || actions.removeApprovalMutation.isPending,
+            isRequestChangesPending: actions.requestChangesMutation.isPending,
+            isDeclinePending: actions.declineMutation.isPending,
+            isMarkDraftPending: actions.markDraftMutation.isPending,
+            onApprove: actions.handleApprovePullRequest,
+            onRequestChanges: actions.handleRequestChangesPullRequest,
+            onMarkDraft: actions.handleMarkPullRequestAsDraft,
+            onOpenMerge: () => setMergeOpen(true),
+            treeCollapsed: layout.treeCollapsed,
+            rightSidebarCollapsed: layout.rightSidebarCollapsed,
+            unviewedFileCount,
+            unresolvedCommentCount,
+            totalFileCount: allDiffFilePaths.length,
+            viewedFileCount: allDiffFilePaths.length - unviewedFileCount,
+            activeFileIndex: activeDiffFileIndex >= 0 ? activeDiffFileIndex : null,
+            activeFileViewed: activeDiffFileIndex >= 0 && activeFile ? viewedFiles.has(activeFile) : null,
+            onToggleTree: () => setTreeCollapsed((collapsed) => !collapsed),
+            onToggleComments: () => setRightSidebarCollapsed((collapsed) => !collapsed),
+            onPreviousFile: () => selectAdjacentFile(-1),
+            onNextFile: () => selectAdjacentFile(1),
+            onToggleActiveFileViewed: () => {
+                if (activeFile && activeDiffFileIndex >= 0) toggleViewed(activeFile);
+            },
+        },
         navbarProps: {
             loading: false,
             isRefreshing: prQuery.isFetching,
-            treeCollapsed: layout.treeCollapsed,
-            unviewedFileCount,
-            rightSidebarCollapsed: layout.rightSidebarCollapsed,
-            unresolvedCommentCount,
             host,
             pullRequestUrl: pullRequest?.links?.html?.href,
             sourceBranch: pullRequest?.source?.branch?.name ?? "source",
@@ -525,26 +555,11 @@ export function useReviewController({
             navbarStatusTimestamp: model.navbarStatusTimestamp,
             buildStatuses: prData?.buildStatuses,
             reviewers: prData?.reviewers,
-            canApprove: actionPolicy.canApprove,
-            canRequestChanges: actionPolicy.canRequestChanges,
-            canMerge: actionPolicy.canMerge,
             canDecline: actionPolicy.canDecline,
-            canMarkDraft: actionPolicy.canMarkDraft,
-            isDraft,
-            currentUserReviewStatus,
-            isApprovePending: actions.approveMutation.isPending || actions.removeApprovalMutation.isPending,
-            isRequestChangesPending: actions.requestChangesMutation.isPending,
             isDeclinePending: actions.declineMutation.isPending,
-            isMarkDraftPending: actions.markDraftMutation.isPending,
             copiedSourceBranch: actions.copiedSourceBranch,
-            onExpandTree: () => setTreeCollapsed(false),
-            onExpandRightSidebar: () => setRightSidebarCollapsed(false),
             onCopySourceBranch: actions.handleCopySourceBranch,
-            onApprove: actions.handleApprovePullRequest,
-            onRequestChanges: actions.handleRequestChangesPullRequest,
             onDecline: actions.handleDeclinePullRequest,
-            onMarkDraft: actions.handleMarkPullRequestAsDraft,
-            onOpenMerge: () => setMergeOpen(true),
             onOpenOmnibar: handleOpenOmnibar,
         },
         omnibarProps: {

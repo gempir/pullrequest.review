@@ -1,4 +1,4 @@
-import { CircleCheck } from "lucide-react";
+import { CircleCheck, Search } from "lucide-react";
 import type { MouseEventHandler } from "react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -82,7 +82,17 @@ export function ReviewCommentsSidebar({
             onToggleCollapsed={onToggleCollapsed}
             onStartResize={onStartResize}
             secondaryHeader={
-                <div className="flex h-full items-center">
+                <div className="flex items-center gap-1">
+                    <div className="relative min-w-0 flex-1">
+                        <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-faint-foreground" aria-hidden="true" />
+                        <Input
+                            className="h-8 min-w-0 border-0 pl-7 text-[12px]"
+                            placeholder="Search comments"
+                            value={searchQuery}
+                            onChange={(event) => setSearchQuery(event.target.value)}
+                            aria-label="Search comments"
+                        />
+                    </div>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
@@ -90,29 +100,19 @@ export function ReviewCommentsSidebar({
                                 variant="ghost"
                                 size="sm"
                                 className={cn(
-                                    "size-7 p-0 relative text-muted-foreground hover:text-foreground",
-                                    includeResolved ? "bg-selection text-foreground" : "",
+                                    "size-8 shrink-0 p-0 text-muted-foreground hover:text-foreground",
+                                    includeResolved ? "bg-selection text-accent hover:text-accent" : "",
                                 )}
                                 onClick={() => setIncludeResolved((prev) => !prev)}
                                 aria-label={includeResolved ? "Hide resolved comments" : "Include resolved comments"}
                             >
                                 <CircleCheck className="size-3.5" />
-                                {unresolvedCount > 0 ? (
-                                    <span className="absolute -bottom-1 -right-0 font-mono leading-none text-status-renamed scale-65">
-                                        {unresolvedCount > 999 ? "999+" : unresolvedCount}
-                                    </span>
-                                ) : null}
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom">{includeResolved ? "Hiding resolved comments" : "Include resolved comments"}</TooltipContent>
+                        <TooltipContent side="bottom">
+                            {includeResolved ? "Hide resolved comments" : `Include resolved (${unresolvedCount} unresolved)`}
+                        </TooltipContent>
                     </Tooltip>
-                    <Input
-                        className="h-full bg-sidebar-chrome text-[12px] text-right placeholder:text-right flex-1 min-w-0 border-0 rounded-none hover:bg-sidebar-chrome focus-visible:border-0 focus-visible:ring-0"
-                        placeholder="search comments"
-                        value={searchQuery}
-                        onChange={(event) => setSearchQuery(event.target.value)}
-                        aria-label="Search comments"
-                    />
                 </div>
             }
         >

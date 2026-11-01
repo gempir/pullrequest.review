@@ -46,7 +46,7 @@ function historyCommentSurfaceReducer(state: HistoryCommentSurfaceState, action:
 function HistoryCommentPathHeader({ path, copied, onCopy }: { path: string; copied: boolean; onCopy: () => void }) {
     return (
         <div className="flex items-center gap-1.5 border-b border-comment-border px-2 py-0.5">
-            <span className="shrink-0 font-mono text-[10px] text-foreground">{path}</span>
+            <span className="shrink-0 text-[11px] text-foreground">{path}</span>
             <Button
                 type="button"
                 variant="ghost"

@@ -27,12 +27,12 @@ type AppearanceContextValue = AppearanceSettings & {
 
 const defaultAppearance: AppearanceSettings = {
     appThemeMode: "auto",
-    sansFontFamily: "geist-sans",
+    sansFontFamily: "system-sans",
     monospaceFontFamily: DEFAULT_FONT_FAMILY,
-    sansFontSize: 14,
-    sansLineHeight: 1.25,
+    sansFontSize: 13,
+    sansLineHeight: 1.4,
     monospaceFontSize: 13,
-    monospaceLineHeight: 1.25,
+    monospaceLineHeight: 1.5,
 };
 
 const AppearanceContext = createContext<AppearanceContextValue | null>(null);
@@ -73,7 +73,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
         void (async () => {
             await ensureStorageReady();
             if (cancelled) return;
-            const parsed = parseStoredSettings(readSetting("appearance"));
+            const parsed = parseStoredSettings(readSetting("appearance-v2"));
             if (parsed) {
                 setSettings(parsed);
             }
@@ -86,7 +86,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!hydrated) return;
-        writeSetting("appearance", settings);
+        writeSetting("appearance-v2", settings);
     }, [settings, hydrated]);
 
     useEffect(() => {
@@ -102,7 +102,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
         root.style.setProperty("--app-line-height", String(settings.sansLineHeight));
         root.style.setProperty("--tree-font-family", fontFamilyToCss(settings.sansFontFamily));
         root.style.setProperty("--comment-font-family", fontFamilyToCss(settings.sansFontFamily));
-        root.style.setProperty("--tree-font-size", `${normalizeFontSize(settings.sansFontSize - 2, 10, 18)}px`);
+        root.style.setProperty("--tree-font-size", `${normalizeFontSize(settings.sansFontSize - 1, 10, 18)}px`);
         root.style.setProperty("--tree-line-height", String(normalizeLineHeight(settings.sansLineHeight - 0.1, 1, 2.2)));
     }, [
         settings.sansFontFamily,

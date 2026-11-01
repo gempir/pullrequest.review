@@ -46,20 +46,20 @@ export function RepositorySelector({
     }, [entries, query]);
 
     return (
-        <div className="space-y-4 rounded-md border border-border-muted bg-surface-1 p-4">
+        <div className="space-y-4">
             <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
                 <FolderGit className="size-4" />
-                <span>Select repositories to include on the landing page.</span>
+                <span>Choose the repositories whose pull requests appear in your inbox.</span>
             </div>
 
-            <div className="rounded-md border border-border-muted bg-background">
+            <div className="canvas-card overflow-hidden">
                 <div className="relative border-b border-border-muted">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                         placeholder="Filter repositories..."
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        className="h-10 rounded-none border-0 bg-transparent pl-9 focus-visible:ring-0"
+                        className="h-11 rounded-none border-0 bg-transparent pl-9 hover:bg-transparent focus-visible:ring-0"
                     />
                 </div>
 
@@ -100,7 +100,7 @@ export function RepositorySelector({
                                                 });
                                             }}
                                         />
-                                        <span className="flex-1 truncate font-mono text-[12px] text-foreground">{repo.fullName}</span>
+                                        <span className="flex-1 truncate text-[13px] text-foreground">{repo.fullName}</span>
                                     </label>
                                 );
                             })}

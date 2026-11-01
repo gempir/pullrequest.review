@@ -1,4 +1,4 @@
-import { RotateCcw, Settings2 } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { useCallback } from "react";
 import type { SettingsTab } from "@/components/settings-navigation";
 import { Button } from "@/components/ui/button";
@@ -37,20 +37,25 @@ function SettingsPanelHeader({ onClose, onResetAllSettings }: { onClose?: () => 
     const hasActions = Boolean(onClose || onResetAllSettings);
 
     return (
-        <div className="h-10 bg-chrome px-2.5 flex items-center gap-2">
-            <div className="flex w-full items-center gap-2 text-[12px] font-medium">
-                <Settings2 className="size-4" />
-                Settings
+        <div className="flex items-center gap-2 pb-4">
+            <div className="flex w-full items-center gap-2">
+                <h1 className="display-title text-[26px]">Settings</h1>
                 {hasActions ? (
                     <div className="ml-auto flex items-center gap-2">
                         {onResetAllSettings ? (
-                            <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-[11px]" onClick={onResetAllSettings}>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 gap-1.5 rounded-full px-3 text-[12px] text-muted-foreground"
+                                onClick={onResetAllSettings}
+                            >
                                 <RotateCcw className="size-3.5" />
                                 Reset all settings
                             </Button>
                         ) : null}
                         {onClose ? (
-                            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={onClose}>
+                            <Button type="button" variant="secondary" size="sm" className="h-8 rounded-full px-3 text-[12px]" onClick={onClose}>
                                 Back to review
                             </Button>
                         ) : null}
@@ -76,10 +81,12 @@ export function SettingsPanelContentOnly({ workspaceMode, onWorkspaceModeChange,
     const resetAllSettings = useResetAllSettingsAction();
 
     return (
-        <div className="flex h-full min-h-0 flex-col">
-            <SettingsPanelHeader onClose={onClose} onResetAllSettings={resetAllSettings} />
-            <div className="flex-1 overflow-auto px-3 py-2.5">
-                <SettingsPanelContent workspaceMode={workspaceMode} onWorkspaceModeChange={onWorkspaceModeChange} activeTab={activeTab ?? "appearance"} />
+        <div className="canvas-page">
+            <div className="mx-auto max-w-[760px] px-3 pt-4" data-component="settings">
+                <SettingsPanelHeader onClose={onClose} onResetAllSettings={resetAllSettings} />
+                <div className="canvas-card p-5">
+                    <SettingsPanelContent workspaceMode={workspaceMode} onWorkspaceModeChange={onWorkspaceModeChange} activeTab={activeTab ?? "appearance"} />
+                </div>
             </div>
         </div>
     );

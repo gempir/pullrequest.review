@@ -453,7 +453,7 @@ function ThreadReplyNode(props: ThreadReplyNodeProps) {
                 <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-6" />
                 <div className="relative z-10 min-w-0 flex-1">
                     <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
-                        <span className="font-semibold text-foreground text-[14px]">{reply.user?.displayName ?? "Unknown"}</span>
+                        <span className="font-semibold text-foreground text-[13px]">{reply.user?.displayName ?? "Unknown"}</span>
                         {replyDate.label ? (
                             <span className="font-semibold tabular-nums" title={replyDate.absoluteLabel ?? undefined}>
                                 {replyDate.label}
@@ -665,7 +665,7 @@ function ThreadRootCommentCard(props: ThreadRootCommentCardProps) {
             <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} sizeClass="size-6" />
             <div className="min-w-0 flex-1">
                 <div className="relative flex items-center gap-3 text-[13px] text-muted-foreground">
-                    <span className="font-semibold text-foreground text-[16px]">{rootComment.user?.displayName ?? "Unknown"}</span>
+                    <span className="font-semibold text-foreground text-[14px]">{rootComment.user?.displayName ?? "Unknown"}</span>
                     {rootDate.label ? (
                         <span className="font-semibold tabular-nums" title={rootDate.absoluteLabel ?? undefined}>
                             {rootDate.label}
@@ -836,8 +836,8 @@ export function ThreadCard({
     const shouldAttachToDiffEdge = attachToDiffEdge && isAttachedToFile;
     const cardClassName = showBorder
         ? shouldAttachToDiffEdge
-            ? "relative border-y border-r border-comment-border bg-comment"
-            : "relative border border-comment-border bg-comment"
+            ? "relative overflow-hidden rounded-r-xl border-y border-r border-comment-border bg-comment"
+            : "relative overflow-hidden rounded-xl border border-comment-border bg-comment"
         : "relative bg-comment";
     return (
         <div className="text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>

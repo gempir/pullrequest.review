@@ -20,6 +20,8 @@ describe("Git host payload normalization", () => {
             title: "Refactor mappings",
             state: "OPEN",
             links: { html: { href: "https://github.com/acme/repo/pull/42" } },
+            authoredByViewer: false,
+            reviewRequested: false,
             author: {
                 displayName: "octocat",
                 avatarUrl: "https://avatars.example/octocat.png",
@@ -181,5 +183,31 @@ describe("Git host payload normalization", () => {
                 requested: true,
             },
         ]);
+    });
+});
+
+describe("inbox identity on pull request summaries", () => {
+    test("GitHub marks requested reviews and authorship for the viewer", () => {
+        const pull = { number: 1, title: "x", state: "open", html_url: "u", user: { login: "ada" }, requested_reviewers: [{ login: "viewer" }] };
+
+        expect(githubNormalization.mapPullRequestSummary(pull, "viewer")).toMatchObject({ reviewRequested: true, authoredByViewer: false });
+        expect(githubNormalization.mapPullRequestSummary(pull, "ada")).toMatchObject({ reviewRequested: false, authoredByViewer: true });
+        expect(githubNormalization.mapPullRequestSummary(pull)).toMatchObject({ reviewRequested: false, authoredByViewer: false });
+    });
+
+    test("Bitbucket counts a review as requested until the viewer responds", () => {
+        const pull = (participant) => ({
+            id: 1,
+            title: "x",
+            state: "OPEN",
+            author: { uuid: "{a}" },
+            participants: [{ user: { uuid: "{v}" }, role: "REVIEWER", ...participant }],
+        });
+
+        expect(bitbucketNormalization.mapPullRequestSummary(pull({ approved: false, state: null }), "{v}").reviewRequested).toBe(true);
+        expect(bitbucketNormalization.mapPullRequestSummary(pull({ approved: true, state: "approved" }), "{v}").reviewRequested).toBe(false);
+        expect(bitbucketNormalization.mapPullRequestSummary(pull({ approved: false, state: "changes_requested" }), "{v}").reviewRequested).toBe(false);
+        expect(bitbucketNormalization.mapPullRequestSummary(pull({ role: "PARTICIPANT", approved: false, state: null }), "{v}").reviewRequested).toBe(false);
+        expect(bitbucketNormalization.mapPullRequestSummary(pull({}), "{a}").authoredByViewer).toBe(true);
     });
 });

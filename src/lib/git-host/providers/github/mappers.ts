@@ -55,13 +55,15 @@ function mapGithubPullState(pr: Pick<GithubPull, "state" | "merged_at">) {
     return (pr.state ?? "OPEN").toUpperCase();
 }
 
-export function mapPullRequestSummary(pr: GithubPull): PullRequestSummary {
+export function mapPullRequestSummary(pr: GithubPull, viewerLogin?: string): PullRequestSummary {
     const summary: PullRequestSummary = {
         id: pr.number,
         title: pr.title,
         state: mapGithubPullState(pr),
         links: { html: { href: pr.html_url } },
         author: { displayName: pr.user?.login, avatarUrl: pr.user?.avatar_url },
+        authoredByViewer: Boolean(viewerLogin) && pr.user?.login === viewerLogin,
+        reviewRequested: Boolean(viewerLogin) && Boolean(pr.requested_reviewers?.some((reviewer) => reviewer.login === viewerLogin)),
     };
     if (pr.created_at) {
         summary.createdAt = pr.created_at;

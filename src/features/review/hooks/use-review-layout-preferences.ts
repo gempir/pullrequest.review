@@ -23,6 +23,7 @@ type UseReviewLayoutPreferencesReturn = {
     viewModeHydrated: boolean;
     startTreeResize: (event: ReactMouseEvent<HTMLButtonElement>) => void;
     startRightSidebarResize: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+    isResizingPanel: boolean;
 };
 
 type InitialReviewLayout = {
@@ -39,7 +40,7 @@ function readInitialReviewLayout(): InitialReviewLayout {
         treeWidth: DEFAULT_TREE_WIDTH,
         treeCollapsed: false,
         rightSidebarWidth: DEFAULT_RIGHT_SIDEBAR_WIDTH,
-        rightSidebarCollapsed: false,
+        rightSidebarCollapsed: true,
         viewMode: "single",
         viewModeHydrated: false,
     };
@@ -71,6 +72,7 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
     const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(initialLayout.rightSidebarCollapsed);
     const [viewMode, setViewMode] = useState<ReviewViewMode>(initialLayout.viewMode);
     const viewModeHydrated = initialLayout.viewModeHydrated;
+    const [isResizingPanel, setIsResizingPanel] = useState(false);
 
     useEffect(() => {
         if (!viewModeHydrated) return;
@@ -90,6 +92,7 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
             const initialWidth = treeWidth;
             const startX = event.clientX;
             document.body.style.userSelect = "none";
+            setIsResizingPanel(true);
 
             const onMouseMove = (moveEvent: MouseEvent) => {
                 const delta = moveEvent.clientX - startX;
@@ -99,6 +102,7 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
 
             const onMouseUp = () => {
                 document.body.style.userSelect = "";
+                setIsResizingPanel(false);
                 window.removeEventListener("mousemove", onMouseMove);
                 window.removeEventListener("mouseup", onMouseUp);
             };
@@ -116,6 +120,7 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
             const initialWidth = rightSidebarWidth;
             const startX = event.clientX;
             document.body.style.userSelect = "none";
+            setIsResizingPanel(true);
 
             const onMouseMove = (moveEvent: MouseEvent) => {
                 const delta = startX - moveEvent.clientX;
@@ -125,6 +130,7 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
 
             const onMouseUp = () => {
                 document.body.style.userSelect = "";
+                setIsResizingPanel(false);
                 window.removeEventListener("mousemove", onMouseMove);
                 window.removeEventListener("mouseup", onMouseUp);
             };
@@ -149,5 +155,6 @@ export function useReviewLayoutPreferences(): UseReviewLayoutPreferencesReturn {
         viewModeHydrated,
         startTreeResize,
         startRightSidebarResize,
+        isResizingPanel,
     };
 }

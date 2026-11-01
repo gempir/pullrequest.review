@@ -1,13 +1,13 @@
 import type { FileTreeIcons, GitStatusEntry } from "@pierre/trees";
 import { useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, PanelLeftClose, Search } from "lucide-react";
 import { type MouseEventHandler, useEffect, useMemo, useRef, useState } from "react";
 import { AppFileTreeView, type FileTreeEntry, useAppFileTreeModel } from "@/components/file-tree";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ReviewFileTreeToggleIcon } from "@/features/review/components/review-file-tree-toggle-icon";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
 import { cn } from "@/lib/utils";
 
@@ -118,33 +118,24 @@ function FileTreeSearchInput({
     const progress = loadProgress ?? 100;
 
     return (
-        <div className="relative min-w-0 flex-1 overflow-hidden rounded-sm bg-[var(--diffs-bg,var(--background))]">
+        <div className="relative min-w-0 flex-1 overflow-hidden rounded-md bg-surface-hover">
             <output className="sr-only" aria-live="polite">
                 {justCompleted ? "Pull request loaded" : isLoading ? "Loading pull request" : ""}
             </output>
             <div
                 className={cn(
-                    "pointer-events-none absolute inset-y-0 left-0 bg-selection duration-700 ease-out motion-reduce:transition-none",
+                    "pointer-events-none absolute bottom-0 left-0 h-0.5 rounded-full bg-accent duration-700 ease-out motion-reduce:transition-none",
                     progress === 0 ? "transition-opacity" : "transition-[width,opacity]",
                     showProgress ? "opacity-100" : "opacity-0",
                 )}
                 style={{ width: `${progress}%` }}
                 aria-hidden="true"
-            >
-                {isLoading ? <span className="file-tree-search-progress-stripes absolute inset-0" /> : null}
-            </div>
-            <span
-                className={cn(
-                    "pointer-events-none absolute inset-0 flex items-center px-2 text-[12px] text-faint-foreground transition-opacity duration-500 ease-in-out motion-reduce:transition-none",
-                    showProgress || searchQuery ? "opacity-0" : "opacity-100",
-                )}
-                aria-hidden="true"
-            >
-                Search...
-            </span>
+            />
+            <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-faint-foreground" aria-hidden="true" />
             <Input
-                className="relative h-7 min-w-0 rounded-sm border-0 bg-transparent px-2 text-[12px] hover:bg-transparent focus-visible:ring-0"
+                className="relative h-8 min-w-0 rounded-md border-0 bg-transparent pl-7 pr-2 text-[12px] hover:bg-transparent focus-visible:ring-0"
                 value={searchQuery}
+                placeholder="Search files"
                 onChange={(event) => onSearchQueryChange(event.target.value)}
                 aria-label="Search files"
             />
@@ -152,21 +143,19 @@ function FileTreeSearchInput({
     );
 }
 
-function FileTreeRightControls({
+function FileTreeSearchRow({
     searchQuery,
     loadProgress,
     showUnviewedOnly,
     unviewedFileCount,
     onSearchQueryChange,
     onToggleUnviewedOnly,
-    onCollapseTree,
 }: Pick<
     ReviewFileTreeSidebarProps,
-    "searchQuery" | "loadProgress" | "showUnviewedOnly" | "unviewedFileCount" | "onSearchQueryChange" | "onToggleUnviewedOnly" | "onCollapseTree"
+    "searchQuery" | "loadProgress" | "showUnviewedOnly" | "unviewedFileCount" | "onSearchQueryChange" | "onToggleUnviewedOnly"
 >) {
-    const badgeValue = unviewedFileCount > 999 ? "999+" : unviewedFileCount.toString();
     return (
-        <>
+        <div data-component="search-sidebar" className="flex items-center gap-1 px-2.5 pb-2">
             <FileTreeSearchInput searchQuery={searchQuery} loadProgress={loadProgress} onSearchQueryChange={onSearchQueryChange} />
             <Tooltip>
                 <TooltipTrigger asChild>
@@ -174,31 +163,16 @@ function FileTreeRightControls({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className={cn(
-                            "size-7 shrink-0 p-0 relative text-muted-foreground hover:text-foreground",
-                            showUnviewedOnly ? "bg-selection text-foreground" : "",
-                        )}
+                        className={cn("size-8 shrink-0 p-0 text-muted-foreground hover:text-foreground", showUnviewedOnly ? "bg-selection text-accent" : "")}
                         onClick={onToggleUnviewedOnly}
                         aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
                     >
                         {showUnviewedOnly ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                        {unviewedFileCount > 0 ? (
-                            <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">{badgeValue}</span>
-                        ) : null}
                     </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>
+                <TooltipContent side="bottom">{showUnviewedOnly ? `Showing ${unviewedFileCount} unviewed` : "Show unviewed files only"}</TooltipContent>
             </Tooltip>
-            <Button
-                variant="ghost"
-                size="icon-sm"
-                className="h-7 w-11 shrink-0 px-0 text-muted-foreground hover:text-foreground"
-                onClick={onCollapseTree}
-                aria-label="Collapse file tree"
-            >
-                <ReviewFileTreeToggleIcon direction="collapse" />
-            </Button>
-        </>
+        </div>
     );
 }
 
@@ -247,56 +221,61 @@ export function ReviewFileTreeSidebar({
     });
 
     return (
-        <aside
-            className={cn("relative shrink-0 bg-sidebar flex flex-col overflow-hidden border-r border-sidebar-border")}
-            style={{ width: treeCollapsed ? 0 : treeWidth }}
+        <FloatingPanel
+            side="left"
+            open={!treeCollapsed}
+            width={treeWidth}
+            resizeLabel="Resize file tree"
+            onStartResize={onStartTreeResize}
+            data-component="sidebar"
         >
-            {!treeCollapsed ? (
-                <>
-                    <SidebarTopControls
-                        onHome={() => {
-                            navigate({ to: "/" });
+            <SidebarTopControls
+                onHome={() => {
+                    navigate({ to: "/" });
+                }}
+                onRefresh={onRefresh}
+                showLoadingActivity={showLoadingActivity}
+                onSettings={onToggleSettings}
+                settingsActive={showSettingsPanel}
+                settingsAriaLabel={showSettingsPanel ? "Close settings" : "Open settings"}
+                rightContent={
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="size-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={onCollapseTree}
+                        aria-label="Collapse file tree"
+                    >
+                        <PanelLeftClose className="size-3.5" />
+                    </Button>
+                }
+            />
+            <FileTreeSearchRow
+                searchQuery={searchQuery}
+                loadProgress={loadProgress}
+                showUnviewedOnly={showUnviewedOnly}
+                unviewedFileCount={unviewedFileCount}
+                onSearchQueryChange={onSearchQueryChange}
+                onToggleUnviewedOnly={onToggleUnviewedOnly}
+            />
+            {loading ? (
+                <div className="flex-1 min-h-0 px-4 py-3 text-[12px] text-muted-foreground">Loading files...</div>
+            ) : (
+                <div
+                    className="tree-font-scope min-h-0 flex-1 overflow-hidden pb-2 [mask-image:linear-gradient(to_bottom,transparent,black_10px,black_calc(100%-20px),transparent)]"
+                    data-component="tree"
+                >
+                    <AppFileTreeView
+                        model={model}
+                        onTreeItemClick={(treePath) => {
+                            const nextAppPath = treePathToAppPath.get(treePath.replace(/\/+$/, ""));
+                            if (nextAppPath) {
+                                onFileClick(nextAppPath);
+                            }
                         }}
-                        onRefresh={onRefresh}
-                        showLoadingActivity={showLoadingActivity}
-                        onSettings={onToggleSettings}
-                        settingsActive={showSettingsPanel}
-                        settingsAriaLabel={showSettingsPanel ? "Close settings" : "Open settings"}
-                        rightContent={
-                            <FileTreeRightControls
-                                searchQuery={searchQuery}
-                                loadProgress={loadProgress}
-                                showUnviewedOnly={showUnviewedOnly}
-                                unviewedFileCount={unviewedFileCount}
-                                onSearchQueryChange={onSearchQueryChange}
-                                onToggleUnviewedOnly={onToggleUnviewedOnly}
-                                onCollapseTree={onCollapseTree}
-                            />
-                        }
                     />
-                    {loading ? (
-                        <div className="flex-1 min-h-0 px-2 py-3 text-[12px] text-muted-foreground">Loading file tree...</div>
-                    ) : (
-                        <div className="flex-1 min-h-0 overflow-hidden tree-font-scope pb-2" data-component="tree">
-                            <AppFileTreeView
-                                model={model}
-                                onTreeItemClick={(treePath) => {
-                                    const nextAppPath = treePathToAppPath.get(treePath.replace(/\/+$/, ""));
-                                    if (nextAppPath) {
-                                        onFileClick(nextAppPath);
-                                    }
-                                }}
-                            />
-                        </div>
-                    )}
-                    <button
-                        type="button"
-                        className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-accent/40"
-                        onMouseDown={onStartTreeResize}
-                        aria-label="Resize file tree"
-                    />
-                </>
-            ) : null}
-        </aside>
+                </div>
+            )}
+        </FloatingPanel>
     );
 }

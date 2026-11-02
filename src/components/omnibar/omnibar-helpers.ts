@@ -1,10 +1,10 @@
 import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
 
 export const OMNIBAR_ITEM_CLASS_NAME =
-    "flex min-h-9 cursor-default select-none items-center gap-2 px-2 text-[12px] text-foreground outline-none data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-45 data-[selected=true]:bg-selection";
+    "flex min-h-9 cursor-default select-none items-center gap-2.5 rounded-lg px-2.5 text-[13px] text-foreground outline-none data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-45 data-[selected=true]:bg-selection";
 
 export const OMNIBAR_GROUP_CLASS_NAME =
-    "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground";
+    "[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-faint-foreground";
 
 export function getPullRequestOmnibarKeywords(row: SortedRootPullRequest) {
     const { pullRequest, repo, host } = row;

@@ -43,7 +43,7 @@ describe("pull request summary comment header", () => {
         expect(html.split('aria-label="Copy comment link"').length - 1).toBe(1);
         expect(html.indexOf("<a") >= 0).toBe(true);
         expect(html.indexOf("</a>") < html.indexOf('aria-label="Copy comment link"')).toBe(true);
-        expect(html).toContain('class="relative border border-comment-border bg-comment"');
+        expect(html).toContain('class="relative overflow-hidden rounded-xl border border-comment-border bg-comment"');
         expect(html).toContain('class="border-b border-comment-border" data-component="thread-card-header"');
         expect(html).toContain('class="pointer-events-none flex size-4 shrink-0 items-center justify-center"');
         expect(html).toContain("size-3.5");
@@ -113,7 +113,7 @@ describe("pull request summary comment header", () => {
         expect(html.split("Thread moved by reply").length - 1).toBe(1);
         expect(html.split("Fresh reply").length - 1).toBe(1);
         expect(html).toContain(
-            'data-component="summary-header"><img src="https://example.com/author.png" alt="Author" class="size-5 rounded-full object-cover shrink-0"/><span class="min-w-0 flex-1 text-foreground truncate">Test pull request</span>',
+            'data-component="summary-header"><img src="https://example.com/author.png" alt="Author" class="mt-0.5 size-8 rounded-full object-cover shrink-0"/><h1 class="display-title min-w-0 flex-1 text-[26px] text-foreground">Test pull request</h1>',
         );
         expect(html).toContain('class="min-w-0 px-2 py-1" data-component="summary-description"><div class="space-y-2 text-[13px] leading-relaxed"');
         expect(html).toContain('class="mt-4 space-y-0 px-1" data-component="summary-timeline"');

@@ -138,7 +138,7 @@ export const MONO_FONT_FAMILY_OPTIONS: ReadonlyArray<{
     { value: "geist-pixel", label: "Geist Pixel" },
 ];
 
-export const DEFAULT_FONT_FAMILY: FontFamilyValue = "menlo";
+export const DEFAULT_FONT_FAMILY: FontFamilyValue = "ui-monospace";
 
 export function makeCustomFontFamilyValue(name: string): FontFamilyValue {
     return `${CUSTOM_FONT_VALUE_PREFIX}${name}` as FontFamilyValue;

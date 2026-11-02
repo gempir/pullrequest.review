@@ -244,6 +244,16 @@ async function fetchGithubPullRequestDeferred(prRef: { workspace: string; repo: 
     };
 }
 
+async function fetchViewerLogin() {
+    if (!readAuth()?.token) return undefined;
+    try {
+        const res = await request("/user");
+        return ((await res.json()) as GithubUser).login;
+    } catch {
+        return undefined;
+    }
+}
+
 export const githubClient: GitHostClient = {
     host: "github",
     capabilities: {
@@ -307,6 +317,7 @@ export const githubClient: GitHostClient = {
     },
     async listPullRequestsForRepos(data) {
         if (!data.repos.length) return [];
+        const viewerLogin = await fetchViewerLogin();
         return mapWithConcurrency(data.repos, 4, async (repo) => {
             const pulls = await collectPaginated(
                 async (page) => {
@@ -319,7 +330,7 @@ export const githubClient: GitHostClient = {
             );
             return {
                 repo,
-                pullRequests: pulls.map(mapPullRequestSummary),
+                pullRequests: pulls.map((pull) => mapPullRequestSummary(pull, viewerLogin)),
             };
         });
     },

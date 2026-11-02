@@ -11,15 +11,15 @@ export function ReviewPageErrorState({
     authPromptSlot?: ReactNode;
 }) {
     return (
-        <div className="flex items-center justify-center h-full p-8">
-            <div className="border border-destructive bg-destructive/10 p-6 max-w-lg">
-                <div className="flex items-center gap-2 text-destructive mb-2">
+        <div className="flex h-full items-center justify-center overflow-auto p-8">
+            <div className="glass max-w-lg rounded-2xl p-6">
+                <div className="mb-2 flex items-center gap-2 text-destructive">
                     <AlertCircle className="size-5" />
-                    <span className="text-[13px] font-medium">[ERROR]</span>
+                    <h1 className="section-title text-[17px]">Could not load this pull request</h1>
                 </div>
-                <p className="text-destructive text-[13px]">{message}</p>
+                <p className="text-[13px] text-muted-foreground">{message}</p>
                 {showRateLimitHelp ? (
-                    <p className="mt-2 text-[12px] text-destructive">
+                    <p className="mt-2 text-[13px] text-muted-foreground">
                         GitHub is rate limiting requests because there are too many unauthenticated requests from your network IP. Connect a GitHub token to
                         continue and retry.
                     </p>
@@ -32,10 +32,10 @@ export function ReviewPageErrorState({
 
 export function ReviewPageAuthRequiredState({ hostLabel, authPromptSlot }: { hostLabel: string; authPromptSlot?: ReactNode }) {
     return (
-        <div className="flex items-center justify-center h-full p-8">
-            <div className="border border-border bg-card p-6 max-w-lg space-y-3">
-                <div className="text-[13px] font-medium">Authentication required</div>
-                <p className="text-[12px] text-muted-foreground">Connect {hostLabel} to load this pull request.</p>
+        <div className="flex h-full items-center justify-center overflow-auto p-8">
+            <div className="glass max-w-lg space-y-3 rounded-2xl p-6">
+                <h1 className="section-title text-[17px]">Connect {hostLabel}</h1>
+                <p className="text-[13px] text-muted-foreground">Connect {hostLabel} to load this pull request.</p>
                 {authPromptSlot}
             </div>
         </div>

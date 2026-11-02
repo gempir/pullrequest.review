@@ -110,7 +110,7 @@ function BitbucketOAuthChoice({ isOnboarding, isSubmitting, isOAuthStarting, aut
             </Button>
             <div className="flex items-center gap-3" aria-hidden="true">
                 <div className="h-px flex-1 bg-border-muted" />
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">or use an API token</span>
+                <span className="text-[11px] text-faint-foreground">or use an API token</span>
                 <div className="h-px flex-1 bg-border-muted" />
             </div>
         </>
@@ -119,7 +119,7 @@ function BitbucketOAuthChoice({ isOnboarding, isSubmitting, isOAuthStarting, aut
 
 function BitbucketScopes({ bitbucketScopeText, copiedScopes, setCopiedScopes, isOnboarding }: AuthFormState & { isOnboarding: boolean }) {
     return (
-        <div className="rounded-md border border-border-muted bg-surface-1 p-3 text-[12px]">
+        <div className="rounded-xl bg-surface-hover p-3 text-[12px]">
             <div className="flex items-center justify-between gap-3">
                 <div className="text-muted-foreground">Required scopes</div>
                 <Button
@@ -214,7 +214,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
 
     return (
         <form className="space-y-4" action={authenticate}>
-            <div className="rounded-md border border-border-muted bg-surface-1 p-4">
+            <div className="rounded-xl bg-surface-hover/60 p-4">
                 <div className="space-y-1">
                     <p className="text-[13px] text-muted-foreground">{hostCopy.description}</p>
                     <p className="text-[11px] text-muted-foreground">{hostCopy.guidance}</p>
@@ -248,9 +248,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
                 {isSubmitting ? "Authenticating..." : ctaLabel}
             </Button>
 
-            {error ? (
-                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-destructive text-[13px]">[AUTH ERROR] {error}</div>
-            ) : null}
+            {error ? <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-destructive text-[13px]">{error}</div> : null}
             <p className="text-[12px] text-muted-foreground">Your selected credentials are stored in the local app database.</p>
         </form>
     );

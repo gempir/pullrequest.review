@@ -87,6 +87,8 @@ function normalizePullRequestRecord(record: unknown): {
                     : undefined,
             links: typeof pullRequestSource.links === "object" ? pullRequestSource.links : undefined,
             author: typeof pullRequestSource.author === "object" ? pullRequestSource.author : undefined,
+            authoredByViewer: pullRequestSource.authoredByViewer === true,
+            reviewRequested: pullRequestSource.reviewRequested === true,
         },
     };
 }
@@ -168,4 +170,88 @@ export function buildSortedRootPullRequests(groupedPullRequests: GroupedPullRequ
     });
 
     return rows;
+}
+
+export type InboxSection = {
+    id: "review" | "mine" | "open" | "closed";
+    title: string;
+    rows: SortedRootPullRequest[];
+};
+
+export type InboxFilters = {
+    query: string;
+    state: "open" | "closed" | "all";
+    author: string;
+    repository: string;
+    updatedWithinMs: number | null;
+};
+
+const CLOSED_STATES = new Set(["MERGED", "DECLINED", "SUPERSEDED", "CLOSED"]);
+
+function isClosedPullRequest(pullRequest: PullRequestSummary) {
+    return CLOSED_STATES.has(pullRequest.state.trim().toUpperCase());
+}
+
+/** Groups rows by what they ask of the reader. Rows keep their incoming (most recent first) order. */
+export function buildInboxSections(rows: readonly SortedRootPullRequest[]): InboxSection[] {
+    const sections: InboxSection[] = [
+        { id: "review", title: "Needs your review", rows: [] },
+        { id: "mine", title: "Your pull requests", rows: [] },
+        { id: "open", title: "Open", rows: [] },
+        { id: "closed", title: "Closed", rows: [] },
+    ];
+    const [review, mine, open, closed] = sections as [InboxSection, InboxSection, InboxSection, InboxSection];
+    for (const row of rows) {
+        if (isClosedPullRequest(row.pullRequest)) closed.rows.push(row);
+        else if (row.pullRequest.reviewRequested) review.rows.push(row);
+        else if (row.pullRequest.authoredByViewer) mine.rows.push(row);
+        else open.rows.push(row);
+    }
+    return sections.filter((section) => section.rows.length > 0);
+}
+
+export function filterInboxRows(rows: readonly SortedRootPullRequest[], filters: InboxFilters, now = Date.now()) {
+    const term = filters.query.trim().toLowerCase();
+    return rows.filter((row) => {
+        const { pullRequest, repo } = row;
+        const closed = isClosedPullRequest(pullRequest);
+        if (filters.state === "open" && closed) return false;
+        if (filters.state === "closed" && !closed) return false;
+        if (filters.author && pullRequest.author?.displayName !== filters.author) return false;
+        if (filters.repository && repo.fullName !== filters.repository) return false;
+        if (filters.updatedWithinMs !== null) {
+            if (row.updatedAtTimestamp === Number.NEGATIVE_INFINITY || now - row.updatedAtTimestamp > filters.updatedWithinMs) return false;
+        }
+        if (!term) return true;
+        const haystack = [
+            `#${pullRequest.id}`,
+            pullRequest.title,
+            repo.fullName,
+            pullRequest.author?.displayName ?? "",
+            pullRequest.source?.branch?.name ?? "",
+            pullRequest.destination?.branch?.name ?? "",
+        ]
+            .join(" ")
+            .toLowerCase();
+        return haystack.includes(term);
+    });
+}
+
+export type PullRequestTarget = { host: GitHost; workspace: string; repo: string; pullRequestId: string };
+
+const PULL_REQUEST_URL_PATTERNS: ReadonlyArray<{ host: GitHost; pattern: RegExp }> = [
+    { host: "github", pattern: /^(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/i },
+    { host: "bitbucket", pattern: /^(?:https?:\/\/)?(?:www\.)?bitbucket\.org\/([^/\s]+)\/([^/\s]+)\/pull-requests\/(\d+)/i },
+];
+
+/** Recognizes a pasted pull request URL. Route shape selects the host, never workspace memory. */
+export function parsePullRequestUrl(value: string): PullRequestTarget | null {
+    const trimmed = value.trim();
+    for (const { host, pattern } of PULL_REQUEST_URL_PATTERNS) {
+        const match = pattern.exec(trimmed);
+        if (match?.[1] && match[2] && match[3]) {
+            return { host, workspace: match[1], repo: match[2], pullRequestId: match[3] };
+        }
+    }
+    return null;
 }

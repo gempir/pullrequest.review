@@ -24,7 +24,8 @@ function getAvatarUrl(user?: BitbucketUser): string | undefined {
     return user?.links?.avatar?.href;
 }
 
-export function mapPullRequestSummary(pullRequest: BitbucketPullRequestSummaryRaw): PullRequestSummary {
+export function mapPullRequestSummary(pullRequest: BitbucketPullRequestSummaryRaw, viewerUuid?: string): PullRequestSummary {
+    const viewerParticipant = viewerUuid ? pullRequest.participants?.find((participant) => participant.user?.uuid === viewerUuid) : undefined;
     return {
         id: pullRequest.id,
         title: pullRequest.title,
@@ -38,6 +39,8 @@ export function mapPullRequestSummary(pullRequest: BitbucketPullRequestSummaryRa
             displayName: pullRequest.author?.display_name,
             avatarUrl: getAvatarUrl(pullRequest.author),
         },
+        authoredByViewer: Boolean(viewerUuid) && pullRequest.author?.uuid === viewerUuid,
+        reviewRequested: viewerParticipant?.role === "REVIEWER" && !viewerParticipant.approved && !viewerParticipant.state,
     };
 }
 

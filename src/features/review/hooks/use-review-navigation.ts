@@ -57,7 +57,7 @@ export function useReviewNavigation({
             setShowSettingsPanel(isSettingsPath);
             setActiveFile(path);
             if (isSettingsPath || viewMode !== "all") {
-                diffScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                diffScrollRef.current?.scrollTo({ top: 0 });
                 return;
             }
             if (path === PR_SUMMARY_PATH) setIsSummaryCollapsedInAllMode(false);
@@ -107,8 +107,7 @@ export function useReviewNavigation({
     };
 
     const scrollByShortcut = (direction: 1 | -1, event: KeyboardEvent) => {
-        const singleFileScroll = viewMode === "single" ? diffScrollRef.current?.querySelector<HTMLElement>(".diff-content-scroll") : null;
-        (singleFileScroll ?? diffScrollRef.current)?.scrollBy({
+        diffScrollRef.current?.scrollBy({
             top: direction * (event.repeat ? 180 : 120),
             behavior: event.repeat ? "auto" : "smooth",
         });
@@ -139,5 +138,5 @@ export function useReviewNavigation({
         onScrollUp: (event) => scrollByShortcut(-1, event),
     });
 
-    return { toggleSettingsPanel, selectAndRevealFile };
+    return { toggleSettingsPanel, selectAndRevealFile, selectAdjacentFile };
 }

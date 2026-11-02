@@ -2,7 +2,7 @@ import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useSelectedRepoPullRequests } from "@/features/landing/hooks/use-selected-repo-pull-requests";
-import type { DiffPanel } from "@/features/landing/model/landing-model";
+import type { DiffPanel, PullRequestTarget } from "@/features/landing/model/landing-model";
 import { repositoriesQuery } from "@/lib/git-host/queries";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
@@ -57,6 +57,8 @@ export function useLandingPageView({ initialHost, initialDiffPanel = "pull-reque
         isRepoPullRequestLoading,
         clearReposForHost,
         openPullRequest,
+        openPullRequestTarget: ({ host, workspace, repo, pullRequestId }: PullRequestTarget) =>
+            openPullRequest({ host, workspace, repo, fullName: `${workspace}/${repo}`, displayName: repo }, pullRequestId),
         openRepositorySelection,
         refreshCurrentView,
         onHome: () => {

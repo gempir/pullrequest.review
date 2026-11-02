@@ -1,6 +1,8 @@
+import { Moon, Sun, SunMoon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberStepperInput } from "@/components/ui/number-stepper-input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppearance } from "@/lib/appearance-context";
 import {
@@ -19,24 +21,39 @@ export function AppearanceTab() {
 
     return (
         <div className="max-w-3xl space-y-3">
-            <div className="space-y-1">
-                <Label className="text-[12px] text-muted-foreground">App Theme</Label>
-                <Select value={appearance.appThemeMode} onValueChange={(value) => appearance.setAppThemeMode(value as "auto" | "light" | "dark")}>
-                    <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="auto" className="text-[12px]">
-                            Auto (follow system)
-                        </SelectItem>
-                        <SelectItem value="dark" className="text-[12px]">
-                            Dark
-                        </SelectItem>
-                        <SelectItem value="light" className="text-[12px]">
-                            Light
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
+            <div className="flex items-center justify-between gap-4 pb-2">
+                <Label className="text-[13px] font-medium">Appearance</Label>
+                <SegmentedControl
+                    label="App theme"
+                    value={appearance.appThemeMode}
+                    onChange={appearance.setAppThemeMode}
+                    options={[
+                        {
+                            value: "auto",
+                            label: (
+                                <>
+                                    <SunMoon className="size-3.5" /> Auto
+                                </>
+                            ),
+                        },
+                        {
+                            value: "light",
+                            label: (
+                                <>
+                                    <Sun className="size-3.5" /> Light
+                                </>
+                            ),
+                        },
+                        {
+                            value: "dark",
+                            label: (
+                                <>
+                                    <Moon className="size-3.5" /> Dark
+                                </>
+                            ),
+                        },
+                    ]}
+                />
             </div>
             <div className="grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-3">

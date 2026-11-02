@@ -95,7 +95,7 @@ export function ReviewCommentsSidebarItem({ item, onSelect, canResolveThread, re
             role="button"
             tabIndex={0}
             className={cn(
-                "block cursor-pointer border-b border-sidebar-border px-3 py-2.5 text-left transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none",
+                "pressable mx-2 mb-1.5 block cursor-pointer rounded-xl px-2.5 py-2 text-left hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none",
                 item.isResolved ? "opacity-70" : "",
             )}
             onClick={onSelect}
@@ -106,16 +106,16 @@ export function ReviewCommentsSidebarItem({ item, onSelect, canResolveThread, re
                 }
             }}
         >
-            <div title={location} className="truncate text-left font-mono text-[10px] text-muted-foreground [direction:rtl]">
+            <div title={location} className="truncate text-left text-[11px] text-faint-foreground [direction:rtl]">
                 {location}
             </div>
-            <div className="mt-2 rounded-md border border-comment-border bg-comment p-3">
+            <div className="mt-1.5">
                 <div className="flex items-start gap-2">
                     <CommentAvatar name={authorName} url={rootComment.user?.avatarUrl} />
                     <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
-                            <span className="font-medium text-[12px] text-foreground">{authorName}</span>
-                            <Timestamp value={commentTimestampSource(rootComment)} variant="comment" />
+                        <div className="flex min-w-0 items-center gap-x-2 text-[11px] text-muted-foreground">
+                            <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{authorName}</span>
+                            <Timestamp value={commentTimestampSource(rootComment)} variant="comment" className="min-w-0 shrink truncate" />
                             <span className="ml-auto shrink-0">
                                 <ThreadStatusButton
                                     isResolved={item.isResolved}
@@ -128,7 +128,7 @@ export function ReviewCommentsSidebarItem({ item, onSelect, canResolveThread, re
                             <CommentBody text={commentMarkdown(item.thread)} />
                         </div>
                         {item.replyCount > 0 ? (
-                            <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                                 <Reply className="size-3" />
                                 {item.replyCount} repl{item.replyCount === 1 ? "y" : "ies"}
                             </div>

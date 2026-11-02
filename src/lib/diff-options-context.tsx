@@ -1,4 +1,5 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useAppearance } from "@/lib/appearance-context";
 import { registerExtendedDiffThemes } from "@/lib/diff-theme-registration";
 import { DEFAULT_DIFF_THEME, type DiffTheme } from "@/lib/diff-themes";
 import { ensureStorageReady, readSetting, writeSetting } from "@/lib/storage";
@@ -53,6 +54,7 @@ function parseStoredOptions(raw: Record<string, unknown> | null): DiffOptions | 
 }
 
 export function DiffOptionsProvider({ children }: { children: ReactNode }) {
+    const { appThemeMode } = useAppearance();
     const [options, setOptions] = useState<DiffOptions>(() => {
         return {
             ...defaultOptions,
@@ -89,7 +91,8 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (typeof window === "undefined" || !options.followSystemTheme) return;
         const media = window.matchMedia("(prefers-color-scheme: dark)");
-        const apply = (isDark: boolean) => {
+        const apply = () => {
+            const isDark = appThemeMode === "auto" ? media.matches : appThemeMode === "dark";
             setOptions((prev) => {
                 if (!prev.followSystemTheme) return prev;
                 const nextTheme = isDark ? "pierre-dark" : "pierre-light";
@@ -97,13 +100,10 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
                 return { ...prev, theme: nextTheme };
             });
         };
-        apply(media.matches);
-        const onChange = (event: MediaQueryListEvent) => {
-            apply(event.matches);
-        };
-        media.addEventListener("change", onChange);
-        return () => media.removeEventListener("change", onChange);
-    }, [options.followSystemTheme]);
+        apply();
+        media.addEventListener("change", apply);
+        return () => media.removeEventListener("change", apply);
+    }, [appThemeMode, options.followSystemTheme]);
 
     const setOption = useCallback(<K extends keyof DiffOptions>(key: K, value: DiffOptions[K]) => {
         setOptions((prev) => ({ ...prev, [key]: value }));

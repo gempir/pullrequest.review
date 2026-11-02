@@ -2,7 +2,8 @@ import { type RefObject, useCallback, useEffect, useRef, useState } from "react"
 import { fileAnchorId } from "@/lib/file-anchors";
 
 const SCROLL_RETRY_DELAYS = [0, 80, 180, 320, 500, 700, 950, 1200, 1500, 1850, 2200, 2600, 3000, 3400, 3800] as const;
-export const ALL_MODE_STICKY_OFFSET = 0;
+/** Height of the floating capsule that file sections stick beneath, matches --canvas-top + 6px. */
+export const ALL_MODE_STICKY_OFFSET = 70;
 
 /**
  * Scrolls the multi-file view to a file. Rows are virtualized and measured

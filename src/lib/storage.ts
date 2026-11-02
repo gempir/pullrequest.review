@@ -93,7 +93,7 @@ export function ensureStorageReady() {
     return readyPromise;
 }
 
-type SettingName = "appearance" | "diff-options" | "tree-settings" | "shortcuts";
+type SettingName = "appearance-v2" | "diff-options" | "tree-settings" | "shortcuts";
 
 export function readSetting(name: SettingName) {
     return read<Record<string, unknown>>(`setting:${name}`);

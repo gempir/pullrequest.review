@@ -45,7 +45,7 @@ function ReviewCommitScopeControl({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 min-w-[88px] justify-between rounded-sm border border-transparent bg-[var(--diffs-bg,var(--background))] px-2 text-[11px] text-muted-foreground hover:border-border hover:bg-surface-hover hover:text-foreground focus-visible:border-transparent focus-visible:ring-0"
+                        className="h-8 min-w-[88px] justify-between rounded-full bg-surface-hover px-3 text-[12px] text-foreground hover:bg-surface-active"
                     >
                         <span className="truncate">{scopeLabel}</span>
                         <GitCompare className="ml-1 size-3" aria-hidden="true" />
@@ -53,10 +53,7 @@ function ReviewCommitScopeControl({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-[430px] p-0">
                     <DropdownMenuItem
-                        className={cn(
-                            "rounded-none px-2 py-2 border-t border-border/30 first:border-t-0 cursor-pointer",
-                            mode === "full" ? "bg-status-renamed/20 focus:bg-status-renamed/25" : "",
-                        )}
+                        className={cn("px-2.5 py-2 cursor-pointer", mode === "full" ? "bg-status-renamed/20 focus:bg-status-renamed/25" : "")}
                         onSelect={(event) => {
                             event.preventDefault();
                             onSetFullScope();
@@ -75,7 +72,7 @@ function ReviewCommitScopeControl({
                                         <DropdownMenuItem
                                             key={option.hash}
                                             className={cn(
-                                                "items-start gap-2 px-2 py-1 rounded-none border-t border-border/30 first:border-t-0 cursor-crosshair",
+                                                "items-start gap-2 px-2.5 py-1.5 cursor-crosshair",
                                                 selected
                                                     ? "bg-status-renamed/20 focus:bg-status-renamed/25"
                                                     : inRange

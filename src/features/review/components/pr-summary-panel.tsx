@@ -62,22 +62,19 @@ export function PullRequestSummaryPanel({
     return (
         <div className="pr-diff-font" style={{ fontFamily: "var(--comment-font-family)" }}>
             {headerTitle ? (
-                <div
-                    className="h-10 bg-chrome border-b border-border-muted px-2.5 flex items-center gap-2 overflow-hidden text-[12px]"
-                    data-component="summary-header"
-                >
-                    <Avatar name={pr.author?.displayName} url={pr.author?.avatarUrl} sizeClass="size-5" />
-                    <span className="min-w-0 flex-1 text-foreground truncate">{headerTitle}</span>
+                <div className="mx-auto flex max-w-[860px] items-start gap-3 px-3 pb-2 pt-4" data-component="summary-header">
+                    <Avatar name={pr.author?.displayName} url={pr.author?.avatarUrl} sizeClass="mt-0.5 size-8" />
+                    <h1 className="display-title min-w-0 flex-1 text-[26px] text-foreground">{headerTitle}</h1>
                     {diffStats ? (
-                        <div className="ml-auto shrink-0 font-mono text-[11px]">
+                        <div className="ml-auto mt-2 shrink-0 text-[13px] font-medium tabular-nums">
                             <span className="text-status-added">+{diffStats.added}</span>
                             <span className="ml-2 text-status-removed">-{diffStats.removed}</span>
                         </div>
                     ) : null}
-                    {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
+                    {headerRight ? <div className="mt-1 shrink-0">{headerRight}</div> : null}
                 </div>
             ) : null}
-            <div className="px-2.5 pb-48 pt-2.5">
+            <div className="mx-auto max-w-[860px] px-3 pb-24 pt-2.5">
                 <SummaryDescription
                     description={pr.description}
                     canEdit={Boolean(canEditDescription && onEditDescription)}

@@ -40,13 +40,6 @@ type UseAppFileTreeModelProps = {
     renderRowDecoration?: (context: AppFileTreeRowDecorationContext) => FileTreeRowDecoration | null;
 };
 
-type AppFileTreeProps = UseAppFileTreeModelProps & {
-    className?: string;
-    header?: ReactNode;
-    onTreeItemClick?: (treePath: string) => void;
-    style?: CSSProperties;
-};
-
 const TREE_HOST_STYLE: CSSProperties = {
     height: "100%",
     "--trees-font-family-override": "var(--tree-font-family)",
@@ -61,13 +54,13 @@ const TREE_HOST_STYLE: CSSProperties = {
     "--trees-selected-bg-override": "var(--selection)",
     "--trees-git-renamed-color-override": "var(--status-renamed)",
     "--trees-focus-ring-width-override": "0px",
-    "--trees-border-radius-override": "0px",
-    "--trees-item-margin-x-override": "0px",
-    "--trees-item-padding-x-override": "4px",
+    "--trees-border-radius-override": "8px",
+    "--trees-item-margin-x-override": "6px",
+    "--trees-item-padding-x-override": "6px",
     "--trees-level-gap-override": "4px",
-    "--trees-item-row-gap-override": "2px",
+    "--trees-item-row-gap-override": "1px",
     "--trees-padding-inline-override": "0px",
-    "--trees-scrollbar-thumb-override": "var(--border)",
+    "--trees-scrollbar-thumb-override": "var(--surface-active)",
     "--trees-scrollbar-gutter-override": "0px",
 } as CSSProperties;
 
@@ -193,9 +186,9 @@ function createTreePathToAppPathMap(entries: readonly FileTreeEntry[]) {
 }
 
 function getTreeItemHeight(density: TreeDensityValue) {
-    if (density === "compact") return 20;
-    if (density === "relaxed") return 28;
-    return 24;
+    if (density === "compact") return 24;
+    if (density === "relaxed") return 32;
+    return 28;
 }
 
 function areTreePathsEqual(left: readonly string[], right: readonly string[]) {
@@ -525,10 +518,4 @@ export function AppFileTreeView({
             style={hostStyle}
         />
     );
-}
-
-export function FileTree(props: AppFileTreeProps) {
-    const { className, header, onTreeItemClick, style, ...modelProps } = props;
-    const model = useAppFileTreeModel(modelProps);
-    return <AppFileTreeView className={className} header={header} model={model} onTreeItemClick={onTreeItemClick} style={style} />;
 }

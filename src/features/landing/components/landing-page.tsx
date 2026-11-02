@@ -12,7 +12,7 @@ export function LandingPage({
     const view = useLandingPageView({ initialHost, initialDiffPanel });
 
     return (
-        <div className="h-full min-h-0 flex bg-background">
+        <div className="flex h-full min-h-0">
             <LandingMainContent
                 showRepositoryPanel={view.showRepositoryPanel}
                 isRefreshing={view.isRefreshing}
@@ -31,6 +31,7 @@ export function LandingPage({
                 onDisconnectHost={view.onDisconnectHost}
                 onOpenRepositorySelection={view.openRepositorySelection}
                 onOpenPullRequest={view.openPullRequest}
+                onOpenTarget={view.openPullRequestTarget}
             />
         </div>
     );

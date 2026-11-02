@@ -2,23 +2,17 @@
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createRootRoute, HeadContent, Link, Outlet, Scripts, useHydrated, useRouterState } from "@tanstack/react-router";
-import { GitPullRequest } from "lucide-react";
+import { domMax, LazyMotion, MotionConfig } from "motion/react";
 import type { ReactNode } from "react";
-import { HostAuthForm } from "@/components/auth/host-auth-form";
-import { GitHostIcon } from "@/components/git-host-icon";
 import { AppPullRequestOmnibar } from "@/components/omnibar/app-pull-request-omnibar";
+import { WelcomeScreen } from "@/features/landing/components/welcome-screen";
 import { AppearanceProvider } from "@/lib/appearance-context";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
-import { getHostLabel } from "@/lib/git-host/registry";
-import type { GitHost } from "@/lib/git-host/types";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
 import { appQueryClient } from "@/lib/query-client";
 import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
-import { cn } from "@/lib/utils";
-
-const ONBOARDING_HOSTS: GitHost[] = ["bitbucket", "github"];
 
 import "../../styles.css";
 
@@ -33,20 +27,16 @@ export const Route = createRootRoute({
 
 function NotFoundComponent() {
     return (
-        <div className="h-full overflow-auto bg-background">
-            <div className="min-h-full flex items-center justify-center p-4">
-                <div className="bg-card p-6 max-w-md">
-                    <div className="pb-3 mb-4">
-                        <h1 className="text-lg font-semibold">[ERROR] 404</h1>
-                    </div>
-                    <p className="text-muted-foreground mb-4">Page not found.</p>
-                    <Link
-                        to="/"
-                        className="inline-flex items-center gap-2 h-8 px-4 bg-accent-solid text-accent-foreground hover:bg-accent-solid-hover transition-colors text-[13px]"
-                    >
-                        cd ~
-                    </Link>
-                </div>
+        <div className="flex h-full items-center justify-center overflow-auto p-4">
+            <div className="glass max-w-md rounded-2xl p-6 text-center">
+                <h1 className="display-title text-[26px]">Page not found</h1>
+                <p className="mb-5 mt-2 text-muted-foreground">There is nothing at this address.</p>
+                <Link
+                    to="/"
+                    className="pressable inline-flex h-9 items-center rounded-full bg-accent-solid px-5 text-[13px] font-medium text-accent-foreground hover:bg-accent-solid-hover"
+                >
+                    Back to inbox
+                </Link>
             </div>
         </div>
     );
@@ -55,69 +45,23 @@ function NotFoundComponent() {
 function RootComponent() {
     return (
         <QueryClientProvider client={appQueryClient}>
-            <AppearanceProvider>
-                <PrProvider>
-                    <DiffOptionsProvider>
-                        <ShikiAppThemeSync />
-                        <FileTreeProvider>
-                            <ShortcutsProvider>
-                                <AppLayout />
-                            </ShortcutsProvider>
-                        </FileTreeProvider>
-                    </DiffOptionsProvider>
-                </PrProvider>
-            </AppearanceProvider>
+            <LazyMotion features={domMax}>
+                <MotionConfig reducedMotion="user">
+                    <AppearanceProvider>
+                        <PrProvider>
+                            <DiffOptionsProvider>
+                                <ShikiAppThemeSync />
+                                <FileTreeProvider>
+                                    <ShortcutsProvider>
+                                        <AppLayout />
+                                    </ShortcutsProvider>
+                                </FileTreeProvider>
+                            </DiffOptionsProvider>
+                        </PrProvider>
+                    </AppearanceProvider>
+                </MotionConfig>
+            </LazyMotion>
         </QueryClientProvider>
-    );
-}
-
-function OnboardingScreen() {
-    const { setActiveHost, activeHost } = usePrContext();
-
-    return (
-        <div className="h-full min-h-0 flex flex-col bg-background">
-            <header data-component="navbar" className="h-11 shrink-0 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 text-[12px]">
-                <GitPullRequest className="size-3.5 text-muted-foreground" />
-                <span className="text-muted-foreground">Connect Git Host</span>
-            </header>
-
-            <main data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto p-4">
-                <div className="mx-auto w-full max-w-2xl space-y-4">
-                    <div role="tablist" aria-label="Git host" className="flex border-b border-border-muted">
-                        {ONBOARDING_HOSTS.map((host) => {
-                            const isActive = activeHost === host;
-                            return (
-                                <button
-                                    key={host}
-                                    type="button"
-                                    role="tab"
-                                    id={`onboarding-host-tab-${host}`}
-                                    aria-selected={isActive}
-                                    aria-controls={`onboarding-host-panel-${host}`}
-                                    tabIndex={isActive ? 0 : -1}
-                                    className={cn(
-                                        "inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-[12px] transition-colors",
-                                        isActive
-                                            ? "-mb-px border-foreground text-foreground"
-                                            : "border-transparent text-muted-foreground hover:text-foreground",
-                                    )}
-                                    onClick={() => {
-                                        setActiveHost(host);
-                                    }}
-                                >
-                                    <GitHostIcon host={host} className="size-3.5" />
-                                    <span>{getHostLabel(host)}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    <div role="tabpanel" id={`onboarding-host-panel-${activeHost}`} aria-labelledby={`onboarding-host-tab-${activeHost}`}>
-                        <HostAuthForm host={activeHost} mode="onboarding" />
-                    </div>
-                </div>
-            </main>
-        </div>
     );
 }
 
@@ -143,12 +87,12 @@ function AppLayout() {
     }
 
     if (!isAuthenticated && !isGithubPullPath && !isSettingsPath) {
-        return <OnboardingScreen />;
+        return <WelcomeScreen />;
     }
 
     return (
-        <div className="h-dvh overflow-hidden bg-background">
-            <main className="h-full min-h-0 overflow-hidden bg-background">
+        <div className="h-dvh overflow-hidden">
+            <main className="h-full min-h-0 overflow-hidden">
                 <Outlet />
             </main>
             <AppPullRequestOmnibar />

@@ -15,6 +15,7 @@ export interface BitbucketPullRequestSummaryRaw {
     destination?: PullRequestSummary["destination"];
     links?: PullRequestSummary["links"];
     author?: BitbucketUser;
+    participants?: Array<{ user?: BitbucketUser; role?: string; approved?: boolean; state?: string | null }>;
 }
 
 export interface BitbucketUser {

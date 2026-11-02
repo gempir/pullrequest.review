@@ -65,7 +65,7 @@ describe("thread card", () => {
         expect(html).toContain("reply L3");
         expect(html).toContain('data-thread-depth="1" style="margin-left:38px"');
         expect(html).toContain('data-thread-depth="2" style="margin-left:38px"');
-        expect(html).toContain('class="relative border-y border-r border-comment-border bg-comment"');
+        expect(html).toContain('class="relative overflow-hidden rounded-r-xl border-y border-r border-comment-border bg-comment"');
     });
 
     test("collapses resolved threads behind an accessible toggle", () => {

@@ -33,6 +33,10 @@ export interface PullRequestSummary {
     destination?: { branch?: { name?: string } };
     links?: { html?: { href?: string } };
     author?: { displayName?: string; avatarUrl?: string };
+    /** The signed-in user opened this pull request. */
+    authoredByViewer?: boolean;
+    /** The signed-in user was asked to review and has not responded yet. */
+    reviewRequested?: boolean;
 }
 
 export interface Commit {

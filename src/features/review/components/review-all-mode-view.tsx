@@ -1,38 +1,37 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ScrollText } from "lucide-react";
-import { useEffect, useMemo } from "react";
-import { RepositoryFileIcon } from "@/components/repository-file-icon";
-import { DiffContextButton } from "@/features/review/components/diff-context-button";
+import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { PullRequestSummaryPanel } from "@/features/review/components/pr-summary-panel";
 import { useReview } from "@/features/review/components/review-context";
 import { ReviewDiffSettingsMenu } from "@/features/review/components/review-diff-settings-menu";
-import { AllViewedToggle, CopyPathButton, ViewedToggle } from "@/features/review/components/review-file-controls";
+import { AllViewedToggle } from "@/features/review/components/review-file-controls";
 import { ReviewFileDiff } from "@/features/review/components/review-file-diff";
+import { ReviewFileHeader } from "@/features/review/components/review-file-header";
 import { ReviewSummaryCommentComposer } from "@/features/review/components/review-summary-comment-composer";
+import { ALL_MODE_STICKY_OFFSET } from "@/features/review/hooks/use-all-mode-reveal";
 import { fileAnchorId } from "@/lib/file-anchors";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
-import { cn } from "@/lib/utils";
 
-const STICKY_HEADER_CLASS = "group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]";
-
-function AllModeSummary() {
+function AllModeSummary({ containerRef }: { containerRef: RefObject<HTMLDivElement | null> }) {
     const review = useReview();
     const { isSummaryCollapsedInAllMode: collapsed, viewMode, setViewMode, openDiffSettings } = review;
     const { lineStats } = review.model;
     return (
-        <div id={fileAnchorId(PR_SUMMARY_PATH)} className={cn("w-full max-w-full", collapsed && "border-b-0")}>
-            <div className={STICKY_HEADER_CLASS}>
-                <button type="button" className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden text-left" onClick={review.toggleSummaryCollapsed}>
-                    <span className="size-4 flex items-center justify-center shrink-0">
-                        <ScrollText className="size-3.5" />
-                    </span>
-                    <span className="min-w-0 max-w-full truncate font-mono">{review.pullRequestTitle || PR_SUMMARY_NAME}</span>
+        <div ref={containerRef} id={fileAnchorId(PR_SUMMARY_PATH)} className="canvas-card mb-3 w-full max-w-full [overflow:clip]">
+            <div className="canvas-sticky-header glass-strong flex h-11 min-w-0 items-center gap-2 overflow-hidden rounded-[15px] border-0 pl-3.5 pr-2.5 shadow-none">
+                <button
+                    type="button"
+                    className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-hidden text-left"
+                    onClick={review.toggleSummaryCollapsed}
+                >
+                    <ScrollText className="size-3.5 shrink-0" />
+                    <span className="min-w-0 max-w-full truncate text-[13px] font-semibold">{review.pullRequestTitle || PR_SUMMARY_NAME}</span>
                 </button>
-                <div className="shrink-0 font-mono text-[11px]">
+                <div className="shrink-0 text-[12px] font-medium tabular-nums">
                     <span className="text-status-added">+{lineStats.added}</span>
                     <span className="ml-2 text-status-removed">-{lineStats.removed}</span>
                 </div>
-                <div className="shrink-0 flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                     <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={setViewMode} onOpenDiffSettings={openDiffSettings} />
                     <AllViewedToggle />
                 </div>
@@ -51,18 +50,35 @@ function AllModeSummary() {
 
 export function ReviewAllModeView() {
     const review = useReview();
-    const { model, collapsedAllModeFiles, collapseViewedFilesByDefault, viewedFiles, fileContextState, pendingScrollPath, diffScrollRef } = review;
-    const { allModeDiffEntries, threadsByPath, fileLineStats } = model;
+    const { model, collapsedAllModeFiles, collapseViewedFilesByDefault, viewedFiles, pendingScrollPath, diffScrollRef } = review;
+    const { allModeDiffEntries, threadsByPath } = model;
     const filePathsInOrder = useMemo(() => allModeDiffEntries.map((entry) => entry.filePath), [allModeDiffEntries]);
+    const summaryRef = useRef<HTMLDivElement>(null);
+    const rowsStartRef = useRef<HTMLDivElement>(null);
+    // Rows start below the summary card, whose height changes as it loads, expands, and collapses.
+    const [scrollMargin, setScrollMargin] = useState(0);
+    useLayoutEffect(() => {
+        const scroller = diffScrollRef.current;
+        const summary = summaryRef.current;
+        const rowsStart = rowsStartRef.current;
+        if (!scroller || !summary || !rowsStart) return;
+        const measure = () => setScrollMargin(rowsStart.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop);
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(summary);
+        return () => observer.disconnect();
+    }, [diffScrollRef]);
     const rowVirtualizer = useVirtualizer({
         count: allModeDiffEntries.length,
         getScrollElement: () => diffScrollRef.current,
         estimateSize: () => 420,
         overscan: 4,
+        scrollPaddingStart: ALL_MODE_STICKY_OFFSET,
+        scrollMargin,
     });
     const virtualRows = rowVirtualizer.getVirtualItems();
-    const paddingTop = virtualRows[0]?.start ?? 0;
-    const paddingBottom = Math.max(0, rowVirtualizer.getTotalSize() - (virtualRows.at(-1)?.end ?? 0));
+    const paddingTop = virtualRows[0] ? virtualRows[0].start - scrollMargin : 0;
+    const paddingBottom = Math.max(0, rowVirtualizer.getTotalSize() - (virtualRows.length > 0 ? (virtualRows.at(-1)?.end ?? 0) - scrollMargin : 0));
 
     useEffect(() => {
         if (!pendingScrollPath) return;
@@ -71,8 +87,9 @@ export function ReviewAllModeView() {
     }, [filePathsInOrder, pendingScrollPath, rowVirtualizer]);
 
     return (
-        <div className="w-full max-w-full" data-component="diff-list-view" style={{ paddingBottom: "max(420px, 90vh)" }}>
-            <AllModeSummary />
+        <div className="canvas-page w-full max-w-full" data-component="diff-list-view" style={{ paddingBottom: "max(420px, 90vh)" }}>
+            <AllModeSummary containerRef={summaryRef} />
+            <div ref={rowsStartRef} />
 
             {paddingTop > 0 ? <div style={{ height: paddingTop }} /> : null}
             {virtualRows.map((virtualRow) => {
@@ -82,39 +99,17 @@ export function ReviewAllModeView() {
                 const unresolvedCount = (threadsByPath.get(filePath) ?? []).filter(
                     (thread) => !thread.root.comment.resolution && !thread.root.comment.deleted,
                 ).length;
-                const stats = fileLineStats.get(filePath);
                 const isCollapsed = collapsedAllModeFiles[filePath] ?? (collapseViewedFilesByDefault && viewedFiles.has(filePath));
 
                 return (
-                    <div key={filePath} ref={rowVirtualizer.measureElement} data-index={virtualRow.index}>
-                        <div id={fileAnchorId(filePath)} className={cn("w-full max-w-full bg-card", isCollapsed && "border-b-0")}>
-                            <div className={STICKY_HEADER_CLASS}>
-                                <div className="min-w-0 flex flex-1 items-center gap-2">
-                                    <button
-                                        type="button"
-                                        className="h-full min-w-0 flex items-center gap-2 overflow-hidden text-left"
-                                        onClick={() => review.setFileCollapsed(filePath, !isCollapsed)}
-                                    >
-                                        <span className="size-4 flex items-center justify-center shrink-0">
-                                            <RepositoryFileIcon fileName={filePath.split("/").pop() || filePath} className="size-3.5" />
-                                        </span>
-                                        <span className="min-w-0 flex-1 truncate font-mono">{filePath}</span>
-                                    </button>
-                                    <CopyPathButton path={filePath} />
-                                    <DiffContextButton state={fileContextState[filePath]} onClick={() => review.onLoadFullFileContext(filePath, fileDiff)} />
-                                </div>
-                                <div className="ml-auto flex shrink-0 items-center gap-2 text-[12px]">
-                                    <span className="select-none text-status-added">+{stats?.added ?? 0}</span>
-                                    <span className="select-none text-status-removed">-{stats?.removed ?? 0}</span>
-                                    {unresolvedCount > 0 ? <span className="text-muted-foreground">{unresolvedCount} unresolved</span> : null}
-                                    <ReviewDiffSettingsMenu
-                                        viewMode={review.viewMode}
-                                        onViewModeChange={review.setViewMode}
-                                        onOpenDiffSettings={review.openDiffSettings}
-                                    />
-                                    <ViewedToggle path={filePath} />
-                                </div>
-                            </div>
+                    <div key={filePath} ref={rowVirtualizer.measureElement} data-index={virtualRow.index} className="pb-3">
+                        <div id={fileAnchorId(filePath)} className="canvas-card w-full max-w-full [overflow:clip]">
+                            <ReviewFileHeader
+                                filePath={filePath}
+                                fileDiff={fileDiff}
+                                unresolvedCount={unresolvedCount}
+                                onToggleCollapsed={() => review.setFileCollapsed(filePath, !isCollapsed)}
+                            />
                             {!isCollapsed ? (
                                 <div className="diff-content-scroll min-w-0 w-full max-w-full overflow-x-auto">
                                     <ReviewFileDiff filePath={filePath} fileDiff={fileDiff} />
@@ -127,7 +122,7 @@ export function ReviewAllModeView() {
             {paddingBottom > 0 ? <div style={{ height: paddingBottom }} /> : null}
 
             {allModeDiffEntries.length === 0 ? (
-                <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">No files match the current search.</div>
+                <div className="p-8 text-center text-[13px] text-muted-foreground">No files match the current search.</div>
             ) : null}
         </div>
     );

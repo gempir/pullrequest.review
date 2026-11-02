@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { inlineDraftStorageKey } from "@/features/review/model/use-inline-drafts";
 import {
     clearActiveInlineDraft,
     clearInlineDraftContent as clearStoredDraftContent,
@@ -22,12 +23,18 @@ type UseInlineCommentDraftsProps = {
 
 export function useInlineCommentDrafts({ workspace, repo, pullRequestId, setActiveFile, setViewMode }: UseInlineCommentDraftsProps) {
     const [inlineComment, setInlineComment] = useState<InlineCommentDraft | null>(null);
+    const [draftContents, setDraftContents] = useState<Record<string, string>>({});
     const scopeId = `${workspace}/${repo}/${pullRequestId}`;
 
-    const getInlineDraftContent = useCallback((draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => readInlineDraftContent(scopeId, draft), [scopeId]);
+    const getInlineDraftContent = useCallback(
+        (draft: InlineCommentDraft) => draftContents[inlineDraftStorageKey(workspace, repo, pullRequestId, draft)] ?? readInlineDraftContent(scopeId, draft),
+        [draftContents, workspace, repo, pullRequestId, scopeId],
+    );
 
     const setInlineDraftContent = useCallback(
         (draft: Pick<InlineCommentDraft, "path" | "line" | "side">, content: string) => {
+            const key = inlineDraftStorageKey(workspace, repo, pullRequestId, draft);
+            setDraftContents((prev) => ({ ...prev, [key]: content }));
             if (content.length > 0) {
                 writeInlineDraftContent(scopeId, draft, content);
                 writeActiveInlineDraft(scopeId, draft);
@@ -42,18 +49,20 @@ export function useInlineCommentDrafts({ workspace, repo, pullRequestId, setActi
                 clearActiveInlineDraft(scopeId);
             }
         },
-        [scopeId],
+        [workspace, repo, pullRequestId, scopeId],
     );
 
     const clearInlineDraftContent = useCallback(
         (draft: Pick<InlineCommentDraft, "path" | "line" | "side">) => {
+            const key = inlineDraftStorageKey(workspace, repo, pullRequestId, draft);
+            setDraftContents((prev) => ({ ...prev, [key]: "" }));
             const activeDraft = readActiveInlineDraft(scopeId);
             if (activeDraft && activeDraft.path === draft.path && activeDraft.line === draft.line && activeDraft.side === draft.side) {
                 clearActiveInlineDraft(scopeId);
             }
             clearStoredDraftContent(scopeId, draft);
         },
-        [scopeId],
+        [workspace, repo, pullRequestId, scopeId],
     );
 
     const openInlineCommentDraft = useCallback(
@@ -77,7 +86,7 @@ export function useInlineCommentDrafts({ workspace, repo, pullRequestId, setActi
 
     useEffect(() => {
         const restoreDraft = (draft: InlineCommentDraft) => {
-            const content = getInlineDraftContent(draft);
+            const content = readInlineDraftContent(scopeId, draft);
             if (!content.trim()) return false;
             setInlineComment(draft);
             setActiveFile(draft.path);
@@ -104,7 +113,7 @@ export function useInlineCommentDrafts({ workspace, repo, pullRequestId, setActi
                 return;
             }
         }
-    }, [getInlineDraftContent, scopeId, setActiveFile, setViewMode]);
+    }, [scopeId, setActiveFile, setViewMode]);
 
     return {
         inlineComment,

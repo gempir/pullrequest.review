@@ -130,10 +130,17 @@ export function useReviewFileHashSelection({
     commentsLoading: boolean;
     onHashPathResolved: (target: PrFileHashTarget & { path: string }) => void;
 }) {
+    const resolvedPageRef = useRef<string | null>(null);
+
     useLayoutEffect(() => {
         if (typeof window === "undefined") return;
 
         const applyHashSelection = () => {
+            const page = `${window.location.pathname}${window.location.search}`;
+            // Resolve each navigation once. Comment refreshes must not replay an
+            // old hash after all-mode scrolling has selected a different file.
+            if (resolvedPageRef.current === page) return;
+            resolvedPageRef.current = null;
             const target = parsePrFileHashTarget(window.location.hash);
             if (!target) return;
             let path = target.path;
@@ -146,13 +153,19 @@ export function useReviewFileHashSelection({
                 const nextUrl = `${window.location.pathname}${window.location.search}#${buildPrFileHash(path, target.commentId)}`;
                 window.history.replaceState(window.history.state, "", nextUrl);
             }
+            resolvedPageRef.current = page;
             onHashPathResolved({ ...target, path });
         };
 
+        const handleHashChange = () => {
+            resolvedPageRef.current = null;
+            applyHashSelection();
+        };
+
         applyHashSelection();
-        window.addEventListener("hashchange", applyHashSelection);
+        window.addEventListener("hashchange", handleHashChange);
         return () => {
-            window.removeEventListener("hashchange", applyHashSelection);
+            window.removeEventListener("hashchange", handleHashChange);
         };
     }, [comments, commentsLoading, onHashPathResolved, selectableFilePaths]);
 }

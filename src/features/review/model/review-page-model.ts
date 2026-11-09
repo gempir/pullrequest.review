@@ -1,14 +1,13 @@
-import type { DiffLineAnnotation } from "@pierre/diffs";
+import type { DiffLineAnnotation, FileDiffOptions } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { CommentThread } from "@/features/review/model/review-threads";
 import { orderFileTreePaths } from "@/lib/file-tree-order";
-import type { Comment as PullRequestComment } from "@/lib/git-host/types";
+import type { CommentSide } from "@/lib/git-host/types";
 import type { InlineDraftLocation } from "@/lib/storage";
 
-export type CommentLineSide = "additions" | "deletions";
 export type InlineCommentLineTarget = {
     lineNumber: number;
-    annotationSide: CommentLineSide;
+    annotationSide: CommentSide;
 };
 
 type ExistingThreadAnnotation = {
@@ -26,19 +25,6 @@ export type SingleFileAnnotationMetadata = ExistingThreadAnnotation | DraftThrea
 
 export type SingleFileAnnotation = DiffLineAnnotation<ExistingThreadAnnotation> | DiffLineAnnotation<DraftThreadAnnotation>;
 
-export function getCommentPath(comment: PullRequestComment) {
-    return comment.inline?.path ?? "";
-}
-
-export function getCommentInlinePosition(comment: PullRequestComment) {
-    const from = comment.inline?.from;
-    const to = comment.inline?.to;
-    const lineNumber = to ?? from;
-    if (!lineNumber) return null;
-    const side: CommentLineSide = to ? "additions" : "deletions";
-    return { side, lineNumber };
-}
-
 export function getFilePath(fileDiff: FileDiffMetadata, index: number) {
     return fileDiff.name ?? fileDiff.prevName ?? String(index);
 }
@@ -53,4 +39,25 @@ export function createOmnibarFilePaths(filePaths: readonly string[], fallbackPat
         uniquePaths.push(path);
     }
     return orderFileTreePaths(uniquePaths);
+}
+
+export type ReviewSidebarThreadItem = {
+    commentId: number;
+    isResolved: boolean;
+    path: string;
+    line?: number;
+    side?: CommentSide;
+    replyCount: number;
+    latestActivityAt?: string;
+    thread: CommentThread;
+};
+
+export type ReviewFileDiffOptions = FileDiffOptions<SingleFileAnnotationMetadata | undefined, undefined>;
+
+export function sameDraftLocation(a: InlineDraftLocation | null, b: InlineDraftLocation) {
+    return a?.path === b.path && a.line === b.line && a.side === b.side;
+}
+
+export function draftLocationKey(draft: InlineDraftLocation) {
+    return `${draft.side}:${draft.line}:${draft.path}`;
 }

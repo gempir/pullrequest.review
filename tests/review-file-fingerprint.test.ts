@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parsePatchFiles } from "@pierre/diffs";
-import { buildFileDiffFingerprint } from "../src/lib/review-file-fingerprint";
+import { buildFileDiffFingerprint } from "../src/features/review/model/review-file-fingerprint";
 
 function parseFile(patch: string) {
     const file = parsePatchFiles(patch)[0]?.files[0];

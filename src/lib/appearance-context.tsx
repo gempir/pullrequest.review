@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { DEFAULT_FONT_FAMILY, type FontFamilyValue, fontFamilyToCss } from "@/lib/font-options";
+import { DEFAULT_FONT_FAMILY, FONT_SIZE_LIMITS, type FontFamilyValue, fontFamilyToCss, LINE_HEIGHT_LIMITS } from "@/lib/font-options";
 import { ensureStorageReady, readSetting, writeSetting } from "@/lib/storage";
 
 type AppThemeMode = "auto" | "light" | "dark";
@@ -57,10 +57,14 @@ function parseStoredSettings(raw: Record<string, unknown> | null): AppearanceSet
         appThemeMode,
         sansFontFamily: (raw.sansFontFamily as FontFamilyValue) ?? defaultAppearance.sansFontFamily,
         monospaceFontFamily: (raw.monospaceFontFamily as FontFamilyValue) ?? defaultAppearance.monospaceFontFamily,
-        sansFontSize: normalizeFontSize(Number(raw.sansFontSize ?? defaultAppearance.sansFontSize), 11, 20),
-        sansLineHeight: normalizeLineHeight(Number(raw.sansLineHeight ?? defaultAppearance.sansLineHeight), 1, 2.2),
-        monospaceFontSize: normalizeFontSize(Number(raw.monospaceFontSize ?? defaultAppearance.monospaceFontSize), 11, 20),
-        monospaceLineHeight: normalizeLineHeight(Number(raw.monospaceLineHeight ?? defaultAppearance.monospaceLineHeight), 1, 2.2),
+        sansFontSize: normalizeFontSize(Number(raw.sansFontSize ?? defaultAppearance.sansFontSize), FONT_SIZE_LIMITS.min, FONT_SIZE_LIMITS.max),
+        sansLineHeight: normalizeLineHeight(Number(raw.sansLineHeight ?? defaultAppearance.sansLineHeight), LINE_HEIGHT_LIMITS.min, LINE_HEIGHT_LIMITS.max),
+        monospaceFontSize: normalizeFontSize(Number(raw.monospaceFontSize ?? defaultAppearance.monospaceFontSize), FONT_SIZE_LIMITS.min, FONT_SIZE_LIMITS.max),
+        monospaceLineHeight: normalizeLineHeight(
+            Number(raw.monospaceLineHeight ?? defaultAppearance.monospaceLineHeight),
+            LINE_HEIGHT_LIMITS.min,
+            LINE_HEIGHT_LIMITS.max,
+        ),
     };
 }
 
@@ -90,7 +94,6 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     }, [settings, hydrated]);
 
     useEffect(() => {
-        if (typeof window === "undefined") return;
         const root = window.document.documentElement;
         root.style.setProperty("--app-font-family", fontFamilyToCss(settings.sansFontFamily));
         root.style.setProperty("--mono-font-family", fontFamilyToCss(settings.monospaceFontFamily));
@@ -114,7 +117,6 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     ]);
 
     useEffect(() => {
-        if (typeof window === "undefined") return;
         const root = window.document.documentElement;
         const media = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -152,25 +154,25 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     const setSansFontSize = useCallback((size: number) => {
         setSettings((prev) => ({
             ...prev,
-            sansFontSize: normalizeFontSize(size, 11, 20),
+            sansFontSize: normalizeFontSize(size, FONT_SIZE_LIMITS.min, FONT_SIZE_LIMITS.max),
         }));
     }, []);
     const setSansLineHeight = useCallback((lineHeight: number) => {
         setSettings((prev) => ({
             ...prev,
-            sansLineHeight: normalizeLineHeight(lineHeight, 1, 2.2),
+            sansLineHeight: normalizeLineHeight(lineHeight, LINE_HEIGHT_LIMITS.min, LINE_HEIGHT_LIMITS.max),
         }));
     }, []);
     const setMonospaceFontSize = useCallback((size: number) => {
         setSettings((prev) => ({
             ...prev,
-            monospaceFontSize: normalizeFontSize(size, 11, 20),
+            monospaceFontSize: normalizeFontSize(size, FONT_SIZE_LIMITS.min, FONT_SIZE_LIMITS.max),
         }));
     }, []);
     const setMonospaceLineHeight = useCallback((lineHeight: number) => {
         setSettings((prev) => ({
             ...prev,
-            monospaceLineHeight: normalizeLineHeight(lineHeight, 1, 2.2),
+            monospaceLineHeight: normalizeLineHeight(lineHeight, LINE_HEIGHT_LIMITS.min, LINE_HEIGHT_LIMITS.max),
         }));
     }, []);
     const resetAppearance = useCallback(() => {

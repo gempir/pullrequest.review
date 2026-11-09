@@ -27,9 +27,8 @@ export function withBitbucketSuggestionTrailer(content: string) {
 }
 
 /**
- * Gets the current PR source lines covered by an inline suggestion. This only
- * trusts the raw patch metadata: persisted full-file contexts are not keyed
- * by commit and could otherwise render a stale before-side.
+ * Gets the current PR source lines covered by an inline suggestion, read from
+ * the raw patch so the before-side is the code the suggestion was made on.
  */
 export function getSuggestionOriginalContents(inline: SuggestionInline | undefined, fileDiff?: FileDiffMetadata) {
     if (inline?.outdated || !fileDiff?.isPartial) return null;

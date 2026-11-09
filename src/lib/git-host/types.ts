@@ -1,4 +1,10 @@
-export type GitHost = "bitbucket" | "github";
+export const HOSTS = ["bitbucket", "github"] as const;
+
+export type GitHost = (typeof HOSTS)[number];
+
+export function isGitHost(value: unknown): value is GitHost {
+    return HOSTS.includes(value as GitHost);
+}
 
 export interface RepoRef {
     host: GitHost;
@@ -13,6 +19,11 @@ export interface PullRequestRef {
     workspace: string;
     repo: string;
     pullRequestId: string;
+}
+
+export interface PullRequestUser {
+    displayName?: string;
+    avatarUrl?: string;
 }
 
 export interface DiffStatEntry {
@@ -32,7 +43,7 @@ export interface PullRequestSummary {
     source?: { branch?: { name?: string } };
     destination?: { branch?: { name?: string } };
     links?: { html?: { href?: string } };
-    author?: { displayName?: string; avatarUrl?: string };
+    author?: PullRequestUser;
 }
 
 export interface Commit {
@@ -41,9 +52,21 @@ export interface Commit {
     message?: string;
     summary?: { raw?: string };
     author?: {
-        user?: { displayName?: string; avatarUrl?: string };
+        user?: PullRequestUser;
         raw?: string;
     };
+}
+
+export type CommentSide = "additions" | "deletions";
+
+/** `to` is a line on the new side and `from` a line on the old side, as Bitbucket models it. */
+export interface CommentInline {
+    path?: string;
+    to?: number;
+    from?: number;
+    startTo?: number;
+    startFrom?: number;
+    outdated?: boolean;
 }
 
 export interface Comment {
@@ -53,12 +76,24 @@ export interface Comment {
     deleted?: boolean;
     pending?: boolean;
     content?: { raw?: string; html?: string };
-    user?: { displayName?: string; avatarUrl?: string };
-    inline?: { path?: string; to?: number; from?: number; startTo?: number; startFrom?: number; outdated?: boolean };
+    user?: PullRequestUser;
+    inline?: CommentInline;
     parent?: { id?: number };
-    resolution?: { user?: { displayName?: string; avatarUrl?: string } } | null;
+    resolution?: { user?: PullRequestUser } | null;
     hostThreadId?: string;
 }
+
+export function commentLinePosition(inline: CommentInline | undefined): { side: CommentSide; lineNumber: number } | null {
+    if (inline?.to) return { side: "additions", lineNumber: inline.to };
+    if (inline?.from) return { side: "deletions", lineNumber: inline.from };
+    return null;
+}
+
+export function inlineAtLine(path: string, line: number, side: CommentSide): NewCommentInline {
+    return side === "deletions" ? { path, from: line } : { path, to: line };
+}
+
+export type CurrentUserReviewStatus = "approved" | "changesRequested" | "none";
 
 export interface PullRequestDetails {
     id: number;
@@ -66,13 +101,11 @@ export interface PullRequestDetails {
     description?: string;
     state: string;
     draft?: boolean;
-    commentCount?: number;
-    taskCount?: number;
     createdAt?: string;
     updatedAt?: string;
     closedAt?: string;
     mergedAt?: string;
-    author?: { displayName?: string; avatarUrl?: string };
+    author?: PullRequestUser;
     source?: {
         branch?: { name?: string };
         repository?: { fullName?: string };
@@ -83,13 +116,6 @@ export interface PullRequestDetails {
         repository?: { fullName?: string };
         commit?: { hash?: string };
     };
-    participants?: Array<{
-        approved?: boolean;
-        state?: string;
-        user?: { displayName?: string; avatarUrl?: string };
-    }>;
-    currentUserReviewStatus?: "approved" | "changesRequested" | "none";
-    currentUser?: { displayName?: string; avatarUrl?: string };
     links?: { html?: { href?: string } };
 }
 
@@ -113,17 +139,10 @@ export interface PullRequestHistoryEvent {
     type: PullRequestHistoryEventType;
     createdAt?: string;
     updatedAt?: string;
-    actor?: { displayName?: string; avatarUrl?: string };
+    actor?: PullRequestUser;
     content?: string;
     contentHtml?: string;
     details?: string;
-    comment?: {
-        id?: number;
-        path?: string;
-        line?: number;
-        side?: "additions" | "deletions";
-        isInline?: boolean;
-    };
 }
 
 export type PullRequestReviewerStatus = "approved" | "changesRequested" | "commented" | "declined" | "pending";
@@ -150,49 +169,27 @@ export interface PullRequestBuildStatus {
     completedAt?: string;
 }
 
-export interface PullRequestBundle {
-    prRef: PullRequestRef;
-    pr: PullRequestDetails;
+export interface PullRequestDiff {
     diff: string;
     diffstat: DiffStatEntry[];
-    commits: Commit[];
-    comments: Comment[];
-    history?: PullRequestHistoryEvent[];
-    reviewers?: PullRequestReviewer[];
-    buildStatuses?: PullRequestBuildStatus[];
 }
 
-export interface PullRequestCriticalBundle {
-    prRef: PullRequestRef;
+export interface PullRequestCriticalBundle extends PullRequestDiff {
     pr: PullRequestDetails;
-    diff: string;
-    diffstat: DiffStatEntry[];
     commits: Commit[];
 }
 
+/** Reviews, activity and builds: loaded after the diff, and refreshed independently of comments. */
 export interface PullRequestDeferredBundle {
-    prRef: PullRequestRef;
-    comments: Comment[];
-    history?: PullRequestHistoryEvent[];
-    reviewers?: PullRequestReviewer[];
-    buildStatuses?: PullRequestBuildStatus[];
-    prPatch?: Partial<PullRequestDetails>;
+    history: PullRequestHistoryEvent[];
+    reviewers: PullRequestReviewer[];
+    buildStatuses: PullRequestBuildStatus[];
+    currentUser?: PullRequestUser;
+    currentUserReviewStatus: CurrentUserReviewStatus;
 }
 
-export interface PullRequestHydrationState {
-    criticalFetchedAt: number;
-    deferredFetchedAt?: number;
-    deferredStatus: "idle" | "loading" | "ready" | "error";
-}
-
-export interface PullRequestCommitRangeDiff {
-    prRef: PullRequestRef;
-    baseCommitHash: string;
-    headCommitHash: string;
-    selectedCommitHashes: string[];
-    diff: string;
-    diffstat: DiffStatEntry[];
-}
+/** Comments and the deferred half are empty until they load. */
+export type PullRequestBundle = PullRequestCriticalBundle & PullRequestDeferredBundle & { prRef: PullRequestRef; comments: Comment[] };
 
 export interface MergeOptions {
     closeSourceBranch?: boolean;
@@ -200,26 +197,18 @@ export interface MergeOptions {
     mergeStrategy?: string;
 }
 
+export type NewCommentInline = { path: string } & Omit<CommentInline, "path" | "outdated">;
+
 export interface CommentPayload {
     content: string;
-    inline?: { path: string; to?: number; from?: number; startTo?: number; startFrom?: number };
+    inline?: NewCommentInline;
     parentId?: number;
-}
-
-export interface CommentUpdatePayload {
-    commentId: number;
-    content: string;
-    hasInlineContext: boolean;
-}
-
-export interface PullRequestDescriptionUpdatePayload {
-    description: string;
-    title?: string;
 }
 
 export interface HostCapabilities {
     publicReadSupported: boolean;
     supportsThreadResolution: boolean;
+    supportsNestedReplies: boolean;
     mergeStrategies?: string[];
     requestChangesAvailable: boolean;
     removeApprovalAvailable: boolean;
@@ -247,10 +236,6 @@ export class HostApiError extends Error {
     }
 }
 
-export interface AuthState {
-    authenticated: boolean;
-}
-
 export interface BitbucketOAuthTokens {
     accessToken: string;
     refreshToken?: string;
@@ -262,42 +247,32 @@ export type LoginCredentials =
     | ({ host: "bitbucket"; method: "oauth" } & BitbucketOAuthTokens)
     | { host: "github"; token: string };
 
+type PrRequest<T = object> = { prRef: PullRequestRef } & T;
+
 export interface GitHostClient {
     readonly host: GitHost;
+    readonly label: string;
     readonly capabilities: HostCapabilities;
-    getAuthState(): Promise<AuthState>;
-    login(credentials: LoginCredentials): Promise<AuthState>;
-    logout(): Promise<AuthState>;
+    isAuthenticated(): boolean;
+    login(credentials: LoginCredentials): Promise<void>;
+    logout(): void;
     listRepositories(): Promise<RepoRef[]>;
     listPullRequestsForRepos(data: { repos: RepoRef[] }): Promise<Array<{ repo: RepoRef; pullRequests: PullRequestSummary[] }>>;
-    fetchPullRequestCriticalByRef(data: { prRef: PullRequestRef }): Promise<PullRequestCriticalBundle>;
-    fetchPullRequestDeferredByRef(data: { prRef: PullRequestRef }): Promise<PullRequestDeferredBundle>;
-    fetchPullRequestCommentsByRef(data: { prRef: PullRequestRef }): Promise<Comment[]>;
-    approvePullRequest(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
-    removePullRequestApproval(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
-    requestChanges(data: { prRef: PullRequestRef; body?: string }): Promise<{ ok: true }>;
-    declinePullRequest(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
-    markPullRequestAsDraft(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
-    markPullRequestReady(data: { prRef: PullRequestRef }): Promise<{ ok: true }>;
-    mergePullRequest(data: { prRef: PullRequestRef } & MergeOptions): Promise<{ ok: true }>;
-    updatePullRequestDescription(data: { prRef: PullRequestRef } & PullRequestDescriptionUpdatePayload): Promise<{ ok: true }>;
-    createPullRequestComment(
-        data: {
-            prRef: PullRequestRef;
-        } & CommentPayload,
-    ): Promise<{ ok: true }>;
-    updatePullRequestComment(
-        data: {
-            prRef: PullRequestRef;
-        } & CommentUpdatePayload,
-    ): Promise<{ ok: true }>;
-    resolvePullRequestComment(data: { prRef: PullRequestRef; commentId: number; resolve: boolean }): Promise<{ ok: true }>;
-    deletePullRequestComment(data: { prRef: PullRequestRef; commentId: number; hasInlineContext: boolean }): Promise<{ ok: true }>;
-    fetchPullRequestCommitRangeDiff(data: {
-        prRef: PullRequestRef;
-        baseCommitHash: string;
-        headCommitHash: string;
-        selectedCommitHashes: string[];
-    }): Promise<PullRequestCommitRangeDiff>;
-    fetchPullRequestFileContents(data: { prRef: PullRequestRef; commit: string; path: string }): Promise<string>;
+    fetchPullRequestCritical(data: PrRequest): Promise<PullRequestCriticalBundle>;
+    fetchPullRequestDeferred(data: PrRequest): Promise<PullRequestDeferredBundle>;
+    fetchPullRequestComments(data: PrRequest): Promise<Comment[]>;
+    approvePullRequest(data: PrRequest): Promise<void>;
+    removePullRequestApproval(data: PrRequest): Promise<void>;
+    requestChanges(data: PrRequest): Promise<void>;
+    declinePullRequest(data: PrRequest): Promise<void>;
+    markPullRequestAsDraft(data: PrRequest): Promise<void>;
+    markPullRequestReady(data: PrRequest): Promise<void>;
+    mergePullRequest(data: PrRequest<MergeOptions>): Promise<void>;
+    updatePullRequestDescription(data: PrRequest<{ description: string; title?: string }>): Promise<void>;
+    createPullRequestComment(data: PrRequest<CommentPayload>): Promise<void>;
+    updatePullRequestComment(data: PrRequest<{ comment: Comment; content: string }>): Promise<void>;
+    resolvePullRequestComment(data: PrRequest<{ comment: Comment; resolve: boolean }>): Promise<void>;
+    deletePullRequestComment(data: PrRequest<{ comment: Comment }>): Promise<void>;
+    fetchCommitRangeDiff(data: PrRequest<{ baseCommitHash: string; headCommitHash: string }>): Promise<PullRequestDiff>;
+    fetchFileContents(data: PrRequest<{ commit: string; path: string }>): Promise<string>;
 }

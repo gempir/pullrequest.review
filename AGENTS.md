@@ -18,7 +18,7 @@ pullrequest.review is a Bitbucket and GitHub pull request review UI with a termi
 - Host data is server state owned by TanStack Query. Add query definitions to `src/lib/git-host/queries.ts` and read them with `useQuery`/`useQueries`.
 - Mutations go through `getHostClient(host)` and refetch the affected query on success.
 - The query client does not retry and does not refetch on focus, because host APIs are rate limited.
-- Pull request loading has two stages: a critical query (pull request, diff, commits) and a deferred query (comments, history, reviewers, builds).
+- Pull request loading has two stages: a critical query (pull request, diff, commits), then in parallel a comments query and a deferred query (history, reviewers, builds, current user). Comment mutations refetch only the comments query.
 
 ## Persistence
 - `src/lib/storage.ts` is the only persistence API. It is a small key/value store over IndexedDB (`idb-keyval`), cached in memory so reads stay synchronous, and synced between tabs with `BroadcastChannel`.

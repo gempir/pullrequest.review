@@ -1,15 +1,7 @@
 import { AlertCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
-export function ReviewPageErrorState({
-    message,
-    showRateLimitHelp,
-    authPromptSlot,
-}: {
-    message: string;
-    showRateLimitHelp: boolean;
-    authPromptSlot?: ReactNode;
-}) {
+export function ReviewPageErrorState({ message, rateLimitHelp, authPromptSlot }: { message: string; rateLimitHelp?: string; authPromptSlot?: ReactNode }) {
     return (
         <div className="flex items-center justify-center h-full p-8">
             <div className="border border-destructive bg-destructive/10 p-6 max-w-lg">
@@ -18,12 +10,7 @@ export function ReviewPageErrorState({
                     <span className="text-[13px] font-medium">[ERROR]</span>
                 </div>
                 <p className="text-destructive text-[13px]">{message}</p>
-                {showRateLimitHelp ? (
-                    <p className="mt-2 text-[12px] text-destructive">
-                        GitHub is rate limiting requests because there are too many unauthenticated requests from your network IP. Connect a GitHub token to
-                        continue and retry.
-                    </p>
-                ) : null}
+                {rateLimitHelp ? <p className="mt-2 text-[12px] text-destructive">{rateLimitHelp}</p> : null}
                 {authPromptSlot ? <div className="mt-4">{authPromptSlot}</div> : null}
             </div>
         </div>

@@ -1,63 +1,66 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
-import { useCallback, useState } from "react";
-import type { DiffContextState } from "@/features/review/components/diff-context-button";
-import { getHostClient } from "@/lib/git-host/registry";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
+import { type DiffContextState, type FullFileContext, splitFileIntoLines } from "@/features/review/model/full-file-context";
+import { fileContextQuery } from "@/lib/git-host/queries";
 import type { PullRequestRef } from "@/lib/git-host/types";
 
-export type FullFileContext = { oldLines: string[]; newLines: string[] };
+type RequestedFile = { path: string; oldPath?: string; newPath?: string; error?: string };
 
-function splitFileIntoLines(contents: string) {
-    return contents.replace(/\r\n/g, "\n").match(/[^\n]*\n|[^\n]+$/g) ?? [];
+// A stable `combine` makes useQueries return the same array until a query changes, which keeps the memo below effective.
+function combineResults<T>(results: T) {
+    return results;
 }
 
+/** Full file contents, loaded on request, let a file's diff expand beyond the patch context. */
 export function useReviewFileContexts({ prRef, baseCommitHash, headCommitHash }: { prRef: PullRequestRef; baseCommitHash?: string; headCommitHash?: string }) {
     const revision = `${baseCommitHash ?? ""}:${headCommitHash ?? ""}`;
-    const [state, setState] = useState<{ revision: string; status: Record<string, DiffContextState>; ready: Record<string, FullFileContext> }>({
-        revision,
-        status: {},
-        ready: {},
-    });
-    // Loaded file contents belong to one base/head pair.
-    if (state.revision !== revision) setState({ revision, status: {}, ready: {} });
+    const [requested, setRequested] = useState<{ revision: string; files: RequestedFile[] }>({ revision, files: [] });
+    // Requested contents belong to one base/head pair.
+    if (requested.revision !== revision) setRequested({ revision, files: [] });
 
+    const queryClient = useQueryClient();
     const loadFullFileContext = useCallback(
-        async (filePath: string, fileDiff: FileDiffMetadata) => {
-            const setStatus = (status: DiffContextState) => setState((prev) => ({ ...prev, status: { ...prev.status, [filePath]: status } }));
-            setStatus({ status: "loading" });
-            try {
-                const needsBase = fileDiff.type !== "new";
-                const needsHead = fileDiff.type !== "deleted";
-                if (needsBase && !baseCommitHash) throw new Error("Base commit is unavailable for this pull request.");
-                if (needsHead && !headCommitHash) throw new Error("Head commit is unavailable for this pull request.");
-                const client = getHostClient(prRef.host);
-                const [oldContent, newContent] = await Promise.all([
-                    needsBase
-                        ? client.fetchPullRequestFileContents({
-                              prRef,
-                              commit: baseCommitHash ?? "",
-                              path: (fileDiff.prevName ?? fileDiff.name ?? filePath).trim(),
-                          })
-                        : "",
-                    needsHead
-                        ? client.fetchPullRequestFileContents({
-                              prRef,
-                              commit: headCommitHash ?? "",
-                              path: (fileDiff.name ?? fileDiff.prevName ?? filePath).trim(),
-                          })
-                        : "",
-                ]);
-                const context = { oldLines: splitFileIntoLines(oldContent), newLines: splitFileIntoLines(newContent) };
-                setState((prev) => ({
-                    ...prev,
-                    status: { ...prev.status, [filePath]: { status: "ready" } },
-                    ready: { ...prev.ready, [filePath]: context },
-                }));
-            } catch (error) {
-                setStatus({ status: "error", error: error instanceof Error ? error.message : "Unable to load file context." });
-            }
+        (path: string, fileDiff: FileDiffMetadata) => {
+            const oldPath = fileDiff.type === "new" ? undefined : (fileDiff.prevName ?? fileDiff.name ?? path).trim();
+            const newPath = fileDiff.type === "deleted" ? undefined : (fileDiff.name ?? fileDiff.prevName ?? path).trim();
+            const error =
+                oldPath && !baseCommitHash
+                    ? "Base commit is unavailable for this pull request."
+                    : newPath && !headCommitHash
+                      ? "Head commit is unavailable for this pull request."
+                      : undefined;
+            setRequested((prev) => ({ ...prev, files: [...prev.files.filter((file) => file.path !== path), { path, oldPath, newPath, error }] }));
+            // A retry after a failure must fetch again; a failed query does not refetch on its own.
+            const { queryKey } = fileContextQuery(prRef, { baseCommit: baseCommitHash ?? "", headCommit: headCommitHash ?? "", oldPath, newPath });
+            if (queryClient.getQueryState(queryKey)?.status === "error") void queryClient.resetQueries({ queryKey, exact: true });
         },
-        [baseCommitHash, headCommitHash, prRef],
+        [baseCommitHash, headCommitHash, prRef, queryClient],
     );
 
-    return { fileContextStatus: state.status, readyFileContexts: state.ready, loadFullFileContext };
+    const results = useQueries({
+        queries: requested.files.map((file) => ({
+            ...fileContextQuery(prRef, { baseCommit: baseCommitHash ?? "", headCommit: headCommitHash ?? "", oldPath: file.oldPath, newPath: file.newPath }),
+            enabled: !file.error,
+        })),
+        combine: combineResults,
+    });
+
+    return useMemo(() => {
+        const fileContextStatus: Record<string, DiffContextState> = {};
+        const readyFileContexts: Record<string, FullFileContext> = {};
+        requested.files.forEach((file, index) => {
+            const result = results[index];
+            if (file.error || result?.error) {
+                const message = file.error ?? (result?.error instanceof Error ? result.error.message : "Unable to load file context.");
+                fileContextStatus[file.path] = { status: "error", error: message };
+            } else if (result?.data) {
+                fileContextStatus[file.path] = { status: "ready" };
+                readyFileContexts[file.path] = { oldLines: splitFileIntoLines(result.data.oldContents), newLines: splitFileIntoLines(result.data.newContents) };
+            } else {
+                fileContextStatus[file.path] = { status: "loading" };
+            }
+        });
+        return { fileContextStatus, readyFileContexts, loadFullFileContext };
+    }, [loadFullFileContext, requested.files, results]);
 }

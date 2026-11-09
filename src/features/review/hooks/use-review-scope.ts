@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useReviewQuery } from "@/features/review/hooks/use-review-query";
+import { type ReviewDiffScopeSearch, resolveReviewDiffScope } from "@/features/review/model/review-diff-scope";
 import { commitRangeDiffQuery } from "@/lib/git-host/queries";
 import type { PullRequestRef } from "@/lib/git-host/types";
-import { type ReviewDiffScopeSearch, resolveReviewDiffScope } from "@/lib/review-diff-scope";
 
 const EMPTY_SCOPE_SEARCH: ReviewDiffScopeSearch = {};
 
@@ -17,7 +17,7 @@ export function useReviewScope({
     prRef: PullRequestRef;
     auth: { canWrite: boolean; canRead: boolean };
     search?: ReviewDiffScopeSearch;
-    onSearchChange?: (next: ReviewDiffScopeSearch) => void;
+    onSearchChange: (next: ReviewDiffScopeSearch) => void;
     requestAuth: (reason: "write" | "rate_limit") => void;
 }) {
     const [notice, setNotice] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export function useReviewScope({
     const { baseCommitHash, headCommitHash, selectedCommitHashes } = resolvedScope;
     const wantsRangeDiff = resolvedScope.mode !== "full" && Boolean(baseData && baseCommitHash && headCommitHash) && selectedCommitHashes.length > 0;
     const rangeDiff = useQuery({
-        ...commitRangeDiffQuery(prRef, { baseCommitHash: baseCommitHash ?? "", headCommitHash: headCommitHash ?? "", selectedCommitHashes }),
+        ...commitRangeDiffQuery(prRef, { baseCommitHash: baseCommitHash ?? "", headCommitHash: headCommitHash ?? "" }),
         enabled: wantsRangeDiff,
     });
 
@@ -48,7 +48,7 @@ export function useReviewScope({
     useEffect(() => {
         if (search.from === resolvedScope.normalizedSearch.from && search.to === resolvedScope.normalizedSearch.to) return;
         // eslint-disable-next-line react-doctor/no-pass-data-to-parent, react-doctor/no-pass-live-state-to-parent -- Normalize the route search once commits load; the equality guard prevents a navigation loop.
-        onSearchChange?.(resolvedScope.normalizedSearch);
+        onSearchChange(resolvedScope.normalizedSearch);
     }, [onSearchChange, resolvedScope.normalizedSearch, search.from, search.to]);
 
     useEffect(() => {
@@ -58,14 +58,14 @@ export function useReviewScope({
                 ? "Selected commit range is unavailable. Switched to full diff."
                 : "Commit range base/head could not be resolved. Switched to full diff.",
         );
-        onSearchChange?.({});
+        onSearchChange({});
     }, [onSearchChange, resolvedScope.fallbackReason, resolvedScope.mode, search.from]);
 
     const rangeError = wantsRangeDiff ? rangeDiff.error : null;
     useEffect(() => {
         if (!rangeError) return;
         setNotice(rangeError instanceof Error ? rangeError.message : "Failed to load commit range diff.");
-        onSearchChange?.({});
+        onSearchChange({});
     }, [onSearchChange, rangeError]);
 
     const refetchRangeDiff = rangeDiff.refetch;

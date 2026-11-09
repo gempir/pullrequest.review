@@ -1,7 +1,5 @@
 import { Loader2 } from "lucide-react";
 import type { ComponentProps } from "react";
-import { SettingsPanelContentOnly } from "@/components/settings-menu";
-import { settingsPathForTab, settingsTabFromPath } from "@/components/settings-navigation";
 import { ReviewAllModeView } from "@/features/review/components/review-all-mode-view";
 import { ReviewCommentsSidebar } from "@/features/review/components/review-comments-sidebar";
 import { ReviewCommitScope } from "@/features/review/components/review-commit-scope-control";
@@ -11,17 +9,18 @@ import { ReviewMergeDialog } from "@/features/review/components/review-merge-dia
 import { ReviewOmnibar } from "@/features/review/components/review-omnibar";
 import { ReviewSingleModeView } from "@/features/review/components/review-single-mode-view";
 import { ReviewTopNavbar } from "@/features/review/components/review-top-navbar";
+import { SettingsPanel } from "@/features/settings/components/settings-panel";
+import { settingsTabFromPath } from "@/features/settings/model/settings-navigation";
 
 function ReviewMainContent() {
-    const { showSettingsPanel, viewMode, setViewMode, activeFile, setActiveFile, closeSettings } = useReview();
+    const { showSettingsPanel, viewMode, setViewMode, activeFile, closeSettings } = useReview();
     if (showSettingsPanel) {
         return (
             <div className="h-full min-h-0">
-                <SettingsPanelContentOnly
+                <SettingsPanel
                     workspaceMode={viewMode}
                     onWorkspaceModeChange={setViewMode}
                     activeTab={settingsTabFromPath(activeFile) ?? "appearance"}
-                    onActiveTabChange={(tab) => setActiveFile(settingsPathForTab(tab))}
                     onClose={closeSettings}
                 />
             </div>

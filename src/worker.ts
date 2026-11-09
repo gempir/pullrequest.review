@@ -1,3 +1,5 @@
+import { BITBUCKET_OAUTH_PATHS } from "./lib/bitbucket-oauth-paths.ts";
+
 export interface BitbucketOAuthEnv {
     BITBUCKET_OAUTH_CLIENT_ID?: string;
     BITBUCKET_OAUTH_CLIENT_SECRET?: string;
@@ -22,7 +24,6 @@ interface OAuthStateCookie {
 
 const AUTHORIZE_URL = "https://bitbucket.org/site/oauth2/authorize";
 const ACCESS_TOKEN_URL = "https://bitbucket.org/site/oauth2/access_token";
-const OAUTH_CALLBACK_PATH = "/oauth/callback";
 const STATE_COOKIE_MAX_AGE_SECONDS = 10 * 60;
 const MAX_REQUEST_BODY_BYTES = 16 * 1024;
 
@@ -67,7 +68,7 @@ function sanitizeReturnTo(value: string | null) {
     if (!value || value.length > 2048) return "/";
     const validationOrigin = "https://return-to.invalid";
     const parsed = new URL(value, validationOrigin);
-    if (parsed.origin !== validationOrigin || parsed.pathname.startsWith(OAUTH_CALLBACK_PATH)) {
+    if (parsed.origin !== validationOrigin || parsed.pathname.startsWith(BITBUCKET_OAUTH_PATHS.callback)) {
         return "/";
     }
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
@@ -155,7 +156,7 @@ function handleOAuthStart(request: Request, env: BitbucketOAuthEnv, url: URL) {
     if (request.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405, { Allow: "GET" });
     const config = requireOAuthConfiguration(env);
     if (!config) {
-        const callbackUrl = new URL(OAUTH_CALLBACK_PATH, url.origin);
+        const callbackUrl = new URL(BITBUCKET_OAUTH_PATHS.callback, url.origin);
         callbackUrl.searchParams.set("error", "Bitbucket OAuth is not configured for this environment");
         return new Response(null, {
             status: 302,
@@ -170,7 +171,7 @@ function handleOAuthStart(request: Request, env: BitbucketOAuthEnv, url: URL) {
         state: createState(),
         returnTo: sanitizeReturnTo(url.searchParams.get("return_to")),
     } satisfies OAuthStateCookie;
-    const callbackUrl = new URL(OAUTH_CALLBACK_PATH, url.origin);
+    const callbackUrl = new URL(BITBUCKET_OAUTH_PATHS.callback, url.origin);
     const authorizeUrl = new URL(AUTHORIZE_URL);
     authorizeUrl.searchParams.set("client_id", config.clientId);
     authorizeUrl.searchParams.set("response_type", "code");
@@ -204,7 +205,7 @@ async function handleOAuthExchange(request: Request, env: BitbucketOAuthEnv, url
     }
 
     try {
-        const callbackUrl = new URL(OAUTH_CALLBACK_PATH, url.origin);
+        const callbackUrl = new URL(BITBUCKET_OAUTH_PATHS.callback, url.origin);
         const tokens = await requestBitbucketToken(
             config,
             new URLSearchParams({
@@ -241,9 +242,9 @@ async function handleOAuthRefresh(request: Request, env: BitbucketOAuthEnv, url:
 
 export async function handleBitbucketOAuthRequest(request: Request, env: BitbucketOAuthEnv) {
     const url = new URL(request.url);
-    if (url.pathname === "/api/auth/bitbucket/start") return handleOAuthStart(request, env, url);
-    if (url.pathname === "/api/auth/bitbucket/exchange") return handleOAuthExchange(request, env, url);
-    if (url.pathname === "/api/auth/bitbucket/refresh") return handleOAuthRefresh(request, env, url);
+    if (url.pathname === BITBUCKET_OAUTH_PATHS.start) return handleOAuthStart(request, env, url);
+    if (url.pathname === BITBUCKET_OAUTH_PATHS.exchange) return handleOAuthExchange(request, env, url);
+    if (url.pathname === BITBUCKET_OAUTH_PATHS.refresh) return handleOAuthRefresh(request, env, url);
     return null;
 }
 

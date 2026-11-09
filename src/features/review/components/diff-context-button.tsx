@@ -1,8 +1,7 @@
 import { AlertTriangle, Check, Loader2, UnfoldVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { DiffContextState } from "@/features/review/model/full-file-context";
 import { cn } from "@/lib/utils";
-
-export type DiffContextState = { status: "idle" } | { status: "loading" } | { status: "ready" } | { status: "error"; error: string };
 
 interface DiffContextButtonProps {
     state?: DiffContextState;
@@ -17,7 +16,7 @@ export function DiffContextButton({ state, onClick, disabled = false }: DiffCont
     const isError = status === "error";
 
     const label = (() => {
-        if (isLoading) return "Loading…";
+        if (isLoading) return "Loading...";
         if (isReady) return "Full context";
         if (isError) return "Retry load";
         return "Load context";

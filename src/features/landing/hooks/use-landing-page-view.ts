@@ -1,15 +1,14 @@
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
-import { useSelectedRepoPullRequests } from "@/features/landing/hooks/use-selected-repo-pull-requests";
-import type { DiffPanel } from "@/features/landing/model/landing-model";
+import { useCallback } from "react";
 import { repositoriesQuery } from "@/lib/git-host/queries";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
+import { useSelectedRepoPullRequests } from "@/lib/selected-pull-requests";
 
-export function useLandingPageView({ initialHost, initialDiffPanel = "pull-requests" }: { initialHost?: GitHost; initialDiffPanel?: DiffPanel } = {}) {
+export function useLandingPageView({ initialHost }: { initialHost?: GitHost }) {
     const navigate = useNavigate();
-    const { authByHost, activeHost: savedActiveHost, setActiveHost, reposByHost, setReposForHost, clearReposForHost, logout } = usePrContext();
+    const { authByHost, activeHost: savedActiveHost, setActiveHost, reposByHost, setReposForHost, logout } = usePrContext();
     const activeHost = initialHost ?? savedActiveHost;
     const {
         sortedRootPullRequests,
@@ -20,29 +19,24 @@ export function useLandingPageView({ initialHost, initialDiffPanel = "pull-reque
         refetch: refetchPullRequests,
     } = useSelectedRepoPullRequests();
 
-    const [diffPanel, setDiffPanel] = useState<DiffPanel>(initialDiffPanel);
-    const showRepositoryPanel = Boolean(initialHost) || diffPanel === "repositories";
+    const showRepositoryPanel = Boolean(initialHost);
     const queryClient = useQueryClient();
     const isFetching = useIsFetching() > 0;
 
-    useEffect(() => {
-        if (!initialHost) return;
-        setActiveHost(initialHost);
-    }, [initialHost, setActiveHost]);
-
-    const refreshCurrentView = async () => {
+    const onRefresh = async () => {
         if (showRepositoryPanel) await queryClient.refetchQueries({ queryKey: repositoriesQuery(activeHost).queryKey });
         else await refetchPullRequests();
     };
 
     const openRepositorySelection = useCallback(
         (host: GitHost) => {
+            setActiveHost(host);
             navigate({
                 to: "/$host",
                 params: { host },
             });
         },
-        [navigate],
+        [navigate, setActiveHost],
     );
 
     return {
@@ -55,24 +49,18 @@ export function useLandingPageView({ initialHost, initialDiffPanel = "pull-reque
         sortedRootPullRequests,
         isRefreshing: isFetching,
         isRepoPullRequestLoading,
-        clearReposForHost,
-        openPullRequest,
-        openRepositorySelection,
-        refreshCurrentView,
-        onHome: () => {
-            setDiffPanel("pull-requests");
-            navigate({ to: "/" });
-        },
-        onToggleSettings: () => {
+        onClearRepos: (host: GitHost) => setReposForHost(host, []),
+        onOpenPullRequest: openPullRequest,
+        onOpenRepositorySelection: openRepositorySelection,
+        onRefresh,
+        onHome: () => navigate({ to: "/" }),
+        onOpenSettings: () => {
             navigate({ to: "/settings" });
         },
         onSaveSelectedRepos: (host: GitHost, repos: RepoRef[]) => {
             setReposForHost(host, repos);
-            setDiffPanel("pull-requests");
             navigate({ to: "/" });
         },
-        onDisconnectHost: (host: GitHost) => {
-            void logout(host);
-        },
+        onDisconnectHost: logout,
     };
 }

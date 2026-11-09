@@ -24,8 +24,6 @@ export interface GithubPull {
     updated_at?: string;
     closed_at?: string;
     merged_at?: string;
-    comments?: number;
-    review_comments?: number;
     requested_reviewers?: Array<{ login?: string; avatar_url?: string }>;
     head?: {
         ref?: string;
@@ -40,7 +38,7 @@ export interface GithubPull {
 }
 
 export interface GithubFile {
-    status: string;
+    status?: string;
     filename?: string;
     previous_filename?: string;
     additions?: number;
@@ -74,7 +72,6 @@ export interface GithubIssueComment {
 
 export interface GithubReviewComment {
     id: number;
-    node_id?: string;
     created_at?: string;
     updated_at?: string;
     body?: string;
@@ -147,15 +144,6 @@ export interface GithubCombinedStatusResponse {
     statuses?: GithubCommitStatus[];
 }
 
-export interface GithubCompareFile {
-    status?: string;
-    filename?: string;
-    previous_filename?: string;
-    additions?: number;
-    deletions?: number;
-}
-
 export interface GithubCompareResponse {
-    files?: GithubCompareFile[];
-    commits?: Array<{ sha?: string }>;
+    files?: GithubFile[];
 }

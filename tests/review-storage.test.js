@@ -1,12 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-    clearInlineDraftContent,
-    listInlineDrafts,
-    readInlineDraftContent,
-    readViewedVersionIds,
-    writeInlineDraftContent,
-    writeViewedVersionIds,
-} from "../src/lib/storage";
+import { listInlineDrafts, readInlineDraftContent, readViewedVersionIds, writeInlineDraftContent, writeViewedVersionIds } from "../src/lib/storage";
 
 describe("review viewed version storage", () => {
     test("writes and reads viewed version ids from storage", () => {
@@ -15,15 +8,6 @@ describe("review viewed version storage", () => {
 
         writeViewedVersionIds(storageKey, viewedVersionIds);
         expect(Array.from(readViewedVersionIds(storageKey)).sort()).toEqual(["src/a.ts::fp-a", "src/b.ts::fp-b"]);
-    });
-
-    test("filters viewed version ids by known set", () => {
-        const storageKey = `test:viewed-filter:${Date.now()}`;
-        writeViewedVersionIds(storageKey, new Set(["src/a.ts::fp-a", "src/b.ts::fp-b"]));
-
-        const filtered = readViewedVersionIds(storageKey, new Set(["src/b.ts::fp-b"]));
-
-        expect(Array.from(filtered)).toEqual(["src/b.ts::fp-b"]);
     });
 
     test("keeps viewed states isolated per diff scope key", () => {
@@ -46,7 +30,7 @@ describe("inline draft storage", () => {
         expect(readInlineDraftContent(scope, draft)).toBe("hello");
         expect(listInlineDrafts(scope).map((entry) => entry.content)).toEqual(["hello"]);
         expect(listInlineDrafts(`${scope}:other`)).toEqual([]);
-        clearInlineDraftContent(scope, draft);
+        writeInlineDraftContent(scope, draft, "");
         expect(readInlineDraftContent(scope, draft)).toBe("");
     });
 

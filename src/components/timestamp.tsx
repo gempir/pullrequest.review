@@ -11,13 +11,12 @@ type TimestampProps = {
     className?: string;
     tooltipSide?: ComponentProps<typeof TooltipContent>["side"];
     tooltipLabel?: string;
-    unknownLabel?: string;
     variant?: "default" | "comment";
     withTooltip?: boolean;
 };
 
-export function Timestamp({ value, className, tooltipSide = "top", tooltipLabel, unknownLabel, variant = "default", withTooltip = true }: TimestampProps) {
-    const display = variant === "comment" ? describeCommentTimestamp(value, { unknownLabel }) : describeTimestamp(value, { unknownLabel });
+export function Timestamp({ value, className, tooltipSide = "top", tooltipLabel, variant = "default", withTooltip = true }: TimestampProps) {
+    const display = variant === "comment" ? describeCommentTimestamp(value) : describeTimestamp(value);
     const content = (
         <span className={cn(TIMESTAMP_CLASS, className)} style={TIMESTAMP_STYLE}>
             {display.label}

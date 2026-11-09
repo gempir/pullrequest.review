@@ -13,12 +13,8 @@ import {
     useState,
 } from "react";
 import { type TreeDensityValue, useFileTree } from "@/lib/file-tree-context";
+import type { FileTreeEntry } from "@/lib/file-tree-order";
 import { compareFileTreeSortEntries } from "@/lib/file-tree-order";
-
-export type FileTreeEntry = {
-    treePath: string;
-    appPath: string;
-};
 
 export type AppFileTreeRowDecorationContext = {
     appPath: string;
@@ -172,10 +168,6 @@ function normalizeSearchQuery(searchQuery?: string) {
     return trimmed.length > 0 ? trimmed : null;
 }
 
-function toTreeDensity(density: TreeDensityValue) {
-    return density;
-}
-
 function normalizeTreeLookupPath(path: string) {
     return path.replace(/\/+$/, "");
 }
@@ -263,7 +255,6 @@ function adjustRenderedTreePathIntoView(model: PierreFileTree, treePath: string)
     if (itemRect.top < scrollRect.top || itemRect.bottom > scrollRect.bottom) {
         const rowTop = scrollElement.scrollTop + itemRect.top - scrollRect.top;
         scrollElement.scrollTop = getCenteredTreeScrollTop(scrollElement, rowTop, itemRect.height);
-        return true;
     }
     return true;
 }
@@ -407,7 +398,7 @@ export function useAppFileTreeModel({
         () =>
             new PierreFileTree({
                 preparedInput,
-                density: toTreeDensity(treeDensity),
+                density: treeDensity,
                 fileTreeSearchMode: "hide-non-matches",
                 icons: initialIconsRef.current,
                 initialExpansion: "open",

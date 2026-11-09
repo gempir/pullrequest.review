@@ -28,7 +28,7 @@ export function repoPullRequestsQuery(host: GitHost, repos: RepoRef[]) {
 export function pullRequestCriticalQuery(prRef: PullRequestRef) {
     return queryOptions({
         queryKey: [...pullRequestKey(prRef), "critical"],
-        queryFn: () => getHostClient(prRef.host).fetchPullRequestCriticalByRef({ prRef }),
+        queryFn: () => getHostClient(prRef.host).fetchPullRequestCritical({ prRef }),
         staleTime: CRITICAL_STALE_MS,
         meta: { activity: "Pull request files and diff" },
     });
@@ -37,16 +37,42 @@ export function pullRequestCriticalQuery(prRef: PullRequestRef) {
 export function pullRequestDeferredQuery(prRef: PullRequestRef) {
     return queryOptions({
         queryKey: [...pullRequestKey(prRef), "deferred"],
-        queryFn: () => getHostClient(prRef.host).fetchPullRequestDeferredByRef({ prRef }),
+        queryFn: () => getHostClient(prRef.host).fetchPullRequestDeferred({ prRef }),
         staleTime: DEFERRED_STALE_MS,
-        meta: { activity: "Comments and review activity" },
+        meta: { activity: "Reviews and activity" },
     });
 }
 
-export function commitRangeDiffQuery(prRef: PullRequestRef, range: { baseCommitHash: string; headCommitHash: string; selectedCommitHashes: string[] }) {
+export function pullRequestCommentsQuery(prRef: PullRequestRef) {
+    return queryOptions({
+        queryKey: [...pullRequestKey(prRef), "comments"],
+        queryFn: () => getHostClient(prRef.host).fetchPullRequestComments({ prRef }),
+        staleTime: DEFERRED_STALE_MS,
+        meta: { activity: "Comments" },
+    });
+}
+
+export function commitRangeDiffQuery(prRef: PullRequestRef, range: { baseCommitHash: string; headCommitHash: string }) {
     return queryOptions({
         queryKey: [...pullRequestKey(prRef), "range", range.baseCommitHash, range.headCommitHash],
-        queryFn: () => getHostClient(prRef.host).fetchPullRequestCommitRangeDiff({ prRef, ...range }),
+        queryFn: () => getHostClient(prRef.host).fetchCommitRangeDiff({ prRef, ...range }),
         meta: { activity: "Commit range diff" },
+    });
+}
+
+/** Old and new contents of one changed file; a missing path (added or deleted file) reads as empty. */
+export function fileContextQuery(prRef: PullRequestRef, file: { baseCommit: string; headCommit: string; oldPath?: string; newPath?: string }) {
+    const client = getHostClient(prRef.host);
+    return queryOptions({
+        queryKey: [...pullRequestKey(prRef), "file-context", file.baseCommit, file.headCommit, file.oldPath ?? "", file.newPath ?? ""],
+        queryFn: async () => {
+            const [oldContents, newContents] = await Promise.all([
+                file.oldPath ? client.fetchFileContents({ prRef, commit: file.baseCommit, path: file.oldPath }) : "",
+                file.newPath ? client.fetchFileContents({ prRef, commit: file.headCommit, path: file.newPath }) : "",
+            ]);
+            return { oldContents, newContents };
+        },
+        staleTime: Number.POSITIVE_INFINITY,
+        meta: { activity: "File contents" },
     });
 }

@@ -1,4 +1,4 @@
-import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
+import type { SortedRootPullRequest } from "@/lib/selected-pull-requests";
 
 export const OMNIBAR_ITEM_CLASS_NAME =
     "flex min-h-9 cursor-default select-none items-center gap-2 px-2 text-[12px] text-foreground outline-none data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-45 data-[selected=true]:bg-selection";

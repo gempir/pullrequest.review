@@ -1,38 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, FolderGit, Loader2, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { repositoriesQuery } from "@/lib/git-host/queries";
-import { normalizeRepoRef } from "@/lib/git-host/shared/repo-ref";
 import type { GitHost, RepoRef } from "@/lib/git-host/types";
 
-export function RepositorySelector({
-    host,
-    initialSelected,
-    onSave,
-    onCancel,
-    saveLabel = "Save Repositories",
-}: {
-    host: GitHost;
-    initialSelected: RepoRef[];
-    onSave: (repos: RepoRef[]) => void;
-    onCancel?: () => void;
-    saveLabel?: string;
-}) {
+export function RepositorySelector({ host, initialSelected, onSave }: { host: GitHost; initialSelected: RepoRef[]; onSave: (repos: RepoRef[]) => void }) {
     const [query, setQuery] = useState("");
-    const [selected, setSelected] = useState<Set<string>>(new Set());
-
-    const initialSelection = useMemo(() => initialSelected.map((repo) => repo.fullName).toSorted(), [initialSelected]);
-    const initialSelectionKey = initialSelection.join("|");
-
-    useEffect(() => {
-        // Sync from parent only when the semantic selection actually changes.
-        setSelected(new Set(initialSelectionKey ? initialSelectionKey.split("|") : []));
-    }, [initialSelectionKey]);
+    // Callers key this component by the saved selection, so it restarts when that changes.
+    const [selected, setSelected] = useState(() => new Set(initialSelected.map((repo) => repo.fullName)));
 
     const repositories = useQuery(repositoriesQuery(host));
-    const entries = useMemo(() => (repositories.data ?? []).map(normalizeRepoRef), [repositories.data]);
+    const entries = useMemo(() => repositories.data ?? [], [repositories.data]);
     const repositoryError = repositories.error;
     const isRepositoryLoading = repositories.isLoading;
     const filtered = useMemo(() => {
@@ -113,11 +93,6 @@ export function RepositorySelector({
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-1">
-                {onCancel && (
-                    <Button variant="outline" className="rounded-md" onClick={onCancel}>
-                        Cancel
-                    </Button>
-                )}
                 <Button
                     className="rounded-md"
                     onClick={() => {
@@ -126,7 +101,7 @@ export function RepositorySelector({
                     }}
                     disabled={isRepositoryLoading}
                 >
-                    {saveLabel} ({selected.size})
+                    Save Selection ({selected.size})
                 </Button>
             </div>
         </div>

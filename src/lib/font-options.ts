@@ -155,3 +155,7 @@ export function fontFamilyToCss(value: FontFamilyValue): string {
     if (customName) return `"${customName.replace(/"/g, '\\"')}", monospace`;
     return FONT_FAMILY_OPTIONS[0].cssFamily;
 }
+
+/** Bounds shared by the settings inputs and the stored-value clamps. */
+export const FONT_SIZE_LIMITS = { min: 11, max: 20 } as const;
+export const LINE_HEIGHT_LIMITS = { min: 1, max: 2.2 } as const;

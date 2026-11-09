@@ -26,7 +26,6 @@ describe("review omnibar helpers", () => {
                 fullName: "acme/app",
                 displayName: "app",
             },
-            repoKey: "github:acme/app",
             pullRequest: {
                 id: 42,
                 title: "Fix cache race",
@@ -35,8 +34,6 @@ describe("review omnibar helpers", () => {
                 destination: { branch: { name: "main" } },
                 author: { displayName: "Ada" },
             },
-            updatedDateLabel: null,
-            updatedAtTimestamp: 0,
         });
         expect(keywords).toContain("42");
         expect(keywords).toContain("#42");

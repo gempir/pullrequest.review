@@ -1,6 +1,7 @@
 import { RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { formatShortcut } from "@/lib/shortcut-format";
 import { type ShortcutConfig, useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
@@ -30,16 +31,6 @@ function ShortcutRow({ label, shortcut, onChange }: { label: string; shortcut: S
         setIsRecording(false);
     };
 
-    const displayShortcut = () => {
-        const parts: string[] = [];
-        if (shortcut.modifiers.ctrl) parts.push("Ctrl");
-        if (shortcut.modifiers.alt) parts.push("Alt");
-        if (shortcut.modifiers.shift) parts.push("Shift");
-        if (shortcut.modifiers.meta) parts.push("Cmd");
-        parts.push(shortcut.key.toUpperCase());
-        return parts.join("+");
-    };
-
     return (
         <div className="flex items-center justify-between gap-3 px-2 py-2.5">
             <div className="flex flex-col">
@@ -56,7 +47,7 @@ function ShortcutRow({ label, shortcut, onChange }: { label: string; shortcut: S
                     isRecording ? "bg-accent-solid text-accent-foreground" : "border border-border-muted bg-surface-1 hover:bg-surface-hover",
                 )}
             >
-                {isRecording ? "Press key..." : displayShortcut()}
+                {isRecording ? "Press key..." : formatShortcut(shortcut)}
             </button>
         </div>
     );

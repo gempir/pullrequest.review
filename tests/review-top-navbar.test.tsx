@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReviewTopNavbar } from "@/features/review/components/review-top-navbar";
-import { normalizeNavbarState } from "@/features/review/model/review-formatters";
+import { pullRequestHeader } from "@/features/review/model/review-formatters";
 import type { PullRequestReviewer } from "../src/lib/git-host/types";
 import { ShortcutsProvider } from "../src/lib/shortcuts-context";
 
@@ -179,7 +179,8 @@ describe("review top navbar actions", () => {
     }
 
     test("preserves Bitbucket declined state when a pull request has closed", () => {
-        expect(normalizeNavbarState({ state: "DECLINED", closedAt: "2026-06-25T10:00:00Z" })).toBe("declined");
-        expect(normalizeNavbarState({ state: "CLOSED", closedAt: "2026-06-25T10:00:00Z" })).toBe("closed");
+        const closed = (state: string) => pullRequestHeader({ id: 1, title: "PR", state, closedAt: "2026-06-25T10:00:00Z" }).navbarState;
+        expect(closed("DECLINED")).toBe("declined");
+        expect(closed("CLOSED")).toBe("closed");
     });
 });

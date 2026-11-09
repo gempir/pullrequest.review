@@ -1,10 +1,19 @@
 import { Input } from "@/components/ui/input";
+import { formatShortcut } from "@/lib/shortcut-format";
 import { useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
 
+function useOmnibarShortcut() {
+    return formatShortcut(useShortcuts().shortcuts.openOmnibar);
+}
+
+/** The user's configured omnibar shortcut, for hints next to the omnibar. */
+export function OmnibarShortcutLabel() {
+    return <>{useOmnibarShortcut()}</>;
+}
+
 export function OmnibarMenubarInput({ onOpen, className }: { onOpen: () => void; className?: string }) {
-    const { shortcuts, getShortcutDisplay } = useShortcuts();
-    const shortcutLabel = getShortcutDisplay(shortcuts.openOmnibar);
+    const shortcutLabel = useOmnibarShortcut();
 
     return (
         <div className={cn("@container flex min-w-0 flex-1 items-center justify-center self-stretch px-2", className)}>

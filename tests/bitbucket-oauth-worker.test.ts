@@ -13,6 +13,32 @@ function oauthStartRequest(returnTo = "/acme/repo/pull-requests/42") {
     return new Request(`https://pullrequest.review/api/auth/bitbucket/start?return_to=${encodeURIComponent(returnTo)}`);
 }
 
+/** Runs the full start -> callback exchange flow against a stubbed Bitbucket token endpoint. */
+async function signIn(returnTo: string) {
+    const startResponse = await worker.fetch(oauthStartRequest(returnTo), workerEnv);
+    const state = new URL(startResponse.headers.get("location") ?? "").searchParams.get("state") ?? "";
+    const cookie = (startResponse.headers.get("set-cookie") ?? "").split(";", 1)[0];
+    const originalFetch = globalThis.fetch;
+    let tokenRequestBody = "";
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        tokenRequestBody = String(init?.body ?? "");
+        return Response.json({ access_token: "access-token", refresh_token: "refresh-token", expires_in: 3600 });
+    }) as typeof fetch;
+    try {
+        const response = await worker.fetch(
+            new Request("https://pullrequest.review/api/auth/bitbucket/exchange", {
+                method: "POST",
+                headers: { Origin: "https://pullrequest.review", Cookie: cookie, "Content-Type": "application/json" },
+                body: JSON.stringify({ code: "authorization-code", state }),
+            }),
+            workerEnv,
+        );
+        return { response, payload: (await response.json()) as Record<string, unknown>, tokenRequestBody };
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+}
+
 describe("Bitbucket OAuth worker", () => {
     test("starts authorization with a protected state cookie and safe return path", async () => {
         const response = await worker.fetch(oauthStartRequest(), workerEnv);
@@ -33,43 +59,15 @@ describe("Bitbucket OAuth worker", () => {
     });
 
     test("exchanges a valid callback code and returns the original app path", async () => {
-        const startResponse = await worker.fetch(oauthStartRequest(), workerEnv);
-        const authorizeUrl = new URL(startResponse.headers.get("location") ?? "");
-        const state = authorizeUrl.searchParams.get("state") ?? "";
-        const cookie = (startResponse.headers.get("set-cookie") ?? "").split(";", 1)[0];
-        const originalFetch = globalThis.fetch;
-        let tokenRequestBody = "";
+        const { response, payload, tokenRequestBody } = await signIn("/acme/repo/pull-requests/42");
 
-        globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
-            tokenRequestBody = String(init?.body ?? "");
-            return Response.json({ access_token: "access-token", refresh_token: "refresh-token", expires_in: 3600 });
-        }) as typeof fetch;
-
-        try {
-            const response = await worker.fetch(
-                new Request("https://pullrequest.review/api/auth/bitbucket/exchange", {
-                    method: "POST",
-                    headers: {
-                        Origin: "https://pullrequest.review",
-                        Cookie: cookie,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ code: "authorization-code", state }),
-                }),
-                workerEnv,
-            );
-            const payload = (await response.json()) as Record<string, unknown>;
-
-            expect(response.status).toBe(200);
-            expect(payload.accessToken).toBe("access-token");
-            expect(payload.refreshToken).toBe("refresh-token");
-            expect(payload.returnTo).toBe("/acme/repo/pull-requests/42");
-            expect(tokenRequestBody).toContain("grant_type=authorization_code");
-            expect(tokenRequestBody).toContain("code=authorization-code");
-            expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
-        } finally {
-            globalThis.fetch = originalFetch;
-        }
+        expect(response.status).toBe(200);
+        expect(payload.accessToken).toBe("access-token");
+        expect(payload.refreshToken).toBe("refresh-token");
+        expect(payload.returnTo).toBe("/acme/repo/pull-requests/42");
+        expect(tokenRequestBody).toContain("grant_type=authorization_code");
+        expect(tokenRequestBody).toContain("code=authorization-code");
+        expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
     });
 
     test("rejects callback exchange from another origin", async () => {
@@ -86,19 +84,11 @@ describe("Bitbucket OAuth worker", () => {
         expect((await response.json()) as Record<string, unknown>).toEqual({ error: "Invalid request origin" });
     });
 
-    test("does not allow an external return URL", async () => {
-        const response = await worker.fetch(oauthStartRequest("//attacker.example/path"), workerEnv);
-        const cookie = response.headers.get("set-cookie") ?? "";
-
-        expect(response.status).toBe(302);
-        expect(cookie.includes("attacker.example")).toBe(false);
-    });
-
-    test("does not allow a backslash-normalized external return URL", async () => {
-        const response = await worker.fetch(oauthStartRequest("/\\attacker.example/path"), workerEnv);
-        const cookie = response.headers.get("set-cookie") ?? "";
-
-        expect(response.status).toBe(302);
-        expect(cookie.includes("attacker.example")).toBe(false);
-    });
+    test.each(["//attacker.example/path", "/\\attacker.example/path", "https://attacker.example/path"])(
+        "returns to the app root instead of %s",
+        async (returnTo) => {
+            const { payload } = await signIn(returnTo);
+            expect(payload.returnTo).toBe("/");
+        },
+    );
 });

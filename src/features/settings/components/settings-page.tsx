@@ -1,10 +1,10 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { FileTree } from "@/components/file-tree";
-import { SettingsPanelContentOnly } from "@/components/settings-menu";
-import { getSettingsTreeItems, settingsPathForTab, settingsTabFromPath } from "@/components/settings-navigation";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Input } from "@/components/ui/input";
+import { SettingsPanel } from "@/features/settings/components/settings-panel";
+import { getSettingsTreeItems, settingsTabFromPath } from "@/features/settings/model/settings-navigation";
 import { useFileTree } from "@/lib/file-tree-context";
 
 export function SettingsPage() {
@@ -22,13 +22,8 @@ export function SettingsPage() {
         [settingsTreeItems],
     );
 
-    useEffect(() => {
-        const firstSettingsPath = settingsTreeItems[0]?.path;
-        if (!firstSettingsPath) return;
-        if (!activeFile || !settingsPathSet.has(activeFile)) {
-            setActiveFile(firstSettingsPath);
-        }
-    }, [activeFile, setActiveFile, settingsPathSet, settingsTreeItems]);
+    // Until a settings page is picked, the first one shows.
+    const selectedPath = activeFile && settingsPathSet.has(activeFile) ? activeFile : settingsTreeItems[0]?.path;
 
     return (
         <div className="h-full min-h-0 flex bg-background">
@@ -37,7 +32,6 @@ export function SettingsPage() {
                     onHome={() => {
                         navigate({ to: "/" });
                     }}
-                    onRefresh={() => Promise.resolve()}
                     settingsActive
                 />
 
@@ -53,7 +47,7 @@ export function SettingsPage() {
                 <div className="flex-1 min-h-0 overflow-y-auto" data-component="tree">
                     <FileTree
                         entries={treeEntries}
-                        selectedAppPath={activeFile}
+                        selectedAppPath={selectedPath}
                         searchQuery={searchQuery}
                         onSelectPath={(path) => {
                             if (settingsPathSet.has(path)) setActiveFile(path);
@@ -69,12 +63,7 @@ export function SettingsPage() {
 
                 <main data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto">
                     <div className="h-full min-h-0">
-                        <SettingsPanelContentOnly
-                            activeTab={settingsTabFromPath(activeFile) ?? "appearance"}
-                            onActiveTabChange={(tab) => {
-                                setActiveFile(settingsPathForTab(tab));
-                            }}
-                        />
+                        <SettingsPanel activeTab={settingsTabFromPath(selectedPath) ?? "appearance"} />
                     </div>
                 </main>
             </section>

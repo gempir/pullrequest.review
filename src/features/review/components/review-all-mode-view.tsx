@@ -9,8 +9,8 @@ import { ReviewDiffSettingsMenu } from "@/features/review/components/review-diff
 import { AllViewedToggle, CopyPathButton, ViewedToggle } from "@/features/review/components/review-file-controls";
 import { ReviewFileDiff } from "@/features/review/components/review-file-diff";
 import { ReviewSummaryCommentComposer } from "@/features/review/components/review-summary-comment-composer";
-import { fileAnchorId } from "@/lib/file-anchors";
-import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
+import { fileAnchorId } from "@/features/review/model/file-anchors";
+import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/features/review/model/pr-summary";
 import { cn } from "@/lib/utils";
 
 const STICKY_HEADER_CLASS = "group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]";

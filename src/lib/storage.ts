@@ -145,13 +145,11 @@ export function clearGithubAuthCredential() {
     void remove("auth:github");
 }
 
-export function readViewedVersionIds(scopeId: string, knownVersionIds?: ReadonlySet<string>) {
-    const stored = scopeId ? read<string[]>(`viewed:${scopeId}`) : null;
-    return new Set((stored ?? []).filter((versionId) => !knownVersionIds || knownVersionIds.has(versionId)));
+export function readViewedVersionIds(scopeId: string) {
+    return new Set(read<string[]>(`viewed:${scopeId}`) ?? []);
 }
 
 export function writeViewedVersionIds(scopeId: string, viewedVersionIds: Set<string>) {
-    if (!scopeId) return;
     if (viewedVersionIds.size === 0) {
         void remove(`viewed:${scopeId}`);
         return;
@@ -163,8 +161,8 @@ export type ReviewLayoutState = {
     treeWidth: number;
     treeCollapsed: boolean;
     viewMode: "single" | "all";
-    rightSidebarWidth?: number;
-    rightSidebarCollapsed?: boolean;
+    rightSidebarWidth: number;
+    rightSidebarCollapsed: boolean;
 };
 
 export function readReviewLayoutState() {
@@ -190,6 +188,7 @@ export function readInlineDraftContent(scopeId: string, draft: InlineDraftLocati
     return read<StoredInlineDraft>(draftKey(scopeId, draft))?.content ?? "";
 }
 
+/** Blank content removes the draft. */
 export function writeInlineDraftContent(scopeId: string, draft: InlineDraftLocation, content: string) {
     if (!content.trim()) {
         void remove(draftKey(scopeId, draft));
@@ -197,10 +196,6 @@ export function writeInlineDraftContent(scopeId: string, draft: InlineDraftLocat
     }
     const stored: StoredInlineDraft = { path: draft.path, line: draft.line, side: draft.side, content, updatedAt: Date.now() };
     void writeState(draftKey(scopeId, draft), stored);
-}
-
-export function clearInlineDraftContent(scopeId: string, draft: InlineDraftLocation) {
-    void remove(draftKey(scopeId, draft));
 }
 
 export function readActiveInlineDraft(scopeId: string) {

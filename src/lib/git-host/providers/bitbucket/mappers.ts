@@ -2,11 +2,14 @@ import type {
     Comment,
     CommentPayload,
     Commit,
+    CurrentUserReviewStatus,
+    DiffStatEntry,
     PullRequestBuildStatus,
     PullRequestDetails,
     PullRequestHistoryEvent,
     PullRequestReviewer,
     PullRequestSummary,
+    PullRequestUser,
     RepoRef,
 } from "@/lib/git-host/types";
 import type {
@@ -14,14 +17,21 @@ import type {
     BitbucketBuildStatus,
     BitbucketCommentRaw,
     BitbucketCommitRaw,
+    BitbucketDiffStatEntryRaw,
     BitbucketPullRequestRaw,
     BitbucketPullRequestSummaryRaw,
     BitbucketRepoEntry,
     BitbucketUser,
 } from "./raw-types";
 
-function getAvatarUrl(user?: BitbucketUser): string | undefined {
-    return user?.links?.avatar?.href;
+type Participant = NonNullable<BitbucketPullRequestRaw["participants"]>[number];
+
+function mapUser(user?: BitbucketUser): PullRequestUser {
+    return { displayName: user?.display_name, avatarUrl: user?.links?.avatar?.href };
+}
+
+function userKey(user: BitbucketUser | undefined) {
+    return user?.account_id ?? user?.uuid ?? user?.nickname ?? user?.username ?? user?.display_name;
 }
 
 export function mapPullRequestSummary(pullRequest: BitbucketPullRequestSummaryRaw): PullRequestSummary {
@@ -34,11 +44,12 @@ export function mapPullRequestSummary(pullRequest: BitbucketPullRequestSummaryRa
         source: pullRequest.source,
         destination: pullRequest.destination,
         links: pullRequest.links,
-        author: {
-            displayName: pullRequest.author?.display_name,
-            avatarUrl: getAvatarUrl(pullRequest.author),
-        },
+        author: mapUser(pullRequest.author),
     };
+}
+
+export function mapDiffStat(entry: BitbucketDiffStatEntryRaw): DiffStatEntry {
+    return { status: entry.status, new: entry.new, old: entry.old, linesAdded: entry.lines_added, linesRemoved: entry.lines_removed };
 }
 
 export function mapCommit(commit: BitbucketCommitRaw): Commit {
@@ -47,13 +58,7 @@ export function mapCommit(commit: BitbucketCommitRaw): Commit {
         date: commit.date,
         message: commit.message,
         summary: commit.summary,
-        author: {
-            user: {
-                displayName: commit.author?.user?.display_name,
-                avatarUrl: getAvatarUrl(commit.author?.user),
-            },
-            raw: commit.author?.raw,
-        },
+        author: { user: mapUser(commit.author?.user), raw: commit.author?.raw },
     };
 }
 
@@ -65,10 +70,7 @@ export function mapComment(comment: BitbucketCommentRaw): Comment {
         deleted: comment.deleted,
         pending: comment.pending,
         content: comment.content,
-        user: {
-            displayName: comment.user?.display_name,
-            avatarUrl: getAvatarUrl(comment.user),
-        },
+        user: mapUser(comment.user),
         inline: comment.inline
             ? {
                   path: comment.inline.path,
@@ -80,120 +82,48 @@ export function mapComment(comment: BitbucketCommentRaw): Comment {
               }
             : undefined,
         parent: comment.parent,
-        resolution: comment.resolution
-            ? {
-                  user: {
-                      displayName: comment.resolution.user?.display_name,
-                      avatarUrl: getAvatarUrl(comment.resolution.user),
-                  },
-              }
-            : comment.resolution,
-        hostThreadId: comment.hostThreadId,
+        resolution: comment.resolution ? { user: mapUser(comment.resolution.user) } : comment.resolution,
     };
 }
 
-export function mapBitbucketInlineComment(inline: CommentPayload["inline"]) {
-    if (!inline) return undefined;
-    return {
-        path: inline.path,
-        to: inline.to,
-        from: inline.from,
-        start_to: inline.startTo,
-        start_from: inline.startFrom,
-    };
+export function mapInlineCommentPayload(inline: NonNullable<CommentPayload["inline"]>) {
+    return { path: inline.path, to: inline.to, from: inline.from, start_to: inline.startTo, start_from: inline.startFrom };
 }
 
-function mapParticipantReviewStatus(participant: { approved?: boolean; state?: string }): NonNullable<PullRequestDetails["currentUserReviewStatus"]> {
+function participantStatus(participant: { approved?: boolean; state?: string }): CurrentUserReviewStatus {
     if (participant.approved) return "approved";
-    const normalized = (participant.state ?? "").toUpperCase();
-    if (normalized.includes("CHANGES")) return "changesRequested";
+    if ((participant.state ?? "").toUpperCase().includes("CHANGES")) return "changesRequested";
     return "none";
 }
 
-function isCurrentBitbucketUser(participantUser: BitbucketUser | undefined, currentUser: BitbucketUser | null): boolean {
-    if (!participantUser || !currentUser) return false;
-    if (participantUser.account_id && currentUser.account_id) return participantUser.account_id === currentUser.account_id;
-    if (participantUser.uuid && currentUser.uuid) return participantUser.uuid === currentUser.uuid;
-    if (participantUser.nickname && currentUser.nickname) return participantUser.nickname === currentUser.nickname;
-    if (participantUser.username && currentUser.username) return participantUser.username === currentUser.username;
-    if (participantUser.display_name && currentUser.display_name) return participantUser.display_name === currentUser.display_name;
-    return false;
+export function currentUserReviewStatus(pr: BitbucketPullRequestRaw, currentUser: BitbucketUser | null): CurrentUserReviewStatus {
+    const currentKey = userKey(currentUser ?? undefined);
+    const participant = currentKey ? pr.participants?.find((entry) => userKey(entry.user) === currentKey) : undefined;
+    return participant ? participantStatus(participant) : "none";
 }
 
-function bitbucketUserKey(user: BitbucketUser | undefined) {
-    return user?.account_id ?? user?.uuid ?? user?.nickname ?? user?.username ?? user?.display_name;
-}
-
-function upsertBitbucketDecisionActor(
-    byUser: Map<string, PullRequestReviewer>,
-    user: BitbucketUser | undefined,
-    status: Exclude<PullRequestReviewer["status"], "commented" | "pending">,
-    fallbackIndex: number,
-) {
-    const key = bitbucketUserKey(user);
-    if (!key) return;
-    const existing = byUser.get(key);
-    byUser.set(key, {
-        id: existing?.id ?? `bitbucket-reviewer-${key ?? fallbackIndex}`,
-        displayName: existing?.displayName ?? user?.display_name,
-        avatarUrl: existing?.avatarUrl ?? getAvatarUrl(user),
-        status,
-        approved: status === "approved",
-        requested: existing?.requested ?? false,
-        updatedAt: existing?.updatedAt,
-    });
-}
-
-export function mapPullRequest(pr: BitbucketPullRequestRaw, currentUser: BitbucketUser | null): PullRequestDetails {
-    const currentUserParticipant = (pr.participants ?? []).find((participant) => isCurrentBitbucketUser(participant.user, currentUser));
+export function mapPullRequest(pr: BitbucketPullRequestRaw): PullRequestDetails {
     return {
         id: pr.id,
         title: pr.title,
         description: pr.description,
         state: pr.state,
         draft: Boolean(pr.draft),
-        commentCount: pr.comment_count,
-        taskCount: pr.task_count,
         createdAt: pr.created_on,
         updatedAt: pr.updated_on,
         closedAt: pr.closed_on,
-        author: {
-            displayName: pr.author?.display_name,
-            avatarUrl: getAvatarUrl(pr.author),
-        },
+        author: mapUser(pr.author),
         source: pr.source,
         destination: pr.destination,
-        participants:
-            pr.participants?.map((participant) => ({
-                approved: participant.approved,
-                state: participant.state,
-                user: {
-                    displayName: participant.user?.display_name,
-                    avatarUrl: getAvatarUrl(participant.user),
-                },
-            })) ?? [],
-        currentUserReviewStatus: currentUserParticipant ? mapParticipantReviewStatus(currentUserParticipant) : "none",
-        currentUser: currentUser
-            ? {
-                  displayName: currentUser.display_name,
-                  avatarUrl: getAvatarUrl(currentUser),
-              }
-            : undefined,
         links: pr.links,
     };
 }
 
-export function normalizeRepo(repo: BitbucketRepoEntry): RepoRef | null {
+export function mapRepo(repo: BitbucketRepoEntry): RepoRef | null {
     const fullName = repo.full_name ?? `${repo.workspace?.slug ?? "unknown"}/${repo.slug}`;
     const workspace = repo.workspace?.slug ?? fullName.split("/")[0];
     if (!workspace || !repo.slug) return null;
-    return {
-        host: "bitbucket",
-        workspace,
-        repo: repo.slug,
-        fullName,
-        displayName: repo.name,
-    };
+    return { host: "bitbucket", workspace, repo: repo.slug, fullName, displayName: repo.name };
 }
 
 function mapBuildState(state: string | undefined): PullRequestBuildStatus["state"] {
@@ -217,131 +147,85 @@ export function mapBuildStatuses(statuses: BitbucketBuildStatus[]): PullRequestB
     }));
 }
 
-export function mapReviewers(pr: BitbucketPullRequestRaw, activity: BitbucketActivityEntry[] = []): PullRequestReviewer[] {
-    const participantsByUser = new Map<string, NonNullable<BitbucketPullRequestRaw["participants"]>[number]>();
+function isClosingState(state: string | undefined) {
+    const normalized = (state ?? "").toUpperCase();
+    return normalized === "DECLINED" || normalized === "SUPERSEDED";
+}
+
+export function mapReviewers(pr: BitbucketPullRequestRaw, activity: BitbucketActivityEntry[]): PullRequestReviewer[] {
+    const participantsByUser = new Map<string, Participant>();
     for (const participant of pr.participants ?? []) {
-        const key = bitbucketUserKey(participant.user);
+        const key = userKey(participant.user);
         if (key) participantsByUser.set(key, participant);
     }
 
     const byUser = new Map<string, PullRequestReviewer>();
+    const recordDecision = (user: BitbucketUser | undefined, status: "approved" | "changesRequested" | "declined") => {
+        const key = userKey(user);
+        if (!key) return;
+        const existing = byUser.get(key);
+        byUser.set(key, {
+            id: existing?.id ?? `bitbucket-reviewer-${key}`,
+            displayName: existing?.displayName ?? user?.display_name,
+            avatarUrl: existing?.avatarUrl ?? mapUser(user).avatarUrl,
+            status,
+            approved: status === "approved",
+            requested: existing?.requested ?? false,
+            updatedAt: existing?.updatedAt,
+        });
+    };
+
     for (const [index, reviewer] of (pr.reviewers ?? []).entries()) {
-        const key = bitbucketUserKey(reviewer) ?? `${index}`;
+        const key = userKey(reviewer) ?? `${index}`;
         const participant = participantsByUser.get(key);
-        const status = participant ? mapParticipantReviewStatus(participant) : "none";
+        const status = participant ? participantStatus(participant) : "none";
         byUser.set(key, {
             id: `bitbucket-reviewer-${key}`,
-            displayName: reviewer.display_name,
-            avatarUrl: getAvatarUrl(reviewer),
+            ...mapUser(reviewer),
             status: status === "none" ? "pending" : status,
             approved: Boolean(participant?.approved),
             requested: true,
         });
     }
-
-    for (const [index, participant] of (pr.participants ?? []).entries()) {
-        const status = mapParticipantReviewStatus(participant);
-        if (status === "none") continue;
-        upsertBitbucketDecisionActor(byUser, participant.user, status, index);
+    for (const participant of pr.participants ?? []) {
+        const status = participantStatus(participant);
+        if (status !== "none") recordDecision(participant.user, status);
     }
-
-    for (const [index, entry] of activity.entries()) {
-        const state = (entry.update?.state ?? "").toUpperCase();
-        if (state === "DECLINED" || state === "SUPERSEDED") {
-            upsertBitbucketDecisionActor(byUser, entry.update?.author, "declined", index);
-        }
+    for (const entry of activity) {
+        if (isClosingState(entry.update?.state)) recordDecision(entry.update?.author, "declined");
     }
 
     return Array.from(byUser.values()).sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""));
 }
 
-function mapCommentToHistory(comment: Comment): PullRequestHistoryEvent | null {
-    const line = comment.inline?.to ?? comment.inline?.from;
-    const side = comment.inline?.from ? "deletions" : "additions";
-    return {
-        id: `bitbucket-comment-${comment.id}`,
-        type: "comment",
-        createdAt: comment.createdAt,
-        updatedAt: comment.updatedAt,
-        actor: {
-            displayName: comment.user?.displayName,
-            avatarUrl: comment.user?.avatarUrl,
-        },
-        content: comment.content?.raw,
-        comment: {
-            id: comment.id,
-            path: comment.inline?.path,
-            line,
-            side,
-            isInline: Boolean(comment.inline?.path),
-        },
-    };
+function updateEventType(state: string | undefined): PullRequestHistoryEvent["type"] {
+    const normalized = (state ?? "").toUpperCase();
+    if (normalized === "MERGED") return "merged";
+    if (isClosingState(normalized)) return "closed";
+    if (normalized === "OPEN") return "reopened";
+    return "updated";
 }
 
 function mapActivityToHistory(activity: BitbucketActivityEntry, index: number): PullRequestHistoryEvent | null {
     if (activity.approval) {
-        return {
-            id: `bitbucket-activity-approval-${index}`,
-            type: "approved",
-            createdAt: activity.approval.date,
-            actor: {
-                displayName: activity.approval.user?.display_name,
-                avatarUrl: getAvatarUrl(activity.approval.user),
-            },
-        };
+        return { id: `bitbucket-activity-approval-${index}`, type: "approved", createdAt: activity.approval.date, actor: mapUser(activity.approval.user) };
     }
     if (activity.update) {
-        const state = (activity.update.state ?? "").toUpperCase();
-        let type: PullRequestHistoryEvent["type"] = "updated";
-        if (state === "MERGED") type = "merged";
-        if (state === "DECLINED" || state === "SUPERSEDED") type = "closed";
-        if (state === "OPEN") type = "reopened";
         return {
             id: `bitbucket-activity-update-${index}`,
-            type,
+            type: updateEventType(activity.update.state),
             createdAt: activity.update.date,
-            actor: {
-                displayName: activity.update.author?.display_name,
-                avatarUrl: getAvatarUrl(activity.update.author),
-            },
+            actor: mapUser(activity.update.author),
         };
     }
     return null;
 }
 
-export function mapHistory(pr: PullRequestDetails, comments: Comment[], activity: BitbucketActivityEntry[]): PullRequestHistoryEvent[] {
+export function mapHistory(activity: BitbucketActivityEntry[]): PullRequestHistoryEvent[] {
     const events: PullRequestHistoryEvent[] = [];
-    if (pr.createdAt) {
-        events.push({
-            id: `bitbucket-pr-opened-${pr.id}`,
-            type: "opened",
-            createdAt: pr.createdAt,
-            actor: {
-                displayName: pr.author?.displayName,
-                avatarUrl: pr.author?.avatarUrl,
-            },
-        });
-    }
-
-    for (const comment of comments) {
-        const mapped = mapCommentToHistory(comment);
-        if (mapped) events.push(mapped);
-    }
-    activity.forEach((entry, index) => {
+    for (const [index, entry] of activity.entries()) {
         const mapped = mapActivityToHistory(entry, index);
         if (mapped) events.push(mapped);
-    });
-
-    events.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
-    return events;
+    }
+    return events.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
 }
-
-// Export pure normalizers for focused mapping tests without network requests.
-export const bitbucketNormalization = {
-    mapPullRequestSummary,
-    mapPullRequest,
-    mapReviewers,
-    mapComment,
-    mapActivityToHistory,
-    mapBitbucketInlineComment,
-};

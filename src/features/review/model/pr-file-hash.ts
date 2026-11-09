@@ -1,4 +1,4 @@
-import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
+import { PR_SUMMARY_PATH } from "@/features/review/model/pr-summary";
 
 const PR_FILE_HASH_PREFIX = "/";
 
@@ -48,10 +48,6 @@ export function parsePrFileHashTarget(rawHash: string): PrFileHashTarget | null 
     const searchParams = queryIndex >= 0 ? new URLSearchParams(normalized.slice(queryIndex + 1)) : null;
     const commentId = parseCommentId(searchParams?.get("comment") ?? null);
     return commentId ? { path, commentId } : { path };
-}
-
-export function parsePrFileHash(rawHash: string): string | null {
-    return parsePrFileHashTarget(rawHash)?.path ?? null;
 }
 
 export function clearableHashFromPath(path: string | undefined, options?: { isSettingsPath?: boolean; commentId?: number }): string | undefined {

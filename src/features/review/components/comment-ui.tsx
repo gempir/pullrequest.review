@@ -1,5 +1,4 @@
-import { CommentMarkdown } from "@/components/comment-markdown";
-import { type CommentDiffSnippet, type CommentDiffSnippetRow, initials } from "@/features/review/model/summary-timeline";
+import type { CommentDiffSnippet, CommentDiffSnippetRow } from "@/features/review/model/summary-timeline";
 import { cn } from "@/lib/utils";
 
 export const TIMELINE_META_TEXT_CLASS = "text-[11px] leading-4";
@@ -27,10 +26,6 @@ function diffRowClassName(row: CommentDiffSnippetRow) {
     return row.isTarget ? "bg-accent/12 text-foreground" : "text-muted-foreground";
 }
 
-export function MarkdownBlock({ text }: { text: string }) {
-    return <CommentMarkdown text={text} />;
-}
-
 export function CommentDiffSnippetBlock({ snippet, className }: { snippet: CommentDiffSnippet; className?: string }) {
     return (
         <div className={cn("overflow-hidden bg-background", className)}>
@@ -56,6 +51,13 @@ export function CommentDiffSnippetBlock({ snippet, className }: { snippet: Comme
             </div>
         </div>
     );
+}
+
+function initials(value?: string) {
+    const parts = value?.trim().split(/\s+/).filter(Boolean) ?? [];
+    if (parts.length === 0) return "??";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
 export function Avatar({ name, url, sizeClass = "size-4" }: { name?: string; url?: string; sizeClass?: string }) {

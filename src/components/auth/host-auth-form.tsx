@@ -47,19 +47,14 @@ function useHostAuthFormState({ host, onSuccess }: { host: GitHost; onSuccess?: 
         setError(null);
         setIsSubmitting(true);
 
-        const promise = isBitbucket ? login({ host: "bitbucket", email, apiToken }) : login({ host: "github", token: githubToken });
-
         try {
-            await promise
-                .then(() => {
-                    setEmail("");
-                    setApiToken("");
-                    setGithubToken("");
-                    onSuccess?.();
-                })
-                .catch((err) => {
-                    setError(err instanceof Error ? err.message : "Failed to authenticate");
-                });
+            await login(isBitbucket ? { host: "bitbucket", email, apiToken } : { host: "github", token: githubToken });
+            setEmail("");
+            setApiToken("");
+            setGithubToken("");
+            onSuccess?.();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to authenticate");
         } finally {
             setIsSubmitting(false);
         }

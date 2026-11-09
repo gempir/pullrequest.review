@@ -1,7 +1,7 @@
 import { type Dispatch, type RefObject, type SetStateAction, useCallback } from "react";
-import { settingsPathForTab } from "@/components/settings-navigation";
-import { fileAnchorId } from "@/lib/file-anchors";
-import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
+import { fileAnchorId } from "@/features/review/model/file-anchors";
+import { PR_SUMMARY_PATH } from "@/features/review/model/pr-summary";
+import { settingsPathForTab } from "@/features/settings/model/settings-navigation";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
 
 export function useReviewNavigation({

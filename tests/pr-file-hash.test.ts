@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildPrCommentUrl, buildPrFileHash, clearableHashFromPath, parsePrFileHash, parsePrFileHashTarget } from "../src/lib/pr-file-hash";
+import { buildPrCommentUrl, buildPrFileHash, clearableHashFromPath, parsePrFileHashTarget } from "../src/features/review/model/pr-file-hash";
 
 describe("pull request file hashes", () => {
     test("round trips a file and comment target", () => {
@@ -10,7 +10,7 @@ describe("pull request file hashes", () => {
             path: "src/example file.ts",
             commentId: 42,
         });
-        expect(parsePrFileHash(`#${hash}`)).toBe("src/example file.ts");
+        expect(parsePrFileHashTarget(`#${hash}`)?.path).toBe("src/example file.ts");
     });
 
     test("keeps existing file-only hashes compatible", () => {

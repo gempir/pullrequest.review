@@ -64,12 +64,16 @@ function ReviewPage(props: PullRequestReviewPageProps) {
         return (
             <ReviewPageErrorState
                 message={prQuery.error instanceof Error ? prQuery.error.message : "Failed to load pull request"}
-                showRateLimitHelp={prQuery.rateLimited && host === "github"}
+                rateLimitHelp={
+                    prQuery.rateLimited && !auth.canWrite
+                        ? `${getHostLabel(host)} is rate limiting requests because there are too many unauthenticated requests from your network IP. Connect ${getHostLabel(host)} to continue and retry.`
+                        : undefined
+                }
                 authPromptSlot={prQuery.rateLimited && !auth.canWrite ? authPromptSlot : undefined}
             />
         );
     }
-    if (!auth.canRead && !prQuery.hostCapabilities.publicReadSupported) {
+    if (!auth.canRead) {
         return <ReviewPageAuthRequiredState hostLabel={getHostLabel(host)} authPromptSlot={authPromptSlot} />;
     }
     return loading;

@@ -107,7 +107,6 @@ interface ShortcutsContextType {
     shortcuts: Shortcuts;
     updateShortcut: (action: keyof Shortcuts, config: Partial<ShortcutConfig>) => void;
     resetToDefaults: () => void;
-    getShortcutDisplay: (shortcut: ShortcutConfig) => string;
 }
 
 const ShortcutsContext = createContext<ShortcutsContextType | null>(null);
@@ -148,24 +147,13 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
         setShortcuts(DEFAULT_SHORTCUTS);
     }, []);
 
-    const getShortcutDisplay = useCallback((shortcut: ShortcutConfig): string => {
-        const parts: string[] = [];
-        if (shortcut.modifiers.ctrl) parts.push("Ctrl");
-        if (shortcut.modifiers.alt) parts.push("Alt");
-        if (shortcut.modifiers.shift) parts.push("Shift");
-        if (shortcut.modifiers.meta) parts.push("Cmd");
-        parts.push(shortcut.key.toUpperCase());
-        return parts.join("+");
-    }, []);
-
     const value = useMemo(
         () => ({
             shortcuts,
             updateShortcut,
             resetToDefaults,
-            getShortcutDisplay,
         }),
-        [shortcuts, updateShortcut, resetToDefaults, getShortcutDisplay],
+        [shortcuts, updateShortcut, resetToDefaults],
     );
 
     return <ShortcutsContext.Provider value={value}>{children}</ShortcutsContext.Provider>;

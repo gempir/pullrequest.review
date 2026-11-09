@@ -2,7 +2,9 @@ import { Check, Circle, Reply } from "lucide-react";
 import { CommentMarkdown } from "@/components/comment-markdown";
 import { Timestamp } from "@/components/timestamp";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { ReviewSidebarThreadItem } from "@/features/review/hooks/use-review-diff-model";
+import { Avatar } from "@/features/review/components/comment-ui";
+import type { CommentActions } from "@/features/review/model/comment-actions";
+import type { ReviewSidebarThreadItem } from "@/features/review/model/review-page-model";
 import type { CommentThread } from "@/features/review/model/review-threads";
 import { commentTimestampSource } from "@/lib/timestamp";
 import { cn } from "@/lib/utils";
@@ -10,38 +12,8 @@ import { cn } from "@/lib/utils";
 type ReviewCommentsSidebarItemProps = {
     item: ReviewSidebarThreadItem;
     onSelect: () => void;
-    canResolveThread: boolean;
-    resolveCommentPending: boolean;
-    onResolveThread: (commentId: number, resolve: boolean) => void;
+    actions: CommentActions;
 };
-
-function initials(value?: string) {
-    if (!value) return "??";
-    const trimmed = value.trim();
-    if (!trimmed) return "??";
-    const parts = trimmed.split(/\s+/);
-    if (parts.length === 1) {
-        const first = parts[0]?.slice(0, 2).toUpperCase();
-        return first && first.length > 0 ? first : "??";
-    }
-    const first = parts[0]?.[0];
-    const last = parts[parts.length - 1]?.[0];
-    return `${first ?? ""}${last ?? ""}`.toUpperCase() || "??";
-}
-
-function CommentAvatar({ name, url }: { name?: string; url?: string }) {
-    if (url) {
-        return <img src={url} alt={name ?? "avatar"} className="size-6 shrink-0 rounded-full object-cover" />;
-    }
-    return (
-        <span
-            className="flex size-6 shrink-0 items-center justify-center rounded-full border border-comment-border bg-comment-muted text-[10px] text-muted-foreground"
-            aria-hidden
-        >
-            {initials(name)}
-        </span>
-    );
-}
 
 function commentMarkdown(thread: CommentThread) {
     return thread.root.comment.content?.html ?? thread.root.comment.content?.raw ?? "";
@@ -84,7 +56,7 @@ function ThreadStatusButton({ isResolved, disabled, onToggle }: { isResolved: bo
     );
 }
 
-export function ReviewCommentsSidebarItem({ item, onSelect, canResolveThread, resolveCommentPending, onResolveThread }: ReviewCommentsSidebarItemProps) {
+export function ReviewCommentsSidebarItem({ item, onSelect, actions }: ReviewCommentsSidebarItemProps) {
     const location = item.line ? `${item.path}:${item.line}` : item.path;
     const rootComment = item.thread.root.comment;
     const authorName = rootComment.user?.displayName ?? "Unknown";
@@ -111,7 +83,7 @@ export function ReviewCommentsSidebarItem({ item, onSelect, canResolveThread, re
             </div>
             <div className="mt-2 rounded-md border border-comment-border bg-comment p-3">
                 <div className="flex items-start gap-2">
-                    <CommentAvatar name={authorName} url={rootComment.user?.avatarUrl} />
+                    <Avatar name={authorName} url={rootComment.user?.avatarUrl} sizeClass="size-6" />
                     <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
                             <span className="font-medium text-[12px] text-foreground">{authorName}</span>
@@ -119,8 +91,8 @@ export function ReviewCommentsSidebarItem({ item, onSelect, canResolveThread, re
                             <span className="ml-auto shrink-0">
                                 <ThreadStatusButton
                                     isResolved={item.isResolved}
-                                    disabled={resolveCommentPending || !canResolveThread}
-                                    onToggle={() => onResolveThread(item.commentId, !item.isResolved)}
+                                    disabled={actions.pending.resolve || !actions.canResolve}
+                                    onToggle={() => actions.resolve(rootComment, !item.isResolved)}
                                 />
                             </span>
                         </div>

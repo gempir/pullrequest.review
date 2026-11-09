@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LandingPage } from "@/features/landing/components/landing-page";
+import { isGitHost } from "@/lib/git-host/types";
 
 export const Route = createFileRoute("/$host/")({
     component: HostLandingPage,
@@ -8,9 +9,5 @@ export const Route = createFileRoute("/$host/")({
 function HostLandingPage() {
     const { host } = Route.useParams();
 
-    if (host !== "bitbucket" && host !== "github") {
-        return <LandingPage />;
-    }
-
-    return <LandingPage initialHost={host} initialDiffPanel="repositories" />;
+    return <LandingPage initialHost={isGitHost(host) ? host : undefined} />;
 }

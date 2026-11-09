@@ -1,15 +1,11 @@
 import { type FileDiffMetadata, parsePatchFiles } from "@pierre/diffs";
 import { buildCommentThreads, type CommentThread, flattenThread } from "@/features/review/model/review-threads";
-import type { Commit, PullRequestBundle, PullRequestHistoryEvent } from "@/lib/git-host/types";
+import { type Comment, type CommentSide, type Commit, commentLinePosition, type PullRequestBundle, type PullRequestHistoryEvent } from "@/lib/git-host/types";
 import { timestampValue } from "@/lib/timestamp";
 
 const COMMENT_DIFF_CONTEXT_LINES = 3;
 
-type CommentLineSide = NonNullable<PullRequestHistoryEvent["comment"]>["side"];
-
-export type EditCommentHandler = (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
-
-export type ReplyCommentHandler = (commentId: number, content: string) => Promise<unknown> | undefined;
+export type CommentTarget = { path: string; commentId?: number };
 
 export type CommentDiffSnippetRow = {
     type: "context" | "addition" | "deletion";
@@ -41,20 +37,6 @@ export function isMergedDevelopCommit(message?: string) {
     return /^merged develop\b/i.test((message ?? "").trim());
 }
 
-export function initials(value?: string) {
-    const text = value?.trim();
-    if (!text) return "?";
-    const parts = text.split(/\s+/).filter(Boolean);
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
-}
-
-function normalizeDiffPath(path: string) {
-    const trimmed = path.trim();
-    if (trimmed.startsWith("a/") || trimmed.startsWith("b/") || trimmed.startsWith("c/")) return trimmed.slice(2);
-    return trimmed;
-}
-
 export function buildDiffByPath(diffText: string) {
     const map = new Map<string, FileDiffMetadata>();
     if (!diffText.trim()) return map;
@@ -65,8 +47,6 @@ export function buildDiffByPath(diffText: string) {
             const paths = [fileDiff.name, fileDiff.prevName].filter((path): path is string => Boolean(path));
             for (const path of paths) {
                 if (!map.has(path)) map.set(path, fileDiff);
-                const normalizedPath = normalizeDiffPath(path);
-                if (normalizedPath && !map.has(normalizedPath)) map.set(normalizedPath, fileDiff);
             }
         });
     });
@@ -74,22 +54,16 @@ export function buildDiffByPath(diffText: string) {
     return map;
 }
 
-function lineMatches(row: CommentDiffSnippetRow, line: number, side?: CommentLineSide) {
-    if (side === "deletions") return row.oldLine === line;
-    if (side === "additions") return row.newLine === line;
-    return row.newLine === line || row.oldLine === line;
+function lineMatches(row: CommentDiffSnippetRow, line: number, side: CommentSide) {
+    return side === "deletions" ? row.oldLine === line : row.newLine === line;
 }
 
-export function findCommentDiffSnippet(
-    diffByPath: Map<string, FileDiffMetadata>,
-    comment?: PullRequestHistoryEvent["comment"],
-): CommentDiffSnippet | undefined {
-    const path = comment?.path;
-    const line = comment?.line;
-    if (!path || typeof line !== "number") return undefined;
-
-    const fileDiff = diffByPath.get(path) ?? diffByPath.get(normalizeDiffPath(path));
-    if (!fileDiff) return undefined;
+export function findCommentDiffSnippet(diffByPath: Map<string, FileDiffMetadata>, comment: Comment): CommentDiffSnippet | undefined {
+    const path = comment.inline?.path;
+    const position = commentLinePosition(comment.inline);
+    const fileDiff = path ? diffByPath.get(path) : undefined;
+    if (!position || !fileDiff) return undefined;
+    const { lineNumber: line, side } = position;
 
     const windowRows: CommentDiffSnippetRow[] = [];
 
@@ -106,7 +80,7 @@ export function findCommentDiffSnippet(
                         content: fileDiff.additionLines[additionLineIndex] ?? fileDiff.deletionLines[deletionLineIndex] ?? "",
                         isTarget: false,
                     };
-                    row.isTarget = lineMatches(row, line, comment.side);
+                    row.isTarget = lineMatches(row, line, side);
                     windowRows.push(row);
                     if (row.isTarget) {
                         return { rows: windowRows.slice(-COMMENT_DIFF_CONTEXT_LINES - 1) };
@@ -123,7 +97,7 @@ export function findCommentDiffSnippet(
                     content: fileDiff.deletionLines[deletionLineIndex] ?? "",
                     isTarget: false,
                 };
-                row.isTarget = lineMatches(row, line, comment.side);
+                row.isTarget = lineMatches(row, line, side);
                 windowRows.push(row);
                 if (row.isTarget) {
                     return { rows: windowRows.slice(-COMMENT_DIFF_CONTEXT_LINES - 1) };
@@ -138,7 +112,7 @@ export function findCommentDiffSnippet(
                     content: fileDiff.additionLines[additionLineIndex] ?? "",
                     isTarget: false,
                 };
-                row.isTarget = lineMatches(row, line, comment.side);
+                row.isTarget = lineMatches(row, line, side);
                 windowRows.push(row);
                 if (row.isTarget) {
                     return { rows: windowRows.slice(-COMMENT_DIFF_CONTEXT_LINES - 1) };
@@ -148,33 +122,6 @@ export function findCommentDiffSnippet(
     }
 
     return undefined;
-}
-
-export function commentToHistoryLocation(comment: CommentThread["root"]["comment"]): PullRequestHistoryEvent["comment"] | undefined {
-    const inline = comment.inline;
-    const path = inline?.path;
-    if (!path) return undefined;
-    const line = inline.to ?? inline.from;
-    return {
-        id: comment.id,
-        path,
-        line,
-        side: inline.from ? "deletions" : "additions",
-        isInline: true,
-    };
-}
-
-export function normalizeName(value?: string) {
-    return value?.trim().toLowerCase() ?? "";
-}
-
-function extractHistoryCommentId(event: PullRequestHistoryEvent) {
-    if (event.comment?.id !== undefined) return event.comment.id;
-    if (event.type !== "comment") return null;
-    const match = event.id.match(/comment-(\d+)$/i);
-    if (!match) return null;
-    const parsed = Number(match[1]);
-    return Number.isNaN(parsed) ? null : parsed;
 }
 
 type HistoryTimelineEntry = {
@@ -338,77 +285,17 @@ export function groupCommitsByAuthor(commits: Commit[]) {
     return groups;
 }
 
+/** Comments render as threads beside history; review-comment and reopen events are not shown, and the opening comes from the pull request. */
 export function buildSummaryTimeline(bundle: PullRequestBundle) {
     const { pr, commits, history } = bundle;
-    const baseHistory: PullRequestHistoryEvent[] = history ?? [];
-    const summaryCommentThreads = buildCommentThreads(bundle.comments).filter((thread) => !thread.root.comment.deleted);
-    const commentHistoryById = new Map<number, PullRequestHistoryEvent>();
-    for (const event of baseHistory) {
-        const commentId = extractHistoryCommentId(event);
-        if (typeof commentId === "number") {
-            commentHistoryById.set(commentId, event);
-        }
-    }
-    const fallbackCommentEvents: PullRequestHistoryEvent[] = bundle.comments.flatMap((comment) => {
-        if (!comment.inline?.path) return [];
-        const line = comment.inline?.to ?? comment.inline?.from;
-        const side = comment.inline?.from ? "deletions" : "additions";
-        return [
-            {
-                id: `fallback-comment-${comment.id}`,
-                type: "comment",
-                createdAt: comment.createdAt,
-                updatedAt: comment.updatedAt,
-                actor: {
-                    displayName: comment.user?.displayName,
-                    avatarUrl: comment.user?.avatarUrl,
-                },
-                content: comment.content?.raw,
-                contentHtml: comment.content?.html,
-                comment: {
-                    id: comment.id,
-                    path: comment.inline?.path,
-                    line,
-                    side,
-                    isInline: Boolean(comment.inline?.path),
-                },
-            },
-        ];
-    });
-    const resolvedHistory: PullRequestHistoryEvent[] = [...baseHistory];
-    for (const fallbackEvent of fallbackCommentEvents) {
-        const commentId = fallbackEvent.comment?.id;
-        if (typeof commentId === "number") {
-            const existing = commentHistoryById.get(commentId);
-            if (existing) {
-                if (!existing.comment?.path && fallbackEvent.comment?.path) {
-                    existing.comment = { ...existing.comment, ...fallbackEvent.comment };
-                }
-                continue;
-            }
-            commentHistoryById.set(commentId, fallbackEvent);
-        }
-        resolvedHistory.push(fallbackEvent);
-    }
-    const visibleHistory = resolvedHistory.filter((event) => {
-        if (event.type === "comment") return false;
-        if (event.type === "opened") return false;
-        if (event.type === "reopened") return false;
-        return true;
-    });
-    const pullRequestOpenedEvent: PullRequestHistoryEvent = {
-        id: `pull-request-opened-${pr.id}`,
-        type: "opened",
-        createdAt: pr.createdAt,
-        actor: pr.author,
-    };
-    const timelineEntries = buildTimelineEntries({
-        history: [...visibleHistory, pullRequestOpenedEvent],
+    const hiddenTypes = new Set<PullRequestHistoryEvent["type"]>(["comment", "reopened"]);
+    const visibleHistory = history.filter((event) => !hiddenTypes.has(event.type));
+    const openedEvent: PullRequestHistoryEvent = { id: `pull-request-opened-${pr.id}`, type: "opened", createdAt: pr.createdAt, actor: pr.author };
+    return buildTimelineEntries({
+        history: [...visibleHistory, openedEvent],
         commits,
-        commentThreads: summaryCommentThreads,
+        commentThreads: buildCommentThreads(bundle.comments).filter((thread) => !thread.root.comment.deleted),
     });
-
-    return timelineEntries;
 }
 
 export function shouldRenderHistoryDetails(type: PullRequestHistoryEvent["type"]) {

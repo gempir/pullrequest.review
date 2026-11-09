@@ -27,8 +27,5 @@ export function getSettingsTreeItems() {
 export function settingsTabFromPath(path?: string): SettingsTab | null {
     if (!path?.startsWith(SETTINGS_PATH_PREFIX)) return null;
     const tab = path.slice(SETTINGS_PATH_PREFIX.length);
-    if (tab === "appearance" || tab === "diff" || tab === "tree" || tab === "shortcuts") {
-        return tab;
-    }
-    return null;
+    return SETTINGS_NAV_ITEMS.find((item) => item.tab === tab)?.tab ?? null;
 }

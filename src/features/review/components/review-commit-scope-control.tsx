@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import type { ReviewDiffScopeMode, ReviewDiffScopeSearch, resolveReviewDiffScope } from "@/lib/review-diff-scope";
+import type { ReviewDiffScopeMode, ReviewDiffScopeSearch, resolveReviewDiffScope } from "@/features/review/model/review-diff-scope";
 import { cn } from "@/lib/utils";
 
 type CommitOption = {

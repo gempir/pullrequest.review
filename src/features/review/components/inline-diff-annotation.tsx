@@ -2,72 +2,44 @@ import { Loader2, SendHorizontal, X } from "lucide-react";
 import { useState } from "react";
 import { CommentEditor } from "@/components/comment-editor";
 import { Button } from "@/components/ui/button";
+import { COMMENT_PRIMARY_BUTTON_CLASS } from "@/features/review/components/comment-ui";
 import { ThreadCard } from "@/features/review/components/review-thread-card";
-import type { SingleFileAnnotation } from "@/features/review/model/review-page-model";
-import { inlineDraftStorageKey } from "@/features/review/model/use-inline-drafts";
+import type { CommentActions } from "@/features/review/model/comment-actions";
+import { draftLocationKey, type SingleFileAnnotation } from "@/features/review/model/review-page-model";
 import type { InlineDraftLocation } from "@/lib/storage";
-
-const COMMENT_PRIMARY_BUTTON_CLASS =
-    "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none";
 
 type InlineDiffAnnotationProps = {
     annotation: SingleFileAnnotation;
+    actions: CommentActions;
     linkedCommentId?: number;
-    allowNestedReplies: boolean;
-    workspace: string;
-    repo: string;
-    pullRequestId: string;
-    createCommentPending: boolean;
-    canCommentInline: boolean;
-    canResolveThread: boolean;
-    resolveCommentPending: boolean;
-    deleteCommentPending: boolean;
-    updateCommentPending: boolean;
-    getInlineDraftContent: (draft: InlineDraftLocation) => string;
-    setInlineDraftContent: (draft: InlineDraftLocation, content: string) => void;
-    onSubmitInlineComment: () => Promise<unknown> | undefined;
-    onInlineDraftReady: (focus: () => void) => void;
-    onCancelInlineDraft: (draft: InlineDraftLocation) => void;
-    currentUserDisplayName?: string;
-    onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
-    onResolveThread: (commentId: number, resolve: boolean) => void;
-    onReplyToThread: (commentId: number, content: string) => Promise<unknown> | undefined;
-    onEditComment: (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
+    draftContent: string;
+    draftAutoFocus: boolean;
+    onDraftFocused: () => void;
+    onDraftChange: (content: string) => void;
+    onSubmitDraft: () => Promise<unknown> | undefined;
+    onCancelDraft: (draft: InlineDraftLocation) => void;
 };
 
 export function InlineDiffAnnotation({
     annotation,
+    actions,
     linkedCommentId,
-    allowNestedReplies,
-    workspace,
-    repo,
-    pullRequestId,
-    createCommentPending,
-    canCommentInline,
-    canResolveThread,
-    resolveCommentPending,
-    deleteCommentPending,
-    updateCommentPending,
-    getInlineDraftContent,
-    setInlineDraftContent,
-    onSubmitInlineComment,
-    onInlineDraftReady,
-    onCancelInlineDraft,
-    currentUserDisplayName,
-    onDeleteComment,
-    onResolveThread,
-    onReplyToThread,
-    onEditComment,
+    draftContent,
+    draftAutoFocus,
+    onDraftFocused,
+    onDraftChange,
+    onSubmitDraft,
+    onCancelDraft,
 }: InlineDiffAnnotationProps) {
     const [localSubmitting, setLocalSubmitting] = useState(false);
     const metadata = annotation.metadata;
     if (!metadata) return null;
 
     const isDraft = metadata.kind === "draft";
-    const isSavingDraft = createCommentPending || localSubmitting;
+    const isSavingDraft = actions.pending.create || localSubmitting;
     const handleSubmitInlineComment = async () => {
-        if (isSavingDraft || !canCommentInline) return;
-        const result = onSubmitInlineComment();
+        if (isSavingDraft || !actions.canReply) return;
+        const result = onSubmitDraft();
         if (!result) return;
         setLocalSubmitting(true);
         try {
@@ -84,12 +56,13 @@ export function InlineDiffAnnotation({
             {isDraft ? (
                 <div className="space-y-2">
                     <CommentEditor
-                        key={inlineDraftStorageKey(workspace, repo, pullRequestId, metadata.draft)}
-                        value={getInlineDraftContent(metadata.draft)}
+                        key={draftLocationKey(metadata.draft)}
+                        value={draftContent}
                         placeholder="Add a line comment"
-                        disabled={isSavingDraft || !canCommentInline}
-                        onReady={onInlineDraftReady}
-                        onChange={(nextValue) => setInlineDraftContent(metadata.draft, nextValue)}
+                        disabled={isSavingDraft || !actions.canReply}
+                        autoFocus={draftAutoFocus}
+                        onFocus={onDraftFocused}
+                        onChange={onDraftChange}
                         onSubmit={handleSubmitInlineComment}
                     />
                     <div className="flex items-center gap-2 pt-1">
@@ -97,7 +70,7 @@ export function InlineDiffAnnotation({
                             variant="ghost"
                             size="sm"
                             className={`h-8 ${COMMENT_PRIMARY_BUTTON_CLASS}`}
-                            disabled={isSavingDraft || !canCommentInline}
+                            disabled={isSavingDraft || !actions.canReply}
                             onClick={handleSubmitInlineComment}
                         >
                             {isSavingDraft ? <Loader2 className="size-3.5 animate-spin" /> : <SendHorizontal className="size-3.5" />}
@@ -108,7 +81,7 @@ export function InlineDiffAnnotation({
                             size="sm"
                             className="h-8 rounded-md gap-1.5 px-3"
                             disabled={isSavingDraft}
-                            onClick={() => onCancelInlineDraft(metadata.draft)}
+                            onClick={() => onCancelDraft(metadata.draft)}
                         >
                             <X className="size-3.5" />
                             Cancel
@@ -118,21 +91,10 @@ export function InlineDiffAnnotation({
             ) : (
                 <ThreadCard
                     thread={metadata.thread}
+                    actions={actions}
                     linkedCommentId={linkedCommentId}
                     suggestionSourceFileDiff={metadata.suggestionSourceFileDiff}
-                    allowNestedReplies={allowNestedReplies}
                     showBorder={false}
-                    canResolveThread={canResolveThread}
-                    canCommentInline={canCommentInline}
-                    createCommentPending={createCommentPending}
-                    resolveCommentPending={resolveCommentPending}
-                    deleteCommentPending={deleteCommentPending}
-                    updateCommentPending={updateCommentPending}
-                    currentUserDisplayName={currentUserDisplayName}
-                    onDeleteComment={onDeleteComment}
-                    onResolveThread={onResolveThread}
-                    onReplyToThread={onReplyToThread}
-                    onEditComment={onEditComment}
                 />
             )}
         </div>

@@ -1,28 +1,28 @@
 import { type CSSProperties, type ReactNode, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { getSettingsTreeItems, settingsPathForTab } from "@/components/settings-navigation";
-import { useSelectedRepoPullRequests } from "@/features/landing/hooks/use-selected-repo-pull-requests";
-import { ALL_MODE_STICKY_OFFSET, useAllModeReveal } from "@/features/review/hooks/use-all-mode-reveal";
+import { useAllModeReveal } from "@/features/review/hooks/use-all-mode-reveal";
+import { useAllModeActiveFileTracking } from "@/features/review/hooks/use-all-mode-scroll-selection";
 import { useCommentReveal } from "@/features/review/hooks/use-comment-reveal";
 import { useInlineCommentDrafts } from "@/features/review/hooks/use-inline-comment-drafts";
+import { useMergeDialog } from "@/features/review/hooks/use-merge-dialog";
+import { useMissingDiffRecovery } from "@/features/review/hooks/use-missing-diff-recovery";
 import { useReviewActions } from "@/features/review/hooks/use-review-actions";
 import { useParsedDiff, useReviewDiffModel } from "@/features/review/hooks/use-review-diff-model";
+import { useReviewDocumentTitle } from "@/features/review/hooks/use-review-document-title";
 import { useReviewFileContexts } from "@/features/review/hooks/use-review-file-contexts";
 import { useReviewLayoutPreferences } from "@/features/review/hooks/use-review-layout-preferences";
 import { useReviewNavigation } from "@/features/review/hooks/use-review-navigation";
-import {
-    useAllModeScrollSelection,
-    useAutoMarkActiveFileViewed,
-    useEnsureSummarySelection,
-    useInlineDraftFocus,
-    useReviewActiveFileSync,
-    useReviewDocumentTitle,
-    useReviewFileHashSelection,
-    useReviewFileHashSync,
-    useSyncMergeStrategy,
-} from "@/features/review/hooks/use-review-page-effects";
 import { useReviewScope } from "@/features/review/hooks/use-review-scope";
-import { useReviewViewedFiles, viewedStorageKey } from "@/features/review/hooks/use-review-viewed-files";
+import { useEnsureSummarySelection, useReviewActiveFileSync } from "@/features/review/hooks/use-review-selection";
+import { useReviewUrlHash } from "@/features/review/hooks/use-review-url-hash";
+import { useAutoMarkActiveFileViewed, useReviewViewedFiles, viewedStorageKey } from "@/features/review/hooks/use-review-viewed-files";
+import type { CommentActions } from "@/features/review/model/comment-actions";
+import { parsePrFileHashTarget } from "@/features/review/model/pr-file-hash";
+import { PR_SUMMARY_PATH } from "@/features/review/model/pr-summary";
+import { diffScopeStorageSegment, type ReviewDiffScopeSearch } from "@/features/review/model/review-diff-scope";
+import { pullRequestHeader } from "@/features/review/model/review-formatters";
 import type { InlineCommentLineTarget } from "@/features/review/model/review-page-model";
+import type { CommentTarget } from "@/features/review/model/summary-timeline";
+import { getSettingsTreeItems, settingsPathForTab } from "@/features/settings/model/settings-navigation";
 import { useAppearance } from "@/lib/appearance-context";
 import { toLibraryOptions } from "@/lib/diff-options";
 import { useDiffOptions } from "@/lib/diff-options-context";
@@ -30,10 +30,8 @@ import { useFileTree } from "@/lib/file-tree-context";
 import { fontFamilyToCss } from "@/lib/font-options";
 import { buildReviewActionPolicy } from "@/lib/git-host/review-policy";
 import type { GitHost } from "@/lib/git-host/types";
-import { parsePrFileHashTarget } from "@/lib/pr-file-hash";
-import { PR_SUMMARY_PATH } from "@/lib/pr-summary";
-import { diffScopeStorageSegment, type ReviewDiffScopeSearch } from "@/lib/review-diff-scope";
-import { hashString } from "@/lib/review-file-fingerprint";
+import { useSelectedRepoPullRequests } from "@/lib/selected-pull-requests";
+import type { InlineDraftLocation } from "@/lib/storage";
 
 export interface PullRequestReviewPageProps {
     host: GitHost;
@@ -41,41 +39,37 @@ export interface PullRequestReviewPageProps {
     repo: string;
     pullRequestId: string;
     auth: { canWrite: boolean; canRead: boolean };
-    reviewDiffScopeSearch?: ReviewDiffScopeSearch;
-    onReviewDiffScopeSearchChange?: (next: ReviewDiffScopeSearch) => void;
-    onRequireAuth?: (reason: "write" | "rate_limit") => void;
+    reviewDiffScopeSearch: ReviewDiffScopeSearch;
+    onReviewDiffScopeSearchChange: (next: ReviewDiffScopeSearch) => void;
+    onRequireAuth: (reason: "write" | "rate_limit") => void;
     authPromptSlot?: ReactNode;
 }
 
-const MAX_MISSING_DIFF_RECOVERIES = 2;
+function useDiffTypographyStyle() {
+    const { monospaceFontFamily, monospaceFontSize, monospaceLineHeight } = useAppearance();
+    return useMemo(() => {
+        const fontFamily = fontFamilyToCss(monospaceFontFamily);
+        const fontSize = `${monospaceFontSize}px`;
+        const lineHeight = String(monospaceLineHeight);
+        return {
+            "--diff-font-family": fontFamily,
+            "--diff-font-size": fontSize,
+            "--diff-line-height": lineHeight,
+            "--diffs-font-family": fontFamily,
+            "--diffs-font-size": fontSize,
+            "--diffs-line-height": lineHeight,
+        } as CSSProperties;
+    }, [monospaceFontFamily, monospaceFontSize, monospaceLineHeight]);
+}
 
-/** Hosts occasionally answer with a diffstat but an empty diff; refetching usually fills it in. */
-function useMissingDiffRecovery({
-    contextKey,
-    diff,
-    diffstatCount,
-    selectablePathCount,
-    enabled,
-    refetch,
-}: {
-    contextKey: string;
-    diff: string | undefined;
-    diffstatCount: number;
-    selectablePathCount: number;
-    enabled: boolean;
-    refetch: () => Promise<unknown>;
-}) {
-    const recoveryRef = useRef({ contextKey: "", attempts: 0, signature: "" });
+/** Collapses the comments sidebar once per pull request when it has nothing unresolved to show. */
+function useAutoCollapseCommentsSidebar(contextKey: string, ready: boolean, unresolvedCount: number, collapse: () => void) {
+    const handledContextRef = useRef("");
     useEffect(() => {
-        if (!enabled || diff === undefined || diffstatCount === 0) return;
-        if (recoveryRef.current.contextKey !== contextKey) recoveryRef.current = { contextKey, attempts: 0, signature: "" };
-        const hasDiffText = diff.trim().length > 0;
-        if (hasDiffText && selectablePathCount > 0) return;
-        const signature = `${diffstatCount}:${selectablePathCount}:${hasDiffText ? hashString(diff) : "none"}`;
-        if (recoveryRef.current.attempts >= MAX_MISSING_DIFF_RECOVERIES || recoveryRef.current.signature === signature) return;
-        recoveryRef.current = { contextKey, attempts: recoveryRef.current.attempts + 1, signature };
-        void refetch();
-    }, [contextKey, diff, diffstatCount, enabled, refetch, selectablePathCount]);
+        if (!ready || handledContextRef.current === contextKey) return;
+        handledContextRef.current = contextKey;
+        if (unresolvedCount === 0) collapse();
+    }, [collapse, contextKey, ready, unresolvedCount]);
 }
 
 export function useReviewController({
@@ -91,45 +85,29 @@ export function useReviewController({
 }: PullRequestReviewPageProps) {
     const prRef = useMemo(() => ({ host, workspace, repo, pullRequestId }), [host, pullRequestId, repo, workspace]);
     const prContextKey = `${host}:${workspace}/${repo}/${pullRequestId}`;
-    const requestAuth = useCallback((reason: "write" | "rate_limit") => onRequireAuth?.(reason), [onRequireAuth]);
     const { options } = useDiffOptions();
-    const { monospaceFontFamily, monospaceFontSize, monospaceLineHeight } = useAppearance();
-    const diffTypographyStyle = useMemo(() => {
-        const fontFamily = fontFamilyToCss(monospaceFontFamily);
-        const fontSize = `${monospaceFontSize}px`;
-        const lineHeight = String(monospaceLineHeight);
-        return {
-            "--diff-font-family": fontFamily,
-            "--diff-font-size": fontSize,
-            "--diff-line-height": lineHeight,
-            "--diffs-font-family": fontFamily,
-            "--diffs-font-size": fontSize,
-            "--diffs-line-height": lineHeight,
-        } as CSSProperties;
-    }, [monospaceFontFamily, monospaceFontSize, monospaceLineHeight]);
+    const diffTypographyStyle = useDiffTypographyStyle();
     const { activeFile, setActiveFile } = useFileTree();
     const layout = useReviewLayoutPreferences();
     const { viewMode, setViewMode, setTreeCollapsed, setRightSidebarCollapsed } = layout;
     const diffScrollRef = useRef<HTMLDivElement | null>(null);
-    const inlineDraftFocusRef = useRef<(() => void) | null>(null);
-    const suppressHashSyncRef = useRef(false);
-    const allModeLastStickyPathRef = useRef<string | null>(null);
-    const autoCollapsedSidebarContextRef = useRef("");
 
     const [searchQuery, setSearchQuery] = useState("");
     const deferredSearchQuery = useDeferredValue(searchQuery);
     const [showUnviewedOnly, setShowUnviewedOnly] = useState(false);
     const [showSettingsPanel, setShowSettingsPanel] = useState(false);
     const [omnibarOpen, setOmnibarOpen] = useState(false);
-    const [mergeOpen, setMergeOpen] = useState(false);
-    const [mergeMessage, setMergeMessage] = useState("");
-    const [mergeStrategy, setMergeStrategy] = useState("merge_commit");
-    const [closeSourceBranch, setCloseSourceBranch] = useState(true);
     const [collapsedAllModeFiles, setCollapsedAllModeFiles] = useState<Record<string, boolean>>({});
     const [isSummaryCollapsedInAllMode, setIsSummaryCollapsedInAllMode] = useState(false);
 
-    const drafts = useInlineCommentDrafts({ workspace, repo, pullRequestId, setActiveFile, setViewMode });
-    const { inlineComment, setInlineComment, openInlineCommentDraft } = drafts;
+    const restoreDraftFile = useCallback(
+        (draft: InlineDraftLocation) => {
+            setActiveFile(draft.path);
+            setViewMode("single");
+        },
+        [setActiveFile, setViewMode],
+    );
+    const drafts = useInlineCommentDrafts({ scopeId: `${workspace}/${repo}/${pullRequestId}`, onRestore: restoreDraftFile });
     const {
         pr: prQuery,
         scopedData: prData,
@@ -138,59 +116,54 @@ export function useReviewController({
         scopeNotice,
         setScopeNotice,
         refetch: refetchScope,
-    } = useReviewScope({ prRef, auth, search: reviewDiffScopeSearch, onSearchChange: onReviewDiffScopeSearchChange, requestAuth });
+    } = useReviewScope({ prRef, auth, search: reviewDiffScopeSearch, onSearchChange: onReviewDiffScopeSearchChange, requestAuth: onRequireAuth });
+    const capabilities = prQuery.hostCapabilities;
     const pullRequest = prData?.pr;
     const pullRequestTitle = pullRequest?.title?.trim();
     const isFullScope = resolvedScope.mode === "full";
+    // Inline comments anchor to lines of the full diff, so drafts only show there.
+    const inlineDraft = isFullScope ? drafts.inlineDraft : null;
+    const merge = useMergeDialog(capabilities.mergeStrategies);
+    const header = pullRequestHeader(pullRequest);
     useReviewDocumentTitle({ isLoading: prQuery.isLoading, pullRequestTitle });
-
-    useEffect(() => {
-        if (!isFullScope) setInlineComment(null);
-    }, [isFullScope, setInlineComment]);
 
     const settingsTreeItems = useMemo(() => getSettingsTreeItems(), []);
     const diffOptions = useMemo(() => ({ ...toLibraryOptions(options), disableFileHeader: true }), [options]);
+    const { openInlineDraft: openDraft } = drafts;
     const openInlineDraft = useCallback(
         (path: string, target: InlineCommentLineTarget) => {
-            if (isFullScope) openInlineCommentDraft({ path, line: target.lineNumber, side: target.annotationSide ?? "additions" });
+            if (isFullScope) openDraft({ path, line: target.lineNumber, side: target.annotationSide });
         },
-        [isFullScope, openInlineCommentDraft],
+        [isFullScope, openDraft],
     );
     const { fileContextStatus, loadFullFileContext, readyFileContexts } = useReviewFileContexts({
         prRef,
-        baseCommitHash: isFullScope ? prData?.pr.destination?.commit?.hash : resolvedScope.baseCommitHash,
-        headCommitHash: isFullScope ? prData?.pr.source?.commit?.hash : resolvedScope.headCommitHash,
+        baseCommitHash: isFullScope ? pullRequest?.destination?.commit?.hash : resolvedScope.baseCommitHash,
+        headCommitHash: isFullScope ? pullRequest?.source?.commit?.hash : resolvedScope.headCommitHash,
     });
 
     const parsedDiff = useParsedDiff(prData?.diff ?? "");
-    const { viewedFiles, setViewedFiles, versionIdByPath, markPathViewed, toggleViewedForPath } = useReviewViewedFiles({
+    const { viewedFiles, setViewed, versionIdByPath, markPathViewed, toggleViewedForPath } = useReviewViewedFiles({
         fileDiffFingerprints: parsedDiff.fileDiffFingerprints,
-        diffNotReady: !prData || commitScopeLoading || (prData.diffstat.length > 0 && parsedDiff.fileDiffFingerprints.size === 0),
         storageKey: viewedStorageKey(prRef, diffScopeStorageSegment(resolvedScope)),
     });
     const model = useReviewDiffModel({
         parsedDiff,
         prData,
-        pullRequest,
         activeFile,
         showUnviewedOnly,
         searchQuery: deferredSearchQuery,
         showSettingsPanel,
         viewedFiles,
         settingsTreeItems,
-        inlineComment,
-        theme: options.theme,
+        inlineDraft: inlineDraft?.location ?? null,
         fullFileContexts: readyFileContexts,
     });
     const { selectableDiffPathSet, allModeDiffEntries, treeOrderedVisiblePaths, settingsPathSet, visiblePathSet, sidebarThreads } = model;
 
     const unresolvedCommentCount = sidebarThreads.filter((thread) => !thread.isResolved).length;
-    useEffect(() => {
-        if (!prData || prQuery.isFetching || autoCollapsedSidebarContextRef.current === prContextKey) return;
-        autoCollapsedSidebarContextRef.current = prContextKey;
-        if (unresolvedCommentCount === 0) setRightSidebarCollapsed(true);
-    }, [prContextKey, prData, prQuery.isFetching, setRightSidebarCollapsed, unresolvedCommentCount]);
-
+    const collapseCommentsSidebar = useCallback(() => setRightSidebarCollapsed(true), [setRightSidebarCollapsed]);
+    useAutoCollapseCommentsSidebar(prContextKey, Boolean(prData) && !prQuery.isFetching, unresolvedCommentCount, collapseCommentsSidebar);
     useMissingDiffRecovery({
         contextKey: prContextKey,
         diff: prData?.diff,
@@ -203,25 +176,13 @@ export function useReviewController({
     const allDiffFilePaths = useMemo(() => Array.from(selectableDiffPathSet), [selectableDiffPathSet]);
     const unviewedFileCount = allDiffFilePaths.filter((path) => !viewedFiles.has(path)).length;
     const areAllFilesViewed = allDiffFilePaths.length > 0 && unviewedFileCount === 0;
-    const toggleAllFilesViewed = () => {
-        setViewedFiles((prev) => {
-            const next = new Set(prev);
-            for (const path of allDiffFilePaths) {
-                if (areAllFilesViewed) next.delete(path);
-                else next.add(path);
-            }
-            return next;
-        });
-    };
 
     const allModeSectionPaths = useMemo(() => {
         const paths = allModeDiffEntries.map((entry) => entry.filePath);
         return prData ? [PR_SUMMARY_PATH, ...paths] : paths;
     }, [allModeDiffEntries, prData]);
-    const lastAllModeSectionPath = allModeSectionPaths.at(-1) ?? null;
     const allModeActive = viewMode === "all" && !showSettingsPanel;
     const allModeReveal = useAllModeReveal({ active: allModeActive, scrollRef: diffScrollRef, sectionPaths: allModeSectionPaths });
-    const { pendingScrollPath: allModePendingScrollPath, clearPendingScrollPath } = allModeReveal;
 
     useReviewActiveFileSync({
         showSettingsPanel,
@@ -250,44 +211,39 @@ export function useReviewController({
         selectedFileDiff: model.selectedFileDiff,
         setActiveFile,
     });
-    useSyncMergeStrategy({ prData, mergeStrategies: prQuery.hostCapabilities.mergeStrategies, mergeStrategy, setMergeStrategy });
 
-    const currentUserReviewStatus = pullRequest?.currentUserReviewStatus ?? "none";
+    const currentUserReviewStatus = prData?.currentUserReviewStatus ?? "none";
     const isApproved = currentUserReviewStatus === "approved";
     const actionPolicy = useMemo(
         () =>
             buildReviewActionPolicy({
-                capabilities: prQuery.hostCapabilities,
+                capabilities,
                 isAuthenticatedForWrite: auth.canWrite,
                 isApprovedByCurrentUser: isApproved,
                 prState: pullRequest?.state,
                 isDraft: pullRequest?.draft,
             }),
-        [auth.canWrite, isApproved, prQuery.hostCapabilities, pullRequest?.draft, pullRequest?.state],
+        [auth.canWrite, capabilities, isApproved, pullRequest?.draft, pullRequest?.state],
     );
 
     const actions = useReviewActions({
         prRef,
-        isLoaded: Boolean(pullRequest),
-        pullRequestTitle: pullRequest?.title,
-        authCanWrite: auth.canWrite,
-        requestAuth,
+        pullRequest,
+        canWrite: auth.canWrite,
+        requestAuth: onRequireAuth,
         actionPolicy,
         isApprovedByCurrentUser: isApproved,
-        isDraft: Boolean(pullRequest?.draft),
         refetchPullRequest: prQuery.refetch,
         refetchComments: prQuery.refetchComments,
-        merge: { message: mergeMessage, mergeStrategy, closeSourceBranch },
-        onMerged: () => setMergeOpen(false),
-        inlineComment,
-        getInlineDraftContent: drafts.getInlineDraftContent,
-        clearInlineDraftContent: drafts.clearInlineDraftContent,
-        setInlineComment,
+        merge: { message: merge.message, mergeStrategy: merge.mergeStrategy, closeSourceBranch: merge.closeSourceBranch },
+        onMerged: () => merge.setOpen(false),
+        inlineDraft,
+        discardInlineDraft: drafts.discardInlineDraft,
     });
     const revealComment = useCommentReveal();
 
     const handleOpenOmnibar = () => {
-        if (!mergeOpen) setOmnibarOpen(true);
+        if (!merge.open) setOmnibarOpen(true);
     };
     const { toggleSettingsPanel, selectAndRevealFile } = useReviewNavigation({
         onOpenOmnibar: handleOpenOmnibar,
@@ -310,18 +266,13 @@ export function useReviewController({
         onApprovePullRequest: actions.handleApprovePullRequest,
         onRequestChangesPullRequest: actions.handleRequestChangesPullRequest,
     });
-    const toggleViewed = (path: string) => {
-        if (!viewedFiles.has(path)) setCollapsedAllModeFiles((collapsed) => ({ ...collapsed, [path]: true }));
-        toggleViewedForPath(path);
-    };
-    const navigateToComment = ({ path, commentId }: { path: string; commentId?: number }) => {
+    const navigateToComment = ({ path, commentId }: CommentTarget) => {
         if (!path) return;
         selectAndRevealFile(path);
         if (typeof commentId === "number") revealComment(commentId);
     };
-    const handleHashPathResolved = useCallback(
-        ({ path, commentId }: { path: string; commentId?: number }) => {
-            suppressHashSyncRef.current = true;
+    const handleHashTarget = useCallback(
+        ({ path, commentId }: CommentTarget) => {
             setShowSettingsPanel(false);
             if (typeof commentId === "number") revealComment(commentId);
             if (viewMode === "all") selectAndRevealFile(path);
@@ -329,88 +280,69 @@ export function useReviewController({
         },
         [revealComment, selectAndRevealFile, setActiveFile, viewMode],
     );
-    const handleObservedAllModePath = (path: string, { isSticky }: { isSticky: boolean }) => {
-        const pendingPath = allModePendingScrollPath;
-        if (pendingPath && path !== pendingPath) return;
-        if (pendingPath) clearPendingScrollPath();
-        if (path !== PR_SUMMARY_PATH && options.autoMarkViewedFiles) {
-            const shouldMarkViewed = isSticky || pendingPath === path || (!pendingPath && path === lastAllModeSectionPath);
-            if (shouldMarkViewed && allModeLastStickyPathRef.current !== path) markPathViewed(path);
-        }
-        if (isSticky) allModeLastStickyPathRef.current = path === PR_SUMMARY_PATH ? null : path;
-        else if (allModeLastStickyPathRef.current === path) allModeLastStickyPathRef.current = null;
-        if (activeFile === path) return;
-        suppressHashSyncRef.current = true;
-        setActiveFile(path);
-    };
-
-    useReviewFileHashSelection({
-        selectableFilePaths: selectableDiffPathSet,
-        comments: prData?.comments ?? [],
-        commentsLoading: prQuery.isDeferredLoading,
-        onHashPathResolved: handleHashPathResolved,
-    });
-    useAllModeScrollSelection({
-        enabled: allModeActive,
-        diffScrollRef,
-        sectionPaths: allModeSectionPaths,
-        stickyTopOffset: ALL_MODE_STICKY_OFFSET,
-        programmaticTargetRef: allModeReveal.programmaticTargetRef,
-        suppressObserverUntilRef: allModeReveal.suppressObserverUntilRef,
-        onObservedActivePath: handleObservedAllModePath,
-    });
-    useReviewFileHashSync({
+    const { selectWithoutHash } = useReviewUrlHash({
         activeFile,
+        setActiveFile,
         showSettingsPanel,
         settingsPathSet,
         selectableFilePaths: selectableDiffPathSet,
         isFileSelectionReady: selectableDiffPathSet.size > 0 || prData?.diffstat.length === 0,
-        suppressHashSyncRef,
+        comments: prData?.comments ?? [],
+        commentsLoading: prQuery.isCommentsLoading,
+        onHashTarget: handleHashTarget,
     });
-    useInlineDraftFocus({ inlineComment, inlineDraftFocusRef });
+    useAllModeActiveFileTracking({
+        enabled: allModeActive,
+        diffScrollRef,
+        sectionPaths: allModeSectionPaths,
+        reveal: allModeReveal,
+        activeFile,
+        autoMarkViewedFiles: options.autoMarkViewedFiles,
+        markPathViewed,
+        selectWithoutHash,
+    });
 
     const { sortedRootPullRequests, openPullRequest } = useSelectedRepoPullRequests();
-    const actionBusy =
-        actions.approveMutation.isPending ||
-        actions.removeApprovalMutation.isPending ||
-        actions.requestChangesMutation.isPending ||
-        actions.declineMutation.isPending ||
-        actions.markDraftMutation.isPending ||
-        actions.mergeMutation.isPending;
+    // The pull request actions offered by both the navbar and the omnibar.
+    const pullRequestActions = {
+        currentUserReviewStatus,
+        isDraft: header.isDraft,
+        canApprove: actionPolicy.canApprove,
+        canRequestChanges: actionPolicy.canRequestChanges,
+        canMerge: actionPolicy.canMerge,
+        canDecline: actionPolicy.canDecline,
+        canMarkDraft: actionPolicy.canMarkDraft,
+        onApprove: actions.handleApprovePullRequest,
+        onRequestChanges: actions.handleRequestChangesPullRequest,
+        onDecline: actions.handleDeclinePullRequest,
+        onMarkDraft: actions.handleMarkPullRequestAsDraft,
+        onOpenMerge: () => merge.setOpen(true),
+    };
     const canCommentInline = actionPolicy.canCommentInline && isFullScope;
-    const isDraft = Boolean(pullRequest?.draft);
-    const threadProps = {
-        canResolveThread: actionPolicy.canResolveThread,
-        canCommentInline,
-        createCommentPending: actions.createCommentMutation.isPending,
-        resolveCommentPending: actions.resolveCommentMutation.isPending,
-        deleteCommentPending: actions.deleteCommentMutation.isPending,
-        updateCommentPending: actions.updateCommentMutation.isPending,
-        currentUserDisplayName: pullRequest?.currentUser?.displayName,
-        onDeleteComment: (commentId: number, hasInlineContext: boolean) => actions.deleteCommentMutation.mutate({ commentId, hasInlineContext }),
-        onResolveThread: (commentId: number, resolve: boolean) => actions.resolveCommentMutation.mutate({ commentId, resolve }),
-        onReplyToThread: actions.submitThreadReply,
-        onEditComment: actions.submitCommentEdit,
+    const commentActions: CommentActions = {
+        ...actions.commentActions,
+        currentUserDisplayName: prData?.currentUser?.displayName,
+        canReply: canCommentInline,
+        nestedReplies: capabilities.supportsNestedReplies,
+    };
+    const toggleViewed = (path: string) => {
+        if (!viewedFiles.has(path)) setCollapsedAllModeFiles((collapsed) => ({ ...collapsed, [path]: true }));
+        toggleViewedForPath(path);
     };
 
     return {
         host,
-        workspace,
-        repo,
         pullRequestId,
         auth,
         authPromptSlot,
         prData,
-        pullRequest,
         pullRequestTitle,
         prQuery,
         diffScrollRef,
-        layout,
         viewMode,
         setViewMode,
         showSettingsPanel,
         activeFile,
-        setActiveFile,
         closeSettings: () => {
             setShowSettingsPanel(false);
             setActiveFile(PR_SUMMARY_PATH);
@@ -424,7 +356,7 @@ export function useReviewController({
         diffTypographyStyle,
         viewedFiles,
         areAllFilesViewed,
-        toggleAllFilesViewed,
+        toggleAllFilesViewed: () => setViewed(allDiffFilePaths, () => !areAllFilesViewed),
         toggleViewed,
         copiedPath: actions.copiedPath,
         onCopyPath: actions.handleCopyPath,
@@ -435,39 +367,29 @@ export function useReviewController({
         isSummaryCollapsedInAllMode,
         toggleSummaryCollapsed: () => startTransition(() => setIsSummaryCollapsedInAllMode((prev) => !prev)),
         setFileCollapsed: (path: string, next: boolean) => startTransition(() => setCollapsedAllModeFiles((prev) => ({ ...prev, [path]: next }))),
-        pendingScrollPath: allModePendingScrollPath,
+        pendingScrollPath: allModeReveal.pendingScrollPath,
         openInlineDraft,
         canCommentInline,
-        allowNestedReplies: host === "bitbucket",
-        threadProps,
+        commentActions,
         annotationProps: {
-            ...threadProps,
+            actions: commentActions,
             linkedCommentId: typeof window === "undefined" ? undefined : parsePrFileHashTarget(window.location.hash)?.commentId,
-            allowNestedReplies: host === "bitbucket",
-            workspace,
-            repo,
-            pullRequestId,
-            getInlineDraftContent: drafts.getInlineDraftContent,
-            setInlineDraftContent: drafts.setInlineDraftContent,
-            onSubmitInlineComment: actions.submitInlineComment,
-            onInlineDraftReady: (focus: () => void) => {
-                inlineDraftFocusRef.current = focus;
-            },
-            onCancelInlineDraft: (draft: { path: string; line: number; side: "additions" | "deletions" }) => {
-                drafts.clearInlineDraftContent(draft);
-                setInlineComment(null);
-            },
+            draftContent: inlineDraft?.content ?? "",
+            draftAutoFocus: Boolean(inlineDraft?.focus),
+            onDraftFocused: drafts.markInlineDraftFocused,
+            onDraftChange: drafts.setInlineDraftContent,
+            onSubmitDraft: actions.submitInlineComment,
+            onCancelDraft: drafts.discardInlineDraft,
         },
         summaryProps: {
-            ...threadProps,
+            actions: commentActions,
             updateDescriptionPending: actions.updateDescriptionMutation.isPending,
-            canEditDescription: auth.canWrite,
-            onEditDescription: (description: string) => actions.updateDescriptionMutation.mutateAsync(description),
+            onEditDescription: auth.canWrite ? (description: string) => actions.updateDescriptionMutation.mutateAsync(description) : undefined,
             onSelectComment: navigateToComment,
         },
         summaryComposer: {
-            currentUserDisplayName: pullRequest?.currentUser?.displayName,
-            currentUserAvatarUrl: pullRequest?.currentUser?.avatarUrl,
+            currentUserDisplayName: prData?.currentUser?.displayName,
+            currentUserAvatarUrl: prData?.currentUser?.avatarUrl,
             canComment: canCommentInline,
             isSubmitting: actions.createCommentMutation.isPending,
             onSubmit: actions.submitPullRequestComment,
@@ -479,18 +401,15 @@ export function useReviewController({
             collapsed: layout.rightSidebarCollapsed,
             unresolvedCount: unresolvedCommentCount,
             threads: sidebarThreads,
-            canResolveThread: actionPolicy.canResolveThread,
-            resolveCommentPending: actions.resolveCommentMutation.isPending,
+            actions: commentActions,
             onToggleCollapsed: () => setRightSidebarCollapsed((collapsed) => !collapsed),
             onStartResize: layout.startRightSidebarResize,
             onSelectThread: navigateToComment,
-            onResolveThread: threadProps.onResolveThread,
         },
         sidebarProps: {
             treeWidth: layout.treeWidth,
             treeCollapsed: layout.treeCollapsed,
             loading: prQuery.isLoading || commitScopeLoading,
-            showLoadingActivity: prQuery.isDeferredLoading,
             loadProgress: prQuery.loadProgress,
             showSettingsPanel,
             activeFile,
@@ -511,27 +430,16 @@ export function useReviewController({
             onStartTreeResize: layout.startTreeResize,
         },
         navbarProps: {
-            loading: false,
             isRefreshing: prQuery.isFetching,
             treeCollapsed: layout.treeCollapsed,
             unviewedFileCount,
             rightSidebarCollapsed: layout.rightSidebarCollapsed,
             unresolvedCommentCount,
             host,
-            pullRequestUrl: pullRequest?.links?.html?.href,
-            sourceBranch: pullRequest?.source?.branch?.name ?? "source",
-            destinationBranch: pullRequest?.destination?.branch?.name ?? "target",
-            navbarState: model.navbarState,
-            navbarStatusTimestamp: model.navbarStatusTimestamp,
+            ...header,
             buildStatuses: prData?.buildStatuses,
             reviewers: prData?.reviewers,
-            canApprove: actionPolicy.canApprove,
-            canRequestChanges: actionPolicy.canRequestChanges,
-            canMerge: actionPolicy.canMerge,
-            canDecline: actionPolicy.canDecline,
-            canMarkDraft: actionPolicy.canMarkDraft,
-            isDraft,
-            currentUserReviewStatus,
+            ...pullRequestActions,
             isApprovePending: actions.approveMutation.isPending || actions.removeApprovalMutation.isPending,
             isRequestChangesPending: actions.requestChangesMutation.isPending,
             isDeclinePending: actions.declineMutation.isPending,
@@ -540,11 +448,6 @@ export function useReviewController({
             onExpandTree: () => setTreeCollapsed(false),
             onExpandRightSidebar: () => setRightSidebarCollapsed(false),
             onCopySourceBranch: actions.handleCopySourceBranch,
-            onApprove: actions.handleApprovePullRequest,
-            onRequestChanges: actions.handleRequestChangesPullRequest,
-            onDecline: actions.handleDeclinePullRequest,
-            onMarkDraft: actions.handleMarkPullRequestAsDraft,
-            onOpenMerge: () => setMergeOpen(true),
             onOpenOmnibar: handleOpenOmnibar,
         },
         omnibarProps: {
@@ -552,35 +455,24 @@ export function useReviewController({
             onOpenChange: setOmnibarOpen,
             filePaths: model.omnibarFilePaths,
             pullRequests: sortedRootPullRequests,
-            currentUserReviewStatus,
-            isDraft,
-            canApprove: actionPolicy.canApprove,
-            canRequestChanges: actionPolicy.canRequestChanges,
-            canMerge: actionPolicy.canMerge,
-            canDecline: actionPolicy.canDecline,
-            canMarkDraft: actionPolicy.canMarkDraft,
-            actionBusy,
+            ...pullRequestActions,
+            actionBusy: actions.pullRequestActionPending,
             onSelectFile: (path: string) => {
                 setSearchQuery("");
                 selectAndRevealFile(path);
             },
             onSelectPullRequest: openPullRequest,
-            onApprove: actions.handleApprovePullRequest,
-            onRequestChanges: actions.handleRequestChangesPullRequest,
-            onOpenMerge: () => setMergeOpen(true),
-            onDecline: actions.handleDeclinePullRequest,
-            onMarkDraft: actions.handleMarkPullRequestAsDraft,
         },
         mergeDialogProps: {
-            open: mergeOpen,
-            onOpenChange: setMergeOpen,
-            mergeStrategies: prQuery.hostCapabilities.mergeStrategies,
-            mergeStrategy,
-            onMergeStrategyChange: setMergeStrategy,
-            mergeMessage,
-            onMergeMessageChange: setMergeMessage,
-            closeSourceBranch,
-            onCloseSourceBranchChange: setCloseSourceBranch,
+            open: merge.open,
+            onOpenChange: merge.setOpen,
+            mergeStrategies: capabilities.mergeStrategies,
+            mergeStrategy: merge.mergeStrategy,
+            onMergeStrategyChange: merge.setMergeStrategy,
+            mergeMessage: merge.message,
+            onMergeMessageChange: merge.setMessage,
+            closeSourceBranch: merge.closeSourceBranch,
+            onCloseSourceBranchChange: merge.setCloseSourceBranch,
             canMerge: actionPolicy.canMerge,
             isMerging: actions.mergeMutation.isPending,
             onMerge: () => actions.mergeMutation.mutate(),

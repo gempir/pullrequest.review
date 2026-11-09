@@ -21,29 +21,25 @@ import { Timestamp } from "@/components/timestamp";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
 import { getHostLabel } from "@/lib/git-host/registry";
 import type { RepoRef } from "@/lib/git-host/types";
+import type { SortedRootPullRequest } from "@/lib/selected-pull-requests";
 import { cn } from "@/lib/utils";
 
-const UPDATED_WITHIN_OPTIONS = [
-    { value: "", label: "Any" },
-    { value: "1m", label: "1m" },
-    { value: "5m", label: "5m" },
-    { value: "1h", label: "1h" },
-    { value: "1d", label: "1d" },
-    { value: "7d", label: "7d" },
-    { value: "30d", label: "30d" },
-] as const;
-
+const MINUTE_MS = 60 * 1000;
 const UPDATED_WITHIN_MS: Record<string, number> = {
-    "1m": 60 * 1000,
-    "5m": 5 * 60 * 1000,
-    "1h": 60 * 60 * 1000,
-    "1d": 24 * 60 * 60 * 1000,
-    "7d": 7 * 24 * 60 * 60 * 1000,
-    "30d": 30 * 24 * 60 * 60 * 1000,
+    "1m": MINUTE_MS,
+    "5m": 5 * MINUTE_MS,
+    "1h": 60 * MINUTE_MS,
+    "1d": 24 * 60 * MINUTE_MS,
+    "7d": 7 * 24 * 60 * MINUTE_MS,
+    "30d": 30 * 24 * 60 * MINUTE_MS,
 };
+const UPDATED_WITHIN_OPTIONS = [{ value: "", label: "Any" }, ...Object.keys(UPDATED_WITHIN_MS).map((value) => ({ value, label: value }))];
+
+function authorName(row: SortedRootPullRequest) {
+    return row.pullRequest.author?.displayName?.trim() || "Unknown";
+}
 
 function authorInitials(name?: string) {
     if (!name) return "?";
@@ -254,13 +250,12 @@ function createLandingPullRequestColumns(): Array<ColumnDef<LandingPullRequestTa
     return [
         {
             id: "author",
-            accessorFn: (row) => row.pullRequest.author?.displayName?.trim() || "Unknown",
+            accessorFn: authorName,
             header: () => <span className="sr-only">Author</span>,
             filterFn: "equalsString",
             sortFn: "text",
             cell: ({ row }) => {
-                const name = row.original.pullRequest.author?.displayName?.trim() || "Unknown";
-                return <AuthorAvatar name={name} url={row.original.pullRequest.author?.avatarUrl} />;
+                return <AuthorAvatar name={authorName(row.original)} url={row.original.pullRequest.author?.avatarUrl} />;
             },
             meta: { filter: "author" as const },
         },
@@ -321,7 +316,7 @@ function createLandingPullRequestColumns(): Array<ColumnDef<LandingPullRequestTa
                 row.original.pullRequest.updatedAt ? (
                     <Timestamp value={row.original.pullRequest.updatedAt} className="text-muted-foreground" />
                 ) : (
-                    <span>—</span>
+                    <span>-</span>
                 ),
             meta: { filter: "updated" as const },
         },
@@ -343,15 +338,6 @@ function createLandingPullRequestColumns(): Array<ColumnDef<LandingPullRequestTa
                 </span>
             ),
             meta: { filter: "repository" as const },
-        },
-        {
-            id: "host",
-            accessorFn: (row) => row.host,
-            header: "Host",
-            filterFn: "equalsString",
-            enableSorting: false,
-            enableColumnFilter: false,
-            cell: () => null,
         },
     ];
 }
@@ -381,13 +367,7 @@ function renderColumnFilter(
         case "branches":
             return <ColumnTextFilter column={column} placeholder="Branch" />;
         case "updated":
-            return (
-                <ColumnSelectFilter
-                    column={column}
-                    ariaLabel="Filter by updated time"
-                    options={UPDATED_WITHIN_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
-                />
-            );
+            return <ColumnSelectFilter column={column} ariaLabel="Filter by updated time" options={UPDATED_WITHIN_OPTIONS} />;
         case "repository":
             return <ColumnTextFilter column={column} placeholder="Repository" />;
         default:
@@ -406,7 +386,7 @@ export function LandingPullRequestTable({
     const authorOptions = useMemo(() => {
         const authors = new Set<string>();
         for (const row of data) {
-            authors.add(row.pullRequest.author?.displayName?.trim() || "Unknown");
+            authors.add(authorName(row));
         }
         return [
             { value: "", label: "Any" },
@@ -436,7 +416,6 @@ export function LandingPullRequestTable({
             getRowId: (row) => `${row.host}:${row.repo.fullName}:${row.pullRequest.id}`,
             initialState: {
                 sorting: [{ id: "updated", desc: true }],
-                columnVisibility: { host: false },
             },
         },
         (state) => ({

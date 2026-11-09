@@ -1,5 +1,5 @@
-import { bitbucketClient } from "@/lib/git-host/providers/bitbucket";
-import { githubClient } from "@/lib/git-host/providers/github";
+import { bitbucketClient } from "@/lib/git-host/providers/bitbucket/client";
+import { githubClient } from "@/lib/git-host/providers/github/client";
 import type { GitHost, GitHostClient, HostCapabilities } from "@/lib/git-host/types";
 
 const clients: Record<GitHost, GitHostClient> = {
@@ -16,5 +16,5 @@ export function getHostCapabilities(host: GitHost): HostCapabilities {
 }
 
 export function getHostLabel(host: GitHost) {
-    return host === "bitbucket" ? "Bitbucket" : "GitHub";
+    return clients[host].label;
 }

@@ -1,8 +1,7 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
-import { fileAnchorId } from "@/lib/file-anchors";
+import { fileAnchorId } from "@/features/review/model/file-anchors";
 
 const SCROLL_RETRY_DELAYS = [0, 80, 180, 320, 500, 700, 950, 1200, 1500, 1850, 2200, 2600, 3000, 3400, 3800] as const;
-export const ALL_MODE_STICKY_OFFSET = 0;
 
 /**
  * Scrolls the multi-file view to a file. Rows are virtualized and measured
@@ -45,7 +44,7 @@ export function useAllModeReveal({
             if (!root || !anchor) return false;
             const anchorRect = anchor.getBoundingClientRect();
             const rootRect = root.getBoundingClientRect();
-            if (anchorRect.top > rootRect.top + ALL_MODE_STICKY_OFFSET + 1 && anchorRect.bottom > rootRect.bottom - 4) return false;
+            if (anchorRect.top > rootRect.top + 1 && anchorRect.bottom > rootRect.bottom - 4) return false;
             clearPendingScrollPath();
             return true;
         };

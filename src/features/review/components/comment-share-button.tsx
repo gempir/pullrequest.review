@@ -1,6 +1,6 @@
 import { Check, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { buildPrCommentUrl } from "@/lib/pr-file-hash";
+import { buildPrCommentUrl } from "@/features/review/model/pr-file-hash";
 import { cn } from "@/lib/utils";
 
 export function CommentShareButton({ path, commentId, className }: { path: string; commentId: number; className?: string }) {

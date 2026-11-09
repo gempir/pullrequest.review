@@ -5,9 +5,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAppearance } from "@/lib/appearance-context";
 import {
     DEFAULT_FONT_FAMILY,
+    FONT_SIZE_LIMITS,
     type FontFamilyValue,
     fontFamilyToCss,
     getCustomFontName,
+    LINE_HEIGHT_LIMITS,
     MONO_FONT_FAMILY_OPTIONS,
     makeCustomFontFamilyValue,
     SANS_FONT_FAMILY_OPTIONS,
@@ -57,11 +59,23 @@ export function AppearanceTab() {
                     </div>
                     <div className="space-y-1">
                         <Label className="text-[12px] text-muted-foreground">Sans Font Size</Label>
-                        <NumberStepperInput value={appearance.sansFontSize} min={11} max={20} step={1} onValueChange={appearance.setSansFontSize} />
+                        <NumberStepperInput
+                            value={appearance.sansFontSize}
+                            min={FONT_SIZE_LIMITS.min}
+                            max={FONT_SIZE_LIMITS.max}
+                            step={1}
+                            onValueChange={appearance.setSansFontSize}
+                        />
                     </div>
                     <div className="space-y-1">
                         <Label className="text-[12px] text-muted-foreground">Sans Line Height</Label>
-                        <NumberStepperInput value={appearance.sansLineHeight} min={1} max={2.2} step={0.05} onValueChange={appearance.setSansLineHeight} />
+                        <NumberStepperInput
+                            value={appearance.sansLineHeight}
+                            min={LINE_HEIGHT_LIMITS.min}
+                            max={LINE_HEIGHT_LIMITS.max}
+                            step={0.05}
+                            onValueChange={appearance.setSansLineHeight}
+                        />
                     </div>
                     <div className="py-1">
                         <div className="mb-1 text-[11px] text-muted-foreground">Sans</div>
@@ -116,14 +130,20 @@ export function AppearanceTab() {
                     </div>
                     <div className="space-y-1">
                         <Label className="text-[12px] text-muted-foreground">Monospaced Font Size</Label>
-                        <NumberStepperInput value={appearance.monospaceFontSize} min={10} max={18} step={1} onValueChange={appearance.setMonospaceFontSize} />
+                        <NumberStepperInput
+                            value={appearance.monospaceFontSize}
+                            min={FONT_SIZE_LIMITS.min}
+                            max={FONT_SIZE_LIMITS.max}
+                            step={1}
+                            onValueChange={appearance.setMonospaceFontSize}
+                        />
                     </div>
                     <div className="space-y-1">
                         <Label className="text-[12px] text-muted-foreground">Monospaced Line Height</Label>
                         <NumberStepperInput
                             value={appearance.monospaceLineHeight}
-                            min={1}
-                            max={2.2}
+                            min={LINE_HEIGHT_LIMITS.min}
+                            max={LINE_HEIGHT_LIMITS.max}
                             step={0.05}
                             onValueChange={appearance.setMonospaceLineHeight}
                         />

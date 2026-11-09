@@ -1,514 +1,216 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { ChevronDown, LoaderCircle } from "lucide-react";
-import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useRef, useState } from "react";
+import { createContext, type ReactNode, useContext, useState } from "react";
 import { CommentEditor } from "@/components/comment-editor";
-import { CommentMarkdown as SharedCommentMarkdown } from "@/components/comment-markdown";
-import { CommentShareButton } from "@/components/comment-share-button";
+import { CommentMarkdown } from "@/components/comment-markdown";
 import { Button } from "@/components/ui/button";
 import { SuggestionDiffPreview } from "@/features/review/components/bitbucket-suggestion-diff-preview";
-import type { CommentThread, CommentThreadNode } from "@/features/review/model/review-threads";
-import { commentAnchorId } from "@/lib/file-anchors";
+import { CommentShareButton } from "@/features/review/components/comment-share-button";
+import { Avatar, COMMENT_PRIMARY_BUTTON_CLASS } from "@/features/review/components/comment-ui";
+import { type CommentActions, isOwnComment } from "@/features/review/model/comment-actions";
+import { commentAnchorId } from "@/features/review/model/file-anchors";
+import { type CommentThread, type CommentThreadNode, flattenThread } from "@/features/review/model/review-threads";
 import { getSuggestionOriginalContents, parseSuggestionMarkdown } from "@/lib/git-host/suggestions";
-import type { Comment as PullRequestComment } from "@/lib/git-host/types";
+import type { Comment } from "@/lib/git-host/types";
 import { commentTimestampSource, describeCommentTimestamp } from "@/lib/timestamp";
 
-type EditCommentHandler = (commentId: number, content: string, hasInlineContext: boolean) => Promise<unknown> | undefined;
-type ReplyCommentHandler = (commentId: number, content: string) => Promise<unknown> | undefined;
-const COMMENT_PRIMARY_BUTTON_CLASS =
-    "rounded-md border border-accent/45 bg-accent/10 text-accent gap-1.5 px-3 hover:bg-accent/12 hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none";
+const TEXT_ACTION_CLASS =
+    "text-[12px] font-semibold leading-none text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50";
 
-function initials(value?: string) {
-    if (!value) return "??";
-    const trimmed = value.trim();
-    if (!trimmed) return "??";
-    const parts = trimmed.split(/\s+/);
-    if (parts.length === 1) {
-        const first = parts[0]?.slice(0, 2).toUpperCase();
-        return first && first.length > 0 ? first : "??";
-    }
-    const first = parts[0]?.[0];
-    const last = parts[parts.length - 1]?.[0];
-    return `${first ?? ""}${last ?? ""}`.toUpperCase() || "??";
-}
+type Editor = { kind: "reply" | "edit"; commentId: number; value: string } | null;
+/** A save in flight: a reply to `commentId`, or an edit or delete of it. */
+type Saving = { kind: "reply" | "edit" | "remove"; commentId: number } | null;
 
-function CommentAvatar({ name, url, sizeClass = "size-6" }: { name?: string; url?: string; sizeClass?: string }) {
-    const size = sizeClass ?? "size-6";
-    if (url) {
-        return <img src={url} alt={name ?? "avatar"} className={`${size} rounded-full object-cover shrink-0`} />;
-    }
-    return (
-        <span
-            className={`${size} rounded-full bg-comment-muted border border-comment-border text-[10px] text-muted-foreground flex items-center justify-center shrink-0`}
-            aria-hidden
-        >
-            {initials(name)}
-        </span>
-    );
-}
-
-function CommentMarkdown({ text }: { text: string }) {
-    return <SharedCommentMarkdown text={text} variant="thread" />;
-}
-
-function ThreadCommentBody({ comment, suggestionSourceFileDiff }: { comment: PullRequestComment; suggestionSourceFileDiff?: FileDiffMetadata }) {
-    const replacementContents = parseSuggestionMarkdown(comment.content?.raw);
-    const originalContents = getSuggestionOriginalContents(comment.inline, suggestionSourceFileDiff);
-    const path = comment.inline?.path;
-    if (path && replacementContents !== null && originalContents !== null && originalContents !== replacementContents) {
-        return <SuggestionDiffPreview path={path} originalContents={originalContents} replacementContents={replacementContents} />;
-    }
-    return <CommentMarkdown text={comment.content?.html ?? comment.content?.raw ?? ""} />;
-}
-
-function normalizeName(value?: string) {
-    return value?.trim().toLowerCase() ?? "";
-}
-
-function findCommentById(node: CommentThreadNode, commentId: number): CommentThreadNode | null {
-    if (node.comment.id === commentId) return node;
-    for (const child of node.children) {
-        const candidate = findCommentById(child, commentId);
-        if (candidate) return candidate;
-    }
-    return null;
-}
-
-function describeThreadCommentDate(comment: PullRequestComment) {
-    return describeCommentTimestamp(commentTimestampSource(comment), { unknownLabel: "" });
-}
-
-function CommentPendingIndicator() {
-    return <LoaderCircle className="size-3.5 animate-spin text-accent" aria-label="Syncing comment" />;
-}
-
-type ThreadCardProps = {
+interface ThreadCardState {
     thread: CommentThread;
-    linkedCommentId?: number;
-    allowNestedReplies?: boolean;
-    attachToDiffEdge?: boolean;
-    showBorder?: boolean;
-    header?: ReactNode;
-    showCommentShareLinks?: boolean;
+    actions: CommentActions;
+    showCommentShareLinks: boolean;
     suggestionSourceFileDiff?: FileDiffMetadata;
-    canResolveThread: boolean;
-    canCommentInline: boolean;
-    createCommentPending: boolean;
-    resolveCommentPending: boolean;
-    currentUserDisplayName?: string;
-    onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
-    onResolveThread: (commentId: number, resolve: boolean) => void;
-    onReplyToThread: ReplyCommentHandler;
-    onEditComment: EditCommentHandler;
-    deleteCommentPending: boolean;
-    updateCommentPending: boolean;
-};
+    editor: Editor;
+    setEditorValue: (value: string) => void;
+    saving: Saving;
+    startEditor: (kind: "reply" | "edit", comment: Comment) => void;
+    cancelEditor: () => void;
+    submitEditor: () => void;
+    removeComment: (comment: Comment) => void;
+}
 
-type ThreadCardEditorState = {
-    replyTargetCommentId: number | null;
-    replyValue: string;
-    editTargetCommentId: number | null;
-    editValue: string;
-};
+const ThreadCardContext = createContext<ThreadCardState | null>(null);
 
-type ThreadActionsProps = {
-    commentId: number;
-    hasInlineContext: boolean;
-    canEdit: boolean;
-    canDelete: boolean;
-    canResolveThread?: boolean;
-    isResolved?: boolean;
-    canCommentInline: boolean;
-    createCommentPending: boolean;
-    replySavePending: boolean;
-    resolveCommentPending?: boolean;
-    deleteCommentPending: boolean;
-    updateCommentPending: boolean;
-    editSavePending: boolean;
-    replyTargetCommentId: number | null;
-    editTargetCommentId: number | null;
-    onStartReply: (commentId: number) => void;
-    onSubmitReply: () => void;
-    onCancelReply: () => void;
-    onStartEdit: (commentId: number, hasInlineContext: boolean) => void;
-    onSubmitEdit: (commentId: number, hasInlineContext: boolean) => void;
-    onCancelEdit: () => void;
-    onResolveThread?: (commentId: number, resolve: boolean) => void;
-    onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
-};
+function useThreadCard() {
+    const state = useContext(ThreadCardContext);
+    if (!state) throw new Error("useThreadCard must be used within ThreadCard");
+    return state;
+}
 
-function ThreadEditorButtons({
-    reply,
-    pending,
-    disabledSubmit,
-    onSubmit,
-    onCancel,
-}: {
-    reply: boolean;
-    pending: boolean;
-    disabledSubmit: boolean;
-    onSubmit: () => void;
-    onCancel: () => void;
-}) {
+function ThreadCommentBody({ comment, isRoot }: { comment: Comment; isRoot: boolean }) {
+    const { suggestionSourceFileDiff } = useThreadCard();
+    const path = comment.inline?.path;
+    if (isRoot && path) {
+        const replacementContents = parseSuggestionMarkdown(comment.content?.raw);
+        const originalContents = getSuggestionOriginalContents(comment.inline, suggestionSourceFileDiff);
+        if (replacementContents !== null && originalContents !== null && originalContents !== replacementContents) {
+            return <SuggestionDiffPreview path={path} originalContents={originalContents} replacementContents={replacementContents} />;
+        }
+    }
+    return <CommentMarkdown text={comment.content?.html ?? comment.content?.raw ?? ""} variant="thread" />;
+}
+
+function EditorButtons({ reply, disabled }: { reply: boolean; disabled: boolean }) {
+    const { actions, saving, submitEditor, cancelEditor } = useThreadCard();
+    const pending = saving !== null || (reply ? actions.pending.create : actions.pending.update);
     return (
         <div className="mt-2 flex flex-wrap items-center gap-1">
-            <span className="inline-flex items-center gap-1.5">
-                <Button type="button" variant="ghost" size="sm" className={`h-7 ${COMMENT_PRIMARY_BUTTON_CLASS}`} disabled={disabledSubmit} onClick={onSubmit}>
-                    {pending ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
-                    {reply ? "Comment" : "Save"}
-                </Button>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
-                    disabled={pending}
-                    onClick={onCancel}
-                >
-                    Cancel
-                </Button>
-            </span>
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={`h-7 ${COMMENT_PRIMARY_BUTTON_CLASS}`}
+                disabled={pending || disabled}
+                onClick={submitEditor}
+            >
+                {pending ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+                {reply ? "Comment" : "Save"}
+            </Button>
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
+                disabled={pending}
+                onClick={cancelEditor}
+            >
+                Cancel
+            </Button>
         </div>
     );
 }
 
-function ThreadActions({
-    commentId,
-    hasInlineContext,
-    canEdit,
-    canDelete,
-    canResolveThread = false,
-    isResolved = false,
-    canCommentInline,
-    createCommentPending,
-    replySavePending,
-    resolveCommentPending = false,
-    deleteCommentPending,
-    updateCommentPending,
-    editSavePending,
-    replyTargetCommentId,
-    editTargetCommentId,
-    onStartReply,
-    onSubmitReply,
-    onCancelReply,
-    onStartEdit,
-    onSubmitEdit,
-    onCancelEdit,
-    onResolveThread,
-    onDeleteComment,
-}: ThreadActionsProps) {
-    const textActionClass =
-        "text-[12px] font-semibold leading-none text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50";
-    const actions: Array<{ id: string; node: ReactNode }> = [];
+function CommentActionsRow({ comment, isRoot }: { comment: Comment; isRoot: boolean }) {
+    const { actions, editor, startEditor, removeComment } = useThreadCard();
+    if (editor?.commentId === comment.id) return <EditorButtons reply={editor.kind === "reply"} disabled={editor.kind === "reply" && !actions.canReply} />;
 
-    const appendAction = (id: string, node: ReactNode) => {
-        actions.push({ id, node });
-    };
-
-    const renderActions = () => (
+    const own = isOwnComment(actions, comment);
+    const isResolved = Boolean(comment.resolution);
+    const items = [
+        { id: "reply", label: "Reply", disabled: actions.pending.create || !actions.canReply, onClick: () => startEditor("reply", comment) },
+        ...(isRoot && actions.canResolve
+            ? [
+                  {
+                      id: "resolve",
+                      label: isResolved ? "Unresolve" : "Resolve",
+                      disabled: actions.pending.resolve,
+                      onClick: () => actions.resolve(comment, !isResolved),
+                  },
+              ]
+            : []),
+        ...(own
+            ? [
+                  { id: "edit", label: "Edit", disabled: actions.pending.update, onClick: () => startEditor("edit", comment) },
+                  { id: "delete", label: "Delete", disabled: actions.pending.remove, onClick: () => removeComment(comment) },
+              ]
+            : []),
+    ];
+    return (
         <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
-            {actions.map(({ id, node }, index) => (
-                <span key={id} className="inline-flex items-center gap-1.5">
-                    {index > 0 ? <span className="text-muted-foreground/70">·</span> : null}
-                    {node}
+            {items.map((item, index) => (
+                <span key={item.id} className="inline-flex items-center gap-1.5">
+                    {index > 0 ? <span className="text-muted-foreground/70">{"\u00b7"}</span> : null}
+                    <button type="button" className={TEXT_ACTION_CLASS} disabled={item.disabled} onClick={item.onClick}>
+                        {item.label}
+                    </button>
                 </span>
             ))}
         </div>
     );
-    if (editTargetCommentId === commentId) {
-        return (
-            <ThreadEditorButtons
-                reply={false}
-                pending={updateCommentPending || editSavePending}
-                disabledSubmit={updateCommentPending || editSavePending}
-                onSubmit={() => onSubmitEdit(commentId, hasInlineContext)}
-                onCancel={onCancelEdit}
-            />
-        );
-    }
-
-    if (replyTargetCommentId === commentId) {
-        return (
-            <ThreadEditorButtons
-                reply
-                pending={createCommentPending || replySavePending}
-                disabledSubmit={createCommentPending || replySavePending || !canCommentInline}
-                onSubmit={onSubmitReply}
-                onCancel={onCancelReply}
-            />
-        );
-    }
-
-    appendAction(
-        "reply",
-        <button type="button" className={textActionClass} disabled={createCommentPending || !canCommentInline} onClick={() => onStartReply(commentId)}>
-            Reply
-        </button>,
-    );
-
-    if (canResolveThread && onResolveThread) {
-        appendAction(
-            "resolve",
-            <button type="button" className={textActionClass} disabled={resolveCommentPending} onClick={() => onResolveThread(commentId, !isResolved)}>
-                {isResolved ? "Unresolve" : "Resolve"}
-            </button>,
-        );
-    }
-
-    if (canEdit) {
-        appendAction(
-            "edit",
-            <button type="button" className={textActionClass} disabled={updateCommentPending} onClick={() => onStartEdit(commentId, hasInlineContext)}>
-                Edit
-            </button>,
-        );
-    }
-
-    if (canDelete) {
-        appendAction(
-            "delete",
-            <button type="button" className={textActionClass} disabled={deleteCommentPending} onClick={() => onDeleteComment(commentId, hasInlineContext)}>
-                Delete
-            </button>,
-        );
-    }
-
-    return renderActions();
 }
 
-type ThreadReplyNodeProps = {
-    node: CommentThreadNode;
-    depth: number;
-    threadPath?: string;
-    showCommentShareLinks: boolean;
-    allowNestedReplies: boolean;
-    rootCommentId: number;
-    isResolved: boolean;
-    canResolveThread: boolean;
-    canCommentInline: boolean;
-    createCommentPending: boolean;
-    resolveCommentPending: boolean;
-    updateCommentPending: boolean;
-    deleteCommentPending: boolean;
-    pendingCommentId: number | null;
-    pendingReplyTargetId: number | null;
-    editorState: ThreadCardEditorState;
-    setEditorState: Dispatch<SetStateAction<ThreadCardEditorState>>;
-    replyFocusRef: { current: (() => void) | null };
-    editFocusRef: { current: (() => void) | null };
-    onResolveThread: (commentId: number, resolve: boolean) => void;
-    onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
-    onSubmitReply: () => void;
-    onStartReply: (commentId: number) => void;
-    onCancelReply: () => void;
-    onSubmitEdit: (commentId: number, hasInlineContext: boolean) => void;
-    onStartEdit: (commentId: number, hasInlineContext: boolean) => void;
-    onCancelEdit: () => void;
-    isSameUser: (name?: string) => boolean;
-};
-
-function ThreadReplyNodeBody({
-    reply,
-    isEditingOnNode,
-    isReplyingOnNode,
-    isSavingReply,
-    isSavingEdit,
-    isCommentPending,
-    canEditNode,
-    replyHasInlineContext,
-    editorState,
-    setEditorState,
-    updateCommentPending,
-    createCommentPending,
-    canCommentInline,
-    deleteCommentPending,
-    editFocusRef,
-    replyFocusRef,
-    onSubmitEdit,
-    onSubmitReply,
-    onStartReply,
-    onCancelReply,
-    onStartEdit,
-    onCancelEdit,
-    onDeleteComment,
-}: ThreadReplyNodeProps & {
-    reply: CommentThreadNode["comment"];
-    isEditingOnNode: boolean;
-    isReplyingOnNode: boolean;
-    isSavingReply: boolean;
-    isSavingEdit: boolean;
-    isCommentPending: boolean;
-    canEditNode: boolean;
-    replyHasInlineContext: boolean;
-}) {
+/** The body, editors and actions shared by the root comment and its replies. */
+function CommentContent({ comment, isRoot }: { comment: Comment; isRoot: boolean }) {
+    const { actions, editor, setEditorValue, submitEditor, saving } = useThreadCard();
+    const editing = editor?.kind === "edit" && editor.commentId === comment.id;
+    const replying = editor?.kind === "reply" && editor.commentId === comment.id;
+    const pending = isCommentPending(comment, editor, saving);
     return (
         <>
-            {isEditingOnNode ? (
+            {editing ? (
                 <CommentEditor
-                    value={editorState.editValue}
+                    value={editor.value}
                     placeholder="Edit comment"
-                    disabled={updateCommentPending || isSavingEdit}
-                    onReady={(focus) => {
-                        editFocusRef.current = focus;
-                        if (isEditingOnNode) {
-                            focus();
-                        }
-                    }}
-                    onChange={(nextValue) => setEditorState((prev) => (prev.editValue === nextValue ? prev : { ...prev, editValue: nextValue }))}
-                    onSubmit={() => onSubmitEdit(reply.id, replyHasInlineContext)}
+                    disabled={actions.pending.update || saving !== null}
+                    autoFocus
+                    onChange={setEditorValue}
+                    onSubmit={submitEditor}
                     chrome="toolbar"
                 />
             ) : (
-                <div className={isCommentPending ? "opacity-70" : undefined}>
-                    <CommentMarkdown text={reply.content?.html ?? reply.content?.raw ?? ""} />
+                <div className={pending ? "opacity-70" : undefined}>
+                    <ThreadCommentBody comment={comment} isRoot={isRoot} />
                 </div>
             )}
-            {isReplyingOnNode ? (
+            {replying ? (
                 <CommentEditor
-                    value={editorState.replyValue}
+                    value={editor.value}
                     placeholder="Reply to this thread"
-                    disabled={createCommentPending || isSavingReply || !canCommentInline}
-                    onReady={(focus) => {
-                        replyFocusRef.current = focus;
-                        if (isReplyingOnNode) {
-                            focus();
-                        }
-                    }}
-                    onChange={(nextValue) => setEditorState((prev) => (prev.replyValue === nextValue ? prev : { ...prev, replyValue: nextValue }))}
-                    onSubmit={onSubmitReply}
+                    disabled={actions.pending.create || saving !== null || !actions.canReply}
+                    autoFocus
+                    onChange={setEditorValue}
+                    onSubmit={submitEditor}
                 />
             ) : null}
-            {isCommentPending ? null : (
-                <ThreadActions
-                    commentId={reply.id}
-                    hasInlineContext={replyHasInlineContext}
-                    canEdit={canEditNode}
-                    canDelete={canEditNode}
-                    canCommentInline={canCommentInline}
-                    createCommentPending={createCommentPending}
-                    replySavePending={isSavingReply}
-                    deleteCommentPending={deleteCommentPending}
-                    updateCommentPending={updateCommentPending}
-                    editSavePending={isSavingEdit}
-                    replyTargetCommentId={editorState.replyTargetCommentId}
-                    editTargetCommentId={editorState.editTargetCommentId}
-                    onStartReply={onStartReply}
-                    onSubmitReply={onSubmitReply}
-                    onCancelReply={onCancelReply}
-                    onStartEdit={onStartEdit}
-                    onSubmitEdit={onSubmitEdit}
-                    onCancelEdit={onCancelEdit}
-                    onDeleteComment={onDeleteComment}
-                />
-            )}
+            {pending ? null : <CommentActionsRow comment={comment} isRoot={isRoot} />}
         </>
     );
 }
 
-function ThreadReplyNode(props: ThreadReplyNodeProps) {
-    const {
-        node,
-        depth,
-        threadPath,
-        showCommentShareLinks,
-        allowNestedReplies,
-        rootCommentId,
-        isResolved,
-        canResolveThread,
-        canCommentInline,
-        createCommentPending,
-        resolveCommentPending,
-        updateCommentPending,
-        deleteCommentPending,
-        pendingCommentId,
-        pendingReplyTargetId,
-        editorState,
-        setEditorState,
-        replyFocusRef,
-        editFocusRef,
-        onResolveThread,
-        onDeleteComment,
-        onSubmitReply,
-        onStartReply,
-        onCancelReply,
-        onSubmitEdit,
-        onStartEdit,
-        onCancelEdit,
-        isSameUser,
-    } = props;
-    const reply = node.comment;
-    const isReplyingOnNode = editorState.replyTargetCommentId === reply.id;
-    const isEditingOnNode = editorState.editTargetCommentId === reply.id;
-    const isSavingReply = pendingReplyTargetId === reply.id;
-    const canEditNode = isSameUser(reply.user?.displayName);
-    const replyHasInlineContext = Boolean(reply.inline?.path);
-    const isSavingEdit = pendingCommentId === reply.id;
-    const isCommentPending = Boolean(reply.pending) || (isSavingEdit && !isEditingOnNode);
-    const replyDate = describeThreadCommentDate(reply);
+/** A comment syncs while the host has not confirmed it, or while its own edit (with the editor closed) or delete saves. */
+function isCommentPending(comment: Comment, editor: Editor, saving: Saving) {
+    const editingThis = editor?.kind === "edit" && editor.commentId === comment.id;
+    const savingThis = saving !== null && saving.kind !== "reply" && saving.commentId === comment.id;
+    return Boolean(comment.pending) || (savingThis && !editingThis);
+}
 
+function CommentHeader({ comment, isRoot, children }: { comment: Comment; isRoot: boolean; children?: ReactNode }) {
+    const { thread, editor, saving, showCommentShareLinks } = useThreadCard();
+    const date = describeCommentTimestamp(commentTimestampSource(comment), { unknownLabel: "" });
+    const sharePath = thread.root.comment.inline?.path;
     return (
-        <div className="relative" data-thread-depth={depth} style={{ marginLeft: allowNestedReplies ? 38 : 0 }}>
+        <div
+            className={
+                isRoot ? "relative flex items-center gap-3 text-[13px] text-muted-foreground" : "flex items-center gap-3 text-[12px] text-muted-foreground"
+            }
+        >
+            <span className={isRoot ? "font-semibold text-foreground text-[16px]" : "font-semibold text-foreground text-[14px]"}>
+                {comment.user?.displayName ?? "Unknown"}
+            </span>
+            {date.label ? (
+                <span className="font-semibold tabular-nums" title={date.absoluteLabel ?? undefined}>
+                    {date.label}
+                </span>
+            ) : null}
+            {showCommentShareLinks && sharePath ? <CommentShareButton path={sharePath} commentId={comment.id} /> : null}
+            {isCommentPending(comment, editor, saving) ? <LoaderCircle className="size-3.5 animate-spin text-accent" aria-label="Syncing comment" /> : null}
+            {children}
+        </div>
+    );
+}
+
+function ReplyNode({ node, depth }: { node: CommentThreadNode; depth: number }) {
+    const { actions } = useThreadCard();
+    const reply = node.comment;
+    return (
+        <div className="relative" data-thread-depth={depth} style={{ marginLeft: actions.nestedReplies ? 38 : 0 }}>
             <div id={commentAnchorId(reply.id)} className="relative z-10 flex gap-3 py-[3px] pr-4">
-                <CommentAvatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-6" />
+                <Avatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-6" />
                 <div className="relative z-10 min-w-0 flex-1">
-                    <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
-                        <span className="font-semibold text-foreground text-[14px]">{reply.user?.displayName ?? "Unknown"}</span>
-                        {replyDate.label ? (
-                            <span className="font-semibold tabular-nums" title={replyDate.absoluteLabel ?? undefined}>
-                                {replyDate.label}
-                            </span>
-                        ) : null}
-                        {showCommentShareLinks && threadPath ? <CommentShareButton path={threadPath} commentId={reply.id} /> : null}
-                        {isCommentPending ? <CommentPendingIndicator /> : null}
-                    </div>
-                    <ThreadReplyNodeBody
-                        {...props}
-                        reply={reply}
-                        isEditingOnNode={isEditingOnNode}
-                        isReplyingOnNode={isReplyingOnNode}
-                        isSavingReply={isSavingReply}
-                        isSavingEdit={isSavingEdit}
-                        isCommentPending={isCommentPending}
-                        canEditNode={canEditNode}
-                        replyHasInlineContext={replyHasInlineContext}
-                    />
+                    <CommentHeader comment={reply} isRoot={false} />
+                    <CommentContent comment={reply} isRoot={false} />
                 </div>
             </div>
             {node.children.length > 0 ? (
                 <div>
                     {node.children.map((child) => (
-                        <ThreadReplyNode
-                            key={child.comment.id}
-                            node={child}
-                            depth={depth + 1}
-                            threadPath={threadPath}
-                            showCommentShareLinks={showCommentShareLinks}
-                            allowNestedReplies={allowNestedReplies}
-                            rootCommentId={rootCommentId}
-                            isResolved={isResolved}
-                            canResolveThread={canResolveThread}
-                            canCommentInline={canCommentInline}
-                            createCommentPending={createCommentPending}
-                            resolveCommentPending={resolveCommentPending}
-                            updateCommentPending={updateCommentPending}
-                            deleteCommentPending={deleteCommentPending}
-                            pendingCommentId={pendingCommentId}
-                            pendingReplyTargetId={pendingReplyTargetId}
-                            editorState={editorState}
-                            setEditorState={setEditorState}
-                            replyFocusRef={replyFocusRef}
-                            editFocusRef={editFocusRef}
-                            onResolveThread={onResolveThread}
-                            onDeleteComment={onDeleteComment}
-                            onSubmitReply={onSubmitReply}
-                            onStartReply={onStartReply}
-                            onCancelReply={onCancelReply}
-                            onSubmitEdit={onSubmitEdit}
-                            onStartEdit={onStartEdit}
-                            onCancelEdit={onCancelEdit}
-                            isSameUser={isSameUser}
-                        />
+                        <ReplyNode key={child.comment.id} node={child} depth={depth + 1} />
                     ))}
                 </div>
             ) : null}
@@ -516,404 +218,148 @@ function ThreadReplyNode(props: ThreadReplyNodeProps) {
     );
 }
 
-type ThreadRootCommentCardProps = {
-    rootComment: CommentThreadNode["comment"];
-    collapsed: boolean;
-    isResolved: boolean;
-    rootIsOwn: boolean;
-    canResolveThread: boolean;
-    canCommentInline: boolean;
-    createCommentPending: boolean;
-    resolveCommentPending: boolean;
-    updateCommentPending: boolean;
-    deleteCommentPending: boolean;
-    pendingCommentId: number | null;
-    pendingReplyTargetId: number | null;
-    editorState: ThreadCardEditorState;
-    setEditorState: Dispatch<SetStateAction<ThreadCardEditorState>>;
-    replyFocusRef: { current: (() => void) | null };
-    editFocusRef: { current: (() => void) | null };
-    onToggleResolvedCollapsed: () => void;
-    onStartReply: (commentId: number) => void;
-    onSubmitReply: () => void;
-    onCancelReply: () => void;
-    onStartEdit: (commentId: number, hasInlineContext: boolean) => void;
-    onSubmitEdit: (commentId: number, hasInlineContext: boolean) => void;
-    onCancelEdit: () => void;
-    onResolveThread: (commentId: number, resolve: boolean) => void;
-    onDeleteComment: (commentId: number, hasInlineContext: boolean) => void;
-    showCommentShareLinks: boolean;
-    suggestionSourceFileDiff?: FileDiffMetadata;
-};
-
-function ThreadRootExpandedContent({
-    rootComment,
-    collapsed,
-    isResolved,
-    rootIsOwn,
-    canResolveThread,
-    canCommentInline,
-    createCommentPending,
-    resolveCommentPending,
-    updateCommentPending,
-    deleteCommentPending,
-    editorState,
-    setEditorState,
-    replyFocusRef,
-    editFocusRef,
-    onStartReply,
-    onSubmitReply,
-    onCancelReply,
-    onStartEdit,
-    onSubmitEdit,
-    onCancelEdit,
-    onResolveThread,
-    onDeleteComment,
-    suggestionSourceFileDiff,
-    isSavingRootEdit,
-    isSavingRootReply,
-    isCommentPending,
-}: ThreadRootCommentCardProps & {
-    isSavingRootEdit: boolean;
-    isSavingRootReply: boolean;
-    isCommentPending: boolean;
-}) {
+function RootComment({ collapsed, onToggleCollapsed }: { collapsed: boolean; onToggleCollapsed: () => void }) {
+    const { thread, editor, saving } = useThreadCard();
+    const root = thread.root.comment;
+    const isResolved = Boolean(root.resolution);
     return (
-        <>
-            {!collapsed ? (
-                <>
-                    {editorState.editTargetCommentId === rootComment.id ? (
-                        <CommentEditor
-                            value={editorState.editValue}
-                            placeholder="Edit comment"
-                            disabled={updateCommentPending || isSavingRootEdit}
-                            onReady={(focus) => {
-                                editFocusRef.current = focus;
-                                if (editorState.editTargetCommentId === rootComment.id) {
-                                    focus();
-                                }
-                            }}
-                            onChange={(nextValue) => setEditorState((prev) => (prev.editValue === nextValue ? prev : { ...prev, editValue: nextValue }))}
-                            onSubmit={() => onSubmitEdit(rootComment.id, Boolean(rootComment.inline?.path))}
-                            chrome="toolbar"
-                        />
-                    ) : (
-                        <div className={isCommentPending ? "opacity-70" : undefined}>
-                            <ThreadCommentBody comment={rootComment} suggestionSourceFileDiff={suggestionSourceFileDiff} />
-                        </div>
-                    )}
-                    {editorState.replyTargetCommentId === rootComment.id ? (
-                        <CommentEditor
-                            value={editorState.replyValue}
-                            placeholder="Reply to this thread"
-                            disabled={createCommentPending || isSavingRootReply || !canCommentInline}
-                            onReady={(focus) => {
-                                replyFocusRef.current = focus;
-                                if (editorState.replyTargetCommentId === rootComment.id) {
-                                    focus();
-                                }
-                            }}
-                            onChange={(nextValue) => setEditorState((prev) => (prev.replyValue === nextValue ? prev : { ...prev, replyValue: nextValue }))}
-                            onSubmit={onSubmitReply}
-                        />
-                    ) : null}
-                    {isCommentPending ? null : (
-                        <ThreadActions
-                            commentId={rootComment.id}
-                            hasInlineContext={Boolean(rootComment.inline?.path)}
-                            canEdit={rootIsOwn}
-                            canDelete={rootIsOwn}
-                            canResolveThread={canResolveThread}
-                            isResolved={isResolved}
-                            canCommentInline={canCommentInline}
-                            createCommentPending={createCommentPending}
-                            replySavePending={isSavingRootReply}
-                            resolveCommentPending={resolveCommentPending}
-                            deleteCommentPending={deleteCommentPending}
-                            updateCommentPending={updateCommentPending}
-                            editSavePending={isSavingRootEdit}
-                            replyTargetCommentId={editorState.replyTargetCommentId}
-                            editTargetCommentId={editorState.editTargetCommentId}
-                            onStartReply={onStartReply}
-                            onSubmitReply={onSubmitReply}
-                            onCancelReply={onCancelReply}
-                            onStartEdit={onStartEdit}
-                            onSubmitEdit={onSubmitEdit}
-                            onCancelEdit={onCancelEdit}
-                            onResolveThread={onResolveThread}
-                            onDeleteComment={onDeleteComment}
-                        />
-                    )}
-                </>
-            ) : null}
-        </>
-    );
-}
-
-function ThreadRootCommentCard(props: ThreadRootCommentCardProps) {
-    const { rootComment, collapsed, isResolved, pendingCommentId, pendingReplyTargetId, editorState, onToggleResolvedCollapsed, showCommentShareLinks } = props;
-    const rootDate = describeThreadCommentDate(rootComment);
-    const isSavingRootEdit = pendingCommentId === rootComment.id;
-    const isSavingRootReply = pendingReplyTargetId === rootComment.id;
-    const isCommentPending = Boolean(rootComment.pending) || (isSavingRootEdit && editorState.editTargetCommentId !== rootComment.id);
-    const rootCardClassName = collapsed
-        ? "group/root-card relative z-10 flex items-center gap-4 px-4 py-2"
-        : "group/root-card relative z-10 flex items-start gap-4 px-4 py-2";
-
-    return (
-        <div id={commentAnchorId(rootComment.id)} className={rootCardClassName}>
-            <CommentAvatar name={rootComment.user?.displayName ?? "Unknown"} url={rootComment.user?.avatarUrl} sizeClass="size-6" />
+        <div id={commentAnchorId(root.id)} className={`group/root-card relative z-10 flex ${collapsed ? "items-center" : "items-start"} gap-4 px-4 py-2`}>
+            <Avatar name={root.user?.displayName ?? "Unknown"} url={root.user?.avatarUrl} sizeClass="size-6" />
             <div className="min-w-0 flex-1">
-                <div className="relative flex items-center gap-3 text-[13px] text-muted-foreground">
-                    <span className="font-semibold text-foreground text-[16px]">{rootComment.user?.displayName ?? "Unknown"}</span>
-                    {rootDate.label ? (
-                        <span className="font-semibold tabular-nums" title={rootDate.absoluteLabel ?? undefined}>
-                            {rootDate.label}
-                        </span>
-                    ) : null}
-                    {showCommentShareLinks && rootComment.inline?.path ? (
-                        <CommentShareButton path={rootComment.inline.path} commentId={rootComment.id} />
-                    ) : null}
-                    {isCommentPending ? <CommentPendingIndicator /> : null}
-                    {isResolved && !isCommentPending ? (
+                <CommentHeader comment={root} isRoot>
+                    {isResolved && !isCommentPending(root, editor, saving) ? (
                         <button
                             type="button"
                             className="absolute left-1/2 top-1/2 inline-flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                            onClick={onToggleResolvedCollapsed}
+                            onClick={onToggleCollapsed}
                             aria-label={collapsed ? "Expand resolved thread" : "Collapse resolved thread"}
                         >
                             <ChevronDown className={collapsed ? "size-5 transition-transform" : "size-5 rotate-180 transition-transform"} />
                         </button>
                     ) : null}
-                </div>
-                <ThreadRootExpandedContent
-                    {...props}
-                    isSavingRootEdit={isSavingRootEdit}
-                    isSavingRootReply={isSavingRootReply}
-                    isCommentPending={isCommentPending}
-                />
+                </CommentHeader>
+                {collapsed ? null : <CommentContent comment={root} isRoot />}
             </div>
         </div>
     );
 }
 
+/** Resolved threads start collapsed unless they hold the linked comment; resolving or unresolving resets the choice. */
+function useResolvedCollapse(thread: CommentThread, linkedCommentId: number | undefined) {
+    const root = thread.root.comment;
+    const holdsLinkedComment = linkedCommentId !== undefined && flattenThread(thread).some((comment) => comment.id === linkedCommentId);
+    const defaultCollapsed = Boolean(root.resolution) && !holdsLinkedComment;
+    const [override, setOverride] = useState<{ resolution: Comment["resolution"]; linkedCommentId?: number; collapsed: boolean } | null>(null);
+    const overrideApplies = override !== null && override.resolution === root.resolution && override.linkedCommentId === linkedCommentId;
+    const collapsed = overrideApplies ? override.collapsed : defaultCollapsed;
+    return [collapsed, () => setOverride({ resolution: root.resolution, linkedCommentId, collapsed: !collapsed })] as const;
+}
+
+type ThreadCardProps = {
+    thread: CommentThread;
+    actions: CommentActions;
+    linkedCommentId?: number;
+    attachToDiffEdge?: boolean;
+    showBorder?: boolean;
+    header?: ReactNode;
+    showCommentShareLinks?: boolean;
+    suggestionSourceFileDiff?: FileDiffMetadata;
+};
+
 export function ThreadCard({
     thread,
+    actions,
     linkedCommentId,
-    allowNestedReplies = true,
     attachToDiffEdge = true,
     showBorder = true,
     header,
     showCommentShareLinks = true,
     suggestionSourceFileDiff,
-    canResolveThread,
-    canCommentInline,
-    createCommentPending,
-    resolveCommentPending,
-    currentUserDisplayName,
-    onDeleteComment,
-    onResolveThread,
-    onReplyToThread,
-    onEditComment,
-    deleteCommentPending,
-    updateCommentPending,
 }: ThreadCardProps) {
-    const rootComment = thread.root.comment;
-    const [editorState, setEditorState] = useState({
-        replyTargetCommentId: null as number | null,
-        replyValue: "",
-        editTargetCommentId: null as number | null,
-        editValue: "",
-    });
-    const replyFocusRef = useRef<(() => void) | null>(null);
-    const editFocusRef = useRef<(() => void) | null>(null);
-    const [pendingCommentId, setPendingCommentId] = useState<number | null>(null);
-    const [pendingReplyTargetId, setPendingReplyTargetId] = useState<number | null>(null);
-    const isResolved = Boolean(rootComment.resolution);
-    const linkedCommentInThread = linkedCommentId !== undefined && Boolean(findCommentById(thread.root, linkedCommentId));
-    const [collapseState, setCollapseState] = useState(() => ({
-        resolution: rootComment.resolution,
-        linkedCommentId,
-        linkedCommentInThread,
-        collapsed: isResolved && !linkedCommentInThread,
-    }));
-    const collapsed =
-        linkedCommentInThread && (collapseState.linkedCommentId !== linkedCommentId || !collapseState.linkedCommentInThread)
-            ? false
-            : collapseState.resolution !== rootComment.resolution
-              ? isResolved
-              : collapseState.collapsed;
-    const normalizedCurrentUser = normalizeName(currentUserDisplayName);
-    const isSameUser = (name?: string) => {
-        if (!normalizedCurrentUser) return false;
-        return normalizeName(name) === normalizedCurrentUser;
-    };
-    useEffect(() => {
-        if (!updateCommentPending && !deleteCommentPending) {
-            // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- Clear the local pending indicator when the parent mutation settles.
-            setPendingCommentId(null);
-        }
-    }, [deleteCommentPending, updateCommentPending]);
-    const handleStartReply = (commentId: number) => {
-        if (!canCommentInline || createCommentPending) return;
-        setEditorState((prev) => ({
-            ...prev,
-            editTargetCommentId: null,
-            editValue: "",
-            replyTargetCommentId: commentId,
-        }));
-        window.requestAnimationFrame(() => {
-            replyFocusRef.current?.();
-        });
-    };
+    const root = thread.root.comment;
+    const [editor, setEditor] = useState<Editor>(null);
+    const [saving, setSaving] = useState<Saving>(null);
+    const [collapsed, toggleCollapsed] = useResolvedCollapse(thread, linkedCommentId);
 
-    const handleCancelReply = () => {
-        if (createCommentPending || pendingReplyTargetId !== null) return;
-        setEditorState((prev) => ({ ...prev, replyValue: "", replyTargetCommentId: null }));
-    };
-    const handleStartEdit = (commentId: number, _hasInlineContext: boolean) => {
-        if (updateCommentPending) return;
-        const commentNode = findCommentById(thread.root, commentId);
-        const currentContent = commentNode?.comment.content?.raw ?? "";
-        setEditorState((prev) => ({
-            ...prev,
-            replyTargetCommentId: null,
-            replyValue: "",
-            editTargetCommentId: commentId,
-            editValue: currentContent,
-        }));
-        window.requestAnimationFrame(() => {
-            editFocusRef.current?.();
-        });
-    };
-    const handleCancelEdit = () => {
-        if (updateCommentPending) return;
-        setEditorState((prev) => ({ ...prev, editTargetCommentId: null, editValue: "" }));
-    };
-
-    const handleSubmitReply = async () => {
-        if (editorState.replyTargetCommentId === null) return;
-        const trimmed = editorState.replyValue.trim();
-        if (!trimmed || pendingReplyTargetId !== null) return;
-        const replyTargetId = editorState.replyTargetCommentId;
-        const parentCommentId = allowNestedReplies ? replyTargetId : rootComment.id;
-        setPendingReplyTargetId(replyTargetId);
+    const runSave = async (next: NonNullable<Saving>, save: () => Promise<unknown> | undefined) => {
+        setSaving(next);
         try {
-            await onReplyToThread(parentCommentId, trimmed);
-            setEditorState((prev) => ({ ...prev, replyValue: "", replyTargetCommentId: null }));
+            await save();
+            setEditor(null);
         } catch {
             // The mutation surfaces the error in the review action banner.
         } finally {
-            setPendingReplyTargetId(null);
+            setSaving(null);
         }
     };
-    const handleSubmitEdit = async (commentId: number, hasInlineContext: boolean) => {
-        if (editorState.editTargetCommentId !== commentId) return;
-        const trimmed = editorState.editValue.trim();
-        if (!trimmed) return;
-        setPendingCommentId(commentId);
-        try {
-            await onEditComment(commentId, trimmed, hasInlineContext);
-            setEditorState((prev) => ({ ...prev, editTargetCommentId: null, editValue: "" }));
-        } catch {
-            // The mutation surfaces the error in the review action banner.
-        } finally {
-            setPendingCommentId(null);
-        }
+
+    const state: ThreadCardState = {
+        thread,
+        actions,
+        showCommentShareLinks,
+        suggestionSourceFileDiff,
+        editor,
+        saving,
+        setEditorValue: (value) => setEditor((prev) => (prev && prev.value !== value ? { ...prev, value } : prev)),
+        startEditor: (kind, comment) => {
+            // Finishing a save closes the editor, so none may open meanwhile.
+            if (saving !== null) return;
+            if (kind === "reply" && (!actions.canReply || actions.pending.create)) return;
+            if (kind === "edit" && actions.pending.update) return;
+            setEditor({ kind, commentId: comment.id, value: kind === "edit" ? (comment.content?.raw ?? "") : "" });
+        },
+        cancelEditor: () => {
+            if (saving === null) setEditor(null);
+        },
+        submitEditor: () => {
+            const content = editor?.value.trim();
+            if (!editor || !content || saving !== null) return;
+            if (editor.kind === "reply") {
+                void runSave({ kind: "reply", commentId: editor.commentId }, () => actions.reply(actions.nestedReplies ? editor.commentId : root.id, content));
+                return;
+            }
+            const comment = flattenThread(thread).find((candidate) => candidate.id === editor.commentId);
+            if (comment) void runSave({ kind: "edit", commentId: comment.id }, () => actions.edit(comment, content));
+        },
+        removeComment: (comment) => {
+            if (actions.pending.remove || saving !== null) return;
+            setEditor(null);
+            void runSave({ kind: "remove", commentId: comment.id }, () => actions.remove(comment));
+        },
     };
-    const handleDeleteComment = (commentId: number, hasInlineContext: boolean) => {
-        if (deleteCommentPending) return;
-        setPendingCommentId(commentId);
-        setEditorState((prev) => ({ ...prev, editTargetCommentId: null, editValue: "", replyTargetCommentId: null, replyValue: "" }));
-        onDeleteComment(commentId, hasInlineContext);
-    };
-    const handleToggleResolvedCollapsed = () => {
-        setEditorState((prev) => ({ ...prev, replyTargetCommentId: null, editTargetCommentId: null, editValue: "" }));
-        setCollapseState({ resolution: rootComment.resolution, linkedCommentId, linkedCommentInThread, collapsed: !collapsed });
-    };
-    const rootIsOwn = isSameUser(rootComment.user?.displayName);
-    const isAttachedToFile = Boolean(rootComment.inline?.path);
-    const shouldAttachToDiffEdge = attachToDiffEdge && isAttachedToFile;
+
+    const shouldAttachToDiffEdge = attachToDiffEdge && Boolean(root.inline?.path);
     const cardClassName = showBorder
         ? shouldAttachToDiffEdge
             ? "relative border-y border-r border-comment-border bg-comment"
             : "relative border border-comment-border bg-comment"
         : "relative bg-comment";
     return (
-        <div className="text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
-            <div className={cardClassName}>
-                {header ? (
-                    <div className={showBorder ? "border-b border-comment-border" : ""} data-component="thread-card-header">
-                        {header}
-                    </div>
-                ) : null}
-                <ThreadRootCommentCard
-                    rootComment={rootComment}
-                    collapsed={collapsed}
-                    isResolved={isResolved}
-                    rootIsOwn={rootIsOwn}
-                    canResolveThread={canResolveThread}
-                    canCommentInline={canCommentInline}
-                    createCommentPending={createCommentPending}
-                    resolveCommentPending={resolveCommentPending}
-                    updateCommentPending={updateCommentPending}
-                    deleteCommentPending={deleteCommentPending}
-                    pendingCommentId={pendingCommentId}
-                    pendingReplyTargetId={pendingReplyTargetId}
-                    editorState={editorState}
-                    setEditorState={setEditorState}
-                    replyFocusRef={replyFocusRef}
-                    editFocusRef={editFocusRef}
-                    onToggleResolvedCollapsed={handleToggleResolvedCollapsed}
-                    onStartReply={handleStartReply}
-                    onSubmitReply={handleSubmitReply}
-                    onCancelReply={handleCancelReply}
-                    onStartEdit={handleStartEdit}
-                    onSubmitEdit={handleSubmitEdit}
-                    onCancelEdit={handleCancelEdit}
-                    onResolveThread={onResolveThread}
-                    onDeleteComment={handleDeleteComment}
-                    showCommentShareLinks={showCommentShareLinks}
-                    suggestionSourceFileDiff={suggestionSourceFileDiff}
-                />
-                {!collapsed && thread.root.children.length > 0 ? (
-                    <div className="relative z-10 px-4 pb-2 pt-2.5">
-                        {thread.root.children.map((reply) => (
-                            <ThreadReplyNode
-                                key={reply.comment.id}
-                                node={reply}
-                                depth={1}
-                                threadPath={rootComment.inline?.path}
-                                showCommentShareLinks={showCommentShareLinks}
-                                allowNestedReplies={allowNestedReplies}
-                                rootCommentId={rootComment.id}
-                                isResolved={isResolved}
-                                canResolveThread={canResolveThread}
-                                canCommentInline={canCommentInline}
-                                createCommentPending={createCommentPending}
-                                resolveCommentPending={resolveCommentPending}
-                                updateCommentPending={updateCommentPending}
-                                deleteCommentPending={deleteCommentPending}
-                                pendingCommentId={pendingCommentId}
-                                pendingReplyTargetId={pendingReplyTargetId}
-                                editorState={editorState}
-                                setEditorState={setEditorState}
-                                replyFocusRef={replyFocusRef}
-                                editFocusRef={editFocusRef}
-                                onResolveThread={onResolveThread}
-                                onDeleteComment={handleDeleteComment}
-                                onSubmitReply={handleSubmitReply}
-                                onStartReply={handleStartReply}
-                                onCancelReply={handleCancelReply}
-                                onSubmitEdit={handleSubmitEdit}
-                                onStartEdit={handleStartEdit}
-                                onCancelEdit={handleCancelEdit}
-                                isSameUser={isSameUser}
-                            />
-                        ))}
-                    </div>
-                ) : null}
+        // eslint-disable-next-line react-doctor/context-provider-value-from-unmemoized-local-literal -- Rebuilt with the card each render; only the card's own subtree consumes it.
+        <ThreadCardContext.Provider value={state}>
+            <div className="text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
+                <div className={cardClassName}>
+                    {header ? (
+                        <div className={showBorder ? "border-b border-comment-border" : ""} data-component="thread-card-header">
+                            {header}
+                        </div>
+                    ) : null}
+                    <RootComment
+                        collapsed={collapsed}
+                        onToggleCollapsed={() => {
+                            setEditor(null);
+                            toggleCollapsed();
+                        }}
+                    />
+                    {!collapsed && thread.root.children.length > 0 ? (
+                        <div className="relative z-10 px-4 pb-2 pt-2.5">
+                            {thread.root.children.map((reply) => (
+                                <ReplyNode key={reply.comment.id} node={reply} depth={1} />
+                            ))}
+                        </div>
+                    ) : null}
+                </div>
             </div>
-        </div>
+        </ThreadCardContext.Provider>
     );
 }

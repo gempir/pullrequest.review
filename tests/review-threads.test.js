@@ -1,12 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-    buildCommentThreads,
-    flattenThread,
-    normalizeCommentThread,
-    normalizeCommentThreads,
-    sortThreadsByCreatedAt,
-    threadCommentCount,
-} from "@/features/review/model/review-threads";
+import { buildCommentThreads, flattenThread, sortThreadsByCreatedAt } from "@/features/review/model/review-threads";
 
 describe("review thread ordering", () => {
     test("sorts thread lists immutably", () => {
@@ -49,7 +42,7 @@ describe("review thread ordering", () => {
         expect(threads[0]?.root.children.map((reply) => reply.comment.id)).toEqual([302, 301]);
         expect(threads[0]?.root.children[1]?.children.map((reply) => reply.comment.id)).toEqual([303]);
         expect(flattenThread(threads[0] ?? { root: { comment: { id: 0 }, children: [] } })).toEqual([comments[1], comments[3], comments[2], comments[4]]);
-        expect(threadCommentCount(threads[0])).toBe(4);
+        expect(flattenThread(threads[0])).toHaveLength(4);
     });
 
     test("treats missing parents as roots", () => {
@@ -74,38 +67,5 @@ describe("review thread ordering", () => {
 
         expect(threads.map((thread) => thread.id)).toEqual([3]);
         expect(flattenThread(threads[0]).map((comment) => comment.id)).toEqual([3]);
-    });
-
-    test("normalizes legacy root+replies thread shape", () => {
-        const normalized = normalizeCommentThread({
-            id: 10,
-            root: { id: 10, createdAt: "2026-01-01T00:00:00Z" },
-            replies: [{ id: 11, createdAt: "2026-01-01T00:01:00Z" }],
-        });
-
-        expect(normalized?.root.comment.id).toBe(10);
-        expect(normalized?.root.children.map((child) => child.comment.id)).toEqual([11]);
-    });
-
-    test("normalizes mixed thread arrays and drops invalid entries", () => {
-        const normalized = normalizeCommentThreads([
-            {
-                id: 20,
-                root: {
-                    comment: { id: 20, createdAt: "2026-01-01T00:00:00Z" },
-                    children: [],
-                },
-            },
-            {
-                id: 30,
-                root: { id: 30, createdAt: "2026-01-01T00:00:00Z" },
-                replies: [{ id: 31, createdAt: "2026-01-01T00:02:00Z" }],
-            },
-            null,
-            { id: 40 },
-        ]);
-
-        expect(normalized.map((thread) => thread.id)).toEqual([20, 30]);
-        expect(normalized[1]?.root.children[0]?.comment.id).toBe(31);
     });
 });

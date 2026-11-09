@@ -7,8 +7,8 @@ import { AllViewedToggle, CopyPathButton, ViewedToggle } from "@/features/review
 import { ReviewFileDiff } from "@/features/review/components/review-file-diff";
 import { ReviewSummaryCommentComposer } from "@/features/review/components/review-summary-comment-composer";
 import { ThreadCard } from "@/features/review/components/review-thread-card";
-import { fileAnchorId } from "@/lib/file-anchors";
-import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
+import { fileAnchorId } from "@/features/review/model/file-anchors";
+import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/features/review/model/pr-summary";
 
 export function ReviewSingleModeView() {
     const review = useReview();
@@ -70,7 +70,7 @@ export function ReviewSingleModeView() {
             {selectedFileLevelThreads.length > 0 ? (
                 <div className="border-t border-border px-3 py-2 space-y-2">
                     {selectedFileLevelThreads.map((thread) => (
-                        <ThreadCard key={thread.id} {...review.threadProps} thread={thread} allowNestedReplies={review.allowNestedReplies} />
+                        <ThreadCard key={thread.id} thread={thread} actions={review.commentActions} />
                     ))}
                 </div>
             ) : null}

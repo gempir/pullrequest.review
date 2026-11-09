@@ -1,63 +1,35 @@
 import { type ReactNode, useMemo } from "react";
+import { Avatar } from "@/features/review/components/comment-ui";
 import { SummaryDescription } from "@/features/review/components/summary-description";
-import { Avatar } from "@/features/review/components/summary-shared";
 import { CommentThreadTimelineItem, CommitGroupTimelineItem, HistoryTimelineItem } from "@/features/review/components/summary-timeline-items";
-import {
-    buildDiffByPath,
-    buildSummaryTimeline,
-    commentToHistoryLocation,
-    type EditCommentHandler,
-    findCommentDiffSnippet,
-    type ReplyCommentHandler,
-} from "@/features/review/model/summary-timeline";
+import type { CommentActions } from "@/features/review/model/comment-actions";
+import { buildDiffByPath, buildSummaryTimeline, type CommentTarget, findCommentDiffSnippet } from "@/features/review/model/summary-timeline";
 import type { PullRequestBundle } from "@/lib/git-host/types";
 
 export function PullRequestSummaryPanel({
     bundle,
+    actions,
     headerTitle,
     diffStats,
     headerRight,
     footerRight,
-    currentUserDisplayName,
     onSelectComment,
-    createCommentPending,
-    canCommentInline,
-    canResolveThread,
-    resolveCommentPending,
-    deleteCommentPending,
-    updateCommentPending,
     updateDescriptionPending,
-    canEditDescription,
-    onDeleteComment,
-    onResolveThread,
-    onReplyToThread,
-    onEditComment,
     onEditDescription,
 }: {
     bundle: PullRequestBundle;
+    actions: CommentActions;
     headerTitle?: string;
     diffStats?: { added: number; removed: number };
     headerRight?: ReactNode;
     footerRight?: ReactNode;
-    currentUserDisplayName?: string;
-    onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
-    createCommentPending?: boolean;
-    canCommentInline?: boolean;
-    canResolveThread?: boolean;
-    resolveCommentPending?: boolean;
-    deleteCommentPending?: boolean;
-    updateCommentPending?: boolean;
+    onSelectComment?: (target: CommentTarget) => void;
     updateDescriptionPending?: boolean;
-    canEditDescription?: boolean;
-    onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
-    onResolveThread?: (commentId: number, resolve: boolean) => void;
-    onReplyToThread?: ReplyCommentHandler;
-    onEditComment?: EditCommentHandler;
+    /** Omitted when the description is read-only. */
     onEditDescription?: (description: string) => Promise<unknown> | undefined;
 }) {
-    const { pr, prRef } = bundle;
+    const { pr } = bundle;
     const diffByPath = useMemo(() => buildDiffByPath(bundle.diff), [bundle.diff]);
-    const commentById = new Map(bundle.comments.map((comment) => [comment.id, comment] as const));
     const timelineEntries = buildSummaryTimeline(bundle);
     return (
         <div className="pr-diff-font" style={{ fontFamily: "var(--comment-font-family)" }}>
@@ -80,7 +52,7 @@ export function PullRequestSummaryPanel({
             <div className="px-2.5 pb-48 pt-2.5">
                 <SummaryDescription
                     description={pr.description}
-                    canEdit={Boolean(canEditDescription && onEditDescription)}
+                    canEdit={Boolean(onEditDescription)}
                     isUpdating={Boolean(updateDescriptionPending)}
                     onEditDescription={onEditDescription}
                 />
@@ -98,7 +70,6 @@ export function PullRequestSummaryPanel({
                                     showConnectorAbove={showConnectorAbove}
                                     showConnectorBelow={showConnectorBelow}
                                     entry={entry}
-                                    host={prRef.host}
                                 />
                             );
                         }
@@ -110,19 +81,9 @@ export function PullRequestSummaryPanel({
                                     showConnectorAbove={showConnectorAbove}
                                     showConnectorBelow={showConnectorBelow}
                                     thread={entry.thread}
-                                    diffSnippet={findCommentDiffSnippet(diffByPath, commentToHistoryLocation(entry.thread.root.comment))}
-                                    currentUserDisplayName={currentUserDisplayName}
-                                    canCommentInline={canCommentInline}
-                                    canResolveThread={canResolveThread}
-                                    createCommentPending={createCommentPending}
-                                    resolveCommentPending={resolveCommentPending}
-                                    deleteCommentPending={deleteCommentPending}
-                                    updateCommentPending={updateCommentPending}
+                                    diffSnippet={findCommentDiffSnippet(diffByPath, entry.thread.root.comment)}
+                                    actions={actions}
                                     onSelectComment={onSelectComment}
-                                    onDeleteComment={onDeleteComment}
-                                    onResolveThread={onResolveThread}
-                                    onReplyToThread={onReplyToThread}
-                                    onEditComment={onEditComment}
                                 />
                             );
                         }
@@ -133,20 +94,6 @@ export function PullRequestSummaryPanel({
                                 showConnectorAbove={showConnectorAbove}
                                 showConnectorBelow={showConnectorBelow}
                                 event={entry.event}
-                                diffSnippet={findCommentDiffSnippet(diffByPath, entry.event.comment)}
-                                resolvedComment={typeof entry.event.comment?.id === "number" ? commentById.get(entry.event.comment.id) : undefined}
-                                currentUserDisplayName={currentUserDisplayName}
-                                onSelectComment={onSelectComment}
-                                canCommentInline={canCommentInline}
-                                canResolveThread={canResolveThread}
-                                createCommentPending={createCommentPending}
-                                resolveCommentPending={resolveCommentPending}
-                                deleteCommentPending={deleteCommentPending}
-                                updateCommentPending={updateCommentPending}
-                                onDeleteComment={onDeleteComment}
-                                onResolveThread={onResolveThread}
-                                onReplyToThread={onReplyToThread}
-                                onEditComment={onEditComment}
                             />
                         );
                     })}

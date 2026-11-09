@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { commentAnchorId } from "@/lib/file-anchors";
+import { commentAnchorId } from "@/features/review/model/file-anchors";
 
 const MAX_ATTEMPTS = 20;
 

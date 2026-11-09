@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveReviewDiffScope, validateReviewDiffScopeSearch } from "../src/lib/review-diff-scope";
+import { resolveReviewDiffScope, validateReviewDiffScopeSearch } from "../src/features/review/model/review-diff-scope";
 
 const commitsNewestFirst = [
     { hash: "cccccccc", message: "feat: third" },

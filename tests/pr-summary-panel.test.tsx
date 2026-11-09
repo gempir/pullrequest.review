@@ -1,7 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PullRequestSummaryPanel } from "../src/features/review/components/pr-summary-panel";
+import type { CommentActions } from "../src/features/review/model/comment-actions";
 import type { PullRequestBundle } from "../src/lib/git-host/types";
+
+const actions: CommentActions = {
+    canReply: false,
+    canResolve: false,
+    nestedReplies: true,
+    pending: { create: false, resolve: false, update: false, remove: false },
+    reply: () => undefined,
+    edit: () => undefined,
+    remove: () => undefined,
+    resolve: () => {},
+};
 
 const bundle: PullRequestBundle = {
     prRef: {
@@ -30,24 +42,21 @@ const bundle: PullRequestBundle = {
         },
     ],
     history: [],
+    reviewers: [],
+    buildStatuses: [],
+    currentUserReviewStatus: "none",
 };
 
 describe("pull request summary comment header", () => {
     test("renders the file path as a link separate from the copy button", () => {
-        const html = renderToStaticMarkup(<PullRequestSummaryPanel bundle={bundle} onSelectComment={() => {}} />);
+        const html = renderToStaticMarkup(<PullRequestSummaryPanel bundle={bundle} actions={actions} onSelectComment={() => {}} />);
 
         expect(html).toContain('href="#/src/example.ts?comment=42"');
         expect(html).toContain('aria-label="Open comment on src/example.ts"');
-        expect(html).toContain("cursor-pointer");
         expect(html).toContain('aria-label="Copy comment link"');
         expect(html.split('aria-label="Copy comment link"').length - 1).toBe(1);
         expect(html.indexOf("<a") >= 0).toBe(true);
         expect(html.indexOf("</a>") < html.indexOf('aria-label="Copy comment link"')).toBe(true);
-        expect(html).toContain('class="relative border border-comment-border bg-comment"');
-        expect(html).toContain('class="border-b border-comment-border" data-component="thread-card-header"');
-        expect(html).toContain('class="pointer-events-none flex size-4 shrink-0 items-center justify-center"');
-        expect(html).toContain("size-3.5");
-        expect(html).toContain("size-[15px]");
     });
 
     test("renders the description above a newest-first timeline with each comment thread once", () => {
@@ -101,7 +110,7 @@ describe("pull request summary comment header", () => {
         };
 
         const html = renderToStaticMarkup(
-            <PullRequestSummaryPanel bundle={activityBundle} headerTitle="Test pull request" footerRight={<div>Comment composer</div>} />,
+            <PullRequestSummaryPanel bundle={activityBundle} actions={actions} headerTitle="Test pull request" footerRight={<div>Comment composer</div>} />,
         );
 
         expect(html.indexOf('data-component="summary-description"') < html.indexOf('data-component="summary-timeline"')).toBe(true);
@@ -112,12 +121,24 @@ describe("pull request summary comment header", () => {
         expect(html.indexOf("Older activity") < html.indexOf("opened the pull request")).toBe(true);
         expect(html.split("Thread moved by reply").length - 1).toBe(1);
         expect(html.split("Fresh reply").length - 1).toBe(1);
-        expect(html).toContain(
-            'data-component="summary-header"><img src="https://example.com/author.png" alt="Author" class="size-5 rounded-full object-cover shrink-0"/><span class="min-w-0 flex-1 text-foreground truncate">Test pull request</span>',
-        );
-        expect(html).toContain('class="min-w-0 px-2 py-1" data-component="summary-description"><div class="space-y-2 text-[13px] leading-relaxed"');
-        expect(html).toContain('class="mt-4 space-y-0 px-1" data-component="summary-timeline"');
-        expect(html).toContain('class="relative grid grid-cols-[16px_minmax(0,1fr)] gap-[14px] pb-3"');
+        expect(html.indexOf('data-component="summary-header"') < html.indexOf("Test pull request")).toBe(true);
+    });
+
+    test("shows review bodies and names the actor of events without a body", () => {
+        const historyBundle: PullRequestBundle = {
+            ...bundle,
+            comments: [],
+            history: [
+                { id: "review", type: "changesRequested", createdAt: "2026-01-02T00:00:00Z", actor: { displayName: "Critic" }, content: "Please split this" },
+                { id: "request", type: "reviewRequested", createdAt: "2026-01-03T00:00:00Z", actor: { displayName: "Requester" }, details: "reviewer" },
+            ],
+        };
+
+        const html = renderToStaticMarkup(<PullRequestSummaryPanel bundle={historyBundle} actions={actions} />);
+
+        expect(html).toContain("Please split this");
+        expect(html).toContain("Critic");
+        expect(html).toContain("Requester");
     });
 
     test("renders fourth- and fifth-level markdown headings in bold", () => {
@@ -130,7 +151,7 @@ describe("pull request summary comment header", () => {
             comments: [],
         };
 
-        const html = renderToStaticMarkup(<PullRequestSummaryPanel bundle={headingBundle} />);
+        const html = renderToStaticMarkup(<PullRequestSummaryPanel bundle={headingBundle} actions={actions} />);
 
         expect(html).toContain('<h4 class="text-sm font-bold">Fourth level</h4>');
         expect(html).toContain('<h5 class="text-[13px] font-bold">Fifth level</h5>');

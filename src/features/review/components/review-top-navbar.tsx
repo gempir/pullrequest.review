@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Copy, GitMerge, GlassWater, Loader2, Menu, MessageSquare, Minus, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
+import { Check, ChevronRight, Copy, GitMerge, Loader2, Menu, MessageSquare, Minus, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { OmnibarMenubarInput } from "@/components/omnibar/omnibar-menubar-input";
@@ -7,14 +7,15 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ReviewFileTreeToggleIcon } from "@/features/review/components/review-file-tree-toggle-icon";
-import { aggregateBuildState, buildRunningTime, buildStatusBubbleClass, buildStatusLabel } from "@/features/review/model/review-formatters";
+import { aggregateBuildState, buildRunningTime, buildStatusBubbleClass } from "@/features/review/model/review-formatters";
+import { getHostLabel } from "@/lib/git-host/registry";
 import type { GitHost, PullRequestBuildStatus, PullRequestReviewer } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
 
 const BUILD_TIME_STYLE = { fontFamily: "var(--mono-font-family)" } as const;
 
 type ReviewTopNavbarProps = {
-    loading: boolean;
+    loading?: boolean;
     isRefreshing: boolean;
     treeCollapsed: boolean;
     unviewedFileCount: number;
@@ -346,8 +347,8 @@ function NavbarOverflowMenu({
                 {pullRequestUrl ? (
                     <DropdownMenuItem asChild className="cursor-pointer py-2 text-[13px] focus:bg-surface-hover">
                         <a href={pullRequestUrl} target="_blank" rel="noreferrer">
-                            {host === "github" ? <GitHostIcon host="github" className="size-4" /> : <GlassWater className="size-4" />}
-                            {host === "github" ? "Open in GitHub" : "Open in Bitbucket"}
+                            <GitHostIcon host={host} className="size-4" />
+                            Open in {getHostLabel(host)}
                         </a>
                     </DropdownMenuItem>
                 ) : null}
@@ -494,7 +495,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                     <TooltipContent side="bottom" className="max-w-[520px]">
                         <div className="space-y-1 text-[11px]">
                             {buildStatuses.map((build) => {
-                                const stateLabel = buildStatusLabel(build.state);
+                                const stateLabel = build.state;
                                 const rowIcon =
                                     stateLabel === "success" ? (
                                         <Check className="size-3" />
@@ -548,7 +549,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                 </Tooltip>
             ) : (
                 buildStatuses.map((build) => {
-                    const stateLabel = buildStatusLabel(build.state);
+                    const stateLabel = build.state;
                     const bubbleClass = cn(
                         "inline-flex size-6 items-center justify-center rounded-full border transition-colors",
                         buildStatusBubbleClass(build.state),

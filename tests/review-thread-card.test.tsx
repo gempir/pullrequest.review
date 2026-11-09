@@ -1,7 +1,25 @@
 import { describe, expect, test } from "bun:test";
+import { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ThreadCard } from "@/features/review/components/review-thread-card";
+import type { CommentActions } from "@/features/review/model/comment-actions";
 import type { CommentThread } from "@/features/review/model/review-threads";
+import { buttonByText, typeInto, withDom } from "./support/dom";
+
+function actions(overrides: Partial<CommentActions> = {}): CommentActions {
+    return {
+        currentUserDisplayName: "Root User",
+        canReply: true,
+        canResolve: true,
+        nestedReplies: true,
+        pending: { create: false, resolve: false, update: false, remove: false },
+        reply: () => undefined,
+        edit: () => undefined,
+        remove: () => undefined,
+        resolve: () => {},
+        ...overrides,
+    };
+}
 
 function buildThread(overrides?: Partial<CommentThread>): CommentThread {
     return {
@@ -44,28 +62,28 @@ function buildThread(overrides?: Partial<CommentThread>): CommentThread {
 
 describe("thread card", () => {
     test("renders nested replies recursively", () => {
-        const html = renderToStaticMarkup(
-            <ThreadCard
-                thread={buildThread()}
-                canResolveThread
-                canCommentInline
-                createCommentPending={false}
-                resolveCommentPending={false}
-                deleteCommentPending={false}
-                currentUserDisplayName="Root User"
-                onDeleteComment={() => {}}
-                onResolveThread={() => {}}
-                onReplyToThread={() => {}}
-                onEditComment={() => {}}
-                updateCommentPending={false}
-            />,
-        );
+        const html = renderToStaticMarkup(<ThreadCard thread={buildThread()} actions={actions()} />);
 
         expect(html).toContain("reply L2");
         expect(html).toContain("reply L3");
         expect(html).toContain('data-thread-depth="1" style="margin-left:38px"');
         expect(html).toContain('data-thread-depth="2" style="margin-left:38px"');
-        expect(html).toContain('class="relative border-y border-r border-comment-border bg-comment"');
+    });
+
+    test("keeps replies flat for hosts without nested replies", () => {
+        const html = renderToStaticMarkup(<ThreadCard thread={buildThread()} actions={actions({ nestedReplies: false })} />);
+
+        expect(html).toContain('data-thread-depth="2" style="margin-left:0"');
+        expect(html.includes("margin-left:38px")).toBe(false);
+    });
+
+    test("offers resolve only on the root and edit or delete only on the viewer's own comments", () => {
+        const html = renderToStaticMarkup(<ThreadCard thread={buildThread()} actions={actions()} />);
+
+        expect(html.split(">Reply<").length - 1).toBe(3);
+        expect(html.split(">Resolve<").length - 1).toBe(1);
+        expect(html.split(">Edit<").length - 1).toBe(1);
+        expect(html.split(">Delete<").length - 1).toBe(1);
     });
 
     test("collapses resolved threads behind an accessible toggle", () => {
@@ -82,17 +100,7 @@ describe("thread card", () => {
                         },
                     },
                 })}
-                canResolveThread
-                canCommentInline
-                createCommentPending={false}
-                resolveCommentPending={false}
-                deleteCommentPending={false}
-                currentUserDisplayName="Root User"
-                onDeleteComment={() => {}}
-                onResolveThread={() => {}}
-                onReplyToThread={() => {}}
-                onEditComment={() => {}}
-                updateCommentPending={false}
+                actions={actions()}
             />,
         );
 
@@ -114,17 +122,7 @@ describe("thread card", () => {
                         },
                     },
                 })}
-                canResolveThread
-                canCommentInline
-                createCommentPending={false}
-                resolveCommentPending={false}
-                deleteCommentPending={false}
-                currentUserDisplayName="Root User"
-                onDeleteComment={() => {}}
-                onResolveThread={() => {}}
-                onReplyToThread={() => {}}
-                onEditComment={() => {}}
-                updateCommentPending={false}
+                actions={actions()}
             />,
         );
 
@@ -146,17 +144,7 @@ describe("thread card", () => {
                         },
                     },
                 })}
-                canResolveThread
-                canCommentInline
-                createCommentPending={false}
-                resolveCommentPending={false}
-                deleteCommentPending={false}
-                currentUserDisplayName="Root User"
-                onDeleteComment={() => {}}
-                onResolveThread={() => {}}
-                onReplyToThread={() => {}}
-                onEditComment={() => {}}
-                updateCommentPending={false}
+                actions={actions()}
             />,
         );
 
@@ -180,17 +168,7 @@ describe("thread card", () => {
                         },
                     },
                 })}
-                canResolveThread
-                canCommentInline
-                createCommentPending={false}
-                resolveCommentPending={false}
-                deleteCommentPending={false}
-                currentUserDisplayName="Root User"
-                onDeleteComment={() => {}}
-                onResolveThread={() => {}}
-                onReplyToThread={() => {}}
-                onEditComment={() => {}}
-                updateCommentPending={false}
+                actions={actions()}
             />,
         );
 
@@ -199,25 +177,11 @@ describe("thread card", () => {
     });
 
     test("renders share links after comment dates for file threads", () => {
-        const html = renderToStaticMarkup(
-            <ThreadCard
-                thread={buildThread()}
-                canResolveThread
-                canCommentInline
-                createCommentPending={false}
-                resolveCommentPending={false}
-                deleteCommentPending={false}
-                currentUserDisplayName="Root User"
-                onDeleteComment={() => {}}
-                onResolveThread={() => {}}
-                onReplyToThread={() => {}}
-                onEditComment={() => {}}
-                updateCommentPending={false}
-            />,
-        );
+        const html = renderToStaticMarkup(<ThreadCard thread={buildThread()} actions={actions()} />);
 
         expect(html.split('aria-label="Copy comment link"').length - 1).toBe(3);
-        expect(html.indexOf("2026-01-01") < html.indexOf('aria-label="Copy comment link"')).toBe(true);
+        expect(html.indexOf("tabular-nums")).toBeGreaterThan(-1);
+        expect(html.indexOf("tabular-nums") < html.indexOf('aria-label="Copy comment link"')).toBe(true);
     });
 
     test("shows a spinner without actions for pending comments", () => {
@@ -233,17 +197,7 @@ describe("thread card", () => {
                         children: [],
                     },
                 })}
-                canResolveThread
-                canCommentInline
-                createCommentPending={false}
-                resolveCommentPending={false}
-                deleteCommentPending={false}
-                currentUserDisplayName="Root User"
-                onDeleteComment={() => {}}
-                onResolveThread={() => {}}
-                onReplyToThread={() => {}}
-                onEditComment={() => {}}
-                updateCommentPending={false}
+                actions={actions()}
             />,
         );
 
@@ -252,5 +206,59 @@ describe("thread card", () => {
         expect(html.includes(">Reply<")).toBe(false);
         expect(html.includes(">Edit<")).toBe(false);
         expect(html.includes(">Delete<")).toBe(false);
+    });
+
+    test("keeps the parent comment's content and the reply buttons visible while a reply saves", async () => {
+        await withDom(async ({ window, container, render }) => {
+            let finishReply: () => void = () => {};
+            const replies: Array<[number, string]> = [];
+            const reply = (parentId: number, content: string) => {
+                replies.push([parentId, content]);
+                return new Promise<void>((resolve) => {
+                    finishReply = resolve;
+                });
+            };
+            await render(<ThreadCard thread={buildThread()} actions={actions({ reply })} />);
+
+            await act(async () => buttonByText(container, "Reply").click());
+            const textarea = container.querySelector("textarea");
+            if (!textarea) throw new Error("Reply editor did not open");
+            await typeInto(window, textarea, "on it");
+            await act(async () => buttonByText(container, "Comment").click());
+
+            expect(replies).toEqual([[100, "on it"]]);
+            expect(container.querySelector('[aria-label="Syncing comment"]')).toBeNull();
+            expect(buttonByText(container, "Comment").disabled).toBe(true);
+
+            await act(async () => finishReply());
+            expect(container.querySelector("textarea")).toBeNull();
+        });
+    });
+
+    test("replies to the root comment when the host has no nested replies", async () => {
+        await withDom(async ({ window, container, render }) => {
+            const replies: number[] = [];
+            await render(
+                <ThreadCard
+                    thread={buildThread()}
+                    actions={actions({
+                        nestedReplies: false,
+                        reply: (parentId) => {
+                            replies.push(parentId);
+                            return undefined;
+                        },
+                    })}
+                />,
+            );
+
+            const replyButtons = Array.from(container.querySelectorAll("button")).filter((button) => button.textContent === "Reply");
+            await act(async () => replyButtons[2]?.click());
+            const textarea = container.querySelector("textarea");
+            if (!textarea) throw new Error("Reply editor did not open");
+            await typeInto(window, textarea, "flat");
+            await act(async () => buttonByText(container, "Comment").click());
+
+            expect(replies).toEqual([100]);
+        });
     });
 });

@@ -1,16 +1,35 @@
 import { useQueries } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
-import { buildGroupedPullRequests, buildSortedRootPullRequests, DEFAULT_REVIEW_SCOPE_SEARCH, HOSTS } from "@/features/landing/model/landing-model";
 import { repoPullRequestsQuery } from "@/lib/git-host/queries";
-import { normalizeRepoRef } from "@/lib/git-host/shared/repo-ref";
-import type { RepoRef } from "@/lib/git-host/types";
+import { type GitHost, HOSTS, type PullRequestSummary, type RepoRef } from "@/lib/git-host/types";
 import { usePrContext } from "@/lib/pr-context";
+import { PULL_REQUEST_ROUTE } from "@/lib/pull-request-routes";
 
+export type SortedRootPullRequest = { host: GitHost; repo: RepoRef; pullRequest: PullRequestSummary };
+
+function updatedAt(row: SortedRootPullRequest) {
+    const parsed = row.pullRequest.updatedAt ? Date.parse(row.pullRequest.updatedAt) : Number.NaN;
+    return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
+}
+
+export function buildPullRequestRows(results: Array<{ repo: RepoRef; pullRequests: PullRequestSummary[] }>): SortedRootPullRequest[] {
+    const rows = results.flatMap(({ repo, pullRequests }) => pullRequests.map((pullRequest) => ({ host: repo.host, repo, pullRequest })));
+    return rows.sort(
+        (a, b) =>
+            updatedAt(b) - updatedAt(a) ||
+            b.pullRequest.id - a.pullRequest.id ||
+            a.host.localeCompare(b.host) ||
+            a.repo.fullName.localeCompare(b.repo.fullName),
+    );
+}
+
+// A stable `combine` makes useQueries return the same array until a query changes.
 function combineResults<T>(results: T) {
     return results;
 }
 
+/** Pull requests of the repositories the user selected, across hosts. */
 export function useSelectedRepoPullRequests({ enabled = true }: { enabled?: boolean } = {}) {
     const navigate = useNavigate();
     const { reposByHost } = usePrContext();
@@ -20,26 +39,12 @@ export function useSelectedRepoPullRequests({ enabled = true }: { enabled?: bool
         combine: combineResults,
     });
 
-    const sortedRootPullRequests = useMemo(() => {
-        const records = queries.flatMap((query) =>
-            (query.data ?? []).flatMap(({ repo, pullRequests }) => {
-                const normalizedRepo = normalizeRepoRef(repo);
-                return pullRequests.map((pullRequest) => ({
-                    host: normalizedRepo.host,
-                    repo: normalizedRepo,
-                    repoKey: `${normalizedRepo.host}:${normalizedRepo.fullName}`,
-                    pullRequest,
-                }));
-            }),
-        );
-        return buildSortedRootPullRequests(buildGroupedPullRequests(records, reposByHost));
-    }, [queries, reposByHost]);
+    const sortedRootPullRequests = useMemo(() => buildPullRequestRows(queries.flatMap((query) => query.data ?? [])), [queries]);
 
     const openPullRequest = useCallback(
         (repo: RepoRef, pullRequestId: string) => {
             const params = { workspace: repo.workspace, repo: repo.repo, pullRequestId };
-            const to = repo.host === "github" ? "/$workspace/$repo/pull/$pullRequestId" : "/$workspace/$repo/pull-requests/$pullRequestId";
-            navigate({ to, params, search: DEFAULT_REVIEW_SCOPE_SEARCH, hash: "" });
+            navigate({ to: PULL_REQUEST_ROUTE[repo.host], params, search: {}, hash: "" });
         },
         [navigate],
     );
@@ -47,7 +52,7 @@ export function useSelectedRepoPullRequests({ enabled = true }: { enabled?: bool
     const hasData = queries.some((query) => query.data);
     return {
         sortedRootPullRequests,
-        selectedRepoCount: reposByHost.bitbucket.length + reposByHost.github.length,
+        selectedRepoCount: HOSTS.reduce((count, host) => count + reposByHost[host].length, 0),
         // A failed host is only surfaced when no other host could answer.
         repoPullRequestError: hasData ? undefined : queries.find((query) => query.error)?.error,
         isRepoPullRequestLoading: !hasData && queries.some((query) => query.isLoading),

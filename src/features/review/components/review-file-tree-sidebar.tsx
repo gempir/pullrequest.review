@@ -2,20 +2,20 @@ import type { FileTreeIcons, GitStatusEntry } from "@pierre/trees";
 import { useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { type MouseEventHandler, useEffect, useMemo, useRef, useState } from "react";
-import { AppFileTreeView, type FileTreeEntry, useAppFileTreeModel } from "@/components/file-tree";
+import { AppFileTreeView, useAppFileTreeModel } from "@/components/file-tree";
 import { SidebarTopControls } from "@/components/sidebar-top-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ReviewFileTreeToggleIcon } from "@/features/review/components/review-file-tree-toggle-icon";
-import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/lib/pr-summary";
+import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/features/review/model/pr-summary";
+import type { FileTreeEntry } from "@/lib/file-tree-order";
 import { cn } from "@/lib/utils";
 
 type ReviewFileTreeSidebarProps = {
     treeWidth: number;
     treeCollapsed: boolean;
     loading: boolean;
-    showLoadingActivity?: boolean;
     loadProgress?: number | null;
     showSettingsPanel: boolean;
     activeFile?: string;
@@ -206,7 +206,6 @@ export function ReviewFileTreeSidebar({
     treeWidth,
     treeCollapsed,
     loading,
-    showLoadingActivity,
     loadProgress,
     showSettingsPanel,
     activeFile,
@@ -258,7 +257,6 @@ export function ReviewFileTreeSidebar({
                             navigate({ to: "/" });
                         }}
                         onRefresh={onRefresh}
-                        showLoadingActivity={showLoadingActivity}
                         onSettings={onToggleSettings}
                         settingsActive={showSettingsPanel}
                         settingsAriaLabel={showSettingsPanel ? "Close settings" : "Open settings"}

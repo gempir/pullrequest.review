@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { Window } from "happy-dom";
-import { act, useCallback, useRef, useState } from "react";
-import { useReviewFileHashSelection, useReviewFileHashSync } from "../src/features/review/hooks/use-review-page-effects";
+import { act, useCallback, useState } from "react";
+import { useReviewUrlHash } from "../src/features/review/hooks/use-review-url-hash";
 import type { PullRequestBundle } from "../src/lib/git-host/types";
 
 const selectableFilePaths = new Set(["src/first.ts", "src/second.ts"]);
@@ -33,31 +33,26 @@ async function withSelection(
 
     function Selection({ comments, commentsLoading, selectableFilePaths }: SelectionProps) {
         const [activeFile, setActiveFile] = useState<string>();
-        const suppressHashSyncRef = useRef(false);
-        const onHashPathResolved = useCallback(({ path }: { path: string }) => {
-            suppressHashSyncRef.current = true;
-            setActiveFile(path);
-        }, []);
-        useReviewFileHashSelection({ selectableFilePaths, comments, commentsLoading, onHashPathResolved });
-        useReviewFileHashSync({
+        const onHashTarget = useCallback(({ path }: { path: string }) => setActiveFile(path), []);
+        const { selectWithoutHash } = useReviewUrlHash({
             activeFile,
+            setActiveFile,
             showSettingsPanel: false,
             settingsPathSet,
             selectableFilePaths,
             isFileSelectionReady: selectableFilePaths.size > 0,
-            suppressHashSyncRef,
+            comments,
+            commentsLoading,
+            onHashTarget,
         });
         return (
-            <button
-                type="button"
-                onClick={() => {
-                    // All-mode scroll selection deliberately leaves the URL hash alone.
-                    suppressHashSyncRef.current = true;
-                    setActiveFile("src/second.ts");
-                }}
-            >
-                {activeFile}
-            </button>
+            <>
+                {/* All-mode scroll selection leaves the URL hash alone. */}
+                <button type="button" data-action="scroll" onClick={() => selectWithoutHash("src/second.ts")}>
+                    {activeFile}
+                </button>
+                <button type="button" data-action="select" onClick={() => setActiveFile("src/second.ts")} />
+            </>
         );
     }
 
@@ -82,7 +77,7 @@ test("refreshing comments preserves the file selected by scrolling in all mode",
     await withSelection("#/src/first.ts", async ({ window, container, render }) => {
         await render();
         expect(container.textContent).toBe("src/first.ts");
-        const button = container.querySelector("button");
+        const button = container.querySelector<HTMLButtonElement>('[data-action="scroll"]');
         if (!button) throw new Error("File selection did not render");
         await act(async () => button.click());
         expect(container.textContent).toBe("src/second.ts");
@@ -123,5 +118,13 @@ test("comment deep links wait for comments and resolve replies through their par
         await render({ comments: [comment, { id: 2, parent: { id: 1 }, content: { raw: "Reply" } }] });
         expect(container.textContent).toBe("src/second.ts");
         expect(window.location.hash).toBe("#/src/second.ts?comment=2");
+    });
+});
+
+test("selecting a file writes it to the hash", async () => {
+    await withSelection("#/src/first.ts", async ({ window, container, render }) => {
+        await render();
+        await act(async () => container.querySelector<HTMLButtonElement>('[data-action="select"]')?.click());
+        expect(window.location.hash).toBe("#/src/second.ts");
     });
 });

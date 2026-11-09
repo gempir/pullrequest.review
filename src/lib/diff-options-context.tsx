@@ -9,7 +9,6 @@ export interface DiffOptions {
     diffStyle: "unified" | "split";
     expandUnchanged: boolean;
     expansionLineCount: number;
-    collapsedContextThreshold: number;
     overflow: "scroll" | "wrap";
     collapseViewedFilesByDefault: boolean;
     autoMarkViewedFiles: boolean;
@@ -21,7 +20,6 @@ const defaultOptions: DiffOptions = {
     diffStyle: "unified",
     expandUnchanged: false,
     expansionLineCount: 100,
-    collapsedContextThreshold: 5,
     overflow: "scroll",
     collapseViewedFilesByDefault: false,
     autoMarkViewedFiles: true,
@@ -87,7 +85,7 @@ export function DiffOptionsProvider({ children }: { children: ReactNode }) {
     }, [hydrated, options]);
 
     useEffect(() => {
-        if (typeof window === "undefined" || !options.followSystemTheme) return;
+        if (!options.followSystemTheme) return;
         const media = window.matchMedia("(prefers-color-scheme: dark)");
         const apply = (isDark: boolean) => {
             setOptions((prev) => {

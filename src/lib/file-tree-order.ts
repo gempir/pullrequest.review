@@ -41,3 +41,9 @@ export function orderFileTreePaths(paths: readonly string[], pinnedFirstPath?: s
         return compareFileTreeSortEntries(toFileTreeSortEntry(leftPath, false), toFileTreeSortEntry(rightPath, false));
     });
 }
+
+/** A file tree row: `treePath` places it in the tree, `appPath` is what selecting it opens. */
+export type FileTreeEntry = {
+    treePath: string;
+    appPath: string;
+};

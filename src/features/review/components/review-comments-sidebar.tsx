@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ReviewCommentsSidebarPanel } from "@/features/review/components/review-comments-sidebar-panel";
 import { ReviewRightSidebar } from "@/features/review/components/review-right-sidebar";
-import type { ReviewSidebarThreadItem } from "@/features/review/hooks/use-review-diff-model";
+import type { CommentActions } from "@/features/review/model/comment-actions";
+import type { ReviewSidebarThreadItem } from "@/features/review/model/review-page-model";
 import { flattenThread } from "@/features/review/model/review-threads";
 import { cn } from "@/lib/utils";
 
@@ -15,12 +16,10 @@ type ReviewCommentsSidebarProps = {
     collapsed: boolean;
     unresolvedCount: number;
     threads: ReviewSidebarThreadItem[];
-    canResolveThread: boolean;
-    resolveCommentPending: boolean;
+    actions: CommentActions;
     onToggleCollapsed: () => void;
     onStartResize: MouseEventHandler<HTMLButtonElement>;
     onSelectThread: (item: ReviewSidebarThreadItem) => void;
-    onResolveThread: (commentId: number, resolve: boolean) => void;
 };
 
 function stripHtml(value: string) {
@@ -54,12 +53,10 @@ export function ReviewCommentsSidebar({
     collapsed,
     unresolvedCount,
     threads,
-    canResolveThread,
-    resolveCommentPending,
+    actions,
     onToggleCollapsed,
     onStartResize,
     onSelectThread,
-    onResolveThread,
 }: ReviewCommentsSidebarProps) {
     const [includeResolved, setIncludeResolved] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -116,14 +113,7 @@ export function ReviewCommentsSidebar({
                 </div>
             }
         >
-            <ReviewCommentsSidebarPanel
-                threads={visibleThreads}
-                includeResolved={includeResolved}
-                canResolveThread={canResolveThread}
-                resolveCommentPending={resolveCommentPending}
-                onSelectThread={onSelectThread}
-                onResolveThread={onResolveThread}
-            />
+            <ReviewCommentsSidebarPanel threads={visibleThreads} includeResolved={includeResolved} actions={actions} onSelectThread={onSelectThread} />
         </ReviewRightSidebar>
     );
 }

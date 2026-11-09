@@ -1,70 +1,75 @@
-import { parseFailureBody } from "@/lib/git-host/shared/http";
-import { collectPaginated } from "@/lib/git-host/shared/pagination";
-import { HostApiError } from "@/lib/git-host/types";
-import { clearGithubAuthCredential, readGithubAuthCredential, writeGithubAuthCredential } from "@/lib/storage";
+import { throwIfNotOk } from "@/lib/git-host/shared/http";
+import type { PullRequestRef } from "@/lib/git-host/types";
+import { readGithubAuthCredential } from "@/lib/storage";
 
-export const API_BASE = "https://api.github.com";
+const API_BASE = "https://api.github.com";
+const API_HEADERS = { Accept: "application/vnd.github.full+json", "X-GitHub-Api-Version": "2022-11-28" };
 
-export interface GithubAuth {
-    token: string;
+export function repoPath(ref: { workspace: string; repo: string }, suffix = "") {
+    return `/repos/${ref.workspace}/${ref.repo}${suffix}`;
 }
 
-export function readAuth() {
-    const token = readGithubAuthCredential()?.token.trim();
-    return token ? { token } : null;
+export function pullPath(prRef: PullRequestRef, suffix = "") {
+    return repoPath(prRef, `/pulls/${prRef.pullRequestId}${suffix}`);
 }
 
-export async function writeAuth(auth: GithubAuth) {
-    await writeGithubAuthCredential(auth);
+export function issuePath(prRef: PullRequestRef, suffix = "") {
+    return repoPath(prRef, `/issues/${prRef.pullRequestId}${suffix}`);
 }
 
-export function clearAuth() {
-    clearGithubAuthCredential();
+export function readToken() {
+    return readGithubAuthCredential()?.token.trim() || null;
 }
 
-export function authHeader() {
-    const auth = readAuth();
-    if (!auth?.token) return null;
-    return `Bearer ${auth.token}`;
-}
-
-export async function request(path: string, init: RequestInit = {}, options: { requireAuth?: boolean } = {}) {
-    const authorization = authHeader();
-    if (options.requireAuth && !authorization) {
-        throw new Error("Not authenticated");
-    }
-
-    const headers: Record<string, string> = {
-        Accept: "application/vnd.github.full+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        ...(init.headers as Record<string, string>),
-    };
-    if (authorization) {
-        headers.Authorization = authorization;
-    }
-
-    const response = await fetch(path.startsWith("http") ? path : `${API_BASE}${path}`, {
+/** Fetches with an explicit token, used to verify a token before storing it. */
+export async function requestWith(path: string, token: string | null, init: RequestInit = {}, label = "GitHub API request") {
+    const response = await fetch(`${API_BASE}${path}`, {
         ...init,
         cache: "no-store",
-        headers,
+        headers: { ...API_HEADERS, ...(init.headers as Record<string, string>), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
-
-    if (!response.ok) {
-        const body = await parseFailureBody(response);
-        throw new HostApiError(`GitHub API request failed (${response.status} ${response.statusText})`, {
-            status: response.status,
-            statusText: response.statusText,
-            body,
-        });
-    }
-
-    return response;
+    return throwIfNotOk(response, label);
 }
 
-export async function listPaginated<T>(path: string) {
-    return collectPaginated(async (page) => {
-        const connector = path.includes("?") ? "&" : "?";
-        const res = await request(`${path}${connector}per_page=100&page=${page}`);
-        return (await res.json()) as T[];
+export function request(path: string, init?: RequestInit) {
+    return requestWith(path, readToken(), init);
+}
+
+/** For writes: fails before the request when there is no token. */
+export function authedRequest(path: string, init?: RequestInit) {
+    const token = readToken();
+    if (!token) throw new Error("Not authenticated");
+    return requestWith(path, token, init);
+}
+
+export async function requestJson<T>(path: string, init?: RequestInit) {
+    return (await (await request(path, init)).json()) as T;
+}
+
+export async function sendJson(path: string, method: string, body: unknown) {
+    await authedRequest(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+
+export async function graphql<T>(query: string, variables: Record<string, unknown>) {
+    const response = await authedRequest("/graphql", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, variables }),
     });
+    const payload = (await response.json()) as { data?: T; errors?: Array<{ message?: string }> };
+    const firstError = payload.errors?.[0]?.message;
+    if (firstError) throw new Error(firstError);
+    return payload.data;
+}
+
+/** Follows page numbers until a short page or `limit` values. */
+export async function fetchAllPages<T>(path: string, limit = Number.POSITIVE_INFINITY) {
+    const connector = path.includes("?") ? "&" : "?";
+    const values: T[] = [];
+    for (let page = 1; values.length < limit; page += 1) {
+        const current = await requestJson<T[]>(`${path}${connector}per_page=100&page=${page}`);
+        values.push(...current);
+        if (current.length < 100) break;
+    }
+    return values.slice(0, limit);
 }

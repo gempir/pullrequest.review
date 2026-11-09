@@ -1,21 +1,23 @@
-import type { DiffStatEntry, PullRequestBuildStatus } from "@/lib/git-host/types";
+import type { DiffStatEntry, PullRequestBuildStatus, PullRequestDetails } from "@/lib/git-host/types";
 import { formatTimestampLabel } from "@/lib/timestamp";
 
-export function normalizeNavbarState(pr?: { state?: string; draft?: boolean; mergedAt?: string; closedAt?: string }) {
+/** What the navbar shows about a pull request, with placeholders while it loads. */
+export function pullRequestHeader(pr?: PullRequestDetails) {
+    return {
+        pullRequestUrl: pr?.links?.html?.href,
+        sourceBranch: pr?.source?.branch?.name ?? "source",
+        destinationBranch: pr?.destination?.branch?.name ?? "target",
+        navbarState: normalizeNavbarState(pr),
+        navbarStatusTimestamp: pr?.mergedAt ?? pr?.closedAt ?? pr?.updatedAt,
+        isDraft: Boolean(pr?.draft),
+    };
+}
+
+function normalizeNavbarState(pr?: { state?: string; draft?: boolean; mergedAt?: string; closedAt?: string }) {
     if (pr?.mergedAt) return "merged";
     if (pr?.closedAt) return pr.state?.toLowerCase() === "declined" ? "declined" : "closed";
     if (pr?.draft) return "draft";
     return (pr?.state ?? "open").toLowerCase();
-}
-
-export function buildStatusLabel(state?: string) {
-    const normalized = state?.toLowerCase() ?? "";
-    if (normalized === "success") return "success";
-    if (normalized === "failed") return "failed";
-    if (normalized === "pending") return "pending";
-    if (normalized === "skipped") return "skipped";
-    if (normalized === "neutral") return "neutral";
-    return "unknown";
 }
 
 export function buildStatusBubbleClass(state?: string) {

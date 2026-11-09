@@ -2,18 +2,15 @@ import { useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { subscribeAppPullRequestOmnibarOpen } from "@/components/omnibar/app-omnibar-events";
 import { PullRequestOmnibar } from "@/components/omnibar/pull-request-omnibar";
-import { useSelectedRepoPullRequests } from "@/features/landing/hooks/use-selected-repo-pull-requests";
+import { pullRequestRouteHost } from "@/lib/pull-request-routes";
+import { useSelectedRepoPullRequests } from "@/lib/selected-pull-requests";
 import { useKeyboardNavigation } from "@/lib/shortcuts-context";
-
-function isReviewPath(pathname: string) {
-    return /^\/[^/]+\/[^/]+\/pull(?:-requests)?\/[^/]+/.test(pathname);
-}
 
 export function AppPullRequestOmnibar() {
     const pathname = useRouterState({
         select: (state) => state.location.pathname,
     });
-    const onReviewPage = isReviewPath(pathname);
+    const onReviewPage = pullRequestRouteHost(pathname) !== undefined;
     const [open, setOpen] = useState(false);
     const { sortedRootPullRequests, openPullRequest } = useSelectedRepoPullRequests({ enabled: !onReviewPage });
 

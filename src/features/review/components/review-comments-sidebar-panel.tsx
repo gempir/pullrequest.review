@@ -1,36 +1,21 @@
 import { ReviewCommentsSidebarItem } from "@/features/review/components/review-comments-sidebar-item";
-import type { ReviewSidebarThreadItem } from "@/features/review/hooks/use-review-diff-model";
+import type { CommentActions } from "@/features/review/model/comment-actions";
+import type { ReviewSidebarThreadItem } from "@/features/review/model/review-page-model";
 
 type ReviewCommentsSidebarPanelProps = {
     threads: ReviewSidebarThreadItem[];
     includeResolved: boolean;
-    canResolveThread: boolean;
-    resolveCommentPending: boolean;
+    actions: CommentActions;
     onSelectThread: (item: ReviewSidebarThreadItem) => void;
-    onResolveThread: (commentId: number, resolve: boolean) => void;
 };
 
-export function ReviewCommentsSidebarPanel({
-    threads,
-    includeResolved,
-    canResolveThread,
-    resolveCommentPending,
-    onSelectThread,
-    onResolveThread,
-}: ReviewCommentsSidebarPanelProps) {
+export function ReviewCommentsSidebarPanel({ threads, includeResolved, actions, onSelectThread }: ReviewCommentsSidebarPanelProps) {
     return (
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
             {threads.length > 0 ? (
                 <div className="min-h-full overflow-x-hidden">
                     {threads.map((item) => (
-                        <ReviewCommentsSidebarItem
-                            key={item.commentId}
-                            item={item}
-                            canResolveThread={canResolveThread}
-                            resolveCommentPending={resolveCommentPending}
-                            onSelect={() => onSelectThread(item)}
-                            onResolveThread={onResolveThread}
-                        />
+                        <ReviewCommentsSidebarItem key={item.commentId} item={item} actions={actions} onSelect={() => onSelectThread(item)} />
                     ))}
                 </div>
             ) : (

@@ -8,17 +8,16 @@ import { HostAuthForm } from "@/components/auth/host-auth-form";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { AppPullRequestOmnibar } from "@/components/omnibar/app-pull-request-omnibar";
 import { AppearanceProvider } from "@/lib/appearance-context";
+import { BITBUCKET_OAUTH_PATHS } from "@/lib/bitbucket-oauth-paths";
 import { DiffOptionsProvider } from "@/lib/diff-options-context";
 import { FileTreeProvider } from "@/lib/file-tree-context";
-import { getHostLabel } from "@/lib/git-host/registry";
-import type { GitHost } from "@/lib/git-host/types";
+import { getHostCapabilities, getHostLabel } from "@/lib/git-host/registry";
+import { HOSTS } from "@/lib/git-host/types";
 import { PrProvider, usePrContext } from "@/lib/pr-context";
+import { pullRequestRouteHost } from "@/lib/pull-request-routes";
 import { appQueryClient } from "@/lib/query-client";
-import { ShikiAppThemeSync } from "@/lib/shiki-app-theme-sync";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
-
-const ONBOARDING_HOSTS: GitHost[] = ["bitbucket", "github"];
 
 import "../../styles.css";
 
@@ -58,7 +57,6 @@ function RootComponent() {
             <AppearanceProvider>
                 <PrProvider>
                     <DiffOptionsProvider>
-                        <ShikiAppThemeSync />
                         <FileTreeProvider>
                             <ShortcutsProvider>
                                 <AppLayout />
@@ -84,7 +82,7 @@ function OnboardingScreen() {
             <main data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto p-4">
                 <div className="mx-auto w-full max-w-2xl space-y-4">
                     <div role="tablist" aria-label="Git host" className="flex border-b border-border-muted">
-                        {ONBOARDING_HOSTS.map((host) => {
+                        {HOSTS.map((host) => {
                             const isActive = activeHost === host;
                             return (
                                 <button
@@ -127,14 +125,16 @@ function AppLayout() {
     const pathname = useRouterState({
         select: (state) => state.location.pathname,
     });
-    const isGithubPullPath = /^\/[^/]+\/[^/]+\/pull\/[^/]+/.test(pathname);
+    const pullRequestHost = pullRequestRouteHost(pathname);
+    // Hosts with public read access open pull requests without an account.
+    const isPublicPullRequestPath = Boolean(pullRequestHost && getHostCapabilities(pullRequestHost).publicReadSupported);
     const isSettingsPath = pathname === "/settings" || pathname === "/settings/";
 
     if (!hydrated) {
         return null;
     }
 
-    if (pathname.startsWith("/oauth/callback")) {
+    if (pathname.startsWith(BITBUCKET_OAUTH_PATHS.callback)) {
         return <Outlet />;
     }
 
@@ -142,7 +142,7 @@ function AppLayout() {
         return null;
     }
 
-    if (!isAuthenticated && !isGithubPullPath && !isSettingsPath) {
+    if (!isAuthenticated && !isPublicPullRequestPath && !isSettingsPath) {
         return <OnboardingScreen />;
     }
 

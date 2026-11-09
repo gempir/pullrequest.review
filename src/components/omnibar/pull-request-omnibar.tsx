@@ -3,8 +3,9 @@ import { GitPullRequest, Search } from "lucide-react";
 import { useState } from "react";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { getPullRequestOmnibarKeywords, OMNIBAR_GROUP_CLASS_NAME, OMNIBAR_ITEM_CLASS_NAME } from "@/components/omnibar/omnibar-helpers";
-import type { SortedRootPullRequest } from "@/features/landing/model/landing-model";
+import { OmnibarShortcutLabel } from "@/components/omnibar/omnibar-menubar-input";
 import type { RepoRef } from "@/lib/git-host/types";
+import type { SortedRootPullRequest } from "@/lib/selected-pull-requests";
 
 export function PullRequestOmnibarGroup({
     pullRequests,
@@ -104,7 +105,9 @@ export function PullRequestOmnibar({
 
             <div className="flex items-center justify-between border-t border-border-muted bg-chrome px-3 py-1.5 text-[10px] text-muted-foreground">
                 <span>Navigate with arrows, select with Enter</span>
-                <span className="hidden sm:inline">cmd + k</span>
+                <span className="hidden sm:inline">
+                    <OmnibarShortcutLabel />
+                </span>
             </div>
         </Command.Dialog>
     );

@@ -1,15 +1,16 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { pullRequestCriticalQuery, pullRequestDeferredQuery } from "@/lib/git-host/queries";
-import { getHostCapabilities, getHostClient } from "@/lib/git-host/registry";
-import { HostApiError, type PullRequestBundle, type PullRequestRef } from "@/lib/git-host/types";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo } from "react";
+import { pullRequestCommentsQuery, pullRequestCriticalQuery, pullRequestDeferredQuery } from "@/lib/git-host/queries";
+import { getHostCapabilities } from "@/lib/git-host/registry";
+import { type Comment, HostApiError, type PullRequestBundle, type PullRequestDeferredBundle, type PullRequestRef } from "@/lib/git-host/types";
 
 const PENDING_BUILD_POLL_MS = 10_000;
 
+const EMPTY_DEFERRED: PullRequestDeferredBundle = { history: [], reviewers: [], buildStatuses: [], currentUserReviewStatus: "none" };
+const EMPTY_COMMENTS: Comment[] = [];
+
 export function isRateLimitedError(error: unknown) {
-    if (!error) return false;
-    if (error instanceof HostApiError) return error.status === 429 || error.status === 403;
-    return error instanceof Error && (error.message.includes("429") || error.message.includes("403"));
+    return error instanceof HostApiError && (error.status === 429 || error.status === 403);
 }
 
 export function useReviewQuery({
@@ -21,68 +22,42 @@ export function useReviewQuery({
     prRef: PullRequestRef;
     canRead: boolean;
     canWrite: boolean;
-    onRequireAuth?: (reason: "rate_limit") => void;
+    onRequireAuth: (reason: "rate_limit") => void;
 }) {
-    const queryClient = useQueryClient();
-    const hostCapabilities = getHostCapabilities(prRef.host);
-    const enabled = canRead || hostCapabilities.publicReadSupported;
-    const critical = useQuery({ ...pullRequestCriticalQuery(prRef), enabled });
+    const critical = useQuery({ ...pullRequestCriticalQuery(prRef), enabled: canRead });
+    const comments = useQuery({ ...pullRequestCommentsQuery(prRef), enabled: canRead && critical.isSuccess });
     const deferred = useQuery({
         ...pullRequestDeferredQuery(prRef),
-        enabled: enabled && critical.isSuccess,
-        refetchInterval: (query) => (query.state.data?.buildStatuses?.some((status) => status.state === "pending") ? PENDING_BUILD_POLL_MS : false),
+        enabled: canRead && critical.isSuccess,
+        refetchInterval: (query) => (query.state.data?.buildStatuses.some((status) => status.state === "pending") ? PENDING_BUILD_POLL_MS : false),
     });
 
-    const data = useMemo<PullRequestBundle | undefined>(() => {
-        if (!critical.data) return undefined;
-        return {
-            ...critical.data,
-            pr: deferred.data?.prPatch ? { ...critical.data.pr, ...deferred.data.prPatch } : critical.data.pr,
-            comments: deferred.data?.comments ?? [],
-            history: deferred.data?.history,
-            reviewers: deferred.data?.reviewers,
-            buildStatuses: deferred.data?.buildStatuses,
-        };
-    }, [critical.data, deferred.data]);
+    const data = useMemo<PullRequestBundle | undefined>(
+        () => (critical.data ? { prRef, ...critical.data, ...(deferred.data ?? EMPTY_DEFERRED), comments: comments.data ?? EMPTY_COMMENTS } : undefined),
+        [comments.data, critical.data, deferred.data, prRef],
+    );
 
     const refetchCritical = critical.refetch;
+    const refetchComments = comments.refetch;
     const refetchDeferred = deferred.refetch;
     const refetch = useCallback(async () => {
-        await Promise.all([refetchCritical(), refetchDeferred()]);
-    }, [refetchCritical, refetchDeferred]);
-
-    const refetchComments = useCallback(async () => {
-        try {
-            const comments = await getHostClient(prRef.host).fetchPullRequestCommentsByRef({ prRef });
-            queryClient.setQueryData(pullRequestDeferredQuery(prRef).queryKey, (current) => (current ? { ...current, comments } : current));
-        } catch {
-            // Keep a successful comment mutation successful if its follow-up refresh fails.
-        }
-    }, [prRef, queryClient]);
+        await Promise.all([refetchCritical(), refetchComments(), refetchDeferred()]);
+    }, [refetchComments, refetchCritical, refetchDeferred]);
 
     const error = critical.error;
     const rateLimited = isRateLimitedError(error);
     useEffect(() => {
-        if (rateLimited && !canWrite) onRequireAuth?.("rate_limit");
+        if (rateLimited && !canWrite) onRequireAuth("rate_limit");
     }, [canWrite, onRequireAuth, rateLimited]);
 
-    // Signing in lifts the rate limit that blocked the anonymous request.
-    const previousCanWriteRef = useRef(canWrite);
-    useEffect(() => {
-        const signedIn = canWrite && !previousCanWriteRef.current;
-        previousCanWriteRef.current = canWrite;
-        // eslint-disable-next-line react-doctor/query-no-query-in-effect -- A rate-limit failure is not stale data, so this explicit retry runs once on sign-in.
-        if (signedIn && rateLimited) void refetchCritical();
-    }, [canWrite, rateLimited, refetchCritical]);
-
-    const isFetching = critical.isFetching || deferred.isFetching;
+    const isFetching = critical.isFetching || comments.isFetching || deferred.isFetching;
     return {
-        hostCapabilities,
+        hostCapabilities: getHostCapabilities(prRef.host),
         data,
         error,
         rateLimited,
         isLoading: critical.isLoading,
-        isDeferredLoading: deferred.isLoading,
+        isCommentsLoading: comments.isLoading,
         isFetching,
         loadProgress: isFetching ? (critical.isFetching ? 0 : 50) : null,
         refetch,

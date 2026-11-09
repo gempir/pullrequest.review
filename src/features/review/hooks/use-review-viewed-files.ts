@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PR_SUMMARY_PATH } from "@/features/review/model/pr-summary";
 import type { PullRequestRef } from "@/lib/git-host/types";
-import { hashString } from "@/lib/review-file-fingerprint";
 import { readViewedVersionIds, writeViewedVersionIds } from "@/lib/storage";
 
 export function viewedStorageKey(prRef: PullRequestRef, diffScopeSegment: string) {
@@ -8,65 +8,74 @@ export function viewedStorageKey(prRef: PullRequestRef, diffScopeSegment: string
 }
 
 /** Viewed state is stored per file content fingerprint, so a changed file becomes unviewed again. */
-export function useReviewViewedFiles({
-    fileDiffFingerprints,
-    diffNotReady,
-    storageKey,
-}: {
-    fileDiffFingerprints: Map<string, string>;
-    diffNotReady: boolean;
-    storageKey: string;
-}) {
-    const [viewedFiles, setViewedFiles] = useState<Set<string>>(() => new Set());
-    const loadedRevisionRef = useRef("");
-    const skipPersistRevisionRef = useRef("");
+export function useReviewViewedFiles({ fileDiffFingerprints, storageKey }: { fileDiffFingerprints: Map<string, string>; storageKey: string }) {
+    const [stored, setStored] = useState(() => ({ storageKey, versionIds: readViewedVersionIds(storageKey) }));
+    if (stored.storageKey !== storageKey) setStored({ storageKey, versionIds: readViewedVersionIds(storageKey) });
 
     const versionIdByPath = useMemo(() => {
         const map = new Map<string, string>();
         for (const [path, fingerprint] of fileDiffFingerprints) map.set(path, `${path}::${fingerprint}`);
         return map;
     }, [fileDiffFingerprints]);
-    const revision = useMemo(() => {
-        const versionIds = Array.from(versionIdByPath.values()).sort();
-        return `${storageKey}:${versionIds.length}:${hashString(versionIds.join("|"))}`;
-    }, [storageKey, versionIdByPath]);
-
-    useEffect(() => {
-        if (diffNotReady || loadedRevisionRef.current === revision) return;
-        loadedRevisionRef.current = revision;
-        skipPersistRevisionRef.current = revision;
-        const viewedIds = readViewedVersionIds(storageKey, new Set(versionIdByPath.values()));
-        setViewedFiles(new Set(Array.from(versionIdByPath).flatMap(([path, versionId]) => (viewedIds.has(versionId) ? [path] : []))));
-    }, [diffNotReady, revision, storageKey, versionIdByPath]);
-
-    useEffect(() => {
-        if (diffNotReady || loadedRevisionRef.current !== revision) return;
-        if (skipPersistRevisionRef.current === revision) {
-            skipPersistRevisionRef.current = "";
-            return;
-        }
-        const viewedVersionIds = new Set(Array.from(viewedFiles).flatMap((path) => versionIdByPath.get(path) ?? []));
-        writeViewedVersionIds(storageKey, viewedVersionIds);
-    }, [diffNotReady, revision, storageKey, versionIdByPath, viewedFiles]);
-
-    const markPathViewed = useCallback(
-        (path: string) => {
-            if (!versionIdByPath.has(path)) return;
-            setViewedFiles((prev) => (prev.has(path) ? prev : new Set(prev).add(path)));
-        },
-        [versionIdByPath],
+    const viewedFiles = useMemo(
+        () => new Set(Array.from(versionIdByPath).flatMap(([path, versionId]) => (stored.versionIds.has(versionId) ? [path] : []))),
+        [stored.versionIds, versionIdByPath],
     );
-    const toggleViewedForPath = useCallback(
-        (path: string) => {
-            if (!versionIdByPath.has(path)) return;
-            setViewedFiles((prev) => {
-                const next = new Set(prev);
-                if (!next.delete(path)) next.add(path);
-                return next;
+
+    /** Marks `paths` viewed or unviewed; ids of versions no longer in the diff are dropped. */
+    const setViewed = useCallback(
+        (paths: string[], viewed: (path: string, wasViewed: boolean) => boolean) => {
+            if (!paths.some((path) => versionIdByPath.has(path))) return;
+            const changing = new Set(paths);
+            setStored((prev) => {
+                const next = new Set<string>();
+                for (const [path, versionId] of versionIdByPath) {
+                    const wasViewed = prev.versionIds.has(versionId);
+                    if (changing.has(path) ? viewed(path, wasViewed) : wasViewed) next.add(versionId);
+                }
+                writeViewedVersionIds(storageKey, next);
+                return { storageKey, versionIds: next };
             });
         },
-        [versionIdByPath],
+        [storageKey, versionIdByPath],
     );
 
-    return { viewedFiles, setViewedFiles, versionIdByPath, markPathViewed, toggleViewedForPath };
+    const markPathViewed = useCallback((path: string) => setViewed([path], () => true), [setViewed]);
+    const toggleViewedForPath = useCallback((path: string) => setViewed([path], (_, wasViewed) => !wasViewed), [setViewed]);
+
+    return { viewedFiles, versionIdByPath, setViewed, markPathViewed, toggleViewedForPath };
+}
+
+/** In single-file mode, opening a file marks that version viewed once. */
+export function useAutoMarkActiveFileViewed({
+    viewMode,
+    autoMarkViewedFiles,
+    showSettingsPanel,
+    activeFile,
+    visiblePathSet,
+    versionIdByPath,
+    markPathViewed,
+}: {
+    viewMode: "single" | "all";
+    autoMarkViewedFiles: boolean;
+    showSettingsPanel: boolean;
+    activeFile: string | undefined;
+    visiblePathSet: Set<string>;
+    versionIdByPath: Map<string, string>;
+    markPathViewed: (path: string) => void;
+}) {
+    const autoMarkedVersionIdsRef = useRef(new Set<string>());
+    useEffect(() => {
+        if (!autoMarkViewedFiles) return;
+        if (viewMode !== "single") return;
+        if (showSettingsPanel) return;
+        if (!activeFile || !visiblePathSet.has(activeFile)) return;
+        if (activeFile === PR_SUMMARY_PATH) return;
+        const selectedVersionId = versionIdByPath.get(activeFile);
+        if (!selectedVersionId) return;
+        if (autoMarkedVersionIdsRef.current.has(selectedVersionId)) return;
+
+        autoMarkedVersionIdsRef.current.add(selectedVersionId);
+        markPathViewed(activeFile);
+    }, [activeFile, autoMarkViewedFiles, markPathViewed, showSettingsPanel, versionIdByPath, viewMode, visiblePathSet]);
 }

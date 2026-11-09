@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PullRequestRoute } from "@/features/review/components/pull-request-route";
-import { validateReviewDiffScopeSearch } from "@/lib/review-diff-scope";
+import { validateReviewDiffScopeSearch } from "@/features/review/model/review-diff-scope";
 
 export const Route = createFileRoute("/$workspace/$repo/pull-requests/$pullRequestId")({
     validateSearch: validateReviewDiffScopeSearch,

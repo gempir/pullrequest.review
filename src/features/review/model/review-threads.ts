@@ -10,12 +10,6 @@ export interface CommentThread {
     root: CommentThreadNode;
 }
 
-type LegacyCommentThread = {
-    id: number;
-    root: PullRequestComment;
-    replies?: PullRequestComment[];
-};
-
 function sortByCreatedAt(left: { createdAt?: string }, right: { createdAt?: string }) {
     return new Date(left.createdAt ?? 0).getTime() - new Date(right.createdAt ?? 0).getTime();
 }
@@ -25,7 +19,6 @@ function sortByCommentCreatedAt(left: { comment: { createdAt?: string } }, right
 }
 
 export function sortThreadsByCreatedAt<T extends { root: { comment: { createdAt?: string } } }>(threads: T[]) {
-    // Return a new array so caller-owned collections are never mutated by sorting.
     return threads.toSorted((left, right) => sortByCommentCreatedAt(left.root, right.root));
 }
 
@@ -78,11 +71,6 @@ export function buildCommentThreads(comments: PullRequestComment[]): CommentThre
     );
 }
 
-export function threadCommentCount(thread: CommentThread) {
-    const countNode = (node: CommentThreadNode): number => 1 + node.children.reduce((sum, child) => sum + countNode(child), 0);
-    return countNode(thread.root);
-}
-
 export function flattenThread(thread: CommentThread): PullRequestComment[] {
     const flattened: PullRequestComment[] = [];
     const walk = (node: CommentThreadNode) => {
@@ -91,52 +79,4 @@ export function flattenThread(thread: CommentThread): PullRequestComment[] {
     };
     walk(thread.root);
     return flattened;
-}
-
-function isThreadNode(value: unknown): value is CommentThreadNode {
-    if (!value || typeof value !== "object") return false;
-    const candidate = value as Partial<CommentThreadNode>;
-    return Boolean(candidate.comment && Array.isArray(candidate.children));
-}
-
-function normalizeLegacyThread(thread: LegacyCommentThread): CommentThread | null {
-    if (!thread.root || typeof thread.root !== "object") return null;
-    return {
-        id: Number(thread.id || thread.root.id),
-        root: {
-            comment: thread.root,
-            children: (thread.replies ?? []).sort(sortByCreatedAt).map((reply) => ({
-                comment: reply,
-                children: [],
-            })),
-        },
-    };
-}
-
-export function normalizeCommentThread(value: unknown): CommentThread | null {
-    if (!value || typeof value !== "object") return null;
-    const candidate = value as Partial<CommentThread> & Partial<LegacyCommentThread>;
-
-    if (isThreadNode(candidate.root)) {
-        return {
-            id: Number(candidate.id ?? candidate.root.comment.id),
-            root: candidate.root,
-        };
-    }
-
-    if (candidate.root && typeof candidate.root === "object") {
-        return normalizeLegacyThread(candidate as LegacyCommentThread);
-    }
-
-    return null;
-}
-
-export function normalizeCommentThreads(threads: unknown[]): CommentThread[] {
-    const normalized: CommentThread[] = [];
-    for (const thread of threads) {
-        const candidate = normalizeCommentThread(thread);
-        if (!candidate) continue;
-        normalized.push(candidate);
-    }
-    return normalized;
 }

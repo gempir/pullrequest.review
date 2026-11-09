@@ -20,9 +20,9 @@ export function CommentEditor({
     disabled,
     onChange,
     onSubmit,
-    onReady,
+    autoFocus,
+    onFocus,
     toolbarClassName,
-    contentClassName,
     contentStyle,
     chrome = "full",
 }: {
@@ -31,9 +31,10 @@ export function CommentEditor({
     disabled?: boolean;
     onChange: (next: string) => void;
     onSubmit: () => void;
-    onReady?: (focus: () => void) => void;
+    /** Focuses the editor, caret at the end, when it mounts. */
+    autoFocus?: boolean;
+    onFocus?: () => void;
     toolbarClassName?: string;
-    contentClassName?: string;
     contentStyle?: CSSProperties;
     chrome?: "full" | "toolbar";
 }) {
@@ -41,13 +42,11 @@ export function CommentEditor({
     const attachTextarea = useCallback(
         (node: HTMLTextAreaElement | null) => {
             textareaRef.current = node;
-            if (!node) return;
-            onReady?.(() => {
-                node.focus();
-                node.setSelectionRange(node.value.length, node.value.length);
-            });
+            if (!node || !autoFocus) return;
+            node.focus();
+            node.setSelectionRange(node.value.length, node.value.length);
         },
-        [onReady],
+        [autoFocus],
     );
 
     const applyAction = (action: keyof typeof COMMENT_MARKDOWN_ACTIONS) => {
@@ -99,6 +98,7 @@ export function CommentEditor({
                 aria-label={placeholder}
                 style={{ fontFamily: "var(--comment-font-family)", minHeight: "3.75rem", fieldSizing: "content", ...contentStyle } as CSSProperties}
                 onChange={(event) => onChange(event.target.value)}
+                onFocus={onFocus}
                 onKeyDown={(event) => {
                     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                         event.preventDefault();
@@ -110,7 +110,6 @@ export function CommentEditor({
                     chrome === "full"
                         ? "rounded-b-md border border-comment-border bg-comment px-3 py-2 group-focus-within/editor:border-input"
                         : "bg-transparent p-0",
-                    contentClassName,
                 )}
             />
         </div>

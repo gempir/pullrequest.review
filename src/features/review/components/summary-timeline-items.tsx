@@ -1,34 +1,34 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Check, GitCommitHorizontal, GitMerge, GitPullRequestClosed, MessageSquare, PenSquare, ScrollText, Trash2, UserMinus, UserPlus, X } from "lucide-react";
-import { CommentShareButton } from "@/components/comment-share-button";
+import { CommentMarkdown } from "@/components/comment-markdown";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Timestamp } from "@/components/timestamp";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ThreadCard } from "@/features/review/components/review-thread-card";
-import { HistoryCommentSurface } from "@/features/review/components/summary-history-comment";
+import { CommentShareButton } from "@/features/review/components/comment-share-button";
 import {
     Avatar,
     CommentDiffSnippetBlock,
     TIMELINE_CONNECTOR_CENTER_CLASS,
     TIMELINE_META_TEXT_CLASS,
     TIMELINE_TIMESTAMP_CLASS,
-} from "@/features/review/components/summary-shared";
+} from "@/features/review/components/comment-ui";
+import { ThreadCard } from "@/features/review/components/review-thread-card";
+import type { CommentActions } from "@/features/review/model/comment-actions";
+import { buildPrFileHash } from "@/features/review/model/pr-file-hash";
+import type { ReviewDiffScopeSearch } from "@/features/review/model/review-diff-scope";
 import type { CommentThread } from "@/features/review/model/review-threads";
 import {
     type CommentDiffSnippet,
+    type CommentTarget,
     type CommitAuthorGroup,
     type CommitGroupTimelineEntry,
-    commentToHistoryLocation,
     commitAuthorEmail,
-    type EditCommentHandler,
     groupCommitsByAuthor,
     isMergedDevelopCommit,
-    type ReplyCommentHandler,
     shortHash,
+    shouldRenderHistoryDetails,
 } from "@/features/review/model/summary-timeline";
-import type { PullRequestBundle, PullRequestHistoryEvent } from "@/lib/git-host/types";
-import { buildPrFileHash } from "@/lib/pr-file-hash";
-import type { ReviewDiffScopeSearch } from "@/lib/review-diff-scope";
+import type { PullRequestHistoryEvent } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
 
 function historyIcon(type: PullRequestHistoryEvent["type"]) {
@@ -111,12 +111,10 @@ export function CommitGroupTimelineItem({
     showConnectorAbove,
     showConnectorBelow,
     entry,
-    host,
 }: {
     showConnectorAbove: boolean;
     showConnectorBelow: boolean;
     entry: CommitGroupTimelineEntry;
-    host: PullRequestBundle["prRef"]["host"];
 }) {
     const { hash, pathname } = useRouterState({
         select: (state) => ({
@@ -140,7 +138,7 @@ export function CommitGroupTimelineItem({
                         <div key={`${entry.id}-${group.id}`} className="min-w-0">
                             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
                                 <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
-                                    <CommitAuthorIdentity host={host} group={group} />
+                                    <CommitAuthorIdentity group={group} />
                                 </div>
                                 <Timestamp
                                     value={group.commits[0]?.date}
@@ -191,8 +189,8 @@ export function CommitGroupTimelineItem({
     );
 }
 
-function CommitAuthorIdentity({ host, group }: { host: PullRequestBundle["prRef"]["host"]; group: CommitAuthorGroup }) {
-    const email = host === "bitbucket" ? commitAuthorEmail(group.commits[0]) : undefined;
+function CommitAuthorIdentity({ group }: { group: CommitAuthorGroup }) {
+    const email = commitAuthorEmail(group.commits[0]);
     const content = (
         <div className="min-w-0 inline-flex items-center gap-2">
             <Avatar name={group.authorName} url={group.avatarUrl} />
@@ -218,42 +216,15 @@ export function HistoryTimelineItem({
     showConnectorAbove,
     showConnectorBelow,
     event,
-    diffSnippet,
-    resolvedComment,
-    currentUserDisplayName,
-    onSelectComment,
-    canCommentInline,
-    canResolveThread,
-    createCommentPending,
-    resolveCommentPending,
-    deleteCommentPending,
-    updateCommentPending,
-    onDeleteComment,
-    onResolveThread,
-    onReplyToThread,
-    onEditComment,
 }: {
     showConnectorAbove: boolean;
     showConnectorBelow: boolean;
     event: PullRequestHistoryEvent;
-    diffSnippet?: CommentDiffSnippet;
-    resolvedComment?: PullRequestBundle["comments"][number];
-    currentUserDisplayName?: string;
-    onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
-    canCommentInline?: boolean;
-    canResolveThread?: boolean;
-    createCommentPending?: boolean;
-    resolveCommentPending?: boolean;
-    deleteCommentPending?: boolean;
-    updateCommentPending?: boolean;
-    onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
-    onResolveThread?: (commentId: number, resolve: boolean) => void;
-    onReplyToThread?: ReplyCommentHandler;
-    onEditComment?: EditCommentHandler;
 }) {
     const HistoryIcon = historyIcon(event.type);
     const eventTitle = historyEventTitle(event.type);
-    const hasAttachedContent = Boolean(event.comment?.path || event.details || diffSnippet || event.content || event.contentHtml);
+    const details = event.details && shouldRenderHistoryDetails(event.type) ? event.details : undefined;
+    const content = event.contentHtml ?? event.content;
 
     return (
         <div className="relative grid grid-cols-[16px_minmax(0,1fr)] gap-[14px] pb-3">
@@ -264,59 +235,46 @@ export function HistoryTimelineItem({
                 </div>
             </div>
             <div className="min-w-0 pt-1">
-                <div className="w-full rounded-md text-left">
-                    {!hasAttachedContent ? (
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
-                            <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
-                                <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} />
-                                <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
-                                {eventTitle ? <span className="text-muted-foreground">{eventTitle}</span> : null}
+                {details || content ? (
+                    <div className="mt-1 overflow-hidden rounded-md border border-comment-border bg-comment">
+                        {details ? (
+                            <div className="border-b border-comment-border px-2.5 py-2 text-[13px] text-muted-foreground break-words">{details}</div>
+                        ) : null}
+                        {content ? (
+                            <div className="flex items-start gap-2 px-2 py-2 mx-1.5 my-1">
+                                <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} sizeClass="size-6" />
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                        <span className="truncate text-[13px] font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
+                                        <Timestamp
+                                            value={event.updatedAt ?? event.createdAt}
+                                            className="pt-0 text-[11px] text-muted-foreground"
+                                            variant="comment"
+                                        />
+                                    </div>
+                                    <div className="mt-1.5 min-w-0">
+                                        <CommentMarkdown text={content} />
+                                    </div>
+                                </div>
                             </div>
-                            <Timestamp
-                                value={event.updatedAt ?? event.createdAt}
-                                variant={event.type === "comment" ? "comment" : "default"}
-                                className={TIMELINE_TIMESTAMP_CLASS}
-                            />
+                        ) : null}
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
+                        <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
+                            <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} />
+                            <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
+                            {eventTitle ? <span className="text-muted-foreground">{eventTitle}</span> : null}
                         </div>
-                    ) : null}
-                    {hasAttachedContent ? (
-                        <HistoryCommentSurface
-                            event={event}
-                            diffSnippet={diffSnippet}
-                            resolvedComment={resolvedComment}
-                            currentUserDisplayName={currentUserDisplayName}
-                            onSelectComment={onSelectComment}
-                            canCommentInline={canCommentInline}
-                            canResolveThread={canResolveThread}
-                            createCommentPending={createCommentPending}
-                            resolveCommentPending={resolveCommentPending}
-                            deleteCommentPending={deleteCommentPending}
-                            updateCommentPending={updateCommentPending}
-                            onDeleteComment={onDeleteComment}
-                            onResolveThread={onResolveThread}
-                            onReplyToThread={onReplyToThread}
-                            onEditComment={onEditComment}
-                        />
-                    ) : null}
-                </div>
+                        <Timestamp value={event.updatedAt ?? event.createdAt} className={TIMELINE_TIMESTAMP_CLASS} />
+                    </div>
+                )}
             </div>
         </div>
     );
 }
 
-function CommentThreadPathHeader({
-    path,
-    line,
-    side,
-    commentId,
-    onSelectComment,
-}: {
-    path: string;
-    line?: number;
-    side?: "additions" | "deletions";
-    commentId: number;
-    onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
-}) {
+function CommentThreadPathHeader({ path, commentId, onSelectComment }: { path: string; commentId: number; onSelectComment?: (target: CommentTarget) => void }) {
     const fileName = path.split("/").pop() || path;
 
     return (
@@ -325,10 +283,7 @@ function CommentThreadPathHeader({
                 href={`#${buildPrFileHash(path, commentId)}`}
                 className="absolute inset-0 cursor-pointer outline-none"
                 aria-label={`Open comment on ${path}`}
-                onClick={() => {
-                    if (!onSelectComment) return;
-                    onSelectComment({ path, line, side, commentId });
-                }}
+                onClick={() => onSelectComment?.({ path, commentId })}
             >
                 <span className="sr-only">Open comment on {path}</span>
             </a>
@@ -347,39 +302,18 @@ export function CommentThreadTimelineItem({
     showConnectorBelow,
     thread,
     diffSnippet,
-    currentUserDisplayName,
-    canCommentInline,
-    canResolveThread,
-    createCommentPending,
-    resolveCommentPending,
-    deleteCommentPending,
-    updateCommentPending,
+    actions,
     onSelectComment,
-    onDeleteComment,
-    onResolveThread,
-    onReplyToThread,
-    onEditComment,
 }: {
     showConnectorAbove: boolean;
     showConnectorBelow: boolean;
     thread: CommentThread;
     diffSnippet?: CommentDiffSnippet;
-    currentUserDisplayName?: string;
-    canCommentInline?: boolean;
-    canResolveThread?: boolean;
-    createCommentPending?: boolean;
-    resolveCommentPending?: boolean;
-    deleteCommentPending?: boolean;
-    updateCommentPending?: boolean;
-    onSelectComment?: (payload: { path: string; line?: number; side?: "additions" | "deletions"; commentId?: number }) => void;
-    onDeleteComment?: (commentId: number, hasInlineContext: boolean) => void;
-    onResolveThread?: (commentId: number, resolve: boolean) => void;
-    onReplyToThread?: ReplyCommentHandler;
-    onEditComment?: EditCommentHandler;
+    actions: CommentActions;
+    onSelectComment?: (target: CommentTarget) => void;
 }) {
     const rootComment = thread.root.comment;
     const path = rootComment.inline?.path;
-    const location = commentToHistoryLocation(rootComment);
 
     return (
         <div className="relative grid grid-cols-[16px_minmax(0,1fr)] gap-[14px] pb-3">
@@ -392,35 +326,17 @@ export function CommentThreadTimelineItem({
             <div className="min-w-0 pt-1">
                 <ThreadCard
                     thread={thread}
+                    actions={actions}
                     attachToDiffEdge={false}
                     showCommentShareLinks={false}
                     header={
                         path || diffSnippet ? (
                             <>
-                                {path ? (
-                                    <CommentThreadPathHeader
-                                        path={path}
-                                        line={location?.line}
-                                        side={location?.side}
-                                        commentId={rootComment.id}
-                                        onSelectComment={onSelectComment}
-                                    />
-                                ) : null}
+                                {path ? <CommentThreadPathHeader path={path} commentId={rootComment.id} onSelectComment={onSelectComment} /> : null}
                                 {diffSnippet ? <CommentDiffSnippetBlock snippet={diffSnippet} className="border-t border-comment-border" /> : null}
                             </>
                         ) : null
                     }
-                    canResolveThread={Boolean(canResolveThread)}
-                    canCommentInline={Boolean(canCommentInline)}
-                    createCommentPending={Boolean(createCommentPending)}
-                    resolveCommentPending={Boolean(resolveCommentPending)}
-                    deleteCommentPending={Boolean(deleteCommentPending)}
-                    updateCommentPending={Boolean(updateCommentPending)}
-                    currentUserDisplayName={currentUserDisplayName}
-                    onDeleteComment={onDeleteComment ?? (() => {})}
-                    onResolveThread={onResolveThread ?? (() => {})}
-                    onReplyToThread={onReplyToThread ?? (() => {})}
-                    onEditComment={onEditComment ?? (() => {})}
                 />
             </div>
         </div>

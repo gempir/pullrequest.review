@@ -1,8 +1,9 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CommentEditor } from "@/components/comment-editor";
+import { CommentMarkdown } from "@/components/comment-markdown";
 import { Button } from "@/components/ui/button";
-import { COMMENT_PRIMARY_BUTTON_CLASS, MarkdownBlock } from "@/features/review/components/summary-shared";
+import { COMMENT_PRIMARY_BUTTON_CLASS } from "@/features/review/components/comment-ui";
 import { cn } from "@/lib/utils";
 
 export function SummaryDescription({
@@ -60,9 +61,7 @@ export function SummaryDescription({
                     disabled={isSaving}
                     onChange={setDraft}
                     onSubmit={handleSave}
-                    onReady={(focus) => {
-                        focus();
-                    }}
+                    autoFocus
                     chrome="toolbar"
                     toolbarClassName="-mx-2 px-0.5"
                     contentStyle={{ minHeight: "9rem" }}
@@ -107,7 +106,7 @@ export function SummaryDescription({
                 startEditing();
             }}
         >
-            {description?.trim() ? <MarkdownBlock text={description} /> : <div className="text-[13px] text-muted-foreground">No description.</div>}
+            {description?.trim() ? <CommentMarkdown text={description} /> : <div className="text-[13px] text-muted-foreground">No description.</div>}
         </section>
     );
 }

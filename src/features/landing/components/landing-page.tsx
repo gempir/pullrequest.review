@@ -1,37 +1,229 @@
-import { LandingMainContent } from "@/features/landing/components/landing-main-content";
+import { AlertCircle, GitPullRequest, House, Loader2, RefreshCw, Settings2 } from "lucide-react";
+import { HostAuthForm } from "@/components/auth/host-auth-form";
+import { GitHostIcon } from "@/components/git-host-icon";
+import { requestOpenAppPullRequestOmnibar } from "@/components/omnibar/app-omnibar-events";
+import { OmnibarMenubarInput } from "@/components/omnibar/omnibar-menubar-input";
+import { RepositorySelector } from "@/components/repository-selector";
+import { Button } from "@/components/ui/button";
+import { LandingPullRequestTable } from "@/features/landing/components/landing-pull-request-table";
 import { useLandingPageView } from "@/features/landing/hooks/use-landing-page-view";
-import type { GitHost } from "@/lib/git-host/types";
+import { getHostLabel } from "@/lib/git-host/registry";
+import { type GitHost, HOSTS, type RepoRef } from "@/lib/git-host/types";
+import type { SortedRootPullRequest } from "@/lib/selected-pull-requests";
+import { cn } from "@/lib/utils";
 
-export function LandingPage({
-    initialHost,
-    initialDiffPanel = "pull-requests",
+function LandingRepositoryPanel({
+    activeHost,
+    authenticated,
+    selectedRepos,
+    onSaveSelectedRepos,
+    onClearRepos,
+    onDisconnectHost,
 }: {
-    initialHost?: GitHost;
-    initialDiffPanel?: "pull-requests" | "repositories";
-} = {}) {
-    const view = useLandingPageView({ initialHost, initialDiffPanel });
+    activeHost: GitHost;
+    authenticated: boolean;
+    selectedRepos: RepoRef[];
+    onSaveSelectedRepos: (host: GitHost, repos: RepoRef[]) => void;
+    onClearRepos: (host: GitHost) => void;
+    onDisconnectHost: (host: GitHost) => void;
+}) {
+    if (!authenticated) return <HostAuthForm host={activeHost} mode="panel" />;
+    return (
+        <>
+            <RepositorySelector
+                key={`${activeHost}:${selectedRepos.map((repo) => repo.fullName).join("|")}`}
+                host={activeHost}
+                initialSelected={selectedRepos}
+                onSave={(nextRepos) => onSaveSelectedRepos(activeHost, nextRepos)}
+            />
+            <div className="flex justify-end">
+                <Button variant="outline" className="rounded-md" onClick={() => onClearRepos(activeHost)}>
+                    Clear {getHostLabel(activeHost)} repositories
+                </Button>
+            </div>
+            <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-4">
+                <div className="text-[12px] text-muted-foreground">Danger zone</div>
+                <Button
+                    variant="outline"
+                    className="rounded-md border-destructive/30 text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                        if (!window.confirm(`Disconnect ${getHostLabel(activeHost)} and clear its repositories?`)) return;
+                        onDisconnectHost(activeHost);
+                    }}
+                >
+                    Disconnect {getHostLabel(activeHost)}
+                </Button>
+            </div>
+        </>
+    );
+}
 
+function LandingPullRequestsPanel({
+    selectedRepoCount,
+    isRepoPullRequestLoading,
+    repoPullRequestError,
+    sortedRootPullRequests,
+    onOpenPullRequest,
+}: {
+    selectedRepoCount: number;
+    isRepoPullRequestLoading: boolean;
+    repoPullRequestError: unknown;
+    sortedRootPullRequests: SortedRootPullRequest[];
+    onOpenPullRequest: (repo: RepoRef, pullRequestId: string) => void;
+}) {
+    if (selectedRepoCount === 0) {
+        return (
+            <div className="max-w-2xl space-y-2 rounded-md border border-border-muted bg-surface-1 p-8 text-center">
+                <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                    <GitPullRequest className="size-4" />
+                    <span className="text-[13px]">No repositories selected.</span>
+                </div>
+                <p className="text-[12px] text-muted-foreground">Use {HOSTS.map(getHostLabel).join(" or ")} in the top right to choose repositories.</p>
+            </div>
+        );
+    }
+    if (isRepoPullRequestLoading) {
+        return (
+            <div className="flex h-full items-center justify-center gap-2 text-[13px] text-muted-foreground" role="status">
+                <Loader2 className="size-4 animate-spin" />
+                <span>Loading pull requests...</span>
+            </div>
+        );
+    }
+    if (repoPullRequestError) {
+        return (
+            <div className="max-w-2xl rounded-md border border-destructive/40 bg-destructive/10 p-4 text-[13px] text-destructive">
+                <div className="flex items-center gap-2">
+                    <AlertCircle className="size-4" />
+                    <span>[ERROR] {repoPullRequestError instanceof Error ? repoPullRequestError.message : "Failed to load pull requests"}</span>
+                </div>
+            </div>
+        );
+    }
+    if (sortedRootPullRequests.length === 0) {
+        return (
+            <div className="max-w-2xl space-y-2 rounded-md border border-border-muted bg-surface-1 p-8 text-center">
+                <p className="text-[13px] text-muted-foreground">No pull requests in selected repositories.</p>
+                <p className="text-[12px] text-muted-foreground">Use {HOSTS.map(getHostLabel).join(" or ")} in the top right to manage repositories.</p>
+            </div>
+        );
+    }
+    return (
+        <div className="flex h-full min-h-0 flex-col">
+            <LandingPullRequestTable data={sortedRootPullRequests} onOpenPullRequest={onOpenPullRequest} />
+        </div>
+    );
+}
+
+/** The pull request list, or with `initialHost` that host's repository selection. */
+export function LandingPage({ initialHost }: { initialHost?: GitHost }) {
+    const {
+        showRepositoryPanel,
+        isRefreshing,
+        activeHost,
+        authByHost,
+        reposByHost,
+        selectedRepoCount,
+        isRepoPullRequestLoading,
+        repoPullRequestError,
+        sortedRootPullRequests,
+        onHome,
+        onRefresh,
+        onOpenSettings,
+        onSaveSelectedRepos,
+        onClearRepos,
+        onDisconnectHost,
+        onOpenRepositorySelection,
+        onOpenPullRequest,
+    } = useLandingPageView({ initialHost });
     return (
         <div className="h-full min-h-0 flex bg-background">
-            <LandingMainContent
-                showRepositoryPanel={view.showRepositoryPanel}
-                isRefreshing={view.isRefreshing}
-                activeHost={view.activeHost}
-                authByHost={view.authByHost}
-                reposByHost={view.reposByHost}
-                selectedRepoCount={view.selectedRepoCount}
-                isRepoPullRequestLoading={view.isRepoPullRequestLoading}
-                repoPullRequestError={view.repoPullRequestError}
-                sortedRootPullRequests={view.sortedRootPullRequests}
-                onHome={view.onHome}
-                onRefresh={view.refreshCurrentView}
-                onToggleSettings={view.onToggleSettings}
-                onSaveSelectedRepos={view.onSaveSelectedRepos}
-                onClearRepos={view.clearReposForHost}
-                onDisconnectHost={view.onDisconnectHost}
-                onOpenRepositorySelection={view.openRepositorySelection}
-                onOpenPullRequest={view.openPullRequest}
-            />
+            <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+                <header data-component="navbar" className="flex h-11 items-center gap-1 border-b border-border-muted bg-chrome px-2 text-[12px]">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={onHome}
+                        aria-label="Home"
+                    >
+                        <House className="size-3.5" />
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={onOpenSettings}
+                        aria-label="Settings"
+                    >
+                        <Settings2 className="size-3.5" />
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                            void onRefresh();
+                        }}
+                        aria-label="Refresh current view data"
+                    >
+                        <RefreshCw className={cn("size-3.5", isRefreshing ? "animate-spin" : undefined)} />
+                    </Button>
+                    {showRepositoryPanel ? <span className="ml-2 shrink-0 text-muted-foreground">Repository Selection</span> : null}
+                    <OmnibarMenubarInput onOpen={requestOpenAppPullRequestOmnibar} />
+                    <div className="flex shrink-0 items-center gap-1 pl-2">
+                        {HOSTS.map((host) => {
+                            const isActive = showRepositoryPanel && activeHost === host;
+                            const repoCount = reposByHost[host].length;
+                            return (
+                                <Button
+                                    key={host}
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(
+                                        "h-8 gap-1.5 rounded-sm px-2 text-[11px] text-muted-foreground hover:text-foreground",
+                                        isActive ? "bg-selection text-foreground" : null,
+                                    )}
+                                    onClick={() => onOpenRepositorySelection(host)}
+                                    aria-label={`${getHostLabel(host)} settings`}
+                                    title={`${getHostLabel(host)} repositories${repoCount > 0 ? ` (${repoCount})` : ""}`}
+                                >
+                                    <GitHostIcon host={host} className="size-3.5" />
+                                    <span>{getHostLabel(host)}</span>
+                                    {repoCount > 0 ? <span className="font-mono text-muted-foreground">{repoCount}</span> : null}
+                                </Button>
+                            );
+                        })}
+                    </div>
+                </header>
+
+                <main data-component="diff-view" className={cn("min-h-0 flex-1", showRepositoryPanel ? "overflow-y-auto p-4" : "overflow-hidden p-4")}>
+                    {showRepositoryPanel ? (
+                        <div className="max-w-3xl space-y-4">
+                            <LandingRepositoryPanel
+                                activeHost={activeHost}
+                                authenticated={authByHost[activeHost]}
+                                selectedRepos={reposByHost[activeHost]}
+                                onSaveSelectedRepos={onSaveSelectedRepos}
+                                onClearRepos={onClearRepos}
+                                onDisconnectHost={onDisconnectHost}
+                            />
+                        </div>
+                    ) : (
+                        <LandingPullRequestsPanel
+                            selectedRepoCount={selectedRepoCount}
+                            isRepoPullRequestLoading={isRepoPullRequestLoading}
+                            repoPullRequestError={repoPullRequestError}
+                            sortedRootPullRequests={sortedRootPullRequests}
+                            onOpenPullRequest={onOpenPullRequest}
+                        />
+                    )}
+                </main>
+            </section>
         </div>
     );
 }

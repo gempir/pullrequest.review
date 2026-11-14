@@ -346,7 +346,7 @@ export function ThreadCard({
                         }}
                     />
                     {!collapsed && thread.root.children.length > 0 ? (
-                        <div className="relative z-10 border-t border-comment-border px-3 py-1.5">
+                        <div className="relative z-10 px-3 pb-2">
                             {thread.root.children.map((reply) => (
                                 <ReplyNode key={reply.comment.id} node={reply} depth={1} />
                             ))}

@@ -43,7 +43,7 @@ function AllModeSummary() {
                     {...review.summaryProps}
                     bundle={review.prData}
                     diffStats={lineStats}
-                    footerRight={<ReviewSummaryCommentComposer key={review.pullRequestId} {...review.summaryComposer} />}
+                    composer={<ReviewSummaryCommentComposer key={review.pullRequestId} {...review.summaryComposer} />}
                 />
             )}
         </div>

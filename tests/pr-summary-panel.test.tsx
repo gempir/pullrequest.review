@@ -1,8 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PullRequestSummaryPanel } from "../src/features/review/components/pr-summary-panel";
+import { ReviewSummaryCommentComposer } from "../src/features/review/components/review-summary-comment-composer";
 import type { CommentActions } from "../src/features/review/model/comment-actions";
 import type { PullRequestBundle } from "../src/lib/git-host/types";
+
+function addCommentButtonTag(html: string) {
+    const start = html.lastIndexOf("<button", html.indexOf("Add comment"));
+    return html.slice(start, html.indexOf(">", start) + 1);
+}
 
 const actions: CommentActions = {
     canReply: false,
@@ -110,11 +116,12 @@ describe("pull request summary comment header", () => {
         };
 
         const html = renderToStaticMarkup(
-            <PullRequestSummaryPanel bundle={activityBundle} actions={actions} headerTitle="Test pull request" footerRight={<div>Comment composer</div>} />,
+            <PullRequestSummaryPanel bundle={activityBundle} actions={actions} headerTitle="Test pull request" composer={<div>Comment composer</div>} />,
         );
 
         expect(html.indexOf('data-component="summary-description"') < html.indexOf('data-component="summary-timeline"')).toBe(true);
         expect(html.indexOf("Comment composer") > html.indexOf('data-component="summary-timeline"')).toBe(true);
+        expect(html.indexOf("Comment composer") < html.indexOf("Thread moved by reply")).toBe(true);
         expect(html.indexOf("Thread moved by reply") < html.indexOf("Newer activity")).toBe(true);
         expect(html.indexOf("Newer activity") < html.indexOf("Standalone thread")).toBe(true);
         expect(html.indexOf("Standalone thread") < html.indexOf("Older activity")).toBe(true);
@@ -155,5 +162,22 @@ describe("pull request summary comment header", () => {
 
         expect(html).toContain('<h4 class="text-sm font-bold">Fourth level</h4>');
         expect(html).toContain('<h5 class="text-[13px] font-bold">Fifth level</h5>');
+    });
+
+    test("renders the composer collapsed to an add comment button at the top of the timeline", () => {
+        const composer = (canComment: boolean) => (
+            <PullRequestSummaryPanel
+                bundle={bundle}
+                actions={actions}
+                composer={<ReviewSummaryCommentComposer canComment={canComment} isSubmitting={false} onSubmit={() => false} />}
+            />
+        );
+
+        const html = renderToStaticMarkup(composer(true));
+        expect(html).toContain("Add comment");
+        expect(html).not.toContain("Add your comment here");
+        expect(html.indexOf("Add comment") < html.indexOf("opened the pull request")).toBe(true);
+        expect(addCommentButtonTag(html)).not.toContain('disabled=""');
+        expect(addCommentButtonTag(renderToStaticMarkup(composer(false)))).toContain('disabled=""');
     });
 });

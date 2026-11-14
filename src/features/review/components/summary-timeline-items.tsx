@@ -121,6 +121,16 @@ function TimelineMarker({ className, children }: { className: string; children: 
     );
 }
 
+/** Wraps a caller-provided row (e.g. the comment composer) so it attaches to the timeline connector. */
+export function TimelineSlot({ showConnectorBelow, children }: { showConnectorBelow: boolean; children: ReactNode }) {
+    return (
+        <div className="relative pb-4" data-component="summary-timeline-slot">
+            <TimelineConnector showBelow={showConnectorBelow} />
+            {children}
+        </div>
+    );
+}
+
 export function CommitGroupTimelineItem({ showConnectorBelow, entry }: { showConnectorBelow: boolean; entry: CommitGroupTimelineEntry }) {
     const { hash, pathname } = useRouterState({
         select: (state) => ({

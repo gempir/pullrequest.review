@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo } from "react";
 import { Avatar } from "@/features/review/components/comment-ui";
 import { SummaryDescription } from "@/features/review/components/summary-description";
-import { CommentThreadTimelineItem, CommitGroupTimelineItem, HistoryTimelineItem } from "@/features/review/components/summary-timeline-items";
+import { CommentThreadTimelineItem, CommitGroupTimelineItem, HistoryTimelineItem, TimelineSlot } from "@/features/review/components/summary-timeline-items";
 import type { CommentActions } from "@/features/review/model/comment-actions";
 import { buildDiffByPath, buildSummaryTimeline, type CommentTarget, findCommentDiffSnippet } from "@/features/review/model/summary-timeline";
 import type { PullRequestBundle } from "@/lib/git-host/types";
@@ -12,7 +12,7 @@ export function PullRequestSummaryPanel({
     headerTitle,
     diffStats,
     headerRight,
-    footerRight,
+    composer,
     onSelectComment,
     updateDescriptionPending,
     onEditDescription,
@@ -22,7 +22,8 @@ export function PullRequestSummaryPanel({
     headerTitle?: string;
     diffStats?: { added: number; removed: number };
     headerRight?: ReactNode;
-    footerRight?: ReactNode;
+    /** Rendered as the first timeline row, above the newest entry. */
+    composer?: ReactNode;
     onSelectComment?: (target: CommentTarget) => void;
     updateDescriptionPending?: boolean;
     /** Omitted when the description is read-only. */
@@ -57,6 +58,7 @@ export function PullRequestSummaryPanel({
                     onEditDescription={onEditDescription}
                 />
                 <div className="mt-5 border-t border-border-muted pt-5" data-component="summary-timeline">
+                    {composer ? <TimelineSlot showConnectorBelow={timelineEntries.length > 0}>{composer}</TimelineSlot> : null}
                     {timelineEntries.map((entry, index) => {
                         const showConnectorBelow = index < timelineEntries.length - 1;
 
@@ -80,7 +82,6 @@ export function PullRequestSummaryPanel({
                         return <HistoryTimelineItem key={entry.id} showConnectorBelow={showConnectorBelow} event={entry.event} />;
                     })}
                 </div>
-                {footerRight ? <div className="mt-2 border-t border-border-muted pt-5">{footerRight}</div> : null}
             </div>
         </div>
     );

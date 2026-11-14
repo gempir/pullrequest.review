@@ -27,7 +27,7 @@ export function ReviewSingleModeView() {
                     bundle={prData}
                     headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
                     diffStats={lineStats}
-                    footerRight={<ReviewSummaryCommentComposer key={review.pullRequestId} {...review.summaryComposer} />}
+                    composer={<ReviewSummaryCommentComposer key={review.pullRequestId} {...review.summaryComposer} />}
                     headerRight={
                         <div className="flex items-center gap-1">
                             <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={setViewMode} onOpenDiffSettings={openDiffSettings} />

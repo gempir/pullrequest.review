@@ -13,7 +13,8 @@ import { fileAnchorId } from "@/features/review/model/file-anchors";
 import { PR_SUMMARY_NAME, PR_SUMMARY_PATH } from "@/features/review/model/pr-summary";
 import { cn } from "@/lib/utils";
 
-const STICKY_HEADER_CLASS = "group sticky top-0 z-20 h-10 min-w-0 bg-chrome px-2.5 flex items-center gap-2 overflow-hidden text-[12px]";
+const STICKY_HEADER_CLASS =
+    "group sticky top-0 z-20 h-10 min-w-0 bg-chrome border-y border-border-muted -mt-px px-3 flex items-center gap-2 overflow-hidden text-[12px]";
 
 function AllModeSummary() {
     const review = useReview();
@@ -26,9 +27,9 @@ function AllModeSummary() {
                     <span className="size-4 flex items-center justify-center shrink-0">
                         <ScrollText className="size-3.5" />
                     </span>
-                    <span className="min-w-0 max-w-full truncate font-mono">{review.pullRequestTitle || PR_SUMMARY_NAME}</span>
+                    <span className="min-w-0 max-w-full truncate text-[13px] font-medium">{review.pullRequestTitle || PR_SUMMARY_NAME}</span>
                 </button>
-                <div className="shrink-0 font-mono text-[11px]">
+                <div className="shrink-0 text-[12px] tabular-nums">
                     <span className="text-status-added">+{lineStats.added}</span>
                     <span className="ml-2 text-status-removed">-{lineStats.removed}</span>
                 </div>
@@ -42,7 +43,7 @@ function AllModeSummary() {
                     {...review.summaryProps}
                     bundle={review.prData}
                     diffStats={lineStats}
-                    footerRight={<ReviewSummaryCommentComposer key={review.pullRequestId} {...review.summaryComposer} />}
+                    composer={<ReviewSummaryCommentComposer key={review.pullRequestId} {...review.summaryComposer} />}
                 />
             )}
         </div>
@@ -89,10 +90,10 @@ export function ReviewAllModeView() {
                     <div key={filePath} ref={rowVirtualizer.measureElement} data-index={virtualRow.index}>
                         <div id={fileAnchorId(filePath)} className={cn("w-full max-w-full bg-card", isCollapsed && "border-b-0")}>
                             <div className={STICKY_HEADER_CLASS}>
-                                <div className="min-w-0 flex flex-1 items-center gap-2">
+                                <div className="min-w-0 flex flex-1 items-center gap-1">
                                     <button
                                         type="button"
-                                        className="h-full min-w-0 flex items-center gap-2 overflow-hidden text-left"
+                                        className="mr-1 h-full min-w-0 flex items-center gap-2 overflow-hidden text-left"
                                         onClick={() => review.setFileCollapsed(filePath, !isCollapsed)}
                                     >
                                         <span className="size-4 flex items-center justify-center shrink-0">
@@ -103,7 +104,7 @@ export function ReviewAllModeView() {
                                     <CopyPathButton path={filePath} />
                                     <DiffContextButton state={fileContextState[filePath]} onClick={() => review.onLoadFullFileContext(filePath, fileDiff)} />
                                 </div>
-                                <div className="ml-auto flex shrink-0 items-center gap-2 text-[12px]">
+                                <div className="ml-auto flex shrink-0 items-center gap-2 text-[12px] tabular-nums">
                                     <span className="select-none text-status-added">+{stats?.added ?? 0}</span>
                                     <span className="select-none text-status-removed">-{stats?.removed ?? 0}</span>
                                     {unresolvedCount > 0 ? <span className="text-muted-foreground">{unresolvedCount} unresolved</span> : null}
@@ -127,7 +128,7 @@ export function ReviewAllModeView() {
             {paddingBottom > 0 ? <div style={{ height: paddingBottom }} /> : null}
 
             {allModeDiffEntries.length === 0 ? (
-                <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">No files match the current search.</div>
+                <div className="p-12 text-center text-[13px] text-faint-foreground">No files match the current search.</div>
             ) : null}
         </div>
     );

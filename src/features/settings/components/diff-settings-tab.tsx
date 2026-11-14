@@ -55,9 +55,9 @@ export function DiffSettingsTab({
     const previewDiffOptions = useMemo<FileDiffOptions<undefined, undefined>>(() => ({ ...toLibraryOptions(options), disableFileHeader: true }), [options]);
 
     return (
-        <div className="space-y-2.5">
-            <div className="space-y-1">
-                <Label className="text-[12px] text-muted-foreground">Diff Theme</Label>
+        <div className="max-w-5xl space-y-4">
+            <div className="space-y-1.5">
+                <Label className="text-[12px] font-medium text-muted-foreground">Diff Theme</Label>
                 <Select
                     value={options.followSystemTheme ? "__system__" : options.theme}
                     onValueChange={(value) => {
@@ -69,15 +69,13 @@ export function DiffSettingsTab({
                         setOption("theme", value as DiffTheme);
                     }}
                 >
-                    <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                    <SelectTrigger className="w-full">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="max-h-80">
-                        <SelectItem value="__system__" className="text-[12px]">
-                            Auto (pierre dark/light)
-                        </SelectItem>
+                        <SelectItem value="__system__">Auto (pierre dark/light)</SelectItem>
                         {DIFF_THEMES.map((theme) => (
-                            <SelectItem key={theme} value={theme} className="text-[12px]">
+                            <SelectItem key={theme} value={theme}>
                                 {theme}
                             </SelectItem>
                         ))}
@@ -89,7 +87,7 @@ export function DiffSettingsTab({
                     <Button
                         variant={workspaceMode === "single" ? "default" : "outline"}
                         size="sm"
-                        className="h-8 gap-1.5"
+                        className="gap-1.5"
                         onClick={() => onWorkspaceModeChange("single")}
                     >
                         <FileCode2 className="size-3.5" />
@@ -98,7 +96,7 @@ export function DiffSettingsTab({
                     <Button
                         variant={workspaceMode === "all" ? "default" : "outline"}
                         size="sm"
-                        className="h-8 gap-1.5"
+                        className="gap-1.5"
                         onClick={() => onWorkspaceModeChange("all")}
                     >
                         <Files className="size-3.5" />
@@ -107,18 +105,20 @@ export function DiffSettingsTab({
                 </div>
             ) : null}
             <DiffToolbar />
-            <div className="space-y-1">
-                <div className="text-[11px] text-muted-foreground">Preview</div>
-                {previewFileDiff ? (
-                    <FileDiff
-                        fileDiff={previewFileDiff as FileDiffMetadata}
-                        options={previewDiffOptions}
-                        className="compact-diff pr-diff-font"
-                        style={previewStyle}
-                    />
-                ) : (
-                    <div className="px-2 py-1.5 text-[11px] text-muted-foreground">Preview unavailable.</div>
-                )}
+            <div className="space-y-1.5">
+                <div className="text-[11px] font-medium text-faint-foreground">Preview</div>
+                <div className="overflow-hidden rounded-md border border-border-muted">
+                    {previewFileDiff ? (
+                        <FileDiff
+                            fileDiff={previewFileDiff as FileDiffMetadata}
+                            options={previewDiffOptions}
+                            className="compact-diff pr-diff-font"
+                            style={previewStyle}
+                        />
+                    ) : (
+                        <div className="px-2 py-1.5 text-[11px] text-muted-foreground">Preview unavailable.</div>
+                    )}
+                </div>
             </div>
         </div>
     );

@@ -88,7 +88,7 @@ function PullRequestStateBadge({ state }: { state: string }) {
     return (
         <span
             className={cn(
-                "inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                "inline-flex h-5 items-center rounded-sm border px-1.5 text-[10px] font-semibold uppercase leading-none tracking-wide",
                 pullRequestStateBadgeClass(label),
             )}
         >
@@ -116,7 +116,7 @@ const landingPullRequestTableFeatures = tableFeatures({
 
 type LandingPullRequestTableFeatures = typeof landingPullRequestTableFeatures;
 
-const filterControlClassName = "h-7 w-full min-w-0 rounded-sm border-border-muted bg-surface-1 px-1.5 text-[11px] font-normal normal-case tracking-normal";
+const filterControlClassName = "h-7 w-full min-w-0 rounded-sm border-border-muted bg-background px-1.5 text-[12px] font-normal";
 
 function SortIndicator({ sorted }: { sorted: false | "asc" | "desc" }) {
     if (sorted === "asc") return <ArrowUp className="size-3" />;
@@ -155,7 +155,11 @@ function ColumnSelectFilter({
     const value = String(column.getFilterValue() ?? "");
     return (
         <select
-            className={cn(filterControlClassName, "text-foreground")}
+            className={cn(
+                filterControlClassName,
+                "border text-foreground outline-none transition-colors hover:border-faint-foreground/60 focus-visible:border-ring",
+                value ? null : "text-faint-foreground",
+            )}
             value={value}
             aria-label={ariaLabel}
             onChange={(event) => {
@@ -180,11 +184,14 @@ function ColumnMenuFilter({
     ariaLabel,
     options,
     renderOptionLabel,
+    showValue = false,
 }: {
     column: Column<LandingPullRequestTableFeatures, SortedRootPullRequest>;
     ariaLabel: string;
     options: Array<{ value: string; label: string }>;
     renderOptionLabel?: (option: { value: string; label: string }) => ReactNode;
+    /** Shows the chosen option in the trigger; without it the trigger is a compact icon button. */
+    showValue?: boolean;
 }) {
     const value = String(column.getFilterValue() ?? "");
     const active = value.length > 0;
@@ -194,8 +201,9 @@ function ColumnMenuFilter({
                 <button
                     type="button"
                     className={cn(
-                        "inline-flex size-7 shrink-0 items-center justify-center rounded-sm border border-border-muted bg-surface-1 text-muted-foreground transition-colors hover:text-foreground",
-                        active ? "border-foreground/40 text-foreground" : null,
+                        "inline-flex h-7 shrink-0 items-center rounded-sm border border-border-muted bg-background text-[12px] font-normal text-faint-foreground transition-colors hover:border-faint-foreground/60 hover:text-foreground",
+                        showValue ? "w-full justify-between gap-1 px-1.5" : "w-7 justify-center",
+                        active ? "border-accent-solid/60 text-foreground" : null,
                     )}
                     aria-label={ariaLabel}
                     title={active ? options.find((option) => option.value === value)?.label || ariaLabel : ariaLabel}
@@ -203,7 +211,8 @@ function ColumnMenuFilter({
                         event.stopPropagation();
                     }}
                 >
-                    <ChevronDown className="size-3.5" />
+                    {showValue ? <span className="min-w-0 truncate">{active ? options.find((option) => option.value === value)?.label : "Any"}</span> : null}
+                    <ChevronDown className="size-3.5 shrink-0" />
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
@@ -230,15 +239,15 @@ function ColumnMenuFilter({
 function columnWidthClass(columnId: string) {
     switch (columnId) {
         case "author":
-            return "w-10";
+            return "w-12";
         case "state":
-            return "w-16";
+            return "w-28";
         case "title":
-            return "w-[34%]";
+            return undefined;
         case "branches":
             return "w-[22%]";
         case "updated":
-            return "w-24";
+            return "w-44";
         case "repository":
             return "w-[20%]";
         default:
@@ -262,7 +271,7 @@ function createLandingPullRequestColumns(): Array<ColumnDef<LandingPullRequestTa
         {
             id: "state",
             accessorFn: (row) => row.pullRequest.state,
-            header: () => <span className="sr-only">State</span>,
+            header: "State",
             filterFn: "equalsString",
             sortFn: "text",
             cell: ({ getValue }) => <PullRequestStateBadge state={getValue<string>()} />,
@@ -291,7 +300,7 @@ function createLandingPullRequestColumns(): Array<ColumnDef<LandingPullRequestTa
             enableSorting: false,
             filterFn: "includesString",
             cell: ({ getValue }) => (
-                <span className="block min-w-0 truncate font-mono text-[11px] text-muted-foreground" title={getValue<string>()}>
+                <span className="block min-w-0 truncate font-mono text-[12px] text-muted-foreground" title={getValue<string>()}>
                     {getValue<string>()}
                 </span>
             ),
@@ -314,7 +323,7 @@ function createLandingPullRequestColumns(): Array<ColumnDef<LandingPullRequestTa
             },
             cell: ({ row }) =>
                 row.original.pullRequest.updatedAt ? (
-                    <Timestamp value={row.original.pullRequest.updatedAt} className="text-muted-foreground" />
+                    <Timestamp value={row.original.pullRequest.updatedAt} className="text-[12px] text-muted-foreground" />
                 ) : (
                     <span>-</span>
                 ),
@@ -357,6 +366,7 @@ function renderColumnFilter(
                     column={column}
                     ariaLabel="Filter by state"
                     options={stateOptions}
+                    showValue
                     renderOptionLabel={(option) =>
                         option.value ? <PullRequestStateBadge state={option.value} /> : <span className="text-muted-foreground">Any</span>
                     }
@@ -428,38 +438,24 @@ export function LandingPullRequestTable({
     const filteredCount = table.getRowModel().rows.length;
 
     return (
-        <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border-muted bg-surface-1">
+        <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-card">
             <table className="w-full table-fixed border-collapse text-left text-[13px]">
                 <thead className="sticky top-0 z-10 bg-chrome">
                     {table.getHeaderGroups().map((headerGroup) => (
-                        <tr key={`${headerGroup.id}-filters`}>
-                            {headerGroup.headers.map((header) => (
-                                <th key={`${header.id}-filter`} className={cn("px-2 pb-0 pt-1.5 align-bottom font-normal", columnWidthClass(header.column.id))}>
-                                    {header.isPlaceholder || !header.column.getCanFilter()
-                                        ? null
-                                        : renderColumnFilter(header.column, authorOptions, stateOptions)}
-                                </th>
-                            ))}
-                        </tr>
-                    ))}
-                    {table.getHeaderGroups().map((headerGroup) => (
-                        <tr key={headerGroup.id} className="border-b border-border-muted">
+                        <tr key={headerGroup.id}>
                             {headerGroup.headers.map((header) => {
                                 const canSort = header.column.getCanSort();
                                 const sorted = header.column.getIsSorted();
                                 return (
                                     <th
                                         key={header.id}
-                                        className={cn(
-                                            "px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
-                                            columnWidthClass(header.column.id),
-                                        )}
+                                        className={cn("px-3 pb-1 pt-2.5 text-[12px] font-medium text-muted-foreground", columnWidthClass(header.column.id))}
                                     >
                                         {header.isPlaceholder ? null : canSort ? (
                                             <button
                                                 type="button"
                                                 className={cn(
-                                                    "inline-flex items-center gap-1.5 transition-colors hover:text-foreground",
+                                                    "inline-flex items-center gap-1.5 rounded-sm transition-colors hover:text-foreground",
                                                     sorted ? "text-foreground" : "",
                                                 )}
                                                 onClick={header.column.getToggleSortingHandler()}
@@ -475,11 +471,25 @@ export function LandingPullRequestTable({
                             })}
                         </tr>
                     ))}
+                    {table.getHeaderGroups().map((headerGroup) => (
+                        <tr key={`${headerGroup.id}-filters`} className="border-b border-border">
+                            {headerGroup.headers.map((header) => (
+                                <th
+                                    key={`${header.id}-filter`}
+                                    className={cn("px-1.5 pb-2 pt-0.5 align-middle font-normal", columnWidthClass(header.column.id))}
+                                >
+                                    {header.isPlaceholder || !header.column.getCanFilter()
+                                        ? null
+                                        : renderColumnFilter(header.column, authorOptions, stateOptions)}
+                                </th>
+                            ))}
+                        </tr>
+                    ))}
                 </thead>
                 <tbody>
                     {filteredCount === 0 ? (
                         <tr>
-                            <td colSpan={table.getVisibleLeafColumns().length} className="px-3 py-8 text-center text-[13px] text-muted-foreground">
+                            <td colSpan={table.getVisibleLeafColumns().length} className="px-3 py-12 text-center text-[13px] text-faint-foreground">
                                 No pull requests match the current filters.
                             </td>
                         </tr>
@@ -488,7 +498,7 @@ export function LandingPullRequestTable({
                             <tr
                                 key={row.id}
                                 tabIndex={0}
-                                className="cursor-pointer border-b border-border-muted/70 transition-colors hover:bg-surface-hover focus:bg-surface-hover focus:outline-none"
+                                className="cursor-pointer border-b border-border-muted transition-colors last:border-b-0 hover:bg-surface-hover focus-visible:bg-surface-hover"
                                 onClick={() => onOpenPullRequest(row.original.repo, String(row.original.pullRequest.id))}
                                 onKeyDown={(event) => {
                                     if (event.key === "Enter" || event.key === " ") {
@@ -498,7 +508,7 @@ export function LandingPullRequestTable({
                                 }}
                             >
                                 {row.getVisibleCells().map((cell) => (
-                                    <td key={cell.id} className={cn("overflow-hidden px-3 py-2 align-middle", columnWidthClass(cell.column.id))}>
+                                    <td key={cell.id} className={cn("h-10 overflow-hidden px-3 py-1.5 align-middle", columnWidthClass(cell.column.id))}>
                                         <table.FlexRender cell={cell} />
                                     </td>
                                 ))}

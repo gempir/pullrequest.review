@@ -1,4 +1,4 @@
-import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import { formatShortcut } from "@/lib/shortcut-format";
 import { useShortcuts } from "@/lib/shortcuts-context";
 import { cn } from "@/lib/utils";
@@ -17,26 +17,21 @@ export function OmnibarMenubarInput({ onOpen, className }: { onOpen: () => void;
 
     return (
         <div className={cn("@container flex min-w-0 flex-1 items-center justify-center self-stretch px-2", className)}>
-            <Input
-                readOnly
-                tabIndex={0}
+            <button
+                type="button"
                 className={cn(
-                    "hidden h-8 w-full min-w-0 max-w-md cursor-pointer rounded-sm border-border-muted bg-surface-1 px-3 text-center text-[12px] leading-none",
-                    "@min-[8rem]:block",
+                    "hidden h-7 w-full min-w-0 max-w-md cursor-pointer items-center gap-2 rounded-sm border border-border-muted bg-background px-2 text-left text-[12px] text-faint-foreground transition-colors hover:border-border hover:text-muted-foreground",
+                    "@min-[8rem]:flex",
                 )}
-                placeholder={shortcutLabel}
                 aria-label={`Open omnibar (${shortcutLabel})`}
-                onMouseDown={(event) => {
-                    event.preventDefault();
-                    onOpen();
-                }}
-                onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onOpen();
-                    }
-                }}
-            />
+                onClick={onOpen}
+            >
+                <Search className="size-3.5 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate">Search or jump to...</span>
+                <kbd className="hidden shrink-0 rounded-[3px] border border-border-muted bg-surface-1 px-1 text-[10px] leading-4 text-muted-foreground @min-[14rem]:block">
+                    {shortcutLabel}
+                </kbd>
+            </button>
         </div>
     );
 }

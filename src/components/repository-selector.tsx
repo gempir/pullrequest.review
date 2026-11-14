@@ -26,7 +26,7 @@ export function RepositorySelector({ host, initialSelected, onSave }: { host: Gi
     }, [entries, query]);
 
     return (
-        <div className="space-y-4 rounded-md border border-border-muted bg-surface-1 p-4">
+        <div className="space-y-4 rounded-md border border-border bg-card p-4">
             <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
                 <FolderGit className="size-4" />
                 <span>Select repositories to include on the landing page.</span>
@@ -65,7 +65,7 @@ export function RepositorySelector({ host, initialSelected, onSave }: { host: Gi
                                 return (
                                     <label
                                         key={repo.fullName}
-                                        className="flex cursor-pointer items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-[13px] transition-colors hover:border-border-muted hover:bg-surface-hover"
+                                        className="flex cursor-pointer items-center gap-3 rounded-sm px-3 py-2 text-[13px] transition-colors hover:bg-surface-hover"
                                     >
                                         <input
                                             type="checkbox"
@@ -94,7 +94,6 @@ export function RepositorySelector({ host, initialSelected, onSave }: { host: Gi
 
             <div className="flex items-center justify-end gap-2 pt-1">
                 <Button
-                    className="rounded-md"
                     onClick={() => {
                         const selectedRepos = entries.filter((repo) => selected.has(repo.fullName));
                         onSave(selectedRepos);

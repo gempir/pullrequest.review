@@ -38,15 +38,15 @@ function OptionSelect<K extends keyof DiffOptions>({
 }) {
     const { options, setOption } = useDiffOptions();
     return (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
             <SettingLabel label={label} icon={icon} />
             <Select value={String(options[optionKey])} onValueChange={(v) => setOption(optionKey, v as DiffOptions[K])}>
-                <SelectTrigger className="h-9 text-[12px] w-full min-w-[120px]" size="sm">
+                <SelectTrigger className="w-full min-w-[120px]">
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                     {values.map((v) => (
-                        <SelectItem key={String(v)} value={String(v)} className="text-[12px]">
+                        <SelectItem key={String(v)} value={String(v)}>
                             {String(v)}
                         </SelectItem>
                     ))}
@@ -61,7 +61,7 @@ function OptionSwitch({ label, icon: Icon, optionKey }: { label: string; icon: I
     return (
         <div className="flex items-center gap-2">
             <Switch id={optionKey} checked={options[optionKey]} onCheckedChange={(v) => setOption(optionKey, v)} size="sm" />
-            <Label htmlFor={optionKey} className="text-[12px] whitespace-nowrap text-muted-foreground inline-flex items-center gap-1.5">
+            <Label htmlFor={optionKey} className="text-[12px] whitespace-nowrap text-foreground inline-flex items-center gap-1.5 [&_svg]:text-muted-foreground">
                 <Icon className="size-3.5" />
                 {label}
             </Label>
@@ -88,7 +88,7 @@ function OptionNumber({
 }) {
     const { options, setOption } = useDiffOptions();
     return (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
             <SettingLabel label={label} icon={icon} />
             <NumberStepperInput
                 value={options[optionKey]}
@@ -106,13 +106,13 @@ function OptionNumber({
 export function DiffToolbar() {
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <OptionSelect label="Diff Layout" icon={SquareSplitVertical} optionKey="diffStyle" values={["unified", "split"]} />
                 <OptionSelect label="Line Overflow" icon={WrapText} optionKey="overflow" values={["scroll", "wrap"]} />
                 <OptionNumber label="Expansion Lines" icon={Expand} optionKey="expansionLineCount" min={1} max={200} />
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
                 <OptionSwitch label="Expand Unchanged" icon={UnfoldVertical} optionKey="expandUnchanged" />
                 <OptionSwitch label="Auto Mark Files as Viewed" icon={FoldVertical} optionKey="autoMarkViewedFiles" />
                 <OptionSwitch label="Fold Viewed Files By Default" icon={FoldVertical} optionKey="collapseViewedFilesByDefault" />

@@ -20,45 +20,39 @@ export function AppearanceTab() {
     const customMonospaceFont = getCustomFontName(appearance.monospaceFontFamily);
 
     return (
-        <div className="max-w-3xl space-y-3">
-            <div className="space-y-1">
-                <Label className="text-[12px] text-muted-foreground">App Theme</Label>
+        <div className="max-w-3xl space-y-4">
+            <div className="space-y-1.5">
+                <Label className="text-[12px] font-medium text-muted-foreground">App Theme</Label>
                 <Select value={appearance.appThemeMode} onValueChange={(value) => appearance.setAppThemeMode(value as "auto" | "light" | "dark")}>
-                    <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                    <SelectTrigger className="w-full">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="auto" className="text-[12px]">
-                            Auto (follow system)
-                        </SelectItem>
-                        <SelectItem value="dark" className="text-[12px]">
-                            Dark
-                        </SelectItem>
-                        <SelectItem value="light" className="text-[12px]">
-                            Light
-                        </SelectItem>
+                        <SelectItem value="auto">Auto (follow system)</SelectItem>
+                        <SelectItem value="dark">Dark</SelectItem>
+                        <SelectItem value="light">Light</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
-            <div className="grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-3">
-                    <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Sans Font</Label>
+            <div className="grid max-w-3xl grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-2">
+                <div className="space-y-4">
+                    <div className="space-y-1.5">
+                        <Label className="text-[12px] font-medium text-muted-foreground">Sans Font</Label>
                         <Select value={appearance.sansFontFamily} onValueChange={(value) => appearance.setSansFontFamily(value as FontFamilyValue)}>
-                            <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                            <SelectTrigger className="w-full">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="max-h-60">
                                 {SANS_FONT_FAMILY_OPTIONS.map((font) => (
-                                    <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                                    <SelectItem key={font.value} value={font.value}>
                                         {font.label}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Sans Font Size</Label>
+                    <div className="space-y-1.5">
+                        <Label className="text-[12px] font-medium text-muted-foreground">Sans Font Size</Label>
                         <NumberStepperInput
                             value={appearance.sansFontSize}
                             min={FONT_SIZE_LIMITS.min}
@@ -67,8 +61,8 @@ export function AppearanceTab() {
                             onValueChange={appearance.setSansFontSize}
                         />
                     </div>
-                    <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Sans Line Height</Label>
+                    <div className="space-y-1.5">
+                        <Label className="text-[12px] font-medium text-muted-foreground">Sans Line Height</Label>
                         <NumberStepperInput
                             value={appearance.sansLineHeight}
                             min={LINE_HEIGHT_LIMITS.min}
@@ -77,8 +71,8 @@ export function AppearanceTab() {
                             onValueChange={appearance.setSansLineHeight}
                         />
                     </div>
-                    <div className="py-1">
-                        <div className="mb-1 text-[11px] text-muted-foreground">Sans</div>
+                    <div className="rounded-md border border-border-muted bg-card p-3">
+                        <div className="mb-1.5 text-[11px] font-medium text-faint-foreground">Preview</div>
                         <div
                             className="space-y-1"
                             style={{
@@ -92,34 +86,29 @@ export function AppearanceTab() {
                         </div>
                     </div>
                 </div>
-                <div className="space-y-3">
-                    <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Monospaced Font</Label>
+                <div className="space-y-4">
+                    <div className="space-y-1.5">
+                        <Label className="text-[12px] font-medium text-muted-foreground">Monospaced Font</Label>
                         <Select value={appearance.monospaceFontFamily} onValueChange={(value) => appearance.setMonospaceFontFamily(value as FontFamilyValue)}>
-                            <SelectTrigger className="h-9 w-full text-[12px]" size="sm">
+                            <SelectTrigger className="w-full">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="max-h-60">
-                                {customMonospaceFont ? (
-                                    <SelectItem value={appearance.monospaceFontFamily} className="text-[12px]">
-                                        {customMonospaceFont}
-                                    </SelectItem>
-                                ) : null}
+                                {customMonospaceFont ? <SelectItem value={appearance.monospaceFontFamily}>{customMonospaceFont}</SelectItem> : null}
                                 {MONO_FONT_FAMILY_OPTIONS.map((font) => (
-                                    <SelectItem key={font.value} value={font.value} className="text-[12px]">
+                                    <SelectItem key={font.value} value={font.value}>
                                         {font.label}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="custom-monospace-font" className="text-[12px] text-muted-foreground">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="custom-monospace-font" className="text-[12px] font-medium text-muted-foreground">
                             Custom Monospaced Font
                         </Label>
                         <Input
                             id="custom-monospace-font"
-                            className="h-9 text-[12px]"
                             placeholder="Any installed font, e.g. Berkeley Mono"
                             value={customMonospaceFont ?? ""}
                             onChange={(event) => {
@@ -128,8 +117,8 @@ export function AppearanceTab() {
                             }}
                         />
                     </div>
-                    <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Monospaced Font Size</Label>
+                    <div className="space-y-1.5">
+                        <Label className="text-[12px] font-medium text-muted-foreground">Monospaced Font Size</Label>
                         <NumberStepperInput
                             value={appearance.monospaceFontSize}
                             min={FONT_SIZE_LIMITS.min}
@@ -138,8 +127,8 @@ export function AppearanceTab() {
                             onValueChange={appearance.setMonospaceFontSize}
                         />
                     </div>
-                    <div className="space-y-1">
-                        <Label className="text-[12px] text-muted-foreground">Monospaced Line Height</Label>
+                    <div className="space-y-1.5">
+                        <Label className="text-[12px] font-medium text-muted-foreground">Monospaced Line Height</Label>
                         <NumberStepperInput
                             value={appearance.monospaceLineHeight}
                             min={LINE_HEIGHT_LIMITS.min}
@@ -148,8 +137,8 @@ export function AppearanceTab() {
                             onValueChange={appearance.setMonospaceLineHeight}
                         />
                     </div>
-                    <div className="py-1">
-                        <div className="mb-1 text-[11px] text-muted-foreground">Monospace</div>
+                    <div className="rounded-md border border-border-muted bg-card p-3">
+                        <div className="mb-1.5 text-[11px] font-medium text-faint-foreground">Preview</div>
                         <div
                             className="whitespace-pre-wrap"
                             style={{

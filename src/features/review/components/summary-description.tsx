@@ -54,7 +54,7 @@ export function SummaryDescription({
 
     if (isEditing) {
         return (
-            <section className="min-w-0 rounded-sm border border-surface-hover px-2 pb-2" data-component="summary-description">
+            <section className="min-w-0 rounded-md border border-border px-3 pb-3" data-component="summary-description">
                 <CommentEditor
                     value={draft}
                     placeholder="Add a pull request description..."
@@ -63,7 +63,7 @@ export function SummaryDescription({
                     onSubmit={handleSave}
                     autoFocus
                     chrome="toolbar"
-                    toolbarClassName="-mx-2 px-0.5"
+                    toolbarClassName="-mx-3 mb-2 px-1.5"
                     contentStyle={{ minHeight: "9rem" }}
                 />
                 <div className="mt-2 flex flex-wrap items-center gap-1">
@@ -71,13 +71,7 @@ export function SummaryDescription({
                         {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
                         Save
                     </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
-                        disabled={isSaving}
-                        onClick={handleCancel}
-                    >
+                    <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={isSaving} onClick={handleCancel}>
                         Cancel
                     </Button>
                 </div>
@@ -87,11 +81,7 @@ export function SummaryDescription({
 
     return (
         <section
-            className={cn(
-                "min-w-0 px-2 py-1",
-                canEdit &&
-                    "cursor-text rounded-sm transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-            )}
+            className={cn("-mx-2 min-w-0 px-2 py-1.5", canEdit && "cursor-text rounded-md transition-colors hover:bg-surface-hover")}
             data-component="summary-description"
             role={canEdit ? "button" : undefined}
             tabIndex={canEdit ? 0 : undefined}

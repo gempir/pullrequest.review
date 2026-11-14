@@ -49,30 +49,30 @@ export function NumberStepperInput({ value, onValueChange, min, max, step = 1, c
                 min={min}
                 max={max}
                 step={step}
-                className="h-9 w-full pr-9 text-[12px]"
+                className="w-full pr-8 tabular-nums"
             />
-            <div className="absolute inset-y-0 right-0 flex w-9 flex-col">
+            <div className="absolute inset-y-px right-px flex w-7 flex-col border-l border-border-muted">
                 <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-1/2 w-full rounded-none p-0"
+                    className="h-1/2 w-full rounded-none rounded-tr-[3px] border-0 p-0 text-muted-foreground hover:text-foreground"
                     disabled={disabled}
                     onClick={() => applyValue(value + step)}
                     aria-label="Increase value"
                 >
-                    <ChevronUp className="size-3.5" />
+                    <ChevronUp className="size-3" />
                 </Button>
                 <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-1/2 w-full rounded-none p-0"
+                    className="h-1/2 w-full rounded-none rounded-br-[3px] border-0 p-0 text-muted-foreground hover:text-foreground"
                     disabled={disabled}
                     onClick={() => applyValue(value - step)}
                     aria-label="Decrease value"
                 >
-                    <ChevronDown className="size-3.5" />
+                    <ChevronDown className="size-3" />
                 </Button>
             </div>
         </div>

@@ -32,9 +32,9 @@ export function DiffContextButton({ state, onClick, disabled = false }: DiffCont
     return (
         <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="h-7 rounded-md border border-input bg-surface-1 px-2 text-[12px] gap-1.5 hover:bg-surface-hover"
+            className="h-7 shrink-0 gap-1.5 px-2 text-[12px] font-normal text-muted-foreground hover:text-foreground"
             onClick={onClick}
             disabled={disabled || isLoading || isReady}
             title={isError && state?.status === "error" ? state.error : undefined}

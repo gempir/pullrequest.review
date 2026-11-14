@@ -67,7 +67,7 @@ export function ReviewCommentsSidebarItem({ item, onSelect, actions }: ReviewCom
             role="button"
             tabIndex={0}
             className={cn(
-                "block cursor-pointer border-b border-sidebar-border px-3 py-2.5 text-left transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none",
+                "block cursor-pointer border-b border-sidebar-border px-3 py-3 text-left transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover",
                 item.isResolved ? "opacity-70" : "",
             )}
             onClick={onSelect}
@@ -78,15 +78,15 @@ export function ReviewCommentsSidebarItem({ item, onSelect, actions }: ReviewCom
                 }
             }}
         >
-            <div title={location} className="truncate text-left font-mono text-[10px] text-muted-foreground [direction:rtl]">
+            <div title={location} className="truncate text-left font-mono text-[11px] text-faint-foreground [direction:rtl]">
                 {location}
             </div>
-            <div className="mt-2 rounded-md border border-comment-border bg-comment p-3">
-                <div className="flex items-start gap-2">
-                    <Avatar name={authorName} url={rootComment.user?.avatarUrl} sizeClass="size-6" />
+            <div className="mt-2">
+                <div className="flex items-start gap-2.5">
+                    <Avatar name={authorName} url={rootComment.user?.avatarUrl} sizeClass="size-5" />
                     <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
-                            <span className="font-medium text-[12px] text-foreground">{authorName}</span>
+                        <div className="flex min-h-5 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                            <span className="text-[13px] font-semibold text-foreground">{authorName}</span>
                             <Timestamp value={commentTimestampSource(rootComment)} variant="comment" />
                             <span className="ml-auto shrink-0">
                                 <ThreadStatusButton
@@ -100,7 +100,7 @@ export function ReviewCommentsSidebarItem({ item, onSelect, actions }: ReviewCom
                             <CommentBody text={commentMarkdown(item.thread)} />
                         </div>
                         {item.replyCount > 0 ? (
-                            <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                            <div className="flex items-center gap-1 pt-0.5 text-[11px] text-faint-foreground">
                                 <Reply className="size-3" />
                                 {item.replyCount} repl{item.replyCount === 1 ? "y" : "ies"}
                             </div>

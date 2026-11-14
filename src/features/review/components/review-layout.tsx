@@ -39,7 +39,9 @@ export function ReviewLayout() {
                 <ReviewTopNavbar {...review.navbarProps} commitScopeSlot={<ReviewCommitScope {...review.commitScope} />} />
 
                 {review.actionError ? (
-                    <div className="border-b border-destructive bg-destructive/10 text-destructive px-3 py-1.5 text-[12px]">{review.actionError}</div>
+                    <div role="alert" className="border-b border-destructive/40 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
+                        {review.actionError}
+                    </div>
                 ) : null}
 
                 <div ref={review.diffScrollRef} data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
@@ -69,7 +71,7 @@ export function ReviewLoadingLayout({
                 <div data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                     <div className="h-full flex items-center justify-center p-8">
                         <div className="flex items-center gap-3 text-muted-foreground">
-                            <Loader2 className="size-5 animate-spin" />
+                            <Loader2 className="size-4 animate-spin" />
                             <span className="text-[13px]">Loading pull request...</span>
                         </div>
                     </div>

@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo } from "react";
 import { Avatar } from "@/features/review/components/comment-ui";
 import { SummaryDescription } from "@/features/review/components/summary-description";
-import { CommentThreadTimelineItem, CommitGroupTimelineItem, HistoryTimelineItem } from "@/features/review/components/summary-timeline-items";
+import { CommentThreadTimelineItem, CommitGroupTimelineItem, HistoryTimelineItem, TimelineSlot } from "@/features/review/components/summary-timeline-items";
 import type { CommentActions } from "@/features/review/model/comment-actions";
 import { buildDiffByPath, buildSummaryTimeline, type CommentTarget, findCommentDiffSnippet } from "@/features/review/model/summary-timeline";
 import type { PullRequestBundle } from "@/lib/git-host/types";
@@ -12,7 +12,7 @@ export function PullRequestSummaryPanel({
     headerTitle,
     diffStats,
     headerRight,
-    footerRight,
+    composer,
     onSelectComment,
     updateDescriptionPending,
     onEditDescription,
@@ -22,7 +22,8 @@ export function PullRequestSummaryPanel({
     headerTitle?: string;
     diffStats?: { added: number; removed: number };
     headerRight?: ReactNode;
-    footerRight?: ReactNode;
+    /** Rendered as the first timeline row, above the newest entry. */
+    composer?: ReactNode;
     onSelectComment?: (target: CommentTarget) => void;
     updateDescriptionPending?: boolean;
     /** Omitted when the description is read-only. */
@@ -35,13 +36,13 @@ export function PullRequestSummaryPanel({
         <div className="pr-diff-font" style={{ fontFamily: "var(--comment-font-family)" }}>
             {headerTitle ? (
                 <div
-                    className="h-10 bg-chrome border-b border-border-muted px-2.5 flex items-center gap-2 overflow-hidden text-[12px]"
+                    className="h-10 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 overflow-hidden text-[13px]"
                     data-component="summary-header"
                 >
                     <Avatar name={pr.author?.displayName} url={pr.author?.avatarUrl} sizeClass="size-5" />
-                    <span className="min-w-0 flex-1 text-foreground truncate">{headerTitle}</span>
+                    <span className="min-w-0 flex-1 truncate font-medium text-foreground">{headerTitle}</span>
                     {diffStats ? (
-                        <div className="ml-auto shrink-0 font-mono text-[11px]">
+                        <div className="ml-auto shrink-0 text-[12px] tabular-nums">
                             <span className="text-status-added">+{diffStats.added}</span>
                             <span className="ml-2 text-status-removed">-{diffStats.removed}</span>
                         </div>
@@ -49,36 +50,26 @@ export function PullRequestSummaryPanel({
                     {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
                 </div>
             ) : null}
-            <div className="px-2.5 pb-48 pt-2.5">
+            <div className="mx-auto w-full max-w-[920px] px-6 pb-48 pt-5" data-component="summary-content">
                 <SummaryDescription
                     description={pr.description}
                     canEdit={Boolean(onEditDescription)}
                     isUpdating={Boolean(updateDescriptionPending)}
                     onEditDescription={onEditDescription}
                 />
-                <div className="mt-4 space-y-0 px-1" data-component="summary-timeline">
+                <div className="mt-5 border-t border-border-muted pt-5" data-component="summary-timeline">
+                    {composer ? <TimelineSlot showConnectorBelow={timelineEntries.length > 0}>{composer}</TimelineSlot> : null}
                     {timelineEntries.map((entry, index) => {
-                        const isFirst = index === 0;
-                        const isLast = index === timelineEntries.length - 1;
-                        const showConnectorAbove = !isFirst;
-                        const showConnectorBelow = !isLast;
+                        const showConnectorBelow = index < timelineEntries.length - 1;
 
                         if (entry.kind === "commitGroup") {
-                            return (
-                                <CommitGroupTimelineItem
-                                    key={entry.id}
-                                    showConnectorAbove={showConnectorAbove}
-                                    showConnectorBelow={showConnectorBelow}
-                                    entry={entry}
-                                />
-                            );
+                            return <CommitGroupTimelineItem key={entry.id} showConnectorBelow={showConnectorBelow} entry={entry} />;
                         }
 
                         if (entry.kind === "commentThread") {
                             return (
                                 <CommentThreadTimelineItem
                                     key={entry.id}
-                                    showConnectorAbove={showConnectorAbove}
                                     showConnectorBelow={showConnectorBelow}
                                     thread={entry.thread}
                                     diffSnippet={findCommentDiffSnippet(diffByPath, entry.thread.root.comment)}
@@ -88,17 +79,9 @@ export function PullRequestSummaryPanel({
                             );
                         }
 
-                        return (
-                            <HistoryTimelineItem
-                                key={entry.id}
-                                showConnectorAbove={showConnectorAbove}
-                                showConnectorBelow={showConnectorBelow}
-                                event={entry.event}
-                            />
-                        );
+                        return <HistoryTimelineItem key={entry.id} showConnectorBelow={showConnectorBelow} event={entry.event} />;
                     })}
                 </div>
-                {footerRight ? <div className="mt-3 pt-3">{footerRight}</div> : null}
             </div>
         </div>
     );

@@ -34,16 +34,15 @@ function NotFoundComponent() {
     return (
         <div className="h-full overflow-auto bg-background">
             <div className="min-h-full flex items-center justify-center p-4">
-                <div className="bg-card p-6 max-w-md">
-                    <div className="pb-3 mb-4">
-                        <h1 className="text-lg font-semibold">[ERROR] 404</h1>
-                    </div>
-                    <p className="text-muted-foreground mb-4">Page not found.</p>
+                <div className="max-w-md text-center">
+                    <div className="font-mono text-[12px] text-faint-foreground">404</div>
+                    <h1 className="mt-2 text-lg font-semibold tracking-tight">Page not found</h1>
+                    <p className="mt-1 mb-5 text-[13px] text-muted-foreground">This page does not exist or has moved.</p>
                     <Link
                         to="/"
-                        className="inline-flex items-center gap-2 h-8 px-4 bg-accent-solid text-accent-foreground hover:bg-accent-solid-hover transition-colors text-[13px]"
+                        className="inline-flex h-8 items-center gap-2 rounded-sm bg-accent-solid px-3.5 text-[13px] font-medium text-accent-foreground transition-colors hover:bg-accent-solid-hover"
                     >
-                        cd ~
+                        Back to pull requests
                     </Link>
                 </div>
             </div>
@@ -76,11 +75,11 @@ function OnboardingScreen() {
         <div className="h-full min-h-0 flex flex-col bg-background">
             <header data-component="navbar" className="h-11 shrink-0 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 text-[12px]">
                 <GitPullRequest className="size-3.5 text-muted-foreground" />
-                <span className="text-muted-foreground">Connect Git Host</span>
+                <span className="text-[13px] font-medium text-foreground">Connect a Git host</span>
             </header>
 
             <main data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto p-4">
-                <div className="mx-auto w-full max-w-2xl space-y-4">
+                <div className="mx-auto mt-10 w-full max-w-xl space-y-4">
                     <div role="tablist" aria-label="Git host" className="flex border-b border-border-muted">
                         {HOSTS.map((host) => {
                             const isActive = activeHost === host;
@@ -94,10 +93,8 @@ function OnboardingScreen() {
                                     aria-controls={`onboarding-host-panel-${host}`}
                                     tabIndex={isActive ? 0 : -1}
                                     className={cn(
-                                        "inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-[12px] transition-colors",
-                                        isActive
-                                            ? "-mb-px border-foreground text-foreground"
-                                            : "border-transparent text-muted-foreground hover:text-foreground",
+                                        "-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium transition-colors",
+                                        isActive ? "border-accent-solid text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
                                     )}
                                     onClick={() => {
                                         setActiveHost(host);

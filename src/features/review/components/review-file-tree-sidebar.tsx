@@ -118,13 +118,13 @@ function FileTreeSearchInput({
     const progress = loadProgress ?? 100;
 
     return (
-        <div className="relative min-w-0 flex-1 overflow-hidden rounded-sm bg-[var(--diffs-bg,var(--background))]">
+        <div className="relative min-w-0 flex-1 overflow-hidden rounded-sm border border-border-muted bg-background transition-colors focus-within:border-ring">
             <output className="sr-only" aria-live="polite">
                 {justCompleted ? "Pull request loaded" : isLoading ? "Loading pull request" : ""}
             </output>
             <div
                 className={cn(
-                    "pointer-events-none absolute inset-y-0 left-0 bg-selection duration-700 ease-out motion-reduce:transition-none",
+                    "pointer-events-none absolute inset-y-0 left-0 bg-selection-subtle duration-700 ease-out motion-reduce:transition-none",
                     progress === 0 ? "transition-opacity" : "transition-[width,opacity]",
                     showProgress ? "opacity-100" : "opacity-0",
                 )}
@@ -135,18 +135,18 @@ function FileTreeSearchInput({
             </div>
             <span
                 className={cn(
-                    "pointer-events-none absolute inset-0 flex items-center px-2 text-[12px] text-faint-foreground transition-opacity duration-500 ease-in-out motion-reduce:transition-none",
+                    "pointer-events-none absolute inset-0 flex items-center gap-1.5 px-2 text-[12px] text-faint-foreground transition-opacity duration-500 ease-in-out motion-reduce:transition-none",
                     showProgress || searchQuery ? "opacity-0" : "opacity-100",
                 )}
                 aria-hidden="true"
             >
-                Search...
+                Filter files
             </span>
             <Input
-                className="relative h-7 min-w-0 rounded-sm border-0 bg-transparent px-2 text-[12px] hover:bg-transparent focus-visible:ring-0"
+                className="relative h-[26px] min-w-0 rounded-sm border-0 bg-transparent px-2 text-[12px] hover:bg-transparent focus-visible:ring-0"
                 value={searchQuery}
                 onChange={(event) => onSearchQueryChange(event.target.value)}
-                aria-label="Search files"
+                aria-label="Filter files"
             />
         </div>
     );
@@ -175,16 +175,14 @@ function FileTreeRightControls({
                         variant="ghost"
                         size="sm"
                         className={cn(
-                            "size-7 shrink-0 p-0 relative text-muted-foreground hover:text-foreground",
-                            showUnviewedOnly ? "bg-selection text-foreground" : "",
+                            "h-7 shrink-0 gap-1 px-1.5 text-muted-foreground hover:text-foreground",
+                            showUnviewedOnly ? "bg-selection-subtle text-foreground" : "",
                         )}
                         onClick={onToggleUnviewedOnly}
                         aria-label={showUnviewedOnly ? "Show all files" : "Show unviewed files only"}
                     >
                         {showUnviewedOnly ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                        {unviewedFileCount > 0 ? (
-                            <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">{badgeValue}</span>
-                        ) : null}
+                        {unviewedFileCount > 0 ? <span className="text-[11px] font-medium leading-none tabular-nums text-accent">{badgeValue}</span> : null}
                     </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">{showUnviewedOnly ? "Showing unviewed files" : "Show unviewed files only"}</TooltipContent>
@@ -192,7 +190,7 @@ function FileTreeRightControls({
             <Button
                 variant="ghost"
                 size="icon-sm"
-                className="h-7 w-11 shrink-0 px-0 text-muted-foreground hover:text-foreground"
+                className="mr-1 h-7 w-9 shrink-0 px-0 text-muted-foreground hover:text-foreground"
                 onClick={onCollapseTree}
                 aria-label="Collapse file tree"
             >
@@ -289,7 +287,7 @@ export function ReviewFileTreeSidebar({
                     )}
                     <button
                         type="button"
-                        className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-accent/40"
+                        className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent transition-colors hover:bg-accent/40"
                         onMouseDown={onStartTreeResize}
                         aria-label="Resize file tree"
                     />

@@ -32,10 +32,10 @@ function ShortcutRow({ label, shortcut, onChange }: { label: string; shortcut: S
     };
 
     return (
-        <div className="flex items-center justify-between gap-3 px-2 py-2.5">
-            <div className="flex flex-col">
-                <span className="text-[13px]">{label}</span>
-                <span className="text-[11px] text-muted-foreground">{shortcut.description}</span>
+        <div className="flex items-center justify-between gap-3 border-b border-border-muted px-3 py-2.5 last:border-b-0">
+            <div className="flex flex-col gap-0.5">
+                <span className="text-[13px] font-medium">{label}</span>
+                <span className="text-[12px] text-muted-foreground">{shortcut.description}</span>
             </div>
             <button
                 type="button"
@@ -43,8 +43,10 @@ function ShortcutRow({ label, shortcut, onChange }: { label: string; shortcut: S
                 onKeyDown={handleKeyDown}
                 onBlur={() => setIsRecording(false)}
                 className={cn(
-                    "h-8 min-w-[96px] px-2.5 text-center text-[12px] transition-colors",
-                    isRecording ? "bg-accent-solid text-accent-foreground" : "border border-border-muted bg-surface-1 hover:bg-surface-hover",
+                    "h-7 min-w-[96px] rounded-sm border px-2.5 text-center text-[12px] font-medium transition-colors",
+                    isRecording
+                        ? "border-accent-solid bg-selection-subtle text-accent"
+                        : "border-border bg-surface-1 text-foreground hover:border-input hover:bg-surface-hover",
                 )}
             >
                 {isRecording ? "Press key..." : formatShortcut(shortcut)}
@@ -57,7 +59,7 @@ export function ShortcutsTab() {
     const { shortcuts, updateShortcut, resetToDefaults } = useShortcuts();
 
     return (
-        <div className="max-w-3xl space-y-2.5">
+        <div className="max-w-3xl space-y-3">
             <div className="flex items-center justify-end">
                 <Button variant="outline" size="sm" onClick={resetToDefaults} className="gap-1.5">
                     <RotateCcw className="size-3.5" />
@@ -65,7 +67,7 @@ export function ShortcutsTab() {
                 </Button>
             </div>
 
-            <div>
+            <div className="overflow-hidden rounded-md border border-border-muted bg-card">
                 <ShortcutRow label="Open Omnibar" shortcut={shortcuts.openOmnibar} onChange={(config) => updateShortcut("openOmnibar", config)} />
                 <ShortcutRow
                     label="Next Unviewed File"

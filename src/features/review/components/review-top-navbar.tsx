@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Copy, GitMerge, Loader2, Menu, MessageSquare, Minus, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
+import { ArrowRight, Check, ChevronRight, Copy, GitMerge, Loader2, Menu, MessageSquare, Minus, PenSquare, TriangleAlert, X, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { GitHostIcon } from "@/components/git-host-icon";
 import { OmnibarMenubarInput } from "@/components/omnibar/omnibar-menubar-input";
@@ -11,8 +11,6 @@ import { aggregateBuildState, buildRunningTime, buildStatusBubbleClass } from "@
 import { getHostLabel } from "@/lib/git-host/registry";
 import type { GitHost, PullRequestBuildStatus, PullRequestReviewer } from "@/lib/git-host/types";
 import { cn } from "@/lib/utils";
-
-const BUILD_TIME_STYLE = { fontFamily: "var(--mono-font-family)" } as const;
 
 type ReviewTopNavbarProps = {
     loading?: boolean;
@@ -56,7 +54,7 @@ type ReviewTopNavbarProps = {
 export function ReviewTopNavbar(props: ReviewTopNavbarProps) {
     return (
         <div
-            className="h-11 bg-chrome border-b border-border px-1.5 flex items-center gap-3"
+            className="h-11 bg-chrome border-b border-border-muted px-1.5 flex items-center gap-3"
             style={{ fontFamily: "var(--comment-font-family)" }}
             data-component="navbar"
         >
@@ -73,14 +71,14 @@ function ReviewTopNavbarLoading({ treeCollapsed, unviewedFileCount, onExpandTree
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:ring-offset-0"
                     onClick={onExpandTree}
                     aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
                 >
                     <ReviewFileTreeToggleIcon direction="expand" badgeValue={unviewedFileCount > 0 ? unviewedBadgeValue : null} />
                 </Button>
             ) : null}
-            <span className="text-[11px] text-muted-foreground">Loading pull request...</span>
+            <span className="px-1.5 text-[12px] text-muted-foreground">Loading pull request...</span>
         </>
     );
 }
@@ -110,12 +108,12 @@ function NavbarBranchInfo({
 }: ReviewTopNavbarProps) {
     const unviewedBadgeValue = unviewedFileCount > 99 ? "99+" : unviewedFileCount.toString();
     return (
-        <div className="flex h-full min-w-0 shrink items-center gap-2 text-[11px] text-faint-foreground">
+        <div className="flex h-full min-w-0 shrink items-center gap-2 text-[12px] text-faint-foreground">
             {treeCollapsed ? (
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:ring-offset-0"
                     onClick={onExpandTree}
                     aria-label={`Expand file tree (${unviewedFileCount} unviewed files)`}
                 >
@@ -123,7 +121,7 @@ function NavbarBranchInfo({
                 </Button>
             ) : null}
             {commitScopeSlot ? <div className="ml-0.5 shrink-0">{commitScopeSlot}</div> : null}
-            <div className="flex h-7 min-w-0 items-center gap-2 rounded-sm bg-[var(--diffs-bg,var(--background))] px-2 text-[11px]">
+            <div className="flex h-7 min-w-0 items-center gap-1.5 rounded-sm border border-border-muted px-2 font-mono text-[11px]">
                 <div className="group/source relative max-w-[180px] min-w-0">
                     <span className="block truncate text-muted-foreground">{sourceBranch}</span>
                     <Button
@@ -131,7 +129,7 @@ function NavbarBranchInfo({
                         variant="ghost"
                         size="sm"
                         className={cn(
-                            "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 rounded-sm bg-[var(--diffs-bg,var(--background))] p-0 transition-opacity",
+                            "absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 rounded-sm bg-chrome p-0 transition-opacity",
                             copiedSourceBranch
                                 ? "opacity-100"
                                 : "opacity-0 pointer-events-none group-hover/source:opacity-100 group-hover/source:pointer-events-auto group-focus-within/source:opacity-100 group-focus-within/source:pointer-events-auto",
@@ -142,16 +140,10 @@ function NavbarBranchInfo({
                         {copiedSourceBranch ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                     </Button>
                 </div>
-                <span className="text-faint-foreground" aria-hidden="true">
-                    -&gt;
-                </span>
+                <ArrowRight className="size-3 shrink-0 text-faint-foreground" aria-hidden="true" />
                 <span className="max-w-[180px] truncate text-muted-foreground">{destinationBranch}</span>
             </div>
-            <Timestamp
-                value={navbarStatusTimestamp}
-                tooltipLabel="updated at"
-                className="max-w-[120px] truncate align-middle text-[10px] text-faint-foreground"
-            />
+            <Timestamp value={navbarStatusTimestamp} tooltipLabel="updated at" className="max-w-[140px] truncate align-middle" />
             {buildStatuses && buildStatuses.length > 0 ? <BuildStatusSummary buildStatuses={buildStatuses} isRefreshing={isRefreshing} /> : null}
         </div>
     );
@@ -198,7 +190,7 @@ function NavbarDraftAction({
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 rounded-sm border border-status-renamed/50 px-2.5 bg-status-renamed/10 text-status-renamed hover:bg-status-renamed/18 hover:border-status-renamed/75 hover:text-status-renamed focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                    className="h-7 rounded-sm border border-status-renamed/50 px-2.5 bg-status-renamed/10 text-status-renamed hover:bg-status-renamed/18 hover:border-status-renamed/75 hover:text-status-renamed focus-visible:ring-offset-0"
                     disabled={!canMarkDraft || actionBusy}
                     onClick={onMarkDraft}
                 >
@@ -225,7 +217,7 @@ function NavbarApproveAction({
             variant="ghost"
             size="sm"
             className={cn(
-                "h-7 rounded-sm border border-status-added/50 px-2.5 bg-status-added/10 hover:bg-status-added/18 hover:border-status-added/75 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                "h-7 rounded-sm border border-status-added/50 px-2.5 bg-status-added/10 hover:bg-status-added/18 hover:border-status-added/75 focus-visible:ring-offset-0",
                 currentUserReviewStatus === "approved" ? "bg-status-added/18 text-status-added" : "text-status-added",
             )}
             disabled={!canApprove || actionBusy}
@@ -252,7 +244,7 @@ function NavbarReviseAction({
             variant="ghost"
             size="sm"
             className={cn(
-                "h-7 rounded-sm border border-status-modified/50 px-2.5 bg-status-modified/10 text-status-modified hover:bg-status-modified/18 hover:border-status-modified/75 hover:text-status-modified focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
+                "h-7 rounded-sm border border-status-modified/50 px-2.5 bg-status-modified/10 text-status-modified hover:bg-status-modified/18 hover:border-status-modified/75 hover:text-status-modified focus-visible:ring-offset-0",
                 currentUserReviewStatus === "changesRequested" && "bg-status-modified/18",
             )}
             disabled={!canRequestChanges || actionBusy}
@@ -284,10 +276,7 @@ function NavbarMergeButton({
         <Button
             variant="ghost"
             size="sm"
-            className={cn(
-                "h-7 rounded-sm border px-2.5 font-medium focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none",
-                mergeButtonState.className,
-            )}
+            className={cn("h-7 rounded-sm border px-2.5 font-medium focus-visible:ring-offset-0", mergeButtonState.className)}
             disabled={isTerminal ? undefined : !canMerge || actionBusy}
             onClick={isTerminal ? undefined : onOpenMerge}
             aria-disabled={isTerminal || undefined}
@@ -337,7 +326,7 @@ function NavbarOverflowMenu({
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground data-[state=open]:bg-surface-hover data-[state=open]:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                    className="h-full w-11 rounded-none px-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground data-[state=open]:bg-surface-hover data-[state=open]:text-foreground focus-visible:ring-offset-0"
                     aria-label="Pull request actions"
                 >
                     <Menu className="size-4" />
@@ -375,20 +364,17 @@ function NavbarCommentsToggle({ rightSidebarCollapsed, unresolvedCommentCount, o
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-full w-12 rounded-none pl-0 pr-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none"
+                    className="h-full w-12 rounded-none pl-0 pr-0 bg-chrome text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:ring-offset-0"
                     onClick={onExpandRightSidebar}
                     aria-label={`Expand comments sidebar (${unresolvedCommentCount} unresolved comments)`}
                 >
-                    <span className="flex items-center justify-center gap-0.5">
-                        <span className="relative flex size-6 items-center justify-center">
-                            <MessageSquare className="size-[14px] -scale-x-100" />
-                            {unresolvedCommentCount > 0 ? (
-                                <span className="absolute -bottom-1 -left-0 font-mono leading-none text-status-renamed scale-65">{commentsBadgeValue}</span>
-                            ) : null}
-                        </span>
-                        <span className="flex size-3 items-center justify-center" aria-hidden="true">
-                            <ChevronRight className="size-3" />
-                        </span>
+                    <span className="flex items-center justify-center gap-1">
+                        <MessageSquare className="size-3.5 -scale-x-100" />
+                        {unresolvedCommentCount > 0 ? (
+                            <span className="text-[11px] font-medium leading-none tabular-nums text-accent">{commentsBadgeValue}</span>
+                        ) : (
+                            <ChevronRight className="size-3" aria-hidden="true" />
+                        )}
                     </span>
                 </Button>
             ) : null}
@@ -485,7 +471,7 @@ function BuildStatusSummary({ buildStatuses, isRefreshing }: { buildStatuses: Pu
                     <TooltipTrigger asChild>
                         <span
                             className={cn(
-                                "inline-flex h-6 min-w-10 px-1.5 items-center justify-center rounded-full border text-[10px] leading-none font-medium",
+                                "inline-flex h-6 min-w-10 px-2 items-center justify-center rounded-full border text-[11px] leading-none font-medium tabular-nums",
                                 buildStatusBubbleClass(aggregateBuildState(buildStatuses)),
                             )}
                         >
@@ -639,9 +625,5 @@ function BuildTimeLabel({ build }: { build: PullRequestBuildStatus }) {
         return <Timestamp value={build.completedAt} tooltipSide="bottom" className="w-20 shrink-0" />;
     }
 
-    return (
-        <span className="w-20 shrink-0 text-[9px] leading-4 text-muted-foreground" style={BUILD_TIME_STYLE}>
-            {buildRunningTime(build)}
-        </span>
-    );
+    return <span className="w-20 shrink-0 text-[11px] leading-4 tabular-nums text-faint-foreground">{buildRunningTime(build)}</span>;
 }

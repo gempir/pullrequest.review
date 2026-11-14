@@ -33,13 +33,13 @@ export function SidebarTopControls({
     const activityLabels = activeFetches.flatMap((query) => (typeof query.meta?.activity === "string" ? [query.meta.activity] : []));
 
     return (
-        <div data-component="top-sidebar" className="h-11 pl-2 pr-0 bg-sidebar-chrome border-b border-sidebar-border flex items-center gap-1">
+        <div data-component="top-sidebar" className="h-11 pl-2 pr-0 bg-sidebar-chrome border-b border-sidebar-border flex items-center gap-0.5">
             {onHome ? (
                 <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                    className="size-7 p-0 text-muted-foreground hover:text-foreground"
                     onClick={onHome}
                     aria-label="Home"
                 >
@@ -50,7 +50,7 @@ export function SidebarTopControls({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className={cn("h-8 w-8 p-0 text-muted-foreground hover:text-foreground", settingsActive ? "bg-selection text-accent" : null)}
+                className={cn("size-7 p-0 text-muted-foreground hover:text-foreground", settingsActive ? "bg-selection-subtle text-accent" : null)}
                 onClick={onSettings}
                 aria-label={settingsAriaLabel}
             >
@@ -63,7 +63,7 @@ export function SidebarTopControls({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                            className="size-7 p-0 text-muted-foreground hover:text-foreground"
                             onMouseEnter={() => setIsRefreshHovered(true)}
                             onMouseLeave={() => setIsRefreshHovered(false)}
                             onClick={() => {

@@ -3,8 +3,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { describeCommentTimestamp, describeTimestamp, type TimestampValue } from "@/lib/timestamp";
 import { cn } from "@/lib/utils";
 
-const TIMESTAMP_STYLE = { fontFamily: "var(--mono-font-family)" } as const;
-const TIMESTAMP_CLASS = "inline-block tabular-nums text-[9px] leading-4 text-muted-foreground";
+const TIMESTAMP_CLASS = "inline-block whitespace-nowrap tabular-nums text-[11px] leading-4 text-faint-foreground";
 
 type TimestampProps = {
     value: TimestampValue;
@@ -17,11 +16,7 @@ type TimestampProps = {
 
 export function Timestamp({ value, className, tooltipSide = "top", tooltipLabel, variant = "default", withTooltip = true }: TimestampProps) {
     const display = variant === "comment" ? describeCommentTimestamp(value) : describeTimestamp(value);
-    const content = (
-        <span className={cn(TIMESTAMP_CLASS, className)} style={TIMESTAMP_STYLE}>
-            {display.label}
-        </span>
-    );
+    const content = <span className={cn(TIMESTAMP_CLASS, className)}>{display.label}</span>;
 
     // Comment timestamps always get the exact date and time tooltip, since their full label has no seconds.
     const showTooltip = withTooltip && Boolean(display.absoluteLabel) && (variant === "comment" || display.isRelative);

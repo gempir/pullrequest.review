@@ -27,7 +27,7 @@ export function ReviewSingleModeView() {
                     bundle={prData}
                     headerTitle={pullRequestTitle || PR_SUMMARY_NAME}
                     diffStats={lineStats}
-                    footerRight={<ReviewSummaryCommentComposer key={review.pullRequestId} {...review.summaryComposer} />}
+                    composer={<ReviewSummaryCommentComposer key={review.pullRequestId} {...review.summaryComposer} />}
                     headerRight={
                         <div className="flex items-center gap-1">
                             <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={setViewMode} onOpenDiffSettings={openDiffSettings} />
@@ -40,22 +40,22 @@ export function ReviewSingleModeView() {
     }
 
     if (!selectedFileDiff || !selectedFilePath) {
-        return <div className="border border-border bg-card p-8 text-center text-muted-foreground text-[13px]">No file selected for the current filter.</div>;
+        return <div className="p-12 text-center text-[13px] text-faint-foreground">No file selected for the current filter.</div>;
     }
 
     const stats = fileLineStats.get(selectedFilePath);
     return (
         <div id={fileAnchorId(selectedFilePath)} data-component="diff-file-view" className="h-full min-w-0 max-w-full flex flex-col overflow-x-hidden">
-            <div className="h-10 min-w-0 bg-chrome px-3 flex items-center gap-2 overflow-hidden">
+            <div className="h-10 min-w-0 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 overflow-hidden">
                 <span className="size-4 flex items-center justify-center shrink-0">
                     <RepositoryFileIcon fileName={selectedFilePath.split("/").pop() || selectedFilePath} className="size-3.5" />
                 </span>
-                <div className="min-w-0 flex-1 flex items-center gap-2">
-                    <span className="min-w-0 truncate font-mono text-[12px]">{selectedFilePath}</span>
+                <div className="min-w-0 flex-1 flex items-center gap-1">
+                    <span className="mr-1 min-w-0 truncate font-mono text-[12px]">{selectedFilePath}</span>
                     <CopyPathButton path={selectedFilePath} />
                     <DiffContextButton state={fileContextState[selectedFilePath]} onClick={() => onLoadFullFileContext(selectedFilePath, selectedFileDiff)} />
                 </div>
-                <div className="ml-auto flex items-center gap-2 text-[12px]">
+                <div className="ml-auto flex shrink-0 items-center gap-2 text-[12px] tabular-nums">
                     <span className="select-none text-status-added">+{stats?.added ?? 0}</span>
                     <span className="select-none text-status-removed">-{stats?.removed ?? 0}</span>
                     <ReviewDiffSettingsMenu viewMode={viewMode} onViewModeChange={setViewMode} onOpenDiffSettings={openDiffSettings} />

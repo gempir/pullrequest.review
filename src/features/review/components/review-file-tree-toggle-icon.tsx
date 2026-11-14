@@ -14,9 +14,9 @@ export function ReviewFileTreeToggleIcon({ direction, badgeValue }: ReviewFileTr
     );
 
     const folder = (
-        <span className="relative flex size-6 items-center justify-center">
-            <Folder className="size-[14px]" />
-            {badgeValue ? <span className="absolute -bottom-1 right-0 font-mono leading-none text-status-renamed scale-65">{badgeValue}</span> : null}
+        <span className="flex items-center justify-center gap-1">
+            <Folder className="size-3.5" />
+            {badgeValue ? <span className="text-[11px] font-medium leading-none tabular-nums text-accent">{badgeValue}</span> : null}
         </span>
     );
 

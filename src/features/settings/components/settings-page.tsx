@@ -27,7 +27,7 @@ export function SettingsPage() {
 
     return (
         <div className="h-full min-h-0 flex bg-background">
-            <aside data-component="sidebar" className="w-[300px] shrink-0 bg-sidebar flex flex-col border-r border-sidebar-border">
+            <aside data-component="sidebar" className="w-[280px] shrink-0 bg-sidebar flex flex-col border-r border-sidebar-border">
                 <SidebarTopControls
                     onHome={() => {
                         navigate({ to: "/" });
@@ -35,20 +35,22 @@ export function SettingsPage() {
                     settingsActive
                 />
 
-                <div data-component="search-sidebar" className="h-10 pl-2 pr-2 bg-sidebar-chrome border-b border-sidebar-border flex items-center gap-2">
+                <div data-component="search-sidebar" className="h-10 px-2 border-b border-sidebar-border flex items-center gap-2">
                     <Input
-                        className="h-7 text-[12px] hover:bg-surface-1"
-                        placeholder="search settings"
+                        className="h-7 border-border-muted bg-background px-2 text-[12px]"
+                        placeholder="Filter settings"
+                        aria-label="Filter settings"
                         value={searchQuery}
                         onChange={(event) => setSearchQuery(event.target.value)}
                     />
                 </div>
 
-                <div className="flex-1 min-h-0 overflow-y-auto" data-component="tree">
+                <div className="flex-1 min-h-0 overflow-y-auto tree-font-scope" data-component="tree">
                     <FileTree
                         entries={treeEntries}
                         selectedAppPath={selectedPath}
                         searchQuery={searchQuery}
+                        hideSearchChrome
                         onSelectPath={(path) => {
                             if (settingsPathSet.has(path)) setActiveFile(path);
                         }}
@@ -57,10 +59,6 @@ export function SettingsPage() {
             </aside>
 
             <section className="flex-1 min-w-0 min-h-0 flex flex-col">
-                <header data-component="navbar" className="h-11 bg-chrome border-b border-border-muted px-3 flex items-center gap-2 text-[12px]">
-                    <span className="text-muted-foreground">Settings</span>
-                </header>
-
                 <main data-component="diff-view" className="flex-1 min-h-0 overflow-y-auto">
                     <div className="h-full min-h-0">
                         <SettingsPanel activeTab={settingsTabFromPath(selectedPath) ?? "appearance"} />

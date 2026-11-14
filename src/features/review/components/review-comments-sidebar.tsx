@@ -79,7 +79,7 @@ export function ReviewCommentsSidebar({
             onToggleCollapsed={onToggleCollapsed}
             onStartResize={onStartResize}
             secondaryHeader={
-                <div className="flex h-full items-center">
+                <div className="flex h-full items-center gap-1.5">
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
@@ -87,15 +87,15 @@ export function ReviewCommentsSidebar({
                                 variant="ghost"
                                 size="sm"
                                 className={cn(
-                                    "size-7 p-0 relative text-muted-foreground hover:text-foreground",
-                                    includeResolved ? "bg-selection text-foreground" : "",
+                                    "order-last h-7 shrink-0 gap-1 px-1.5 text-muted-foreground hover:text-foreground",
+                                    includeResolved ? "bg-selection-subtle text-foreground" : "",
                                 )}
                                 onClick={() => setIncludeResolved((prev) => !prev)}
                                 aria-label={includeResolved ? "Hide resolved comments" : "Include resolved comments"}
                             >
                                 <CircleCheck className="size-3.5" />
                                 {unresolvedCount > 0 ? (
-                                    <span className="absolute -bottom-1 -right-0 font-mono leading-none text-status-renamed scale-65">
+                                    <span className="text-[11px] font-medium leading-none tabular-nums text-accent">
                                         {unresolvedCount > 999 ? "999+" : unresolvedCount}
                                     </span>
                                 ) : null}
@@ -104,11 +104,11 @@ export function ReviewCommentsSidebar({
                         <TooltipContent side="bottom">{includeResolved ? "Hiding resolved comments" : "Include resolved comments"}</TooltipContent>
                     </Tooltip>
                     <Input
-                        className="h-full bg-sidebar-chrome text-[12px] text-right placeholder:text-right flex-1 min-w-0 border-0 rounded-none hover:bg-sidebar-chrome focus-visible:border-0 focus-visible:ring-0"
-                        placeholder="search comments"
+                        className="h-7 min-w-0 flex-1 border-border-muted bg-background px-2 text-[12px]"
+                        placeholder="Filter comments"
                         value={searchQuery}
                         onChange={(event) => setSearchQuery(event.target.value)}
-                        aria-label="Search comments"
+                        aria-label="Filter comments"
                     />
                 </div>
             }

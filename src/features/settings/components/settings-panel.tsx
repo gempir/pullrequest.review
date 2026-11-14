@@ -32,19 +32,34 @@ function useResetAllSettingsAction() {
     }, [resetAppearance, resetOptions, resetShortcuts, resetTreePreferences]);
 }
 
-function SettingsPanelHeader({ onClose, onResetAllSettings }: { onClose?: () => void; onResetAllSettings: () => void }) {
+const SETTINGS_TAB_TITLES: Record<SettingsTab, string> = {
+    appearance: "Appearance",
+    diff: "Diff",
+    shortcuts: "Shortcuts",
+    tree: "Tree",
+};
+
+function SettingsPanelHeader({ title, onClose, onResetAllSettings }: { title: string; onClose?: () => void; onResetAllSettings: () => void }) {
     return (
-        <div className="h-10 bg-chrome px-2.5 flex items-center gap-2">
-            <div className="flex w-full items-center gap-2 text-[12px] font-medium">
-                <Settings2 className="size-4" />
-                Settings
-                <div className="ml-auto flex items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-[11px]" onClick={onResetAllSettings}>
+        <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border-muted bg-chrome px-3" data-component="navbar">
+            <div className="flex w-full items-center gap-1.5 text-[13px]">
+                <Settings2 className="size-3.5 text-muted-foreground" />
+                <span className="text-muted-foreground">Settings</span>
+                <span className="text-faint-foreground">/</span>
+                <span className="font-medium text-foreground">{title}</span>
+                <div className="ml-auto flex items-center gap-1.5">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 px-2 font-normal text-muted-foreground hover:text-foreground"
+                        onClick={onResetAllSettings}
+                    >
                         <RotateCcw className="size-3.5" />
                         Reset all settings
                     </Button>
                     {onClose ? (
-                        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={onClose}>
+                        <Button type="button" variant="outline" size="sm" className="px-2.5" onClick={onClose}>
                             Back to review
                         </Button>
                     ) : null}
@@ -66,8 +81,8 @@ export function SettingsPanel({ workspaceMode, onWorkspaceModeChange, onClose, a
 
     return (
         <div className="flex h-full min-h-0 flex-col">
-            <SettingsPanelHeader onClose={onClose} onResetAllSettings={resetAllSettings} />
-            <div className="flex-1 overflow-auto px-3 py-2.5">
+            <SettingsPanelHeader title={SETTINGS_TAB_TITLES[activeTab]} onClose={onClose} onResetAllSettings={resetAllSettings} />
+            <div className="flex-1 overflow-auto px-6 py-5">
                 <SettingsPanelContent workspaceMode={workspaceMode} onWorkspaceModeChange={onWorkspaceModeChange} activeTab={activeTab} />
             </div>
         </div>

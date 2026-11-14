@@ -15,7 +15,7 @@ import type { Comment } from "@/lib/git-host/types";
 import { commentTimestampSource, describeCommentTimestamp } from "@/lib/timestamp";
 
 const TEXT_ACTION_CLASS =
-    "text-[12px] font-semibold leading-none text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50";
+    "rounded-sm text-[12px] font-medium leading-none text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50";
 
 type Editor = { kind: "reply" | "edit"; commentId: number; value: string } | null;
 /** A save in flight: a reply to `commentId`, or an edit or delete of it. */
@@ -72,14 +72,7 @@ function EditorButtons({ reply, disabled }: { reply: boolean; disabled: boolean 
                 {pending ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
                 {reply ? "Comment" : "Save"}
             </Button>
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 rounded-md border border-input bg-surface-1 gap-1.5 hover:bg-surface-hover"
-                disabled={pending}
-                onClick={cancelEditor}
-            >
+            <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5" disabled={pending} onClick={cancelEditor}>
                 Cancel
             </Button>
         </div>
@@ -112,7 +105,7 @@ function CommentActionsRow({ comment, isRoot }: { comment: Comment; isRoot: bool
             : []),
     ];
     return (
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+        <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1">
             {items.map((item, index) => (
                 <span key={item.id} className="inline-flex items-center gap-1.5">
                     {index > 0 ? <span className="text-muted-foreground/70">{"\u00b7"}</span> : null}
@@ -177,14 +170,14 @@ function CommentHeader({ comment, isRoot, children }: { comment: Comment; isRoot
     return (
         <div
             className={
-                isRoot ? "relative flex items-center gap-3 text-[13px] text-muted-foreground" : "flex items-center gap-3 text-[12px] text-muted-foreground"
+                isRoot
+                    ? "relative flex min-h-6 items-center gap-2 text-[12px] text-faint-foreground"
+                    : "flex min-h-6 items-center gap-2 text-[12px] text-faint-foreground"
             }
         >
-            <span className={isRoot ? "font-semibold text-foreground text-[16px]" : "font-semibold text-foreground text-[14px]"}>
-                {comment.user?.displayName ?? "Unknown"}
-            </span>
+            <span className="text-[13px] font-semibold text-foreground">{comment.user?.displayName ?? "Unknown"}</span>
             {date.label ? (
-                <span className="font-semibold tabular-nums" title={date.absoluteLabel ?? undefined}>
+                <span className="tabular-nums" title={date.absoluteLabel ?? undefined}>
                     {date.label}
                 </span>
             ) : null}
@@ -200,7 +193,7 @@ function ReplyNode({ node, depth }: { node: CommentThreadNode; depth: number }) 
     const reply = node.comment;
     return (
         <div className="relative" data-thread-depth={depth} style={{ marginLeft: actions.nestedReplies ? 38 : 0 }}>
-            <div id={commentAnchorId(reply.id)} className="relative z-10 flex gap-3 py-[3px] pr-4">
+            <div id={commentAnchorId(reply.id)} className="relative z-10 flex gap-3 py-1.5">
                 <Avatar name={reply.user?.displayName ?? "Unknown"} url={reply.user?.avatarUrl} sizeClass="relative z-10 size-6" />
                 <div className="relative z-10 min-w-0 flex-1">
                     <CommentHeader comment={reply} isRoot={false} />
@@ -223,18 +216,19 @@ function RootComment({ collapsed, onToggleCollapsed }: { collapsed: boolean; onT
     const root = thread.root.comment;
     const isResolved = Boolean(root.resolution);
     return (
-        <div id={commentAnchorId(root.id)} className={`group/root-card relative z-10 flex ${collapsed ? "items-center" : "items-start"} gap-4 px-4 py-2`}>
+        <div id={commentAnchorId(root.id)} className={`group/root-card relative z-10 flex ${collapsed ? "items-center" : "items-start"} gap-3 px-3 py-2.5`}>
             <Avatar name={root.user?.displayName ?? "Unknown"} url={root.user?.avatarUrl} sizeClass="size-6" />
             <div className="min-w-0 flex-1">
                 <CommentHeader comment={root} isRoot>
                     {isResolved && !isCommentPending(root, editor, saving) ? (
                         <button
                             type="button"
-                            className="absolute left-1/2 top-1/2 inline-flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                            className="ml-auto inline-flex h-6 items-center gap-1 rounded-sm pl-1.5 pr-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
                             onClick={onToggleCollapsed}
                             aria-label={collapsed ? "Expand resolved thread" : "Collapse resolved thread"}
                         >
-                            <ChevronDown className={collapsed ? "size-5 transition-transform" : "size-5 rotate-180 transition-transform"} />
+                            <span className="text-status-added">Resolved</span>
+                            <ChevronDown className={collapsed ? "size-4 transition-transform" : "size-4 rotate-180 transition-transform"} />
                         </button>
                     ) : null}
                 </CommentHeader>
@@ -332,12 +326,12 @@ export function ThreadCard({
     const cardClassName = showBorder
         ? shouldAttachToDiffEdge
             ? "relative border-y border-r border-comment-border bg-comment"
-            : "relative border border-comment-border bg-comment"
+            : "relative overflow-hidden rounded-md border border-comment-border bg-comment"
         : "relative bg-comment";
     return (
         // eslint-disable-next-line react-doctor/context-provider-value-from-unmemoized-local-literal -- Rebuilt with the card each render; only the card's own subtree consumes it.
         <ThreadCardContext.Provider value={state}>
-            <div className="text-[12px]" style={{ fontFamily: "var(--comment-font-family)" }}>
+            <div className="text-[13px]" style={{ fontFamily: "var(--comment-font-family)" }}>
                 <div className={cardClassName}>
                     {header ? (
                         <div className={showBorder ? "border-b border-comment-border" : ""} data-component="thread-card-header">
@@ -352,7 +346,7 @@ export function ThreadCard({
                         }}
                     />
                     {!collapsed && thread.root.children.length > 0 ? (
-                        <div className="relative z-10 px-4 pb-2 pt-2.5">
+                        <div className="relative z-10 border-t border-comment-border px-3 py-1.5">
                             {thread.root.children.map((reply) => (
                                 <ReplyNode key={reply.comment.id} node={reply} depth={1} />
                             ))}

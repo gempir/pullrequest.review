@@ -1,4 +1,4 @@
-import { GitCompare } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useMemo } from "react";
 import { Timestamp } from "@/components/timestamp";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ function ReviewCommitScopeControl({
 }) {
     const selectedSet = new Set(selectedCommitHashes);
     const selectedCount = selectedSet.size;
-    const scopeLabel = mode === "full" ? "All Changes" : `${selectedCount} Commits`;
+    const scopeLabel = mode === "full" ? "All changes" : `${selectedCount} ${selectedCount === 1 ? "commit" : "commits"}`;
     const selectedIndices = commitOptions.flatMap((option, index) => (selectedSet.has(option.hash) ? [index] : [])).sort((a, b) => a - b);
     const rangeStart = selectedIndices[0] ?? -1;
     const rangeEnd = selectedIndices[selectedIndices.length - 1] ?? -1;
@@ -45,26 +45,23 @@ function ReviewCommitScopeControl({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 min-w-[88px] justify-between rounded-sm border border-transparent bg-[var(--diffs-bg,var(--background))] px-2 text-[11px] text-muted-foreground hover:border-border hover:bg-surface-hover hover:text-foreground focus-visible:border-transparent focus-visible:ring-0"
+                        className="h-7 min-w-[88px] justify-between gap-1.5 rounded-sm border border-border-muted px-2 text-[12px] font-normal text-muted-foreground hover:border-border hover:bg-surface-hover hover:text-foreground focus-visible:ring-offset-0"
                     >
                         <span className="truncate">{scopeLabel}</span>
-                        <GitCompare className="ml-1 size-3" aria-hidden="true" />
+                        <ChevronDown className="size-3" aria-hidden="true" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[430px] p-0">
+                <DropdownMenuContent align="start" className="w-[430px] p-1">
                     <DropdownMenuItem
-                        className={cn(
-                            "rounded-none px-2 py-2 border-t border-border/30 first:border-t-0 cursor-pointer",
-                            mode === "full" ? "bg-status-renamed/20 focus:bg-status-renamed/25" : "",
-                        )}
+                        className={cn("cursor-pointer px-2 py-1.5", mode === "full" ? "bg-selection-subtle focus:bg-selection-subtle" : "")}
                         onSelect={(event) => {
                             event.preventDefault();
                             onSetFullScope();
                         }}
                     >
-                        <div className="min-w-0 w-full text-[11px]">All Changes</div>
+                        <div className="min-w-0 w-full text-[12px] font-medium">All changes</div>
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator className="my-0" />
+                    <DropdownMenuSeparator />
                     {commitOptions.length > 0 ? (
                         <div className="max-h-[60vh] min-h-0 overflow-y-auto">
                             <div className="space-y-0">
@@ -75,9 +72,9 @@ function ReviewCommitScopeControl({
                                         <DropdownMenuItem
                                             key={option.hash}
                                             className={cn(
-                                                "items-start gap-2 px-2 py-1 rounded-none border-t border-border/30 first:border-t-0 cursor-crosshair",
+                                                "items-start gap-2 px-2 py-1.5 cursor-pointer",
                                                 selected
-                                                    ? "bg-status-renamed/20 focus:bg-status-renamed/25"
+                                                    ? "bg-selection-subtle focus:bg-selection-subtle"
                                                     : inRange
                                                       ? "bg-surface-1 focus:bg-surface-hover"
                                                       : "",
@@ -88,13 +85,18 @@ function ReviewCommitScopeControl({
                                             }}
                                         >
                                             <div className="min-w-0 w-full space-y-0.5">
-                                                <div className="flex min-w-0 items-center gap-2 text-[11px]">
-                                                    <span className={cn("min-w-0 truncate font-mono", selected ? "text-foreground" : "text-foreground/90")}>
+                                                <div className="flex min-w-0 items-center gap-2 text-[12px]">
+                                                    <span
+                                                        className={cn(
+                                                            "min-w-0 truncate font-mono text-[11px]",
+                                                            selected ? "text-accent" : "text-muted-foreground",
+                                                        )}
+                                                    >
                                                         {option.label}
                                                     </span>
                                                     <Timestamp value={option.timestamp} className="ml-auto shrink-0 text-right" />
                                                 </div>
-                                                <div className="truncate text-[11px] text-muted-foreground">{option.message || "(no message)"}</div>
+                                                <div className="truncate text-[12px] text-foreground">{option.message || "(no message)"}</div>
                                             </div>
                                         </DropdownMenuItem>
                                     );

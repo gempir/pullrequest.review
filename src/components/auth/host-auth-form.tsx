@@ -95,17 +95,12 @@ type AuthFormState = ReturnType<typeof useHostAuthFormState>;
 function BitbucketOAuthChoice({ isOnboarding, isSubmitting, isOAuthStarting, authenticateWithOAuth }: AuthFormState & { isOnboarding: boolean }) {
     return (
         <>
-            <Button
-                type="button"
-                className={isOnboarding ? "h-10 w-full rounded-md text-[13px]" : "w-full rounded-md"}
-                disabled={isSubmitting || isOAuthStarting}
-                onClick={authenticateWithOAuth}
-            >
+            <Button type="button" className={isOnboarding ? "h-9 w-full" : "w-full"} disabled={isSubmitting || isOAuthStarting} onClick={authenticateWithOAuth}>
                 {isOAuthStarting ? "Opening Bitbucket..." : "Continue with Bitbucket OAuth"}
             </Button>
             <div className="flex items-center gap-3" aria-hidden="true">
                 <div className="h-px flex-1 bg-border-muted" />
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">or use an API token</span>
+                <span className="text-[11px] text-faint-foreground">or use an API token</span>
                 <div className="h-px flex-1 bg-border-muted" />
             </div>
         </>
@@ -121,7 +116,6 @@ function BitbucketScopes({ bitbucketScopeText, copiedScopes, setCopiedScopes, is
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="rounded-md"
                     onClick={() => {
                         void navigator.clipboard.writeText(bitbucketScopeText);
                         setCopiedScopes(true);
@@ -156,7 +150,7 @@ function HostTokenFields({
     if (!isBitbucket) {
         return (
             <div className="space-y-1.5">
-                <Label className="text-[12px] text-muted-foreground">GitHub Token</Label>
+                <Label className="text-[12px] font-medium text-muted-foreground">GitHub Token</Label>
                 <Input
                     type="password"
                     value={githubToken}
@@ -172,7 +166,7 @@ function HostTokenFields({
     return (
         <div className="grid gap-3">
             <div className="space-y-1.5">
-                <Label className="text-[12px] text-muted-foreground">Bitbucket Email</Label>
+                <Label className="text-[12px] font-medium text-muted-foreground">Bitbucket Email</Label>
                 <Input
                     type="email"
                     value={email}
@@ -184,7 +178,7 @@ function HostTokenFields({
                 />
             </div>
             <div className="space-y-1.5">
-                <Label className="text-[12px] text-muted-foreground">Scoped API Token</Label>
+                <Label className="text-[12px] font-medium text-muted-foreground">Scoped API Token</Label>
                 <Input
                     type="password"
                     value={apiToken}
@@ -205,14 +199,14 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
     const hostCopy = HOST_AUTH_COPY[host];
     const ctaLabel = mode === "inline" ? "Authenticate" : `Connect ${getHostLabel(host)}`;
     const isOnboarding = mode === "onboarding";
-    const fieldClassName = isOnboarding ? "h-10 rounded-md bg-surface-1 text-[13px]" : "rounded-md";
+    const fieldClassName = isOnboarding ? "h-9" : "";
 
     return (
         <form className="space-y-4" action={authenticate}>
-            <div className="rounded-md border border-border-muted bg-surface-1 p-4">
+            <div className="rounded-md border border-border bg-card p-5">
                 <div className="space-y-1">
-                    <p className="text-[13px] text-muted-foreground">{hostCopy.description}</p>
-                    <p className="text-[11px] text-muted-foreground">{hostCopy.guidance}</p>
+                    <p className="text-[13px] text-foreground">{hostCopy.description}</p>
+                    <p className="text-[12px] text-muted-foreground">{hostCopy.guidance}</p>
                 </div>
 
                 <div className="mt-4 space-y-3">
@@ -221,7 +215,7 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
                     <Button
                         type="button"
                         variant={isBitbucket || !isOnboarding ? "outline" : "default"}
-                        className="h-9 w-full rounded-md justify-center"
+                        className="w-full justify-center"
                         disabled={isOAuthStarting}
                         onClick={() => window.open(hostCopy.tokenUrl, "_blank", "noopener,noreferrer")}
                     >
@@ -237,16 +231,14 @@ export function HostAuthForm({ host, mode = "panel", onSuccess }: { host: GitHos
 
             <Button
                 type="submit"
-                className={isOnboarding ? "h-10 w-full rounded-md text-[13px]" : "w-full rounded-md"}
+                className={isOnboarding ? "h-9 w-full" : "w-full"}
                 disabled={isSubmitting || isOAuthStarting || (isBitbucket ? !email.trim() || !apiToken.trim() : !githubToken.trim())}
             >
                 {isSubmitting ? "Authenticating..." : ctaLabel}
             </Button>
 
-            {error ? (
-                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-destructive text-[13px]">[AUTH ERROR] {error}</div>
-            ) : null}
-            <p className="text-[12px] text-muted-foreground">Your selected credentials are stored in the local app database.</p>
+            {error ? <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-destructive text-[13px]">{error}</div> : null}
+            <p className="text-[12px] text-faint-foreground">Your credentials are stored only in this browser.</p>
         </form>
     );
 }

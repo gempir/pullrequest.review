@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Check, GitCommitHorizontal, GitMerge, GitPullRequestClosed, MessageSquare, PenSquare, ScrollText, Trash2, UserMinus, UserPlus, X } from "lucide-react";
+import type { ReactNode } from "react";
 import { CommentMarkdown } from "@/components/comment-markdown";
 import { RepositoryFileIcon } from "@/components/repository-file-icon";
 import { Timestamp } from "@/components/timestamp";
@@ -63,8 +64,18 @@ function historyEventTitle(type: PullRequestHistoryEvent["type"]) {
     switch (type) {
         case "opened":
             return "opened the pull request";
+        case "reopened":
+            return "reopened the pull request";
+        case "approved":
+            return "approved these changes";
+        case "changesRequested":
+            return "requested changes";
+        case "merged":
+            return "merged the pull request";
+        case "closed":
+            return "closed the pull request";
         case "deletedBranch":
-            return "deleted branch";
+            return "deleted the branch";
         default:
             return null;
     }
@@ -72,50 +83,45 @@ function historyEventTitle(type: PullRequestHistoryEvent["type"]) {
 
 function timelineIconClass(kind: "history" | "commitGroup" | "commentThread", type?: PullRequestHistoryEvent["type"]) {
     if (kind === "commitGroup") {
-        return "border-border-muted bg-surface-2 text-foreground";
+        return "border-border bg-surface-2 text-muted-foreground";
     }
     if (kind === "commentThread") {
-        return "border-border-muted bg-surface-2 text-foreground";
+        return "border-border bg-surface-2 text-muted-foreground";
     }
     switch (type) {
         case "approved":
             return "border-status-added/40 bg-status-added/15 text-status-added";
         case "merged":
-            return "border-status-renamed/40 bg-status-renamed/15 text-status-renamed";
+            return "border-status-merged/40 bg-status-merged/15 text-status-merged";
         case "changesRequested":
         case "reviewDismissed":
         case "closed":
             return "border-status-removed/40 bg-status-removed/15 text-status-removed";
         case "deletedBranch":
-            return "border-border-muted bg-surface-2 text-muted-foreground";
+            return "border-border bg-surface-2 text-muted-foreground";
         case "reviewRequested":
         case "reviewerAdded":
             return "border-status-renamed/40 bg-status-renamed/15 text-status-renamed";
-        case "comment":
-            return "border-border-muted bg-surface-2 text-foreground";
         default:
-            return "border-border-muted bg-surface-2 text-muted-foreground";
+            return "border-border bg-surface-2 text-muted-foreground";
     }
 }
 
-function TimelineConnector({ showAbove, showBelow }: { showAbove: boolean; showBelow: boolean }) {
+const TIMELINE_ROW_CLASS = "relative grid grid-cols-[24px_minmax(0,1fr)] gap-3 pb-4";
+
+function TimelineConnector({ showBelow }: { showBelow: boolean }) {
+    return showBelow ? <div className={cn("absolute top-6 bottom-0 w-px bg-border", TIMELINE_CONNECTOR_CENTER_CLASS)} /> : null;
+}
+
+function TimelineMarker({ className, children }: { className: string; children: ReactNode }) {
     return (
-        <>
-            {showAbove ? <div className={cn("absolute top-0 h-1 w-px bg-border-muted", TIMELINE_CONNECTOR_CENTER_CLASS)} /> : null}
-            {showBelow ? <div className={cn("absolute top-5 bottom-0 w-px bg-border-muted", TIMELINE_CONNECTOR_CENTER_CLASS)} /> : null}
-        </>
+        <div className="relative z-10">
+            <div className={cn("flex size-6 items-center justify-center rounded-full border [&_svg]:size-3.5", className)}>{children}</div>
+        </div>
     );
 }
 
-export function CommitGroupTimelineItem({
-    showConnectorAbove,
-    showConnectorBelow,
-    entry,
-}: {
-    showConnectorAbove: boolean;
-    showConnectorBelow: boolean;
-    entry: CommitGroupTimelineEntry;
-}) {
+export function CommitGroupTimelineItem({ showConnectorBelow, entry }: { showConnectorBelow: boolean; entry: CommitGroupTimelineEntry }) {
     const { hash, pathname } = useRouterState({
         select: (state) => ({
             hash: state.location.hash,
@@ -125,29 +131,23 @@ export function CommitGroupTimelineItem({
     const commitGroups = groupCommitsByAuthor(entry.commits);
 
     return (
-        <div className="relative grid grid-cols-[16px_minmax(0,1fr)] gap-[14px] pb-3">
-            <TimelineConnector showAbove={showConnectorAbove} showBelow={showConnectorBelow} />
-            <div className="relative z-10 pt-1">
-                <div className={cn("flex size-4 items-center justify-center rounded-full border", timelineIconClass("commitGroup"))}>
-                    <GitCommitHorizontal className="size-[15px]" />
-                </div>
-            </div>
-            <div className="min-w-0 pt-1">
+        <div className={TIMELINE_ROW_CLASS}>
+            <TimelineConnector showBelow={showConnectorBelow} />
+            <TimelineMarker className={timelineIconClass("commitGroup")}>
+                <GitCommitHorizontal />
+            </TimelineMarker>
+            <div className="min-w-0">
                 <div className="space-y-3">
                     {commitGroups.map((group) => (
                         <div key={`${entry.id}-${group.id}`} className="min-w-0">
-                            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
-                                <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
-                                    <CommitAuthorIdentity group={group} />
-                                </div>
-                                <Timestamp
-                                    value={group.commits[0]?.date}
-                                    className={cn(TIMELINE_TIMESTAMP_CLASS, "invisible select-none")}
-                                    withTooltip={false}
-                                />
+                            <div className={cn("flex min-h-6 min-w-0 items-center gap-2", TIMELINE_META_TEXT_CLASS)}>
+                                <CommitAuthorIdentity group={group} />
+                                <span className="text-muted-foreground">
+                                    {group.commits.length === 1 ? "added a commit" : `added ${group.commits.length} commits`}
+                                </span>
                             </div>
-                            <div className="px-2">
-                                <div className="space-y-1">
+                            <div>
+                                <div className="mt-1 space-y-0.5">
                                     {group.commits.map((commit) => {
                                         const message = commit.summary?.raw ?? commit.message;
                                         const mergedDevelop = isMergedDevelopCommit(message);
@@ -155,16 +155,16 @@ export function CommitGroupTimelineItem({
 
                                         return (
                                             <div key={commit.hash} className={cn("py-0.5", mergedDevelop ? "text-muted-foreground opacity-70" : "")}>
-                                                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-[13px] leading-5">
-                                                    <div className="min-w-0 flex items-center gap-2 overflow-hidden">
+                                                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-[13px] leading-5">
+                                                    <div className="min-w-0 flex items-center gap-2.5 overflow-hidden">
                                                         <Link
                                                             to={pathname}
                                                             hash={hash}
                                                             search={() => commitSearch}
                                                             replace
                                                             className={cn(
-                                                                "shrink-0 rounded-sm font-mono underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                                                                mergedDevelop ? "text-status-added/80" : "text-status-renamed",
+                                                                "shrink-0 rounded-sm font-mono text-[12px] underline-offset-2 transition-colors hover:underline",
+                                                                mergedDevelop ? "text-muted-foreground" : "text-accent",
                                                             )}
                                                             title={`Show changes for ${commit.hash}`}
                                                         >
@@ -193,7 +193,7 @@ function CommitAuthorIdentity({ group }: { group: CommitAuthorGroup }) {
     const email = commitAuthorEmail(group.commits[0]);
     const content = (
         <div className="min-w-0 inline-flex items-center gap-2">
-            <Avatar name={group.authorName} url={group.avatarUrl} />
+            <Avatar name={group.authorName} url={group.avatarUrl} sizeClass="size-5" />
             <span className="truncate font-medium text-foreground">{group.authorName}</span>
         </div>
     );
@@ -205,54 +205,40 @@ function CommitAuthorIdentity({ group }: { group: CommitAuthorGroup }) {
     return (
         <Tooltip>
             <TooltipTrigger asChild>
-                <div className="min-w-0">{content}</div>
+                <div className="flex min-w-0 items-center">{content}</div>
             </TooltipTrigger>
             <TooltipContent side="bottom">{email}</TooltipContent>
         </Tooltip>
     );
 }
 
-export function HistoryTimelineItem({
-    showConnectorAbove,
-    showConnectorBelow,
-    event,
-}: {
-    showConnectorAbove: boolean;
-    showConnectorBelow: boolean;
-    event: PullRequestHistoryEvent;
-}) {
+export function HistoryTimelineItem({ showConnectorBelow, event }: { showConnectorBelow: boolean; event: PullRequestHistoryEvent }) {
     const HistoryIcon = historyIcon(event.type);
     const eventTitle = historyEventTitle(event.type);
     const details = event.details && shouldRenderHistoryDetails(event.type) ? event.details : undefined;
     const content = event.contentHtml ?? event.content;
 
     return (
-        <div className="relative grid grid-cols-[16px_minmax(0,1fr)] gap-[14px] pb-3">
-            <TimelineConnector showAbove={showConnectorAbove} showBelow={showConnectorBelow} />
-            <div className="relative z-10 pt-1">
-                <div className={cn("flex size-4 items-center justify-center rounded-full border", timelineIconClass("history", event.type))}>
-                    <HistoryIcon className="size-[15px]" />
-                </div>
-            </div>
-            <div className="min-w-0 pt-1">
+        <div className={TIMELINE_ROW_CLASS}>
+            <TimelineConnector showBelow={showConnectorBelow} />
+            <TimelineMarker className={timelineIconClass("history", event.type)}>
+                <HistoryIcon />
+            </TimelineMarker>
+            <div className="min-w-0">
                 {details || content ? (
-                    <div className="mt-1 overflow-hidden rounded-md border border-comment-border bg-comment">
+                    <div className="overflow-hidden rounded-md border border-comment-border bg-comment">
                         {details ? (
-                            <div className="border-b border-comment-border px-2.5 py-2 text-[13px] text-muted-foreground break-words">{details}</div>
+                            <div className="border-b border-comment-border px-3 py-2 text-[13px] text-muted-foreground break-words">{details}</div>
                         ) : null}
                         {content ? (
-                            <div className="flex items-start gap-2 px-2 py-2 mx-1.5 my-1">
+                            <div className="flex items-start gap-3 px-3 py-2.5">
                                 <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} sizeClass="size-6" />
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                        <span className="truncate text-[13px] font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
-                                        <Timestamp
-                                            value={event.updatedAt ?? event.createdAt}
-                                            className="pt-0 text-[11px] text-muted-foreground"
-                                            variant="comment"
-                                        />
+                                        <span className="truncate text-[13px] font-semibold text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
+                                        <Timestamp value={event.updatedAt ?? event.createdAt} className="text-[12px]" variant="comment" />
                                     </div>
-                                    <div className="mt-1.5 min-w-0">
+                                    <div className="mt-1 min-w-0">
                                         <CommentMarkdown text={content} />
                                     </div>
                                 </div>
@@ -260,9 +246,9 @@ export function HistoryTimelineItem({
                         ) : null}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2 py-1.5">
+                    <div className="grid min-h-6 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
                         <div className={cn("min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1", TIMELINE_META_TEXT_CLASS)}>
-                            <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} />
+                            <Avatar name={event.actor?.displayName} url={event.actor?.avatarUrl} sizeClass="size-5" />
                             <span className="font-medium text-foreground">{event.actor?.displayName ?? "Unknown"}</span>
                             {eventTitle ? <span className="text-muted-foreground">{eventTitle}</span> : null}
                         </div>
@@ -278,7 +264,7 @@ function CommentThreadPathHeader({ path, commentId, onSelectComment }: { path: s
     const fileName = path.split("/").pop() || path;
 
     return (
-        <div className="relative flex min-w-0 cursor-pointer items-center gap-1.5 px-3 py-1 font-mono text-[11px] text-foreground transition-colors hover:bg-surface-hover focus-within:bg-surface-hover">
+        <div className="relative flex min-h-8 min-w-0 cursor-pointer items-center gap-2 bg-comment-muted/60 px-3 py-1 font-mono text-[12px] text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-within:bg-surface-hover">
             <a
                 href={`#${buildPrFileHash(path, commentId)}`}
                 className="absolute inset-0 cursor-pointer outline-none"
@@ -298,14 +284,12 @@ function CommentThreadPathHeader({ path, commentId, onSelectComment }: { path: s
 }
 
 export function CommentThreadTimelineItem({
-    showConnectorAbove,
     showConnectorBelow,
     thread,
     diffSnippet,
     actions,
     onSelectComment,
 }: {
-    showConnectorAbove: boolean;
     showConnectorBelow: boolean;
     thread: CommentThread;
     diffSnippet?: CommentDiffSnippet;
@@ -316,14 +300,12 @@ export function CommentThreadTimelineItem({
     const path = rootComment.inline?.path;
 
     return (
-        <div className="relative grid grid-cols-[16px_minmax(0,1fr)] gap-[14px] pb-3">
-            <TimelineConnector showAbove={showConnectorAbove} showBelow={showConnectorBelow} />
-            <div className="relative z-10 pt-1">
-                <div className={cn("flex size-4 items-center justify-center rounded-full border", timelineIconClass("commentThread"))}>
-                    <MessageSquare className="size-[15px]" />
-                </div>
-            </div>
-            <div className="min-w-0 pt-1">
+        <div className={TIMELINE_ROW_CLASS}>
+            <TimelineConnector showBelow={showConnectorBelow} />
+            <TimelineMarker className={timelineIconClass("commentThread")}>
+                <MessageSquare />
+            </TimelineMarker>
+            <div className="min-w-0">
                 <ThreadCard
                     thread={thread}
                     actions={actions}

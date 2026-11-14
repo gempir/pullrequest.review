@@ -54,7 +54,7 @@ const TREE_HOST_STYLE: CSSProperties = {
     "--trees-border-color-override": "var(--sidebar-border)",
     "--trees-accent-override": "var(--accent)",
     "--trees-search-bg-override": "var(--sidebar-chrome)",
-    "--trees-selected-bg-override": "var(--selection)",
+    "--trees-selected-bg-override": "var(--selection-subtle)",
     "--trees-git-renamed-color-override": "var(--status-renamed)",
     "--trees-focus-ring-width-override": "0px",
     "--trees-border-radius-override": "0px",

@@ -40,7 +40,7 @@ export function ReviewSummaryCommentComposer({
 
     return (
         <div className="flex gap-3">
-            <Avatar name={currentUserDisplayName ?? "You"} url={currentUserAvatarUrl} sizeClass="size-10" />
+            <Avatar name={currentUserDisplayName ?? "You"} url={currentUserAvatarUrl} sizeClass="size-6 mt-1.5" />
             <div className="min-w-0 flex-1 space-y-2">
                 <CommentEditor
                     value={value}
@@ -50,12 +50,12 @@ export function ReviewSummaryCommentComposer({
                     onSubmit={handleSubmit}
                     contentStyle={{ minHeight: "5rem" }}
                 />
-                <div className="flex items-center gap-2 pt-1">
+                <div className="flex items-center gap-2">
                     <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className={`h-8 ${COMMENT_PRIMARY_BUTTON_CLASS}`}
+                        className={`h-7 ${COMMENT_PRIMARY_BUTTON_CLASS}`}
                         disabled={!hasContent || saving || !canComment}
                         onClick={handleSubmit}
                     >

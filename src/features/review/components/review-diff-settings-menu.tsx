@@ -23,7 +23,14 @@ export function ReviewDiffSettingsMenu({ viewMode, onViewModeChange, onOpenDiffS
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" aria-label="Diff view settings" title="Diff view settings">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                    aria-label="Diff view settings"
+                    title="Diff view settings"
+                >
                     <SlidersHorizontal className="size-3.5" />
                 </Button>
             </DropdownMenuTrigger>
@@ -32,12 +39,12 @@ export function ReviewDiffSettingsMenu({ viewMode, onViewModeChange, onOpenDiffS
                 <DropdownMenuItem className="cursor-pointer py-1.5 text-[12px] flex items-center gap-2" onSelect={() => onViewModeChange("single")}>
                     <FileCode2 className="size-3.5 text-muted-foreground" />
                     <span className="flex-1 text-left">Single file view</span>
-                    {viewMode === "single" ? <Check className="size-3 text-accent-foreground" /> : null}
+                    {viewMode === "single" ? <Check className="size-3.5 text-accent" /> : null}
                 </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer py-1.5 text-[12px] flex items-center gap-2" onSelect={() => onViewModeChange("all")}>
                     <Files className="size-3.5 text-muted-foreground" />
                     <span className="flex-1 text-left">Multi-file view</span>
-                    {viewMode === "all" ? <Check className="size-3 text-accent-foreground" /> : null}
+                    {viewMode === "all" ? <Check className="size-3.5 text-accent" /> : null}
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator />
@@ -46,12 +53,12 @@ export function ReviewDiffSettingsMenu({ viewMode, onViewModeChange, onOpenDiffS
                 <DropdownMenuItem className="cursor-pointer py-1.5 text-[12px] flex items-center gap-2" onSelect={() => setOption("diffStyle", "unified")}>
                     <Rows3 className="size-3.5 text-muted-foreground" />
                     <span className="flex-1 text-left">Unified</span>
-                    {diffStyle === "unified" ? <Check className="size-3 text-accent-foreground" /> : null}
+                    {diffStyle === "unified" ? <Check className="size-3.5 text-accent" /> : null}
                 </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer py-1.5 text-[12px] flex items-center gap-2" onSelect={() => setOption("diffStyle", "split")}>
                     <SquareSplitVertical className="size-3.5 text-muted-foreground" />
                     <span className="flex-1 text-left">Split</span>
-                    {diffStyle === "split" ? <Check className="size-3 text-accent-foreground" /> : null}
+                    {diffStyle === "split" ? <Check className="size-3.5 text-accent" /> : null}
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator />

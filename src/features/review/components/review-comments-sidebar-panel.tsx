@@ -19,7 +19,7 @@ export function ReviewCommentsSidebarPanel({ threads, includeResolved, actions, 
                     ))}
                 </div>
             ) : (
-                <div className="px-4 py-6 text-[12px] text-muted-foreground">
+                <div className="px-4 py-10 text-center text-[12px] text-faint-foreground">
                     {includeResolved ? "No inline review threads for this pull request." : "No unresolved inline review threads."}
                 </div>
             )}

@@ -66,8 +66,8 @@ export function CommentEditor({
                 className={cn(
                     "flex items-center",
                     chrome === "full"
-                        ? "gap-1 rounded-t-md border-x border-t border-comment-border bg-comment-muted px-1.5 py-1"
-                        : "gap-0.5 border-b border-surface-hover bg-transparent px-0 py-0.5",
+                        ? "gap-0.5 rounded-t-md border-x border-t border-comment-border bg-comment-muted px-1.5 py-1"
+                        : "gap-0.5 border-b border-border-muted bg-transparent px-0 py-1",
                     toolbarClassName,
                 )}
             >
@@ -77,7 +77,7 @@ export function CommentEditor({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className={chrome === "full" ? "h-7 rounded-[2px] px-2" : "h-6 rounded-[2px] px-0.5 [&_svg]:-translate-x-0.5"}
+                        className="size-7 p-0 text-muted-foreground hover:text-foreground"
                         disabled={disabled}
                         onMouseDown={(event) => {
                             event.preventDefault();
@@ -106,9 +106,9 @@ export function CommentEditor({
                     }
                 }}
                 className={cn(
-                    "block w-full resize-none overflow-y-auto text-[13px] leading-relaxed transition-colors whitespace-pre-wrap break-words placeholder:text-muted-foreground focus-visible:outline-none",
+                    "block w-full resize-none overflow-y-auto text-[13px] leading-relaxed transition-colors whitespace-pre-wrap break-words placeholder:text-faint-foreground focus-visible:outline-none",
                     chrome === "full"
-                        ? "rounded-b-md border border-comment-border bg-comment px-3 py-2 group-focus-within/editor:border-input"
+                        ? "rounded-b-md border border-comment-border bg-comment px-3 py-2 group-focus-within/editor:border-ring"
                         : "bg-transparent p-0",
                 )}
             />
